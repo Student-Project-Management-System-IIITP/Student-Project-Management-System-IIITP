@@ -2,6 +2,9 @@ const express = require('express');
 const cors = require('cors');
 require('dotenv').config();
 
+// Import database connection
+const { connectDB } = require('./config/database');
+
 // Import routes and middleware
 const indexRoutes = require('./routes');
 const errorHandler = require('./middleware/errorHandler');
@@ -23,8 +26,22 @@ app.use(notFound);
 app.use(errorHandler);
 
 // Start server
-app.listen(PORT, () => {
-  console.log(`🚀 SPMS Backend Server running on port ${PORT}`);
-  console.log(`📡 API Base URL: http://localhost:${PORT}`);
-  console.log(`🏗️  MVC Structure: Controllers, Models, Routes, Middleware`);
-});
+const startServer = async () => {
+  try {
+    // Connect to database first
+    await connectDB();
+    
+    // Start the server
+    app.listen(PORT, () => {
+      console.log(`🚀 SPMS Backend Server running on port ${PORT}`);
+      console.log(`📡 API Base URL: http://localhost:${PORT}`);
+      console.log(`🏗️  MVC Structure: Controllers, Models, Routes, Middleware`);
+      console.log(`🗄️  Database: MongoDB Atlas Connected`);
+    });
+  } catch (error) {
+    console.error('❌ Failed to start server:', error);
+    process.exit(1);
+  }
+};
+
+startServer();
