@@ -114,7 +114,6 @@ const signupFaculty = async (req, res) => {
   try {
     const { 
       fullName, 
-      facultyId, 
       department, 
       mode, 
       designation, 
@@ -125,7 +124,7 @@ const signupFaculty = async (req, res) => {
     } = req.body;
 
     // Validate required fields
-    if (!fullName || !facultyId || !department || !mode || !designation || !collegeEmail || !contactNumber || !password || !confirmPassword) {
+    if (!fullName || !department || !mode || !designation || !collegeEmail || !contactNumber || !password || !confirmPassword) {
       return res.status(400).json({
         success: false,
         message: 'Please provide all required fields'
@@ -149,14 +148,7 @@ const signupFaculty = async (req, res) => {
       });
     }
 
-    // Check if faculty ID already exists
-    const existingFaculty = await Faculty.findOne({ facultyId });
-    if (existingFaculty) {
-      return res.status(400).json({
-        success: false,
-        message: 'Faculty with this ID already exists'
-      });
-    }
+    // Note: facultyId is removed from the schema; no uniqueness check needed
 
     // Create user with college email (password will be hashed by pre-save hook)
     const user = new User({
@@ -172,7 +164,6 @@ const signupFaculty = async (req, res) => {
     // Create faculty profile
     const faculty = new Faculty({
       user: user._id,
-      facultyId,
       department,
       mode,
       designation
