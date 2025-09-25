@@ -11,10 +11,10 @@ const adminSchema = new mongoose.Schema({
   
   // Admin Information
   adminId: {
-    type: String,
-    required: true,
-    unique: true,
-    uppercase: true
+  	type: String,
+  	required: true,
+  	unique: true,
+  	uppercase: true
   },
   department: {
     type: String,
@@ -63,15 +63,32 @@ adminSchema.pre('save', function(next) {
   next();
 });
 
-// Pre-save middleware to validate admin ID format
-adminSchema.pre('save', function(next) {
-  if (this.isModified('adminId')) {
-    // Admin ID format: ADMIN + 3 digits (e.g., ADMIN001)
-    if (!/^ADMIN\d{3}$/.test(this.adminId)) {
-      return next(new Error('Invalid admin ID format. Should be ADMIN followed by 3 digits.'));
+// Generate adminId if missing, and validate format
+adminSchema.pre('validate', async function(next) {
+  try {
+    if (!this.adminId) {
+      // Try a few times to generate a unique ADMIN + 3 digits id
+      for (let attempt = 0; attempt < 5; attempt++) {
+        const randomNum = Math.floor(Math.random() * 1000);
+        const candidate = `ADMIN${randomNum.toString().padStart(3, '0')}`;
+        const existing = await this.constructor.findOne({ adminId: candidate }).lean();
+        if (!existing) {
+          this.adminId = candidate;
+          break;
+        }
+      }
     }
+
+    if (this.isModified('adminId')) {
+      if (!/^ADMIN\d{3}$/.test(this.adminId)) {
+        return next(new Error('Invalid admin ID format. Should be ADMIN followed by 3 digits.'));
+      }
+    }
+
+    next();
+  } catch (err) {
+    next(err);
   }
-  next();
 });
 
 module.exports = mongoose.model('Admin', adminSchema);
