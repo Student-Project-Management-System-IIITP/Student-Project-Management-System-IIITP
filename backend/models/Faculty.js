@@ -9,7 +9,27 @@ const facultySchema = new mongoose.Schema({
     unique: true
   },
   
+  // Personal Information
+  fullName: {
+    type: String,
+    required: true,
+    trim: true,
+    maxlength: 100
+  },
+  phone: {
+    type: String,
+    required: true,
+    trim: true,
+    match: [/^[6-9]\d{9}$/, 'Please enter a valid 10-digit phone number']
+  },
+  
   // Faculty Information
+  facultyId: {
+    type: String,
+    required: true,
+    unique: true,
+    uppercase: true
+  },
   department: {
     type: String,
     required: true,
@@ -29,11 +49,7 @@ const facultySchema = new mongoose.Schema({
     default: 'Assistant Professor'
   },
   
-  // Status
-  isActive: {
-    type: Boolean,
-    default: true
-  },
+  // Faculty Status
   isRetired: {
     type: Boolean,
     default: false
@@ -55,12 +71,40 @@ const facultySchema = new mongoose.Schema({
 
 // Indexes for better performance
 facultySchema.index({ department: 1 });
-facultySchema.index({ isActive: 1 });
+// facultyId index is already created by unique: true
 
 // Pre-save middleware to update timestamps
 facultySchema.pre('save', function(next) {
   this.updatedAt = Date.now();
   next();
+});
+
+// Generate facultyId if missing, and validate format
+facultySchema.pre('validate', async function(next) {
+  try {
+    if (!this.facultyId) {
+      // Try a few times to generate a unique FAC + 3 digits id
+      for (let attempt = 0; attempt < 5; attempt++) {
+        const randomNum = Math.floor(Math.random() * 1000);
+        const candidate = `FAC${randomNum.toString().padStart(3, '0')}`;
+        const existing = await this.constructor.findOne({ facultyId: candidate }).lean();
+        if (!existing) {
+          this.facultyId = candidate;
+          break;
+        }
+      }
+    }
+
+    if (this.isModified('facultyId')) {
+      if (!/^FAC\d{3}$/.test(this.facultyId)) {
+        return next(new Error('Invalid faculty ID format. Should be FAC followed by 3 digits.'));
+      }
+    }
+
+    next();
+  } catch (err) {
+    next(err);
+  }
 });
 
 module.exports = mongoose.model('Faculty', facultySchema);

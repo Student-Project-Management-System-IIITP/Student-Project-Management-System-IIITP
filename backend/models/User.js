@@ -1,7 +1,7 @@
 const mongoose = require('mongoose');
 
 const userSchema = new mongoose.Schema({
-  // Basic Information
+  // Authentication Information
   email: {
     type: String,
     required: true,
@@ -18,19 +18,6 @@ const userSchema = new mongoose.Schema({
     type: String,
     enum: ['student', 'faculty', 'admin'],
     required: true
-  },
-  
-  // Personal Information
-  name: {
-    type: String,
-    required: true,
-    trim: true,
-    maxlength: 100
-  },
-  phone: {
-    type: String,
-    trim: true,
-    match: [/^[6-9]\d{9}$/, 'Please enter a valid 10-digit phone number']
   },
   
   // Account Status

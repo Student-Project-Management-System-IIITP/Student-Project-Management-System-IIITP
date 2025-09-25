@@ -1,4 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { authAPI } from '../utils/api';
+import { handleApiError } from '../utils/errorHandler';
 
 const AuthContext = createContext();
 
@@ -21,18 +23,10 @@ export const AuthProvider = ({ children }) => {
       try {
         const token = localStorage.getItem('token');
         if (token) {
-          const response = await fetch('http://localhost:3000/auth/verify', {
-            headers: { Authorization: `Bearer ${token}` }
-          });
-          
-          if (response.ok) {
-            const data = await response.json();
-            if (data.success) {
-              setUser(data.data.user);
-              setUserRole(data.data.user.role);
-            } else {
-              localStorage.removeItem('token');
-            }
+          const data = await authAPI.getProfile();
+          if (data.success) {
+            setUser(data.data.user);
+            setUserRole(data.data.user.role);
           } else {
             localStorage.removeItem('token');
           }
@@ -52,13 +46,7 @@ export const AuthProvider = ({ children }) => {
     try {
       setIsLoading(true);
       
-      const response = await fetch('http://localhost:3000/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password })
-      });
-      
-      const data = await response.json();
+      const data = await authAPI.login({ email, password });
       
       if (data.success) {
         const token = data.data.token;
@@ -71,7 +59,8 @@ export const AuthProvider = ({ children }) => {
         return { success: false, error: data.message };
       }
     } catch (error) {
-      return { success: false, error: 'Network error. Please try again.' };
+      const errorMessage = handleApiError(error, false);
+      return { success: false, error: errorMessage };
     } finally {
       setIsLoading(false);
     }
@@ -81,13 +70,7 @@ export const AuthProvider = ({ children }) => {
     try {
       setIsLoading(true);
       
-      const response = await fetch('http://localhost:3000/auth/signup/student', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(userData)
-      });
-      
-      const data = await response.json();
+      const data = await authAPI.registerStudent(userData);
       
       if (data.success) {
         // Signup successful - don't auto-login, just return success
@@ -96,7 +79,8 @@ export const AuthProvider = ({ children }) => {
         return { success: false, error: data.message };
       }
     } catch (error) {
-      return { success: false, error: 'Network error. Please try again.' };
+      const errorMessage = handleApiError(error, false);
+      return { success: false, error: errorMessage };
     } finally {
       setIsLoading(false);
     }

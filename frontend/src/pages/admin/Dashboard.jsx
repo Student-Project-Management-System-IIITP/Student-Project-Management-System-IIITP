@@ -1,5 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
+import { authAPI } from '../../utils/api';
+import { handleApiError } from '../../utils/errorHandler';
 
 // Helper to compute default password from a name: alpha-only, capitalize first letter, append @iiitp
 const computeDefaultPassword = (name) => {
@@ -62,12 +64,7 @@ const AdminDashboard = () => {
         confirmPassword: defaultPassword
       };
 
-      const res = await fetch('http://localhost:3000/auth/signup/admin', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-      const data = await res.json();
+      const data = await authAPI.registerAdmin(payload);
       if (data.success) {
         alert('Admin created successfully. Default password: ' + defaultPassword);
         setIsAddOpen(false);
@@ -76,7 +73,8 @@ const AdminDashboard = () => {
         alert(data.message || 'Failed to create admin');
       }
     } catch (err) {
-      alert('Network error. Please try again.');
+      const errorMessage = handleApiError(err, false);
+      alert(errorMessage);
     } finally {
       setIsSubmitting(false);
     }
@@ -99,12 +97,7 @@ const AdminDashboard = () => {
         confirmPassword: facultyDefaultPassword
       };
 
-      const res = await fetch('http://localhost:3000/auth/signup/faculty', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-      const data = await res.json();
+      const data = await authAPI.registerFaculty(payload);
       if (data.success) {
         alert('Faculty created successfully. Default password: ' + facultyDefaultPassword);
         setIsAddFacultyOpen(false);
@@ -113,7 +106,8 @@ const AdminDashboard = () => {
         alert(data.message || 'Failed to create faculty');
       }
     } catch (err) {
-      alert('Network error. Please try again.');
+      const errorMessage = handleApiError(err, false);
+      alert(errorMessage);
     } finally {
       setIsSubmittingFaculty(false);
     }

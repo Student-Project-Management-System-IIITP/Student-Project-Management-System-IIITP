@@ -9,6 +9,20 @@ const adminSchema = new mongoose.Schema({
     unique: true
   },
   
+  // Personal Information
+  fullName: {
+    type: String,
+    required: true,
+    trim: true,
+    maxlength: 100
+  },
+  phone: {
+    type: String,
+    required: true,
+    trim: true,
+    match: [/^[6-9]\d{9}$/, 'Please enter a valid 10-digit phone number']
+  },
+  
   // Admin Information
   adminId: {
   	type: String,
@@ -29,11 +43,7 @@ const adminSchema = new mongoose.Schema({
     default: 'Department Admin'
   },
   
-  // Status
-  isActive: {
-    type: Boolean,
-    default: true
-  },
+  // Admin Status
   isSuperAdmin: {
     type: Boolean,
     default: false
@@ -54,7 +64,6 @@ const adminSchema = new mongoose.Schema({
 
 // Indexes for better performance
 adminSchema.index({ department: 1 });
-adminSchema.index({ isActive: 1 });
 adminSchema.index({ isSuperAdmin: 1 });
 
 // Pre-save middleware to update timestamps

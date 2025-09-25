@@ -84,11 +84,7 @@ const studentSchema = new mongoose.Schema({
     }
   }],
   
-  // Status
-  isActive: {
-    type: Boolean,
-    default: true
-  },
+  // Student Status
   isGraduated: {
     type: Boolean,
     default: false
@@ -111,7 +107,7 @@ const studentSchema = new mongoose.Schema({
 // Indexes for better performance
 studentSchema.index({ branch: 1 });
 studentSchema.index({ semester: 1 });
-studentSchema.index({ isActive: 1 });
+studentSchema.index({ degree: 1 });
 // misNumber index is already created by unique: true
 
 // Virtual for auto-detecting year from semester
