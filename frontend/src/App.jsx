@@ -11,52 +11,60 @@ import AdminDashboard from './pages/admin/Dashboard';
 import NotFound from './pages/NotFound';
 import AdminProfile from './pages/admin/Profile';
 
-// Protected Route Component
-const ProtectedRoute = ({ children, allowedRoles }) => {
-  const { isAuthenticated, userRole, isLoading } = useAuth();
-  
-  if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading...</p>
-        </div>
-      </div>
-    );
-  }
-  
-  if (!isAuthenticated) {
-    return <Navigate to="/login" replace />;
-  }
-  
-  if (allowedRoles && !allowedRoles.includes(userRole)) {
-    return <Navigate to="/" replace />;
-  }
-  
-  return children;
-};
-
-// Dashboard Route Component
-const DashboardRoute = () => {
-  const { userRole } = useAuth();
-  
-  switch (userRole) {
-    case 'student':
-      return <Navigate to="/dashboard/student" replace />;
-    case 'faculty':
-      return <Navigate to="/dashboard/faculty" replace />;
-    case 'admin':
-      return <Navigate to="/dashboard/admin" replace />;
-    default:
-      return <Navigate to="/" replace />;
-  }
-};
-
 function App() {
   return (
     <AuthProvider>
-      <Router>
+      <AppContent />
+    </AuthProvider>
+  );
+}
+
+// App Content Component (inside AuthProvider context)
+function AppContent() {
+  // Protected Route Component
+  const ProtectedRoute = ({ children, allowedRoles }) => {
+    const { isAuthenticated, userRole, isLoading } = useAuth();
+    
+    if (isLoading) {
+      return (
+        <div className="min-h-screen flex items-center justify-center">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+            <p className="mt-4 text-gray-600">Loading...</p>
+          </div>
+        </div>
+      );
+    }
+    
+    if (!isAuthenticated) {
+      return <Navigate to="/login" replace />;
+    }
+    
+    if (allowedRoles && !allowedRoles.includes(userRole)) {
+      return <Navigate to="/" replace />;
+    }
+    
+    return children;
+  };
+
+  // Dashboard Route Component
+  const DashboardRoute = () => {
+    const { userRole } = useAuth();
+    
+    switch (userRole) {
+      case 'student':
+        return <Navigate to="/dashboard/student" replace />;
+      case 'faculty':
+        return <Navigate to="/dashboard/faculty" replace />;
+      case 'admin':
+        return <Navigate to="/dashboard/admin" replace />;
+      default:
+        return <Navigate to="/" replace />;
+    }
+  };
+
+  return (
+    <Router>
         <Routes>
           <Route path="/" element={
             <Layout>
@@ -108,8 +116,7 @@ function App() {
             </Layout>
           } />
         </Routes>
-      </Router>
-    </AuthProvider>
+    </Router>
   );
 }
 

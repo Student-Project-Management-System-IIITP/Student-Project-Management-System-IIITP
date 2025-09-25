@@ -154,8 +154,6 @@ const signupFaculty = async (req, res) => {
     const user = new User({
       email: collegeEmail,
       password: password,
-      name: fullName,
-      phone: contactNumber,
       role: 'faculty'
     });
 
@@ -164,6 +162,8 @@ const signupFaculty = async (req, res) => {
     // Create faculty profile
     const faculty = new Faculty({
       user: user._id,
+      fullName,
+      phone: contactNumber,
       department,
       mode,
       designation
@@ -238,8 +238,6 @@ const signupAdmin = async (req, res) => {
     const user = new User({
       email: collegeEmail,
       password: password,
-      name: fullName,
-      phone: contactNumber,
       role: 'admin'
     });
 
@@ -248,6 +246,8 @@ const signupAdmin = async (req, res) => {
     // Create admin profile
     const admin = new Admin({
       user: user._id,
+      fullName,
+      phone: contactNumber,
       department,
       designation
     });

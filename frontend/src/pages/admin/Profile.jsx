@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
+import { authAPI } from '../../utils/api';
+import { handleApiError } from '../../utils/errorHandler';
 
 const AdminProfile = () => {
   const { user } = useAuth();
@@ -14,16 +16,12 @@ const AdminProfile = () => {
   useEffect(() => {
     const fetchProfile = async () => {
       try {
-        const token = localStorage.getItem('token');
-        const res = await fetch('http://localhost:3000/auth/profile', {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        const data = await res.json();
+        const data = await authAPI.getProfile();
         if (data.success) {
           setAdmin(data.data.roleData || null);
         }
       } catch (err) {
-        // noop
+        console.error('Error fetching profile:', err);
       } finally {
         setLoading(false);
       }
@@ -125,19 +123,10 @@ const AdminProfile = () => {
                 }
                 try {
                   setPwSubmitting(true);
-                  const token = localStorage.getItem('token');
-                  const res = await fetch('http://localhost:3000/admin/change-password', {
-                    method: 'PUT',
-                    headers: {
-                      'Content-Type': 'application/json',
-                      Authorization: `Bearer ${token}`
-                    },
-                    body: JSON.stringify({
-                      currentPassword: pwForm.currentPassword,
-                      newPassword: pwForm.newPassword
-                    })
+                  const data = await authAPI.changePassword({
+                    currentPassword: pwForm.currentPassword,
+                    newPassword: pwForm.newPassword
                   });
-                  const data = await res.json();
                   if (data.success) {
                     setPwSuccess('Password changed successfully');
                     setPwForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
