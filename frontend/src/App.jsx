@@ -1,31 +1,108 @@
-function App() {
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
-      <div className="max-w-md mx-auto bg-white rounded-2xl shadow-xl overflow-hidden">
-        <div className="p-8">
-          <div className="text-center">
-            <div className="w-16 h-16 bg-blue-500 rounded-full mx-auto mb-4 flex items-center justify-center">
-              <span className="text-white text-2xl font-bold">SP</span>
-            </div>
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">
-              Student Project Management System
-            </h1>
-            <p className="text-gray-600 mb-6">
-              Welcome to SPMS - IIITP
-            </p>
-            <div className="space-y-3">
-              <button className="w-full bg-blue-500 hover:bg-blue-600 text-white font-semibold py-3 px-6 rounded-lg transition duration-200 transform hover:scale-105">
-                Get Started
-              </button>
-              <button className="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold py-3 px-6 rounded-lg transition duration-200">
-                Learn More
-              </button>
-            </div>
-          </div>
+import React from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { AuthProvider, useAuth } from './context/AuthContext';
+import Layout from './components/common/Layout';
+import Home from './pages/Home';
+import Login from './pages/auth/Login';
+import Signup from './pages/auth/Signup';
+import StudentDashboard from './pages/student/Dashboard';
+import FacultyDashboard from './pages/faculty/Dashboard';
+import AdminDashboard from './pages/admin/Dashboard';
+import NotFound from './pages/NotFound';
+
+// Protected Route Component
+const ProtectedRoute = ({ children, allowedRoles }) => {
+  const { isAuthenticated, userRole, isLoading } = useAuth();
+  
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading...</p>
         </div>
       </div>
-    </div>
-  )
+    );
+  }
+  
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />;
+  }
+  
+  if (allowedRoles && !allowedRoles.includes(userRole)) {
+    return <Navigate to="/" replace />;
+  }
+  
+  return children;
+};
+
+// Dashboard Route Component
+const DashboardRoute = () => {
+  const { userRole } = useAuth();
+  
+  switch (userRole) {
+    case 'student':
+      return <Navigate to="/dashboard/student" replace />;
+    case 'faculty':
+      return <Navigate to="/dashboard/faculty" replace />;
+    case 'admin':
+      return <Navigate to="/dashboard/admin" replace />;
+    default:
+      return <Navigate to="/" replace />;
+  }
+};
+
+function App() {
+  return (
+    <AuthProvider>
+      <Router>
+        <Routes>
+          <Route path="/" element={
+            <Layout>
+              <Home />
+            </Layout>
+          } />
+          <Route path="/login" element={
+            <Layout>
+              <Login />
+            </Layout>
+          } />
+          <Route path="/signup" element={
+            <Layout>
+              <Signup />
+            </Layout>
+          } />
+          <Route path="/dashboard" element={<DashboardRoute />} />
+          <Route path="/dashboard/student" element={
+            <ProtectedRoute allowedRoles={['student']}>
+              <Layout>
+                <StudentDashboard />
+              </Layout>
+            </ProtectedRoute>
+          } />
+          <Route path="/dashboard/faculty" element={
+            <ProtectedRoute allowedRoles={['faculty']}>
+              <Layout>
+                <FacultyDashboard />
+              </Layout>
+            </ProtectedRoute>
+          } />
+          <Route path="/dashboard/admin" element={
+            <ProtectedRoute allowedRoles={['admin']}>
+              <Layout>
+                <AdminDashboard />
+              </Layout>
+            </ProtectedRoute>
+          } />
+          <Route path="*" element={
+            <Layout>
+              <NotFound />
+            </Layout>
+          } />
+        </Routes>
+      </Router>
+    </AuthProvider>
+  );
 }
 
 export default App
