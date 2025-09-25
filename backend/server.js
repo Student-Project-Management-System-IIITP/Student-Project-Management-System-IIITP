@@ -1,6 +1,16 @@
 const express = require('express');
 const cors = require('cors');
-require('dotenv').config();
+
+// Suppress dotenv messages
+const originalConsoleLog = console.log;
+console.log = (...args) => {
+  if (args[0] && typeof args[0] === 'string' && args[0].includes('[dotenv@')) {
+    return; // Suppress dotenv messages
+  }
+  originalConsoleLog(...args);
+};
+
+require('dotenv').config({ debug: false, silent: true });
 
 // Import database connection
 const { connectDB } = require('./config/database');
@@ -11,12 +21,13 @@ const errorHandler = require('./middleware/errorHandler');
 const notFound = require('./middleware/notFound');
 
 const app = express();
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 3000;
 
 // Middleware
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
 
 // Routes
 app.use('/', indexRoutes);
@@ -33,10 +44,7 @@ const startServer = async () => {
     
     // Start the server
     app.listen(PORT, () => {
-      console.log(`🚀 SPMS Backend Server running on port ${PORT}`);
-      console.log(`📡 API Base URL: http://localhost:${PORT}`);
-      console.log(`🏗️  MVC Structure: Controllers, Models, Routes, Middleware`);
-      console.log(`🗄️  Database: MongoDB Atlas Connected`);
+      console.log(`🚀 Backend Server running on http://localhost:${PORT}`);
     });
   } catch (error) {
     console.error('❌ Failed to start server:', error);

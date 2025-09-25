@@ -27,72 +27,6 @@ SPMS (Student Project Management System) is a comprehensive web application desi
 - System configuration
 - Reports and analytics
 
-## 🏗️ **Project Structure**
-
-```
-SPMS@IIITP/
-├── 📁 frontend/          # React Vite Frontend
-├── 📁 backend/           # Node.js Express Backend
-├── 📁 shared/            # Shared utilities
-├── 📁 docs/              # Documentation
-└── README.md
-```
-
-## 🚀 **Getting Started**
-
-### **Prerequisites**
-- Node.js (v20.19+ or v22.12+)
-- MongoDB Atlas account
-- Git
-
-### **Installation**
-
-1. **Clone the repository**
-   ```bash
-   git clone https://github.com/Student-Project-Management-System-IIITP/Student-Project-Management-System-IIITP.git
-   cd SPMS@IIITP
-   ```
-
-2. **Backend Setup**
-   ```bash
-   cd backend
-   npm install
-   cp .env.example .env
-   # Update .env with your MongoDB credentials
-   npm run dev
-   ```
-
-3. **Frontend Setup**
-   ```bash
-   cd frontend
-   npm install
-   npm run dev
-   ```
-
-### **Environment Variables**
-
-Create a `.env` file in the backend directory:
-```env
-# Server Configuration
-PORT=3000
-NODE_ENV=development
-
-# MongoDB Configuration
-MONGODB_URI=mongodb+srv://username:password@cluster.mongodb.net/?retryWrites=true&w=majority&appName=SPMS
-
-# JWT Configuration
-JWT_SECRET=your_super_secret_jwt_key_here
-JWT_EXPIRES_IN=7d
-
-# CORS Configuration
-CORS_ORIGIN=http://localhost:5173
-```
-
-## 📚 **Documentation**
-
-- [Directory Structure](docs/DIRECTORY_STRUCTURE.md) - Complete project structure
-- [User-Specific Structure](docs/USER_SPECIFIC_STRUCTURE.md) - User-specific features and workflows
-
 ## 🛠️ **Tech Stack**
 
 ### **Frontend**
@@ -109,7 +43,6 @@ CORS_ORIGIN=http://localhost:5173
 
 ### **Database**
 - MongoDB Atlas
-- Mongoose ODM
 
 ## 🔐 **Security Features**
 
@@ -141,22 +74,4 @@ CORS_ORIGIN=http://localhost:5173
 - System configuration
 - Reports and analytics
 
-## 🤝 **Contributing**
-
-1. Fork the repository
-2. Create a feature branch
-3. Commit your changes
-4. Push to the branch
-5. Create a Pull Request
-
-## 📄 **License**
-
-This project is licensed under the MIT License.
-
-## 📞 **Contact**
-
-For questions or support, please contact the development team.
-
----
-
-**SPMS - Streamlining Project Management at IIIT Pune** 🎓
+**SPMS@IIITP - Student Project Management System at IIIT Pune** 🎓
