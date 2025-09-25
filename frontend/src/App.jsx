@@ -9,6 +9,7 @@ import StudentDashboard from './pages/student/Dashboard';
 import FacultyDashboard from './pages/faculty/Dashboard';
 import AdminDashboard from './pages/admin/Dashboard';
 import NotFound from './pages/NotFound';
+import AdminProfile from './pages/admin/Profile';
 
 // Protected Route Component
 const ProtectedRoute = ({ children, allowedRoles }) => {
@@ -91,6 +92,13 @@ function App() {
             <ProtectedRoute allowedRoles={['admin']}>
               <Layout>
                 <AdminDashboard />
+              </Layout>
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/profile" element={
+            <ProtectedRoute allowedRoles={['admin']}>
+              <Layout>
+                <AdminProfile />
               </Layout>
             </ProtectedRoute>
           } />
