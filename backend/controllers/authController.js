@@ -208,7 +208,6 @@ const signupAdmin = async (req, res) => {
   try {
     const { 
       fullName, 
-      adminId, 
       department, 
       designation, 
       collegeEmail, 
@@ -218,7 +217,7 @@ const signupAdmin = async (req, res) => {
     } = req.body;
 
     // Validate required fields
-    if (!fullName || !adminId || !department || !designation || !collegeEmail || !contactNumber || !password || !confirmPassword) {
+    if (!fullName || !department || !designation || !collegeEmail || !contactNumber || !password || !confirmPassword) {
       return res.status(400).json({
         success: false,
         message: 'Please provide all required fields'
@@ -242,14 +241,7 @@ const signupAdmin = async (req, res) => {
       });
     }
 
-    // Check if admin ID already exists
-    const existingAdmin = await Admin.findOne({ adminId });
-    if (existingAdmin) {
-      return res.status(400).json({
-        success: false,
-        message: 'Admin with this ID already exists'
-      });
-    }
+    // Note: adminId is optional. If not provided, model will auto-generate.
 
     // Create user with college email (password will be hashed by pre-save hook)
     const user = new User({
@@ -265,7 +257,6 @@ const signupAdmin = async (req, res) => {
     // Create admin profile
     const admin = new Admin({
       user: user._id,
-      adminId,
       department,
       designation
     });
