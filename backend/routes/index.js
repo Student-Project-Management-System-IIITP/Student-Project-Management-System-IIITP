@@ -10,4 +10,8 @@ router.get('/', getHome);
 const authRoutes = require('./auth');
 router.use('/auth', authRoutes);
 
+// Admin routes
+const adminRoutes = require('./adminRoutes');
+router.use('/admin', adminRoutes);
+
 module.exports = router;

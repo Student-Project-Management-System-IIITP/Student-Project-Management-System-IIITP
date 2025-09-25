@@ -16,10 +16,16 @@ const Navbar = ({ userRole = null, user = null }) => {
     }
 
     // Only essential navigation items for now
-    return [
-      { name: 'Dashboard', path: `/dashboard/${userRole}`, icon: '📊' },
-      { name: 'Profile', path: `/${userRole}/profile`, icon: '👤' }
+    const items = [
+      { name: 'Dashboard', path: `/dashboard/${userRole}`, icon: '📊' }
     ];
+
+    // Show Profile only for admin role per requirement
+    if (userRole === 'admin') {
+      items.push({ name: 'Profile', path: `/admin/profile`, icon: '👤' });
+    }
+
+    return items;
   };
 
   const navigationItems = getNavigationItems();

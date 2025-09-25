@@ -479,9 +479,8 @@ const changePassword = async (req, res) => {
       });
     }
 
-    // Hash new password
-    const hashedPassword = await bcrypt.hash(newPassword, 12);
-    user.password = hashedPassword;
+    // Assign raw new password; it will be hashed by the User model pre-save hook
+    user.password = newPassword;
     await user.save();
 
     res.status(200).json({
