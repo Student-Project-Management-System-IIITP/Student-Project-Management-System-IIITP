@@ -19,7 +19,7 @@ const adminSchema = new mongoose.Schema({
   department: {
     type: String,
     required: true,
-    enum: ['CSE', 'ECE', 'ASH', 'Administration'],
+    enum: ['CSE', 'ECE', 'ASH', 'ADMINISTRATION'],
     uppercase: true
   },
   designation: {
