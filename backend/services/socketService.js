@@ -288,6 +288,22 @@ class SocketService {
     await this.broadcastInvitationRejection(groupId, studentData);
   }
 
+  async notifyInvitationAutoRejected(studentId, groupId, reason) {
+    try {
+      const student = await Student.findById(studentId).populate('user');
+      if (student && student.user) {
+        this.io.to(`user_${student.user._id}`).emit('invitation_update', {
+          type: 'auto_rejected',
+          groupId,
+          reason,
+          timestamp: new Date()
+        });
+      }
+    } catch (error) {
+      console.error('Error sending auto-rejection notification:', error);
+    }
+  }
+
   async notifyGroupFormationStart(groupId, starterData) {
     this.io.to(`group_${groupId}`).emit('group_formation_start', {
       type: 'group_formation_start',

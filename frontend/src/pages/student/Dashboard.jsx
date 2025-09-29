@@ -218,16 +218,7 @@ const StudentDashboard = () => {
       }
 
       // Additional actions if applicable
-      if (getPendingInvitationsCount() > 0) {
-        actions.push({
-          title: 'Group Invitations',
-          description: `${getPendingInvitationsCount()} pending invitation(s)`,
-          icon: '📨',
-          link: '/student/groups/invitations',
-          color: 'bg-orange-50 border-orange-200 hover:bg-orange-100',
-          textColor: 'text-orange-800',
-        });
-      }
+      // Note: Group Invitations removed from quick actions as it's handled in the dedicated section below
 
 
       // Fallback: Ensure Sem 5 students ALWAYS get Create Group if no actions exist
@@ -597,6 +588,61 @@ const StudentDashboard = () => {
                     </div>
                   </div>
 
+                  {/* Group Members - Show when group is finalized */}
+                  {sem5Group.status === 'finalized' && sem5Group.members && sem5Group.members.length > 0 && (
+                    <div className="mt-4">
+                      <h4 className="text-sm font-medium text-gray-700 mb-3">Group Members</h4>
+                      <div className="space-y-2">
+                        {sem5Group.members
+                          .filter(member => member.isActive)
+                          .map((member, index) => (
+                          <div key={member.student?._id || index} className="flex items-center space-x-3 p-2 bg-gray-50 rounded-lg">
+                            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
+                              member.role === 'leader' 
+                                ? 'bg-purple-100 text-purple-800' 
+                                : 'bg-blue-100 text-blue-800'
+                            }`}>
+                              {member.student?.fullName?.charAt(0) || '?'}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center space-x-2">
+                                <p className="text-sm font-medium text-gray-900 truncate">
+                                  {member.student?.fullName || 'Unknown Member'}
+                                </p>
+                                {member.role === 'leader' && (
+                                  <span className="text-xs bg-purple-100 text-purple-800 px-1.5 py-0.5 rounded-full font-medium">
+                                    👑 Leader
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-xs text-gray-500 truncate">
+                                {member.student?.misNumber || 'MIS# -'} 
+                                {member.student?.branch && ` • ${member.student.branch}`}
+                              </p>
+                            </div>
+                            <div className="text-xs text-gray-400">
+                              {member.joinedAt ? new Date(member.joinedAt).toLocaleDateString() : 'N/A'}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      
+                      {/* Finalized status indicator */}
+                      <div className="mt-3 p-2 bg-green-50 border border-green-200 rounded-lg">
+                        <div className="flex items-center space-x-2">
+                          <div className="w-4 h-4 bg-green-500 rounded-full flex items-center justify-center">
+                            <svg className="w-2.5 h-2.5 text-white" fill="currentColor" viewBox="0 0 20 20">
+                              <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                            </svg>
+                          </div>
+                          <span className="text-xs font-medium text-green-800">
+                            Group Finalized • {sem5Group.finalizedAt ? new Date(sem5Group.finalizedAt).toLocaleDateString() : 'Recently'}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
                   {/* Warning for incomplete groups */}
                   {getGroupStats().memberCount < 2 && (
                     <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
@@ -617,13 +663,28 @@ const StudentDashboard = () => {
                   {/* Group Progress */}
                   <div className="mt-4">
                     <div className="flex justify-between text-sm text-gray-600 mb-1">
-                      <span>Group Formation Progress</span>
-                      <span>{Math.round(getGroupStats().memberCount / getGroupStats().maxMembers * 100)}%</span>
+                      <span>
+                        {sem5Group.status === 'finalized' ? 'Group Status' : 'Group Formation Progress'}
+                      </span>
+                      <span>
+                        {sem5Group.status === 'finalized' 
+                          ? 'Finalized' 
+                          : `${Math.round(getGroupStats().memberCount / getGroupStats().maxMembers * 100)}%`
+                        }
+                      </span>
                     </div>
                     <div className="w-full bg-gray-200 rounded-full h-2">
                       <div 
-                        className="bg-blue-600 h-2 rounded-full transition-all duration-300"
-                        style={{ width: `${Math.round(getGroupStats().memberCount / getGroupStats().maxMembers * 100)}%` }}
+                        className={`h-2 rounded-full transition-all duration-300 ${
+                          sem5Group.status === 'finalized' 
+                            ? 'bg-green-500' 
+                            : 'bg-blue-600'
+                        }`}
+                        style={{ 
+                          width: sem5Group.status === 'finalized' 
+                            ? '100%' 
+                            : `${Math.round(getGroupStats().memberCount / getGroupStats().maxMembers * 100)}%` 
+                        }}
                       ></div>
                     </div>
                   </div>
@@ -632,9 +693,16 @@ const StudentDashboard = () => {
                   <div className="mt-4 space-y-2">
                     <Link
                       to={`/student/groups/${sem5Group._id}/dashboard`}
-                      className="block w-full text-center px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700"
+                      className={`block w-full text-center px-4 py-2 text-white text-sm font-medium rounded-md ${
+                        sem5Group.status === 'finalized'
+                          ? 'bg-green-600 hover:bg-green-700'
+                          : 'bg-blue-600 hover:bg-blue-700'
+                      }`}
                     >
-                      View Group Dashboard
+                      {sem5Group.status === 'finalized' 
+                        ? 'View Finalized Group' 
+                        : 'View Group Dashboard'
+                      }
                     </Link>
                   </div>
                 </div>

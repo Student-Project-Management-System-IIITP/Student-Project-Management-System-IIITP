@@ -51,7 +51,7 @@ const studentSchema = new mongoose.Schema({
   branch: {
     type: String,
     required: true,
-    enum: ['CSE', 'ECE', 'ASH'],
+    enum: ['CSE', 'ECE'],
     uppercase: true
   },
   

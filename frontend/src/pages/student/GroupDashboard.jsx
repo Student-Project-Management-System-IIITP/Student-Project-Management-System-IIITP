@@ -8,6 +8,7 @@ import websocketManager from '../../utils/websocket';
 import GroupMemberList from '../../components/groups/GroupMemberList';
 import StatusBadge from '../../components/common/StatusBadge';
 import StudentSearch from '../../components/groups/StudentSearch';
+import Layout from '../../components/common/Layout';
 
 const GroupDashboard = () => {
   const navigate = useNavigate();
@@ -34,8 +35,66 @@ const GroupDashboard = () => {
     fetchSem5Data,
     inviteToGroup,
     canInviteMembers,
-    getAvailableSlots
+    getAvailableSlots,
+    finalizeGroup
   } = useGroupManagement();
+
+  // Sync groupDetails with sem5Group from context
+  useEffect(() => {
+    if (sem5Group && sem5Group._id === groupId) {
+      setGroupDetails(sem5Group);
+    }
+  }, [sem5Group, groupId]);
+
+  // Additional sync to ensure real-time updates
+  useEffect(() => {
+    if (sem5Group && sem5Group._id === groupId) {
+      // Force update if the group status has changed
+      setGroupDetails(prev => {
+        if (prev && prev.status !== sem5Group.status) {
+          return sem5Group;
+        }
+        return prev;
+      });
+    }
+  }, [sem5Group?.status, groupId]);
+
+  // Finalize group state
+  const [finalizeLoading, setFinalizeLoading] = useState(false);
+
+  // Check if group can be finalized
+  const canFinalizeGroup = useCallback(() => {
+    if (!groupDetails || !isGroupLeader) return false;
+    
+    // Check if group is already finalized
+    if (groupDetails.status === 'finalized' || groupDetails.status === 'locked') {
+      return false;
+    }
+    
+    // Check if group has minimum required members (4)
+    const activeMembers = groupDetails.members?.filter(member => member.isActive) || [];
+    const minMembers = groupDetails.minMembers || 4;
+    
+    if (activeMembers.length < minMembers) {
+      return false;
+    }
+    
+    // Check if all members have accepted their invitations
+    const pendingMembers = activeMembers.filter(member => 
+      member.inviteStatus !== 'accepted'
+    );
+    
+    if (pendingMembers.length > 0) {
+      return false;
+    }
+    
+    return true;
+  }, [groupDetails, isGroupLeader]);
+
+  // Check if group is finalized
+  const isGroupFinalized = useCallback(() => {
+    return groupDetails?.status === 'finalized' || groupDetails?.status === 'locked';
+  }, [groupDetails]);
 
 
 
@@ -227,12 +286,37 @@ const GroupDashboard = () => {
     };
 
     const handleGroupFinalized = (payload) => {
+      // Immediately update local state to reflect finalization
+      setGroupDetails(prev => ({
+        ...prev,
+        status: 'finalized',
+        finalizedAt: payload.data.finalizedAt || new Date().toISOString()
+      }));
+      
+      // Update populated invites to show auto-rejected status for pending invitations
+      setPopulatedInvites(prev => prev.map(invite => {
+        if (invite.status === 'pending') {
+          return {
+            ...invite,
+            status: 'auto-rejected',
+            respondedAt: payload.data.finalizedAt || new Date().toISOString(),
+            rejectionReason: 'Group has been finalized'
+          };
+        }
+        return invite;
+      }));
+      
+      // Show immediate toast notification
+      toast.success('Group has been finalized! All changes are now locked.');
+      
       setRealTimeUpdates(prev => [...prev, {
         type: 'group_finalized',
         message: `Group has been finalized by ${payload.data.finalizedBy.fullName}`,
         timestamp: new Date(),
         isPositive: true
       }]);
+      
+      // Also refresh context data to ensure consistency
       fetchSem5Data();
     };
 
@@ -375,6 +459,70 @@ const GroupDashboard = () => {
     setSearchTerm('');
   }, []);
 
+  // Handle finalize group
+  const handleFinalizeGroup = useCallback(async () => {
+    if (!groupDetails) return;
+
+    const confirmMessage = `Are you sure you want to finalize this group? This action will:\n\n• Lock all member roles and assignments\n• Cancel all pending invitations\n• Make the group permanent and unchangeable\n\nThis action cannot be undone.`;
+    
+    if (!window.confirm(confirmMessage)) {
+      return;
+    }
+
+    setFinalizeLoading(true);
+    try {
+      const response = await finalizeGroup(groupDetails._id);
+      
+      // Immediately update local state to reflect finalization
+      if (response && response.success) {
+        setGroupDetails(prev => ({
+          ...prev,
+          status: 'finalized',
+          finalizedAt: new Date().toISOString()
+        }));
+        
+        // Update populated invites to show auto-rejected status for pending invitations
+        setPopulatedInvites(prev => prev.map(invite => {
+          if (invite.status === 'pending') {
+            return {
+              ...invite,
+              status: 'auto-rejected',
+              respondedAt: new Date().toISOString(),
+              rejectionReason: 'Group has been finalized'
+            };
+          }
+          return invite;
+        }));
+      }
+      
+      // Also refresh context data to ensure consistency
+      await fetchSem5Data();
+      
+      // Refresh group details to get the latest data
+      await refreshGroupData();
+      
+      // Show success message
+      toast.success('Group has been finalized successfully!');
+    } catch (error) {
+      console.error('Error finalizing group:', error);
+      
+      let errorMessage = 'Failed to finalize group';
+      if (error.message.includes('Only group leader can finalize')) {
+        errorMessage = 'Only the group leader can finalize the group';
+      } else if (error.message.includes('Group must have at least')) {
+        errorMessage = 'Group must have at least 4 members to be finalized';
+      } else if (error.message.includes('Group is already finalized')) {
+        errorMessage = 'Group is already finalized';
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
+      toast.error(errorMessage);
+    } finally {
+      setFinalizeLoading(false);
+    }
+  }, [groupDetails, finalizeGroup, fetchSem5Data]);
+
   // Prevent background scroll when modal is open
   useEffect(() => {
     if (showInviteModal) {
@@ -391,35 +539,75 @@ const GroupDashboard = () => {
     };
   }, [showInviteModal]);
 
-  // SearchResults component
+  // Enhanced SearchResults component with all GroupFormation step 2 features
   const SearchResults = ({ searchTerm, selectedStudents, onSelection, maxSelections, groupId }) => {
     const [students, setStudents] = useState([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
+    const [hasSearched, setHasSearched] = useState(false);
+    const [currentPage, setCurrentPage] = useState(1);
+    const [hasMoreStudents, setHasMoreStudents] = useState(false);
+    const [isLoadingMore, setIsLoadingMore] = useState(false);
+    const [totalStudents, setTotalStudents] = useState(0);
+    const searchTimeoutRef = useRef(null);
 
-
+    // Debounced search effect
   useEffect(() => {
       if (searchTerm.length >= 2) {
-        searchStudents();
-      } else {
+        setHasSearched(true);
+        setCurrentPage(1);
+        setHasMoreStudents(false);
+        
+        if (searchTimeoutRef.current) {
+          clearTimeout(searchTimeoutRef.current);
+        }
+        
+        searchTimeoutRef.current = setTimeout(() => {
+          searchStudents(1, false);
+        }, 500);
+      } else if (searchTerm.length === 0) {
+        setHasSearched(false);
         setStudents([]);
+        setCurrentPage(1);
+        setHasMoreStudents(false);
       }
+      
+      return () => {
+        if (searchTimeoutRef.current) {
+          clearTimeout(searchTimeoutRef.current);
+        }
+      };
     }, [searchTerm]);
 
-
-    const searchStudents = async () => {
+    const searchStudents = async (page = 1, append = false) => {
+      if (page === 1) {
       setLoading(true);
+      } else {
+        setIsLoadingMore(true);
+      }
       setError(null);
+      
       try {
         const response = await studentAPI.getAvailableStudents({ 
           search: searchTerm,
           query: searchTerm,
-          limit: 50,
+          limit: 20,
+          page: page,
           groupId: groupId
         });
         
         if (response.success && response.data) {
-          setStudents(response.data || []);
+          const newStudents = response.data || [];
+          const metadata = response.metadata || {};
+          
+          if (append) {
+            setStudents(prev => [...prev, ...newStudents]);
+          } else {
+            setStudents(newStudents);
+          }
+          
+          setTotalStudents(metadata.total || newStudents.length);
+          setHasMoreStudents(newStudents.length === 20 && (page * 20) < (metadata.total || 0));
         } else {
           setError(response.message || 'Failed to search students');
         }
@@ -428,7 +616,14 @@ const GroupDashboard = () => {
         setError('Failed to search students: ' + error.message);
       } finally {
         setLoading(false);
+        setIsLoadingMore(false);
       }
+    };
+
+    const handleLoadMore = () => {
+      const nextPage = currentPage + 1;
+      setCurrentPage(nextPage);
+      searchStudents(nextPage, true);
     };
 
     const handleStudentSelect = (student) => {
@@ -466,7 +661,6 @@ const GroupDashboard = () => {
         return { status: 'in_group', message: 'Already in a group' };
       }
       
-      
       // Check if student has pending invitation from current group
       if (student.status === 'pending_from_current_group' || student.hasPendingInviteFromCurrentGroup) {
         return { status: 'pending_from_current_group', message: 'Invitation pending' };
@@ -496,6 +690,42 @@ const GroupDashboard = () => {
       return { status: 'available', message: 'Available' };
     };
 
+    // Filter and sort students
+    const filteredStudents = students.filter(student => {
+      return searchTerm.length < 2 || (
+        student.fullName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        student.rollNumber?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        student.collegeEmail?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        student.misNumber?.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+    });
+
+    // Sort students by status priority (Selected → Available → Others)
+    const sortedStudents = filteredStudents.sort((a, b) => {
+      const statusA = getInviteStatus(a);
+      const statusB = getInviteStatus(b);
+      
+        const statusPriority = {
+          'selected': 1,                      // Selected students first
+          'available': 2,                     // Available students second
+          'pending_from_current_group': 3,    // Pending invitations third
+          'in_group': 4,                      // In group students fourth
+          'rejected_from_current_group': 5,   // Previously rejected fifth
+          'pending_invites': 6,               // Has pending invites sixth
+          'group_full': 7,                    // Group full seventh
+          'group_finalized': 8                // Group finalized last
+        };
+      
+      const priorityA = statusPriority[statusA.status] || 999;
+      const priorityB = statusPriority[statusB.status] || 999;
+      
+      if (priorityA !== priorityB) {
+        return priorityA - priorityB;
+      }
+      
+      return (a.fullName || '').localeCompare(b.fullName || '');
+    });
+
     if (loading) {
       return (
         <div className="flex items-center justify-center h-full">
@@ -522,41 +752,126 @@ const GroupDashboard = () => {
       );
     }
 
-    if (students.length === 0 && searchTerm.length >= 2) {
+    if (!hasSearched) {
       return (
-        <div className="flex items-center justify-center h-full">
-          <div className="text-center">
-            <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+        <div className="text-center py-8 bg-gray-50 rounded-lg border border-gray-200">
+          <div className="text-gray-400 mb-2">
+            <svg className="w-12 h-12 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
               </svg>
             </div>
-            <p className="text-sm text-gray-600">No students found</p>
-            <p className="text-xs text-gray-500 mt-1">Try a different search term</p>
+          <p className="text-gray-600 font-medium mb-1">Search for Students</p>
+          <p className="text-sm text-gray-500 mb-2">Type at least 2 characters to find and invite students to your group</p>
+          <div className="text-xs text-gray-400 space-y-1">
+            <p>🔍 Search by <strong>name</strong> (e.g., "John", "Smith")</p>
+            <p>📧 Search by <strong>email</strong> (e.g., "john@iiitp.ac.in")</p>
+            <p>📱 Search by <strong>phone</strong> (e.g., "9876543210")</p>
+            <p>🎓 Search by <strong>MIS number</strong> (e.g., "000000123")</p>
           </div>
         </div>
       );
     }
 
-    // Show all students with proper status indicators
-    const studentsToShow = students;
+    if (hasSearched && sortedStudents.length === 0) {
+      return (
+        <div className="text-center py-8">
+          <p className="text-gray-500">No students found matching your search.</p>
+        </div>
+      );
+    }
 
     return (
       <div>
-        {studentsToShow.length > 0 ? (
-          <div className="grid grid-cols-2 gap-3 p-3">
-            {studentsToShow.map((student) => {
-              const inviteStatus = getInviteStatus(student);
+        {/* Status Legend and Quick Stats */}
+        <div className="mb-4 p-3 bg-gray-50 rounded-lg border border-gray-200">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-sm font-medium text-gray-700">Students are sorted by status:</span>
+            <span className="text-xs text-gray-500">Selected → Available → Pending → In Group</span>
+          </div>
+          
+          {/* Quick Stats */}
+          <div className="mb-3 grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
+            {(() => {
+              const stats = sortedStudents.reduce((acc, student) => {
+                const status = getInviteStatus(student);
+                acc[status.status] = (acc[status.status] || 0) + 1;
+                return acc;
+              }, {});
+              
+              return [
+                { key: 'selected', label: 'Selected', color: 'blue', count: stats.selected || 0 },
+                { key: 'available', label: 'Available', color: 'green', count: stats.available || 0 },
+                { key: 'pending_from_current_group', label: 'Invitation Pending', color: 'orange', count: stats.pending_from_current_group || 0 },
+                { key: 'in_group', label: 'In Group', color: 'red', count: stats.in_group || 0 }
+              ].map(({ key, label, color, count }) => (
+                <div key={key} className="flex items-center justify-between p-2 bg-white rounded border">
+                  <span className={`text-${color}-700 font-medium`}>{label}</span>
+                  <span className={`text-${color}-600 font-bold`}>{count}</span>
+                </div>
+              ));
+            })()}
+          </div>
+          
+          {/* Status Legend */}
+          <div className="flex flex-wrap gap-4 text-xs">
+            <span className="flex items-center space-x-1">
+              <div className="w-3 h-3 bg-blue-100 rounded-full border border-blue-300"></div>
+              <span className="text-blue-700">Selected</span>
+            </span>
+            <span className="flex items-center space-x-1">
+              <div className="w-3 h-3 bg-green-100 rounded-full border border-green-300"></div>
+              <span className="text-green-700">Available</span>
+            </span>
+            <span className="flex items-center space-x-1">
+              <div className="w-3 h-3 bg-orange-100 rounded-full border border-orange-300"></div>
+              <span className="text-orange-700">Invitation Pending</span>
+            </span>
+            <span className="flex items-center space-x-1">
+              <div className="w-3 h-3 bg-red-100 rounded-full border border-red-300"></div>
+              <span className="text-red-700">In Group</span>
+            </span>
+          </div>
+        </div>
+
+        {/* Search Results */}
+        <div className="max-h-96 overflow-y-auto border border-gray-200 rounded-lg bg-gray-50">
+          {sortedStudents.map((student, index) => {
               const isSelected = selectedStudents.some(s => s._id === student._id);
+            const inviteStatus = getInviteStatus(student);
               const canSelect = inviteStatus.status === 'available' || 
                                inviteStatus.status === 'selected' || 
                                inviteStatus.status === 'rejected_from_current_group';
               
+            // Check if we need to add a separator
+            const prevStudent = index > 0 ? sortedStudents[index - 1] : null;
+            const prevStatus = prevStudent ? getInviteStatus(prevStudent) : null;
+            const showSeparator = prevStatus && prevStatus.status !== inviteStatus.status;
+              
               return (
+              <div key={student._id}>
+                {/* Status Group Separator */}
+                {showSeparator && (
+                  <div className="px-4 py-2 bg-gray-100 border-t border-b border-gray-200">
+                    <div className="flex items-center space-x-2">
+                      <div className={`w-2 h-2 rounded-full ${
+                        inviteStatus.status === 'available' ? 'bg-green-400' :
+                        inviteStatus.status === 'selected' ? 'bg-blue-400' :
+                        inviteStatus.status === 'pending_from_current_group' ? 'bg-orange-400' :
+                        inviteStatus.status === 'in_group' ? 'bg-red-400' : 'bg-gray-400'
+                      }`}></div>
+                      <span className="text-xs font-medium text-gray-600 uppercase tracking-wide">
+                        {inviteStatus.status === 'available' ? 'Available Students' :
+                         inviteStatus.status === 'selected' ? 'Selected Students' :
+                         inviteStatus.status === 'pending_from_current_group' ? 'Invitation Pending' :
+                         inviteStatus.status === 'in_group' ? 'Students in Groups' : 'Other Status'}
+                      </span>
+                    </div>
+                  </div>
+                )}
+                
                 <div
-                  key={student._id}
                   onClick={() => canSelect && handleStudentSelect(student)}
-                  className={`p-3 rounded-lg border transition-all duration-200 ${
+                  className={`p-4 hover:bg-gray-100 transition-all duration-200 ${
                     canSelect ? 'cursor-pointer' : 'cursor-not-allowed'
                   } ${
                     isSelected
@@ -566,34 +881,49 @@ const GroupDashboard = () => {
                       : 'bg-gray-50 border-gray-200 opacity-60'
                   }`}
                 >
-                  <div className="flex items-center space-x-2">
-                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                  <div className="flex items-start space-x-4">
+                    {/* Avatar with Status */}
+                    <div className="relative flex-shrink-0">
+                      <div className={`w-12 h-12 rounded-xl flex items-center justify-center transition-colors ${
                       isSelected
-                        ? 'bg-gradient-to-br from-blue-500 to-purple-600 text-white'
-                        : 'bg-gray-200 text-gray-600'
-                    }`}>
-                      <span className="font-bold text-xs">
-                        {student.fullName?.charAt(0) || '?'}
+                          ? 'bg-green-200 text-green-800' 
+                          : inviteStatus.status === 'available'
+                          ? 'bg-gray-200 text-gray-700'
+                          : 'bg-red-200 text-red-800'
+                      }`}>
+                        <span className="text-lg">
+                          {isSelected ? '✓' : 
+                           inviteStatus.status === 'available' ? '👤' : '👥'}
                       </span>
+                      </div>
                     </div>
                     
+                    {/* Student Information */}
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center space-x-1 mb-1">
-                        <p className="font-medium text-gray-900 text-xs truncate">{student.fullName}</p>
-                        {isSelected && (
-                          <span className="bg-blue-100 text-blue-700 text-xs px-1 py-0.5 rounded-full font-medium">
-                            ✓
-                          </span>
-                        )}
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <div className={`font-medium text-lg ${
+                            isSelected ? 'text-green-700' : 
+                            inviteStatus.status === 'available' ? 'text-gray-900' : 'text-gray-600'
+                          }`}>
+                            {student.fullName}
+                            {isSelected && <span className="ml-2 text-xs text-green-600 bg-green-100 px-2 py-1 rounded">Selected</span>}
                       </div>
-                      <p className="text-xs text-gray-600 truncate">{student.misNumber}</p>
-                      {student.branch && (
-                        <p className="text-xs text-gray-500 truncate">{student.branch}</p>
-                      )}
+                          
+                          <div className="text-sm text-gray-600 mt-1 space-y-1">
+                            <div className="flex items-center space-x-4">
+                              <span className="font-medium">{student.rollNumber || student.misNumber}</span>
+                              {student.semester && <span>Sem {student.semester}</span>}
+                              {student.branchCode && <span>• {student.branchCode}</span>}
+                            </div>
+                            <div className="text-xs text-gray-500 truncate">
+                              {student.collegeEmail}
+                            </div>
                     </div>
                   </div>
                   
-                  <div className="mt-2">
+                        {/* Status Badge */}
+                        <div className="flex flex-col items-end space-y-2">
                     <span className={`text-xs px-2 py-1 rounded-full font-medium ${
                       inviteStatus.status === 'available'
                         ? 'bg-green-100 text-green-700'
@@ -617,22 +947,31 @@ const GroupDashboard = () => {
                     </span>
                   </div>
                 </div>
-              );
-            })}
           </div>
-        ) : (
-          <div className="flex items-center justify-center py-8">
-            <div className="text-center">
-              <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
-                </svg>
               </div>
-              <p className="text-sm text-gray-600">No eligible students found</p>
-              <p className="text-xs text-gray-500 mt-1">All students are either in groups or have pending invites</p>
             </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Load More Button */}
+        {hasMoreStudents && (
+          <div className="mt-4 text-center">
+            <button
+              onClick={handleLoadMore}
+              disabled={isLoadingMore}
+              className="px-4 py-2 text-sm text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-lg transition-colors disabled:opacity-50"
+            >
+              {isLoadingMore ? 'Loading...' : 'Load More Students'}
+            </button>
           </div>
         )}
+
+        {/* Search Info */}
+        <div className="mt-4 text-center text-sm text-gray-500">
+          Showing {sortedStudents.length} search result{sortedStudents.length !== 1 ? 's' : ''}
+        </div>
       </div>
     );
   };
@@ -683,7 +1022,7 @@ const GroupDashboard = () => {
 
 
   return (
-    <>
+    <Layout>
       <style>
         {`
           .custom-scrollbar::-webkit-scrollbar {
@@ -703,7 +1042,7 @@ const GroupDashboard = () => {
           }
         `}
       </style>
-    <div className="min-h-screen bg-gray-50 py-8">
+      <div className="py-8">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header with Real-time Status */}
         <div className="mb-8">
@@ -716,7 +1055,12 @@ const GroupDashboard = () => {
                     FINALIZED
                   </span>
                 )}
-                {groupDetails.status === 'complete' && (
+                {canFinalizeGroup() && groupDetails.status !== 'finalized' && (
+                  <span className="ml-2 text-sm bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full font-medium">
+                    READY TO FINALIZE
+                  </span>
+                )}
+                {groupDetails.status === 'complete' && !canFinalizeGroup() && (
                   <span className="ml-2 text-sm bg-blue-100 text-blue-800 px-2 py-1 rounded-full font-medium">
                     READY
                   </span>
@@ -833,11 +1177,17 @@ const GroupDashboard = () => {
                               ? 'bg-yellow-100 text-yellow-800' 
                               : invite.status === 'accepted'
                               ? 'bg-green-100 text-green-800'
-                              : 'bg-red-100 text-red-800'
+                              : invite.status === 'rejected'
+                              ? 'bg-red-100 text-red-800'
+                              : invite.status === 'auto-rejected'
+                              ? 'bg-orange-100 text-orange-800'
+                              : 'bg-gray-100 text-gray-800'
                           }`}>
                             {invite.status === 'pending' && '⏳ Pending'}
                             {invite.status === 'accepted' && '✅ Accepted'}
                             {invite.status === 'rejected' && '❌ Rejected'}
+                            {invite.status === 'auto-rejected' && '🔄 Auto-Rejected'}
+                            {!['pending', 'accepted', 'rejected', 'auto-rejected'].includes(invite.status) && '❓ Unknown'}
                           </span>
                           {invite.status === 'accepted' && (
                             <p className="text-xs text-gray-500 mt-1">
@@ -847,6 +1197,12 @@ const GroupDashboard = () => {
                           {invite.status === 'rejected' && (
                             <p className="text-xs text-gray-500 mt-1">
                               Declined: {invite.respondedAt ? new Date(invite.respondedAt).toLocaleDateString() : 'N/A'}
+                            </p>
+                          )}
+                          {invite.status === 'auto-rejected' && (
+                            <p className="text-xs text-gray-500 mt-1">
+                              Auto-Rejected: {invite.respondedAt ? new Date(invite.respondedAt).toLocaleDateString() : 'N/A'}
+                              {invite.rejectionReason && ` • ${invite.rejectionReason}`}
                             </p>
                           )}
                         </div>
@@ -888,6 +1244,13 @@ const GroupDashboard = () => {
                           const studentId = i.student?._id || i.student;
                           const leaderId = groupDetails.leader?._id || groupDetails.leader;
                           return i.status === 'rejected' && !(leaderId && studentId && studentId === leaderId);
+                        }).length : 0}
+                      </span>
+                      <span className="text-orange-800">
+                        <strong>Auto-Rejected:</strong> {groupDetails.invites ? groupDetails.invites.filter(i => {
+                          const studentId = i.student?._id || i.student;
+                          const leaderId = groupDetails.leader?._id || groupDetails.leader;
+                          return i.status === 'auto-rejected' && !(leaderId && studentId && studentId === leaderId);
                         }).length : 0}
                       </span>
                     </div>
@@ -1018,8 +1381,8 @@ const GroupDashboard = () => {
               </div>
             </div>
 
-             {/* Invite Members Section - Only for Group Leaders */}
-                {isGroupLeader && (
+             {/* Invite Members Section - Visible to all members */}
+                {(
                <div className="bg-gradient-to-br from-white via-blue-50 to-purple-50 rounded-2xl shadow-xl border border-blue-100 p-6 relative overflow-hidden">
                  {/* Background decoration */}
                  <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-bl from-blue-100 to-transparent rounded-full -translate-y-16 translate-x-16 opacity-50"></div>
@@ -1037,37 +1400,126 @@ const GroupDashboard = () => {
                    </div>
                    
                    <div className="space-y-6">
-                     {/* Capacity Info */}
+                     {/* Capacity Info - Only show for non-finalized groups */}
+                     {!isGroupFinalized() && (
                      <div className="bg-white/80 backdrop-blur-sm rounded-xl p-4 border border-white/50 shadow-sm">
-                       <div className="flex items-center justify-between mb-3">
-                         <div>
-                           <p className="text-sm font-medium text-gray-700">Available Space</p>
-                           <p className="text-2xl font-bold text-blue-600">{getAvailableSlots()}</p>
+                       <div className="grid grid-cols-3 gap-4 mb-4">
+                         <div className="text-center">
+                           <p className="text-xs text-gray-500 mb-1">Current</p>
+                           <p className="text-2xl font-bold text-gray-900">{groupDetails.members?.length || 0}</p>
                          </div>
-                         <div className="text-right">
-                           <p className="text-xs text-gray-500">Max Members</p>
-                           <p className="text-sm font-semibold text-gray-900">
-                             {groupDetails?.maxMembers || 5}
-                           </p>
+                         <div className="text-center">
+                           <p className="text-xs text-gray-500 mb-1">Min Required</p>
+                           <p className="text-lg font-semibold text-orange-600">{groupDetails?.minMembers || 4}</p>
+                         </div>
+                         <div className="text-center">
+                           <p className="text-xs text-gray-500 mb-1">Max Allowed</p>
+                           <p className="text-lg font-semibold text-blue-600">{groupDetails?.maxMembers || 5}</p>
                          </div>
                        </div>
                        
-                       {/* Progress bar */}
-                       <div className="w-full bg-gray-200 rounded-full h-2">
-                         <div 
-                           className="bg-gradient-to-r from-blue-500 to-purple-600 h-2 rounded-full transition-all duration-500 ease-out"
+                       {/* Clean Progress bar with better design */}
+                       <div className="space-y-3">
+                         {/* Progress bar container */}
+                         <div className="w-full bg-gray-200 rounded-full h-3 relative overflow-hidden">
+                           {/* Progress fill with better color scheme */}
+                           <div 
+                             className="h-3 rounded-full transition-all duration-500 ease-out relative"
                            style={{ 
-                             width: `${Math.min(100, ((groupDetails.members?.length || 0) / (groupDetails.maxMembers || 5)) * 100)}%` 
-                           }}
-                         ></div>
+                               width: `${Math.min(100, ((groupDetails.members?.length || 0) / (groupDetails.maxMembers || 5)) * 100)}%`,
+                               background: `linear-gradient(90deg, 
+                                 ${(() => {
+                                   const current = groupDetails.members?.length || 0;
+                                   const min = groupDetails?.minMembers || 4;
+                                   const max = groupDetails?.maxMembers || 5;
+                                   const progress = (current / max) * 100;
+                                   const minProgress = (min / max) * 100;
+                                   
+                                   if (progress < minProgress) {
+                                     return '#f59e0b, #f97316'; // Amber to orange
+                                   } else if (progress < 100) {
+                                     return '#3b82f6, #6366f1'; // Blue to indigo
+                                   } else {
+                                     return '#10b981, #059669'; // Emerald green
+                                   }
+                                 })()})`
+                             }}
+                           >
+                             {/* Subtle shine effect */}
+                             <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent"></div>
+                           </div>
                        </div>
                        
-                       <p className="text-xs text-gray-500 mt-2 text-center">
-                         {groupDetails.members?.length || 0} of {groupDetails?.maxMembers || 5} members
-                       </p>
+                         {/* Progress labels with better styling */}
+                         <div className="flex justify-between items-center text-sm">
+                           <div className="flex items-center space-x-2">
+                             <div className="w-3 h-3 rounded-full bg-gray-400"></div>
+                             <span className="text-gray-600 font-medium">0</span>
+                           </div>
+                           <div className="flex items-center space-x-2">
+                             <div className="w-3 h-3 rounded-full bg-amber-500"></div>
+                             <span className="text-amber-700 font-semibold">Min: {groupDetails?.minMembers || 4}</span>
+                           </div>
+                           <div className="flex items-center space-x-2">
+                             <div className="w-3 h-3 rounded-full bg-blue-500"></div>
+                             <span className="text-blue-700 font-semibold">Max: {groupDetails?.maxMembers || 5}</span>
+                           </div>
+                         </div>
+                         
+                         {/* Progress percentage and status */}
+                         <div className="text-center">
+                           <span className="text-lg font-bold text-gray-800">
+                             {Math.round(((groupDetails.members?.length || 0) / (groupDetails.maxMembers || 5)) * 100)}%
+                           </span>
+                           <span className="text-sm text-gray-600 ml-2">
+                             ({groupDetails.members?.length || 0} of {groupDetails?.maxMembers || 5} members)
+                           </span>
+                         </div>
+                       </div>
+                       
+                       {/* Status message */}
+                       <div className="mt-3 text-center">
+                         {(() => {
+                           const current = groupDetails.members?.length || 0;
+                           const min = groupDetails?.minMembers || 4;
+                           const max = groupDetails?.maxMembers || 5;
+                           
+                           if (current < min) {
+                             return (
+                               <p className="text-sm text-orange-600 font-medium">
+                                 Need {min - current} more member{min - current !== 1 ? 's' : ''} to meet minimum requirement
+                               </p>
+                             );
+                           } else if (current >= min && current < max) {
+                             return (
+                               <p className="text-sm text-green-600 font-medium">
+                                 Group meets minimum requirement! Can add {max - current} more member{max - current !== 1 ? 's' : ''}
+                               </p>
+                             );
+                           } else if (current >= max) {
+                             return (
+                               <p className="text-sm text-blue-600 font-medium">
+                                 Group is at maximum capacity
+                               </p>
+                             );
+                           }
+                         })()}
                      </div>
+                       </div>
+                     )}
                      
                      {/* Invite Button */}
+                     {isGroupFinalized() ? (
+                       <div className="w-full px-6 py-4 rounded-xl bg-gray-100 border-2 border-dashed border-gray-300 text-center">
+                         <div className="flex items-center justify-center space-x-3 mb-2">
+                           <span className="text-xl">🔒</span>
+                           <span className="font-semibold text-gray-600">Invite New Members</span>
+                         </div>
+                         <p className="text-sm text-gray-500">
+                           Group has been finalized - no changes allowed
+                         </p>
+                       </div>
+                     ) : isGroupLeader ? (
                   <button
                        onClick={() => setShowInviteModal(true)}
                        disabled={!canInviteMembers()}
@@ -1080,9 +1532,121 @@ const GroupDashboard = () => {
                        <span className="text-xl">👥</span>
                        <span>Invite New Members</span>
                   </button>
+                     ) : (
+                       <div className="w-full px-6 py-4 rounded-xl bg-gray-100 border-2 border-dashed border-gray-300 text-center">
+                         <div className="flex items-center justify-center space-x-3 mb-2">
+                           <span className="text-xl">👥</span>
+                           <span className="font-semibold text-gray-600">Invite New Members</span>
+                         </div>
+                         <p className="text-sm text-gray-500">
+                           Only the group leader can invite new members
+                         </p>
+                       </div>
+                     )}
                      
-                     {/* Status Messages */}
-                     {!canInviteMembers() && (
+                     {/* Finalize Group Section - Visible to all members */}
+                     {isGroupFinalized() ? (
+                       <div className="rounded-xl p-4 border bg-gradient-to-r from-green-50 to-emerald-50 border-green-200">
+                         <div className="text-center mb-4">
+                           <div className="w-12 h-12 rounded-xl flex items-center justify-center mx-auto mb-3 shadow-lg bg-gradient-to-br from-green-500 to-emerald-600">
+                             <span className="text-white text-xl">✅</span>
+                           </div>
+                           <h4 className="font-semibold mb-1 text-green-900">
+                             Group Finalized!
+                           </h4>
+                           <p className="text-xs text-green-700">
+                             This group has been finalized and is ready for project allocation
+                           </p>
+                           {groupDetails.finalizedAt && (
+                             <p className="text-xs text-green-600 mt-1">
+                               Finalized on: {new Date(groupDetails.finalizedAt).toLocaleDateString()}
+                             </p>
+                           )}
+                         </div>
+                         
+                         <div className="w-full px-4 py-3 bg-green-100 border-2 border-green-200 rounded-xl text-center">
+                           <div className="flex items-center justify-center space-x-2 mb-1">
+                             <span className="text-lg">🔒</span>
+                             <span className="font-semibold text-green-700">Group Locked</span>
+                           </div>
+                           <p className="text-sm text-green-600">
+                             No changes can be made to this group
+                           </p>
+                         </div>
+                       </div>
+                     ) : (
+                       <div className={`rounded-xl p-4 border ${
+                         canFinalizeGroup() && isGroupLeader
+                           ? 'bg-gradient-to-r from-green-50 to-emerald-50 border-green-200'
+                           : 'bg-gradient-to-r from-gray-50 to-slate-50 border-gray-200'
+                       }`}>
+                         <div className="text-center mb-4">
+                           <div className={`w-12 h-12 rounded-xl flex items-center justify-center mx-auto mb-3 shadow-lg ${
+                             canFinalizeGroup() && isGroupLeader
+                               ? 'bg-gradient-to-br from-green-500 to-emerald-600'
+                               : 'bg-gradient-to-br from-gray-400 to-gray-500'
+                           }`}>
+                             <span className="text-white text-xl">
+                               {canFinalizeGroup() && isGroupLeader ? '✅' : '🔒'}
+                             </span>
+                           </div>
+                           <h4 className={`font-semibold mb-1 ${
+                             canFinalizeGroup() && isGroupLeader ? 'text-green-900' : 'text-gray-600'
+                           }`}>
+                             {canFinalizeGroup() && isGroupLeader 
+                               ? 'Group Ready to Finalize!' 
+                               : 'Group Finalization'}
+                           </h4>
+                           <p className={`text-xs ${
+                             canFinalizeGroup() && isGroupLeader ? 'text-green-700' : 'text-gray-500'
+                           }`}>
+                             {canFinalizeGroup() && isGroupLeader
+                               ? `All ${groupDetails.members?.length || 0} members have joined`
+                               : isGroupLeader
+                                 ? `Need ${4 - (groupDetails.members?.length || 0)} more members to finalize`
+                                 : 'Group leader can finalize once minimum members join'
+                             }
+                           </p>
+                         </div>
+                         
+                         {isGroupLeader ? (
+                           <button
+                             onClick={handleFinalizeGroup}
+                             disabled={finalizeLoading || !canFinalizeGroup()}
+                             className={`w-full px-4 py-3 rounded-xl font-semibold transition-all duration-300 transform hover:scale-105 active:scale-95 shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2 ${
+                               canFinalizeGroup()
+                                 ? 'bg-gradient-to-r from-green-500 to-emerald-600 text-white'
+                                 : 'bg-gray-300 text-gray-500'
+                             }`}
+                           >
+                             {finalizeLoading ? (
+                               <>
+                                 <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent"></div>
+                                 <span>Finalizing...</span>
+                               </>
+                             ) : (
+                               <>
+                                 <span className="text-lg">🔒</span>
+                                 <span>Finalize Group</span>
+                               </>
+                             )}
+                           </button>
+                         ) : (
+                           <div className="w-full px-4 py-3 bg-gray-100 border-2 border-dashed border-gray-300 rounded-xl text-center">
+                             <div className="flex items-center justify-center space-x-2 mb-1">
+                               <span className="text-lg">👑</span>
+                               <span className="font-semibold text-gray-600">Leader Only Action</span>
+                             </div>
+                             <p className="text-sm text-gray-500">
+                               Only the group leader can finalize the group
+                             </p>
+                           </div>
+                         )}
+                       </div>
+                     )}
+
+                     {/* Status Messages - Only for leaders and non-finalized groups */}
+                     {isGroupLeader && !canInviteMembers() && !canFinalizeGroup() && !isGroupFinalized() && (
                        <div className={`rounded-xl p-4 text-center ${
                          getAvailableSlots() === 0 
                            ? 'bg-gradient-to-r from-red-50 to-pink-50 border border-red-200' 
@@ -1248,7 +1812,7 @@ const GroupDashboard = () => {
                         </div>
                         
                         <div className="p-4">
-                          {/* Search Input */}
+                          {/* Enhanced Search Input */}
                           <div className="flex-shrink-0 relative mb-4">
                             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                               <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1259,9 +1823,23 @@ const GroupDashboard = () => {
                               type="text"
                               value={searchTerm}
                               onChange={(e) => setSearchTerm(e.target.value)}
-                              className="block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
-                              placeholder="Search by name, MIS number, or email..."
+                              maxLength={50}
+                              className="block w-full pl-10 pr-20 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                              placeholder="Search CSE & ECE students by name, email, phone, or MIS number..."
                             />
+                            <div className="absolute inset-y-0 right-0 pr-3 flex items-center">
+                              <span className="text-xs text-gray-400">
+                                {searchTerm.length}/50
+                              </span>
+                            </div>
+                          </div>
+                          
+                          {/* Search Help Text */}
+                          <div className="mb-4 text-sm text-gray-500">
+                            <p className="mb-1">💡 Start typing to search for students. This helps load results faster.</p>
+                            <p className="text-xs text-gray-400">
+                              Search 5th semester <strong>CSE & ECE</strong> students by: <strong>name</strong>, <strong>email</strong>, <strong>phone number</strong>, or <strong>MIS number</strong>
+                            </p>
                           </div>
                           
                           {/* Search Results - Auto-expanding */}
@@ -1282,7 +1860,7 @@ const GroupDashboard = () => {
                                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                                     </svg>
                                   </div>
-                                  <p className="text-sm">Type at least 2 characters to search</p>
+                                  <p className="text-sm">Type at least 2 characters to search CSE & ECE students</p>
                                 </div>
                               </div>
                             )}
@@ -1339,7 +1917,7 @@ const GroupDashboard = () => {
           </div>
         )}
       </div>
-    </>
+    </Layout>
   );
 };
 
