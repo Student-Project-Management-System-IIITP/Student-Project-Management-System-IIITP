@@ -360,7 +360,7 @@ const loginUser = async (req, res) => {
 // Get User Profile
 const getUserProfile = async (req, res) => {
   try {
-    const userId = req.user.userId;
+    const userId = req.user.id;
     
     const user = await User.findById(userId);
     if (!user) {
@@ -405,7 +405,7 @@ const getUserProfile = async (req, res) => {
 // Update User Profile
 const updateUserProfile = async (req, res) => {
   try {
-    const userId = req.user.userId;
+    const userId = req.user.id;
     const { name, phone } = req.body;
 
     const user = await User.findById(userId);
@@ -443,7 +443,7 @@ const updateUserProfile = async (req, res) => {
 // Change Password
 const changePassword = async (req, res) => {
   try {
-    const userId = req.user.userId;
+    const userId = req.user.id;
     const { currentPassword, newPassword } = req.body;
 
     if (!currentPassword || !newPassword) {
@@ -511,7 +511,7 @@ const logoutUser = async (req, res) => {
 // Verify Token
 const verifyToken = async (req, res) => {
   try {
-    const userId = req.user.userId;
+    const userId = req.user.id;
     
     const user = await User.findById(userId);
     if (!user) {

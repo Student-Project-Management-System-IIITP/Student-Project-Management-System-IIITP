@@ -10,8 +10,13 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@tanstack/react-query": "^5.90.2",
+    "date-fns": "^4.1.0",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
+    "react-dropzone": "^14.3.8",
+    "react-hook-form": "^7.63.0",
+    "react-hot-toast": "^2.6.0",
     "react-router-dom": "^7.9.1"
   },
   "devDependencies": {

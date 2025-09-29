@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import NotificationCenter from '../notifications/NotificationCenter';
 
 const Navbar = ({ userRole = null, user = null }) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -85,12 +86,7 @@ const Navbar = ({ userRole = null, user = null }) => {
               // Logged in user menu
               <div className="flex items-center space-x-4">
                 {/* Notifications */}
-                <button className="relative p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-full transition duration-200">
-                  <span className="text-xl">🔔</span>
-                  <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
-                    3
-                  </span>
-                </button>
+                <NotificationCenter />
 
                 {/* User Profile Dropdown */}
                 <div className="relative">

@@ -35,6 +35,7 @@ const authenticateToken = async (req, res, next) => {
 
     // Add user info to request
     req.user = {
+      id: user._id,
       userId: user._id,
       email: user.email,
       role: user.role
@@ -154,6 +155,7 @@ const optionalAuth = async (req, res, next) => {
       
       if (user && user.isActive) {
         req.user = {
+          id: user._id,
           userId: user._id,
           email: user.email,
           role: user.role
@@ -179,7 +181,7 @@ const requirePermission = (action, resource) => {
         });
       }
 
-      const user = await User.findById(req.user.userId);
+      const user = await User.findById(req.user.id);
       if (!user) {
         return res.status(401).json({
           success: false,
