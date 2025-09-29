@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { studentAPI, facultyAPI, adminAPI } from '../utils/api';
 import { useAuth } from './AuthContext';
+import { useWebSocket } from '../hooks/useWebSocket';
 import { toast } from 'react-hot-toast';
 
 const Sem5Context = createContext();
@@ -9,6 +10,7 @@ export const useSem5 = () => useContext(Sem5Context);
 
 export const Sem5Provider = ({ children }) => {
   const { user, userRole, roleData } = useAuth();
+  const { subscribe, unsubscribe } = useWebSocket();
   
   // Sem 5 State
   const [sem5Project, setSem5Project] = useState(null);
@@ -86,6 +88,63 @@ export const Sem5Provider = ({ children }) => {
       console.error('Failed to load group invitations:', error);
     }
   };
+
+  // WebSocket event handlers for real-time updates
+  useEffect(() => {
+    if (userRole !== 'student') return;
+
+    // Handle invitation updates (acceptance, rejection, auto-rejection)
+    const handleInvitationUpdate = (data) => {
+      console.log('Invitation update received:', data);
+      // Refresh invitations to reflect the latest state
+      loadGroupInvitations();
+      
+      // Show appropriate notification
+      if (data.type === 'auto_rejected') {
+        if (data.reason === 'Group has been finalized') {
+          toast.error('Your invitation was automatically rejected - group has been finalized');
+        } else if (data.reason === 'Group is now full') {
+          toast.error('Your invitation was automatically rejected - group is now full');
+        } else {
+          toast.error(`Your invitation was automatically rejected - ${data.reason}`);
+        }
+      } else if (data.type === 'accepted') {
+        toast.success('Invitation accepted successfully!');
+      } else if (data.type === 'rejected') {
+        toast.info('Invitation was rejected');
+      }
+    };
+
+    // Handle group capacity updates
+    const handleCapacityUpdate = (data) => {
+      console.log('Group capacity update received:', data);
+      // Refresh group data to show updated member count
+      loadStudentSem5Data();
+    };
+
+    // Handle group finalization events
+    const handleGroupFinalized = (data) => {
+      console.log('Group finalized event received:', data);
+      // Refresh all data to reflect the finalization
+      loadStudentSem5Data();
+      loadGroupInvitations();
+      
+      // Show notification
+      toast.success('Group has been finalized successfully!');
+    };
+
+    // Subscribe to WebSocket events
+    subscribe('invitation_update', handleInvitationUpdate);
+    subscribe('group_capacity_update', handleCapacityUpdate);
+    subscribe('group_finalized', handleGroupFinalized);
+
+    // Cleanup on unmount
+    return () => {
+      unsubscribe('invitation_update', handleInvitationUpdate);
+      unsubscribe('group_capacity_update', handleCapacityUpdate);
+      unsubscribe('group_finalized', handleGroupFinalized);
+    };
+  }, [userRole, subscribe, unsubscribe]);
 
   // Faculty-specific data loading
   const loadFacultySem5Data = async () => {
@@ -191,6 +250,14 @@ export const Sem5Provider = ({ children }) => {
       }
       
       toast.error(errorMessage);
+      
+      // Always refresh invitations after any error to reflect backend state changes
+      // This handles cases like auto-rejection when group becomes full
+      try {
+        await loadGroupInvitations();
+      } catch (refreshError) {
+        console.error('Error refreshing invitations after accept failure:', refreshError);
+      }
       throw error;
     }
   };

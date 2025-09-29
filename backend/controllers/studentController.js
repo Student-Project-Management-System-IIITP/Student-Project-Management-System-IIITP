@@ -949,7 +949,7 @@ const getSem4ProjectStatus = async (req, res) => {
 const createGroup = async (req, res) => {
   try {
     const studentId = req.user.id;
-    const { name, description, leaderId, memberIds = [], maxMembers = 5 } = req.body;
+    const { name, description, memberIds = [], maxMembers = 5 } = req.body;
     
     // Get student
     const student = await Student.findOne({ user: studentId });
@@ -1015,40 +1015,15 @@ const createGroup = async (req, res) => {
       await student.refresh;
     }
 
-    // Determine the actual leader
-    let actualLeaderId = leaderId || student._id;
-    
-    // If no leaderId provided, the current student is the leader
-    let leaderStudent;
-    if (!leaderId) {
-      leaderStudent = student; // Current student is the leader
-    } else {
-      // Fetch the selected leader from database
-      leaderStudent = await Student.findById(actualLeaderId);
-      
-      if (!leaderStudent) {
-        return res.status(400).json({
-          success: false,
-          message: `Leader not found with ID: ${actualLeaderId}`
-        });
-      }
-    }
-    
-    if (leaderStudent.semester !== student.semester) {
-      return res.status(400).json({
-        success: false,
-        message: 'Leader must be from the same semester'
-      });
-    }
+    // Creator is always the leader in the new approach
+    // No external leader selection - creator becomes leader automatically
 
     // Create new group using transaction
     const session = await mongoose.startSession();
     session.startTransaction();
 
     try {
-    // Determine if leader should be auto-added to members
-    const isCreatorLeader = actualLeaderId.toString() === student._id.toString();
-    
+    // Create group with creator as leader
     const group = new Group({
       name,
       description,
@@ -1057,44 +1032,32 @@ const createGroup = async (req, res) => {
       semester: student.semester,
       academicYear: new Date().getFullYear().toString(),
       createdBy: student._id,
-      leader: actualLeaderId,
+      leader: student._id, // Creator is always the leader
       status: 'invitations_sent', // Start with invitations_sent status
-      members: isCreatorLeader ? [{
-        student: actualLeaderId,
+      members: [{
+        student: student._id,
         role: 'leader',
         isActive: true,
         joinedAt: new Date(),
-        inviteStatus: 'accepted'
-      }] : [], // Add leader to members if creator is leader
+        inviteStatus: 'accepted' // Creator automatically accepts
+      }],
       invites: [{
-        student: actualLeaderId,
+        student: student._id,
         role: 'leader',
         invitedBy: student._id,
         invitedAt: new Date(),
-        status: isCreatorLeader ? 'accepted' : 'pending'
+        status: 'accepted' // Creator automatically accepts
       }]
     });
 
     await group.save({ session });
 
-    // If leader is the creator, add group membership to leader
-    if (isCreatorLeader) {
-      // Add group membership to leader
-      await leaderStudent.addGroupMembershipAtomic(group._id, 'leader', student.semester, session);
-    }
+    // Add group membership to creator (who is the leader)
+    await student.addGroupMembershipAtomic(group._id, 'leader', student.semester, session);
 
-    // Validate that we have enough invitations to meet minimum requirement
-    const totalInvitations = memberIds.length + 1; // +1 for leader
-    const minimumRequiredInvitations = group.minMembers;
-    
-    if (totalInvitations < minimumRequiredInvitations) {
-      await session.abortTransaction();
-      await session.endSession();
-      return res.status(400).json({
-        success: false,
-        message: `Not enough invitations sent. Need at least ${minimumRequiredInvitations} members but only invited ${totalInvitations} (including leader). Please invite more students.`
-      });
-    }
+    // Note: Minimum member requirement validation removed
+    // Students can send invitations later through Group Dashboard
+    // Groups can be created with any number of initial invitations
 
                 // Create invites for additional members INSIDE the transaction
                 if (memberIds.length > 0) {
@@ -1132,6 +1095,22 @@ const createGroup = async (req, res) => {
 
     await session.commitTransaction();
     await session.endSession();
+
+    // Cancel all invitations for this student (both sent and received) after group creation
+    try {
+      const cancelSession = await mongoose.startSession();
+      cancelSession.startTransaction();
+      
+      const socketService = req.app.get('socketService');
+      const cancelledCount = await cancelAllStudentInvitations(student._id, cancelSession, socketService, 'Student created their own group');
+      console.log(`Cancelled ${cancelledCount} invitations for student ${student.misNumber} after group creation`);
+      
+      await cancelSession.commitTransaction();
+      await cancelSession.endSession();
+    } catch (cancelError) {
+      console.error('Cancel student invitations error after group creation:', cancelError.message);
+      // Don't fail the group creation for this cleanup operation
+    }
 
       // Refresh group data with invites
       const updatedGroup = await Group.findById(group._id)
@@ -1466,11 +1445,17 @@ const getAvailableStudents = async (req, res) => {
     const skip = (pageNum - 1) * limitNum;
 
     // Enhanced search query with multiple filters
+    // For 5th semester BTech students, show both CSE and ECE students
     const searchQuery = {
       _id: { $ne: student._id },
       semester: branch ? parseInt(semester) || student.semester : student.semester,
       degree: student.degree,
-      branch: branch || student.branch, // Optional: restrict to same branch unless specified
+      // For 5th semester BTech, allow both CSE and ECE branches
+      ...(student.semester === 5 && student.degree === 'B.Tech' ? {
+        branch: { $in: ['CSE', 'ECE'] }
+      } : {
+        branch: branch || student.branch // For other semesters, use same branch or specified branch
+      }),
       ...(searchRegex ? {
         $or: [
           { fullName: searchRegex },
@@ -1617,6 +1602,123 @@ const getAvailableStudents = async (req, res) => {
 };
 
 // Sem 5 enhanced: Send invitations to students
+// Helper function to reject all pending invitations when group is full or finalized
+const rejectAllPendingInvitations = async (groupId, session, socketService = null, reason = 'Group is now full') => {
+  const group = await Group.findById(groupId).session(session);
+  if (!group) return;
+  
+  const pendingInvites = group.invites.filter(invite => invite.status === 'pending');
+  
+  for (const invite of pendingInvites) {
+    invite.status = 'rejected';
+    invite.rejectedAt = new Date();
+    invite.rejectionReason = reason;
+    
+    // Send real-time notification to the student
+    if (socketService) {
+      try {
+        await socketService.notifyInvitationAutoRejected(
+          invite.student,
+          groupId,
+          reason
+        );
+      } catch (notificationError) {
+        console.error('Error sending auto-rejection notification:', notificationError);
+      }
+    }
+  }
+  
+  if (pendingInvites.length > 0) {
+    await group.save({ session });
+  }
+};
+
+// Helper function to cancel all invitations for a student (both sent and received)
+const cancelAllStudentInvitations = async (studentId, session, socketService, reason = 'Student joined another group') => {
+  try {
+    // 1. Cancel all invitations sent by this student (in groups they created/lead)
+    const groupsLedByStudent = await Group.find({
+      $or: [
+        { createdBy: studentId },
+        { leader: studentId }
+      ],
+      'invites.status': 'pending'
+    }).session(session);
+
+    let totalCancelled = 0;
+
+    for (const group of groupsLedByStudent) {
+      const sentInvites = group.invites.filter(invite => 
+        invite.status === 'pending' && 
+        invite.invitedBy.toString() === studentId.toString()
+      );
+
+      for (const invite of sentInvites) {
+        invite.status = 'auto-rejected';
+        invite.respondedAt = new Date();
+        invite.rejectionReason = reason;
+      }
+
+      if (sentInvites.length > 0) {
+        await group.save({ session });
+        totalCancelled += sentInvites.length;
+
+        // Send real-time notifications for cancelled invitations
+        if (socketService) {
+          for (const invite of sentInvites) {
+            await socketService.notifyInvitationAutoRejected(invite.student, {
+              groupId: group._id,
+              groupName: group.name,
+              reason: reason,
+              type: 'auto-rejected'
+            });
+          }
+        }
+      }
+    }
+
+    // 2. Cancel all invitations received by this student (from other groups)
+    const groupsWithStudentInvites = await Group.find({
+      'invites.student': studentId,
+      'invites.status': 'pending'
+    }).session(session);
+
+    for (const group of groupsWithStudentInvites) {
+      const receivedInvites = group.invites.filter(invite => 
+        invite.student.toString() === studentId.toString() && 
+        invite.status === 'pending'
+      );
+
+      for (const invite of receivedInvites) {
+        invite.status = 'auto-rejected';
+        invite.respondedAt = new Date();
+        invite.rejectionReason = reason;
+      }
+
+      if (receivedInvites.length > 0) {
+        await group.save({ session });
+        totalCancelled += receivedInvites.length;
+
+        // Send real-time notification to group members about auto-rejected invitation
+        if (socketService) {
+          await socketService.notifyInvitationUpdate(group._id, {
+            type: 'auto-rejected',
+            student: {
+              id: studentId,
+              reason: reason
+            }
+          });
+        }
+      }
+    }
+
+    return totalCancelled;
+  } catch (error) {
+    console.error('Cancel all student invitations error:', error.message);
+    throw error;
+  }
+};
+
 const inviteToGroup = async (req, res) => {
   try {
     const studentId = req.user.id;
@@ -1792,6 +1894,24 @@ const inviteToGroup = async (req, res) => {
       
       await session.commitTransaction();
       await session.endSession();
+      
+      // Check if group is now full and reject all pending invitations
+      const finalGroup = await Group.findById(groupId);
+      const activeMembers = finalGroup.members.filter(m => m.isActive);
+      if (activeMembers.length >= finalGroup.maxMembers) {
+        const rejectSession = await mongoose.startSession();
+        rejectSession.startTransaction();
+        try {
+          const socketService = req.app.get('socketService');
+          await rejectAllPendingInvitations(groupId, rejectSession, socketService);
+          await rejectSession.commitTransaction();
+        } catch (rejectError) {
+          console.error('Error rejecting pending invitations:', rejectError);
+          await rejectSession.abortTransaction();
+        } finally {
+          await rejectSession.endSession();
+        }
+      }
     } catch (error) {
       await session.abortTransaction();
       await session.endSession();
@@ -1935,7 +2055,16 @@ const acceptInvitation = async (req, res) => {
       // Check group capacity with fresh read
       const activeMembers = group.members.filter(m => m.isActive);
       if (activeMembers.length >= group.maxMembers) {
-        await session.abortTransaction();
+        // Find the invitation and mark it as rejected
+        const invite = group.invites.id(inviteId);
+        if (invite) {
+          invite.status = 'rejected';
+          invite.rejectedAt = new Date();
+          invite.rejectionReason = 'Group is now full';
+          await group.save({ session });
+        }
+        
+        await session.commitTransaction();
         await session.endSession();
         return res.status(409).json({
           success: false,
@@ -1978,6 +2107,14 @@ const acceptInvitation = async (req, res) => {
       // Update student group membership atomically
       await student.addGroupMembershipAtomic(groupId, invite.role, student.semester, session);
       
+      // Check if group is now full and reject all pending invitations
+      const updatedGroup = await Group.findById(groupId).session(session);
+      const currentActiveMembers = updatedGroup.members.filter(m => m.isActive);
+      if (currentActiveMembers.length >= updatedGroup.maxMembers) {
+        const socketService = req.app.get('socketService');
+        await rejectAllPendingInvitations(groupId, session, socketService);
+      }
+      
       // Auto-cleanup student's other pending invites
       await student.cleanupInvitesAtomic(groupId, session);
       
@@ -1986,6 +2123,16 @@ const acceptInvitation = async (req, res) => {
         await group.autoRejectStudentInvites(student._id, session);
       } catch (autoRejectError) {
         console.error('Auto-reject student invites error:', autoRejectError.message);
+        // Don't fail the entire transaction for this cleanup operation
+      }
+
+      // Cancel all invitations for this student (both sent and received)
+      try {
+        const socketService = req.app.get('socketService');
+        const cancelledCount = await cancelAllStudentInvitations(student._id, session, socketService, 'Student joined another group');
+        console.log(`Cancelled ${cancelledCount} invitations for student ${student.misNumber}`);
+      } catch (cancelError) {
+        console.error('Cancel student invitations error:', cancelError.message);
         // Don't fail the entire transaction for this cleanup operation
       }
       
@@ -2020,7 +2167,7 @@ const acceptInvitation = async (req, res) => {
       }
 
       // Refresh and return data
-      const updatedGroup = await Group.findById(groupId)
+      const finalGroup = await Group.findById(groupId)
         .populate({
           path: 'members.student',
           select: 'fullName misNumber collegeEmail branch'
@@ -2033,7 +2180,7 @@ const acceptInvitation = async (req, res) => {
       res.json({
         success: true,
         data: {
-          group: updatedGroup,
+          group: finalGroup,
           member: {
             student: student._id,
             role: invite.role,
@@ -3663,12 +3810,16 @@ const finalizeGroup = async (req, res) => {
 
     try {
       await group.finalizeGroup(student._id, session);
+      
+      // Reject all pending invitations when group is finalized
+      const socketService = req.app.get('socketService');
+      await rejectAllPendingInvitations(groupId, session, socketService, 'Group has been finalized');
+      
       await session.commitTransaction();
       await session.endSession();
 
       // 🔥 REAL-TIME NOTIFICATION: Group Finalization
       try {
-        const socketService = req.app.get('socketService');
         if (socketService) {
           await socketService.notifyGroupFinalized(groupId, {
             finalizedBy: { id: student._id, fullName: student.fullName },

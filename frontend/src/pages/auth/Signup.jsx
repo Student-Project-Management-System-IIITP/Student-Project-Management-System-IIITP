@@ -197,7 +197,6 @@ const Signup = () => {
             >
               <option value="CSE">CSE</option>
               <option value="ECE">ECE</option>
-              <option value="ASH">ASH</option>
             </select>
           </div>
           

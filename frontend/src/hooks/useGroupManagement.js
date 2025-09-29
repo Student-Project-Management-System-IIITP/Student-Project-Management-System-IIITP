@@ -211,6 +211,35 @@ export const useGroupManagement = () => {
     }
   };
 
+  // Handle group finalization with validation
+  const handleFinalizeGroup = async (groupId) => {
+    try {
+      if (!isGroupLeader) {
+        throw new Error('Only the group leader can finalize the group');
+      }
+      
+      if (!groupId) {
+        throw new Error('Group ID is required');
+      }
+      
+      // Import the API function
+      const { studentAPI } = await import('../utils/api');
+      const response = await studentAPI.finalizeGroup(groupId);
+      
+      if (!response.success) {
+        throw new Error(response.message || 'Failed to finalize group');
+      }
+      
+      // Immediately refresh data after successful finalization
+      // This ensures the UI updates right away, not just via WebSocket
+      await fetchSem5Data();
+      
+      return response;
+    } catch (error) {
+      throw error;
+    }
+  };
+
   return {
     // State
     sem5Group,
@@ -243,6 +272,7 @@ export const useGroupManagement = () => {
     acceptGroupInvitation,
     rejectGroupInvitation,
     handleInvitationResponse,
+    finalizeGroup: handleFinalizeGroup,
     fetchSem5Data,
   };
 };
