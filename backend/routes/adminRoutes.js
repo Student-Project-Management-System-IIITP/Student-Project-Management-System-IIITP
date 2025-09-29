@@ -1,39 +1,37 @@
 const express = require('express');
 const router = express.Router();
+const adminController = require('../controllers/adminController');
 const { authenticateToken, requireAdmin } = require('../middleware/auth');
-const {
-  getDashboardData,
-  getUsers,
-  getStudents,
-  getFaculty,
-  getProjects,
-  getGroups,
-  getSystemStats
-} = require('../controllers/adminController');
-const { getUserProfile, updateUserProfile, changePassword } = require('../controllers/authController');
 
-// Apply authentication and admin role middleware to all routes
+// Apply authentication and admin middleware to all routes
 router.use(authenticateToken);
 router.use(requireAdmin);
 
 // Dashboard routes
-router.get('/dashboard', getDashboardData);
+router.get('/dashboard', adminController.getDashboardData);
+router.get('/stats', adminController.getSystemStats);
 
 // User management routes
-router.get('/users', getUsers);
-router.get('/students', getStudents);
-router.get('/faculty', getFaculty);
+router.get('/users', adminController.getUsers);
+router.get('/students', adminController.getStudents);
+router.get('/faculty', adminController.getFaculty);
 
-// System routes
-router.get('/projects', getProjects);
-router.get('/groups', getGroups);
-router.get('/stats', getSystemStats);
+// Project management routes
+router.get('/projects', adminController.getProjects);
+router.put('/projects/:id/status', adminController.updateProjectStatus);
 
-// Admin-only profile endpoints (reuse existing controller handlers)
-router.get('/profile', getUserProfile);
-router.put('/profile', updateUserProfile);
-router.put('/change-password', changePassword);
+// Group management routes
+router.get('/groups', adminController.getGroups);
+router.get('/unallocated-groups', adminController.getUnallocatedGroups);
+
+// Allocation management routes
+router.get('/allocations', adminController.getAllocations);
+router.post('/force-allocate', adminController.forceAllocateFaculty);
+
+// Sem 5 specific routes - Allocation Statistics
+router.get('/allocation-statistics', adminController.getAllocationStatistics);
+
+// Sem 4 specific routes
+router.get('/sem4/registrations', adminController.getSem4MinorProject1Registrations);
 
 module.exports = router;
-
-

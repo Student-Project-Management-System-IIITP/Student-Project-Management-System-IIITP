@@ -14,6 +14,7 @@ export const useAuth = () => {
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
+  const [roleData, setRoleData] = useState(null);
   const [userRole, setUserRole] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -26,6 +27,7 @@ export const AuthProvider = ({ children }) => {
           const data = await authAPI.getProfile();
           if (data.success) {
             setUser(data.data.user);
+            setRoleData(data.data.roleData);
             setUserRole(data.data.user.role);
           } else {
             localStorage.removeItem('token');
@@ -52,6 +54,7 @@ export const AuthProvider = ({ children }) => {
         const token = data.data.token;
         localStorage.setItem('token', token);
         setUser(data.data.user);
+        setRoleData(data.data.roleData);
         setUserRole(data.data.user.role);
         
         return { success: true, user: data.data.user };
@@ -89,12 +92,14 @@ export const AuthProvider = ({ children }) => {
   const logout = () => {
     localStorage.removeItem('token');
     setUser(null);
+    setRoleData(null);
     setUserRole(null);
     // Navigation will be handled by the component calling logout
   };
 
   const value = {
     user,
+    roleData,
     userRole,
     isLoading,
     login,
