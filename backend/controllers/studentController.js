@@ -1,8 +1,16 @@
 const Student = require('../models/Student');
 const Project = require('../models/Project');
 const Group = require('../models/Group');
+const Faculty = require('../models/Faculty');
 const FacultyPreference = require('../models/FacultyPreference');
 const mongoose = require('mongoose');
+
+// Helper function to generate academic year in YYYY-YY format
+const generateAcademicYear = () => {
+  const currentYear = new Date().getFullYear();
+  const nextYear = currentYear + 1;
+  return `${currentYear}-${nextYear.toString().slice(-2)}`;
+};
 
 // Get student dashboard data
 const getDashboardData = async (req, res) => {
@@ -51,7 +59,7 @@ const getDashboardData = async (req, res) => {
     const facultyPreferences = await FacultyPreference.find({
       student: student._id,
       semester: student.semester
-    }).populate('project group preferences.faculty allocatedFaculty');
+    }).populate('project group preferences.faculty');
 
     // Use the enhanced student model's dashboard data method
     const dashboardData = student.getDashboardData();
@@ -490,7 +498,7 @@ const registerProject = async (req, res) => {
       projectType,
       student: student._id,
       semester: student.semester,
-      academicYear: new Date().getFullYear().toString(),
+      academicYear: generateAcademicYear(),
       isContinuation: isContinuation || false,
       previousProject: previousProjectId || null,
       isInternship: projectType.includes('internship'),
@@ -514,6 +522,269 @@ const registerProject = async (req, res) => {
       message: 'Error registering project',
       error: error.message
     });
+  }
+};
+
+// Get faculty list for student preferences
+const getFacultyList = async (req, res) => {
+  try {
+    const faculty = await Faculty.find({}, 'fullName department designation mode')
+      .sort({ fullName: 1 });
+    
+    res.json({
+      success: true,
+      data: faculty
+    });
+  } catch (error) {
+    console.error('Error fetching faculty list:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch faculty list'
+    });
+  }
+};
+
+// Register for Minor Project 2 (Sem 5) - Enhanced version with group and faculty preferences
+const registerMinorProject2 = async (req, res) => {
+  const session = await mongoose.startSession();
+  
+  try {
+    await session.withTransaction(async () => {
+      const studentId = req.user.id;
+      const { title, domain, facultyPreferences } = req.body;
+      
+      console.log(`Starting Minor Project 2 registration for student ${studentId}`);
+      console.log('Registration data:', { title, domain, facultyPreferencesCount: facultyPreferences?.length });
+      
+      // Get student with session
+      const student = await Student.findOne({ user: studentId }).session(session);
+      if (!student) {
+        throw new Error('Student not found');
+      }
+      
+      // Handle undefined academic year - try to find matching group first
+      let studentAcademicYear = student.academicYear;
+      
+      if (!studentAcademicYear) {
+        console.warn('Student academic year is undefined, trying to find matching group...');
+        
+        // Try to find any group for this student to get the academic year
+        const anyGroup = await Group.findOne({
+          'members.student': student._id,
+          semester: 5
+        }).session(session);
+        
+        if (anyGroup && anyGroup.academicYear) {
+          studentAcademicYear = anyGroup.academicYear;
+          console.log('Found group with academic year, using it:', studentAcademicYear);
+        } else {
+          // Generate academic year based on current year
+          const currentYear = new Date().getFullYear();
+          const nextYear = currentYear + 1;
+          studentAcademicYear = `${currentYear}-${nextYear.toString().slice(-2)}`;
+          console.log('No group found, using generated academic year:', studentAcademicYear);
+        }
+        
+        // Update student with determined academic year
+        student.academicYear = studentAcademicYear;
+        await student.save({ session });
+      }
+
+      console.log('Student data:', {
+        id: student._id,
+        fullName: student.fullName,
+        semester: student.semester,
+        academicYear: student.academicYear,
+        degree: student.degree
+      });
+
+      // Check if student is in semester 5
+      if (student.semester !== 5) {
+        throw new Error('Minor Project 2 is only available for Semester 5 students');
+      }
+
+      // Check if student is in a group
+      const group = await Group.findOne({
+        'members.student': student._id,
+        semester: 5,
+        academicYear: studentAcademicYear
+      }).populate('members.student', 'fullName misNumber contactNumber branch').session(session);
+
+      console.log('Group lookup result:', group ? {
+        id: group._id,
+        name: group.name,
+        status: group.status,
+        memberCount: group.members.length,
+        academicYear: group.academicYear
+      } : 'No group found');
+
+      if (!group) {
+        // Let's check if there are any groups for this student in any status
+        const anyGroup = await Group.findOne({
+          'members.student': student._id,
+          semester: 5
+        }).session(session);
+        
+        if (anyGroup) {
+          console.log('Found group with different academic year:', {
+            id: anyGroup._id,
+            name: anyGroup.name,
+            status: anyGroup.status,
+            academicYear: anyGroup.academicYear,
+            studentAcademicYear: studentAcademicYear
+          });
+          throw new Error(`You are in a group but academic year mismatch. Group: ${anyGroup.academicYear}, Student: ${studentAcademicYear}`);
+        }
+        
+        throw new Error('You must be in a group to register for Minor Project 2. Please create or join a group first.');
+      }
+
+      // Check if group is finalized
+      console.log('Group status check:', {
+        currentStatus: group.status,
+        requiredStatus: 'finalized',
+        isFinalized: group.status === 'finalized'
+      });
+      
+      if (group.status !== 'finalized') {
+        throw new Error(`Your group must be finalized before registering for Minor Project 2. Current status: ${group.status}. Please finalize your group first.`);
+      }
+
+      // Check if current student is the group leader
+      const isGroupLeader = group.leader.toString() === student._id.toString();
+      console.log('Leader validation:', {
+        groupLeaderId: group.leader.toString(),
+        currentStudentId: student._id.toString(),
+        isGroupLeader: isGroupLeader
+      });
+
+      if (!isGroupLeader) {
+        throw new Error('Only the group leader can register for Minor Project 2');
+      }
+
+      // Check if project is already registered for this group
+      const existingProject = await Project.findOne({
+        group: group._id,
+        projectType: 'minor2',
+        semester: 5,
+        academicYear: student.academicYear
+      }).session(session);
+
+      if (existingProject) {
+        throw new Error('Minor Project 2 is already registered for this group');
+      }
+
+      // Validate faculty preferences
+      if (!facultyPreferences || facultyPreferences.length !== 5) {
+        throw new Error('You must select exactly 5 faculty preferences');
+      }
+
+      // Validate that all faculty preferences are unique
+      const facultyIds = facultyPreferences.map(p => p.faculty._id || p.faculty);
+      const uniqueFacultyIds = [...new Set(facultyIds)];
+      if (facultyIds.length !== uniqueFacultyIds.length) {
+        throw new Error('All faculty preferences must be unique');
+      }
+
+      // Validate that all faculty exist
+      const facultyValidationPromises = facultyIds.map(async (facultyId) => {
+        const faculty = await Faculty.findById(facultyId).session(session);
+        if (!faculty) {
+          throw new Error(`Faculty with ID ${facultyId} not found`);
+        }
+        return faculty;
+      });
+
+      const validatedFaculty = await Promise.all(facultyValidationPromises);
+      console.log(`Validated ${validatedFaculty.length} faculty members`);
+
+      // Create project with group and faculty preferences
+      const projectData = {
+        title: title.trim(),
+        description: title.trim(), // Use title as description for Minor Project 2
+        projectType: 'minor2',
+        student: student._id,
+        group: group._id,
+        groupLeader: group.leader, // Store the group leader
+        semester: 5,
+        academicYear: studentAcademicYear,
+        status: 'registered',
+        facultyPreferences: facultyPreferences.map((pref, index) => ({
+          faculty: pref.faculty._id || pref.faculty,
+          priority: index + 1
+        })),
+        // Initialize faculty allocation fields
+        currentFacultyIndex: 0,
+        allocationHistory: []
+      };
+
+      const project = new Project(projectData);
+      await project.save({ session });
+      console.log(`Created project: ${project._id}`);
+
+      // Update group with project reference using findByIdAndUpdate to avoid pre-save middleware
+      await Group.findByIdAndUpdate(
+        group._id,
+        { project: project._id },
+        { session }
+      );
+      console.log(`Updated group ${group._id} with project reference`);
+
+      // Create FacultyPreference document for tracking allocation process
+      const facultyPreferenceData = {
+        student: student._id,
+        project: project._id,
+        group: group._id,
+        semester: 5,
+        academicYear: studentAcademicYear,
+        status: 'pending',
+        preferences: facultyPreferences.map((pref, index) => ({
+          faculty: pref.faculty._id || pref.faculty,
+          priority: index + 1,
+          submittedAt: new Date()
+        }))
+      };
+
+      const facultyPreferenceDoc = new FacultyPreference(facultyPreferenceData);
+      await facultyPreferenceDoc.save({ session });
+      console.log(`Created FacultyPreference document: ${facultyPreferenceDoc._id}`);
+
+      // Present project to first faculty (start the allocation process)
+      try {
+        await project.presentToCurrentFaculty();
+        console.log(`Presented project to first faculty (priority 1)`);
+      } catch (presentError) {
+        console.warn('Could not present project to faculty:', presentError.message);
+        // Don't fail registration if presentation fails - this is not critical
+      }
+
+      // Populate the response with group and faculty details
+      await project.populate([
+        { path: 'group', populate: { path: 'members.student', select: 'fullName misNumber contactNumber branch' } },
+        { path: 'facultyPreferences.faculty', select: 'fullName department designation mode' }
+      ]);
+
+      console.log('Minor Project 2 registration completed successfully');
+      
+      res.status(201).json({
+        success: true,
+        data: {
+          project: project,
+          facultyPreference: facultyPreferenceDoc,
+          allocationStatus: project.getAllocationStatus()
+        },
+        message: 'Minor Project 2 registered successfully'
+      });
+    });
+  } catch (error) {
+    console.error('Error registering Minor Project 2:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error registering Minor Project 2',
+      error: error.message
+    });
+  } finally {
+    await session.endSession();
   }
 };
 
@@ -1030,7 +1301,7 @@ const createGroup = async (req, res) => {
       maxMembers,
       minMembers: 4,
       semester: student.semester,
-      academicYear: new Date().getFullYear().toString(),
+      academicYear: generateAcademicYear(),
       createdBy: student._id,
       leader: student._id, // Creator is always the leader
       status: 'invitations_sent', // Start with invitations_sent status
@@ -2342,6 +2613,157 @@ const leaveGroup = async (req, res) => {
   }
 };
 
+// Get student's group status for debugging
+const getStudentGroupStatus = async (req, res) => {
+  try {
+    const studentId = req.user.id;
+    
+    // Get student
+    const student = await Student.findOne({ user: studentId });
+    if (!student) {
+      return res.status(404).json({
+        success: false,
+        message: 'Student not found'
+      });
+    }
+
+    // Get all groups for this student
+    const allGroups = await Group.find({
+      'members.student': student._id
+    }).populate('members.student', 'fullName misNumber contactNumber branch');
+
+    // Get semester 5 groups specifically
+    const sem5Groups = await Group.find({
+      'members.student': student._id,
+      semester: 5
+    }).populate('members.student', 'fullName misNumber contactNumber branch');
+
+    // Get groups with matching academic year
+    const studentAcademicYear = student.academicYear || '2024-25';
+    const matchingAcademicYearGroups = await Group.find({
+      'members.student': student._id,
+      semester: 5,
+      academicYear: studentAcademicYear
+    }).populate('members.student', 'fullName misNumber contactNumber branch');
+
+    res.json({
+      success: true,
+      data: {
+        student: {
+          id: student._id,
+          fullName: student.fullName,
+          semester: student.semester,
+          academicYear: studentAcademicYear,
+          degree: student.degree,
+          originalAcademicYear: student.academicYear
+        },
+        groups: {
+          all: allGroups.map(g => ({
+            id: g._id,
+            name: g.name,
+            status: g.status,
+            semester: g.semester,
+            academicYear: g.academicYear,
+            memberCount: g.members.length
+          })),
+          sem5: sem5Groups.map(g => ({
+            id: g._id,
+            name: g.name,
+            status: g.status,
+            semester: g.semester,
+            academicYear: g.academicYear,
+            memberCount: g.members.length
+          })),
+          matchingAcademicYear: matchingAcademicYearGroups.map(g => ({
+            id: g._id,
+            name: g.name,
+            status: g.status,
+            semester: g.semester,
+            academicYear: g.academicYear,
+            memberCount: g.members.length
+          }))
+        },
+        canRegister: matchingAcademicYearGroups.some(g => g.status === 'finalized')
+      }
+    });
+  } catch (error) {
+    console.error('Error getting student group status:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error getting student group status',
+      error: error.message
+    });
+  }
+};
+
+// Get faculty allocation status for a project
+const getFacultyAllocationStatus = async (req, res) => {
+  try {
+    const studentId = req.user.id;
+    const { projectId } = req.params;
+    
+    // Get student
+    const student = await Student.findOne({ user: studentId });
+    if (!student) {
+      return res.status(404).json({
+        success: false,
+        message: 'Student not found'
+      });
+    }
+
+    // Get project
+    const project = await Project.findOne({
+      _id: projectId,
+      student: student._id
+    }).populate([
+      { path: 'group', populate: { path: 'members.student', select: 'fullName misNumber contactNumber branch' } },
+      { path: 'facultyPreferences.faculty', select: 'fullName department designation mode' },
+      { path: 'faculty', select: 'fullName department designation mode' }
+    ]);
+
+    if (!project) {
+      return res.status(404).json({
+        success: false,
+        message: 'Project not found'
+      });
+    }
+
+    // Get faculty preference document
+    const facultyPreference = await FacultyPreference.findOne({
+      project: project._id,
+      student: student._id
+    }).populate('preferences.faculty', 'fullName department designation mode');
+
+    const allocationStatus = project.getAllocationStatus();
+
+    res.json({
+      success: true,
+      data: {
+        project: {
+          id: project._id,
+          title: project.title,
+          status: project.status,
+          faculty: project.faculty,
+          group: project.group,
+          facultyPreferences: project.facultyPreferences,
+          currentFacultyIndex: project.currentFacultyIndex,
+          allocationHistory: project.allocationHistory
+        },
+        facultyPreference: facultyPreference,
+        allocationStatus: allocationStatus,
+        supportsAllocation: project.supportsFacultyAllocation()
+      }
+    });
+  } catch (error) {
+    console.error('Error getting faculty allocation status:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error getting faculty allocation status',
+      error: error.message
+    });
+  }
+};
+
 // Sem 5 specific: Submit faculty preferences
 const submitFacultyPreferences = async (req, res) => {
   try {
@@ -2551,7 +2973,7 @@ const createContinuationProject = async (req, res) => {
       group: previousProject.group,
       faculty: previousProject.faculty,
       semester: student.semester,
-      academicYear: new Date().getFullYear().toString(),
+      academicYear: generateAcademicYear(),
       isContinuation: true,
       previousProject: previousProject._id,
       status: 'registered'
@@ -3326,7 +3748,7 @@ const getSem5Dashboard = async (req, res) => {
     const projects = await Project.find({ 
       student: student._id, 
       semester: 5 
-    }).populate('faculty allocatedFaculty group');
+    }).populate('faculty group');
 
     // Get current group
     const group = await Group.findOne({
@@ -3339,7 +3761,7 @@ const getSem5Dashboard = async (req, res) => {
     const facultyPreferences = await FacultyPreference.find({
       student: student._id,
       semester: 5
-    }).populate('project group preferences.faculty allocatedFaculty');
+    }).populate('project group preferences.faculty');
 
     res.json({
       success: true,
@@ -4016,6 +4438,9 @@ module.exports = {
   getStudentGroups,
   getStudentInternships,
   registerProject,
+  registerMinorProject2,
+  getFacultyAllocationStatus,
+  getStudentGroupStatus,
   updateProject,
   submitDeliverables,
   addInternship,
@@ -4069,6 +4494,8 @@ module.exports = {
   applyForMTechInternship,
   checkMTechCourseworkEligibility,
   getMTechAcademicPath,
+  // Faculty functions
+  getFacultyList,
   // Test functions
   testStudentLookup
 };

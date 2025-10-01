@@ -187,6 +187,47 @@ const projectSchema = new mongoose.Schema({
     default: 'faculty_choice'
   },
   
+  // Faculty Allocation Process (Sem 5+ only)
+  currentFacultyIndex: {
+    type: Number,
+    default: 0,
+    min: 0,
+    max: 4, // 0-4 for 5 faculty preferences
+    validate: {
+      validator: function(value) {
+        // Only validate for Sem 5+ projects that support faculty allocation
+        const supportsFacultyAllocation = this.semester >= 5 && 
+          ['minor2', 'minor3', 'major1', 'major2'].includes(this.projectType);
+        return !supportsFacultyAllocation || (value >= 0 && value <= 4);
+      },
+      message: 'Current faculty index must be between 0 and 4 for Sem 5+ projects'
+    }
+  },
+  allocationHistory: [{
+    faculty: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Faculty'
+    },
+    priority: {
+      type: Number,
+      min: 1,
+      max: 5
+    },
+    action: {
+      type: String,
+      enum: ['presented', 'passed', 'chosen'],
+      required: true
+    },
+    timestamp: {
+      type: Date,
+      default: Date.now
+    },
+    comments: {
+      type: String,
+      maxlength: 500
+    }
+  }],
+  
   // Timestamps
   createdAt: {
     type: Date,
@@ -776,6 +817,160 @@ projectSchema.methods.getProjectAchievements = function() {
   }
   
   return achievements;
+};
+
+// Faculty Allocation Methods (Sem 5+ only)
+// Check if project supports faculty allocation
+projectSchema.methods.supportsFacultyAllocation = function() {
+  return this.semester >= 5 && 
+         ['minor2', 'minor3', 'major1', 'major2'].includes(this.projectType);
+};
+
+// Get current faculty being presented to
+projectSchema.methods.getCurrentFaculty = function() {
+  if (!this.supportsFacultyAllocation() || !this.facultyPreferences || this.facultyPreferences.length === 0) {
+    return null;
+  }
+  
+  const currentIndex = this.currentFacultyIndex || 0;
+  return this.facultyPreferences[currentIndex] || null;
+};
+
+// Check if all faculty have been presented to
+projectSchema.methods.allFacultyPresented = function() {
+  if (!this.supportsFacultyAllocation()) {
+    return true; // Sem 4 projects don't need faculty allocation
+  }
+  
+  return this.currentFacultyIndex >= (this.facultyPreferences?.length || 0);
+};
+
+// Present project to current faculty
+projectSchema.methods.presentToCurrentFaculty = function() {
+  if (!this.supportsFacultyAllocation()) {
+    throw new Error('This project does not support faculty allocation');
+  }
+  
+  const currentFaculty = this.getCurrentFaculty();
+  if (!currentFaculty) {
+    throw new Error('No more faculty to present to');
+  }
+  
+  // Add to allocation history
+  this.allocationHistory.push({
+    faculty: currentFaculty.faculty,
+    priority: currentFaculty.priority,
+    action: 'presented',
+    timestamp: new Date()
+  });
+  
+  return this.save();
+};
+
+// Faculty chooses the project
+projectSchema.methods.facultyChoose = function(facultyId, comments = '') {
+  if (!this.supportsFacultyAllocation()) {
+    throw new Error('This project does not support faculty allocation');
+  }
+  
+  const currentFaculty = this.getCurrentFaculty();
+  if (!currentFaculty || currentFaculty.faculty.toString() !== facultyId.toString()) {
+    throw new Error('Invalid faculty choice');
+  }
+  
+  // Update project with allocated faculty
+  this.faculty = facultyId;
+  this.status = 'faculty_allocated';
+  this.allocatedBy = 'faculty_choice';
+  
+  // Add to allocation history
+  this.allocationHistory.push({
+    faculty: facultyId,
+    priority: currentFaculty.priority,
+    action: 'chosen',
+    timestamp: new Date(),
+    comments: comments
+  });
+  
+  return this.save();
+};
+
+// Faculty passes the project
+projectSchema.methods.facultyPass = function(facultyId, comments = '') {
+  if (!this.supportsFacultyAllocation()) {
+    throw new Error('This project does not support faculty allocation');
+  }
+  
+  const currentFaculty = this.getCurrentFaculty();
+  if (!currentFaculty || currentFaculty.faculty.toString() !== facultyId.toString()) {
+    throw new Error('Invalid faculty pass');
+  }
+  
+  // Add to allocation history
+  this.allocationHistory.push({
+    faculty: facultyId,
+    priority: currentFaculty.priority,
+    action: 'passed',
+    timestamp: new Date(),
+    comments: comments
+  });
+  
+  // Move to next faculty
+  this.currentFacultyIndex = (this.currentFacultyIndex || 0) + 1;
+  
+  return this.save();
+};
+
+// Check if project is ready for admin allocation
+projectSchema.methods.isReadyForAdminAllocation = function() {
+  if (!this.supportsFacultyAllocation()) {
+    return false;
+  }
+  
+  return this.allocationHistory.length > 0 && 
+         this.allocationHistory.every(entry => entry.action === 'passed') &&
+         this.allFacultyPresented();
+};
+
+// Get allocation status summary
+projectSchema.methods.getAllocationStatus = function() {
+  if (!this.supportsFacultyAllocation()) {
+    return {
+      supportsAllocation: false,
+      status: 'not_applicable',
+      message: 'This project does not support faculty allocation'
+    };
+  }
+  
+  if (this.faculty) {
+    return {
+      supportsAllocation: true,
+      status: 'allocated',
+      allocatedFaculty: this.faculty,
+      allocatedBy: this.allocatedBy,
+      message: 'Project has been allocated to faculty'
+    };
+  }
+  
+  if (this.allFacultyPresented()) {
+    return {
+      supportsAllocation: true,
+      status: 'all_faculty_passed',
+      message: 'All faculty have passed - ready for admin allocation',
+      currentFacultyIndex: this.currentFacultyIndex,
+      totalFaculty: this.facultyPreferences?.length || 0
+    };
+  }
+  
+  const currentFaculty = this.getCurrentFaculty();
+  return {
+    supportsAllocation: true,
+    status: 'pending',
+    currentFaculty: currentFaculty,
+    currentFacultyIndex: this.currentFacultyIndex,
+    totalFaculty: this.facultyPreferences?.length || 0,
+    message: `Presented to faculty ${(this.currentFacultyIndex || 0) + 1} of ${this.facultyPreferences?.length || 0}`
+  };
 };
 
 // Sem 8 specific method: Get project recommendations for future

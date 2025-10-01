@@ -154,6 +154,7 @@ export const studentAPI = {
   // Sem 5 Faculty Preferences
   submitFacultyPreferences: (projectId, preferences) => api.post(`/student/projects/${projectId}/faculty-preferences`, preferences),
   getFacultyPreferences: (projectId) => api.get(`/student/projects/${projectId}/faculty-preferences`),
+  getFacultyList: () => api.get('/student/faculty'),
   
   // Sem 5 Status Tracking
   getSem5Status: (projectId) => api.get(`/student/projects/${projectId}/sem5-status`),
