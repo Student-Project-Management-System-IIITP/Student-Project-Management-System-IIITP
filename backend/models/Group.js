@@ -90,6 +90,13 @@ const groupSchema = new mongoose.Schema({
   academicYear: {
     type: String,
     required: true,
+    trim: true,
+    match: [/^\d{4}-\d{2}$/, 'Academic year must be in format YYYY-YY (e.g., 2024-25)'],
+    default: function() {
+      const currentYear = new Date().getFullYear();
+      const nextYear = currentYear + 1;
+      return `${currentYear}-${nextYear.toString().slice(-2)}`;
+    },
     index: true
   },
   

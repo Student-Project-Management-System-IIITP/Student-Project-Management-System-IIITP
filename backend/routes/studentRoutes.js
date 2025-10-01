@@ -110,6 +110,11 @@ router.get('/projects/:id', studentController.getProjectById); // Get specific p
 router.put('/projects/:id', studentController.updateProject);
 router.post('/projects/:id/submit', studentController.submitDeliverables);
 
+// Minor Project 2 specific registration
+router.post('/projects/minor2/register', studentController.registerMinorProject2);
+router.get('/projects/:projectId/allocation-status', studentController.getFacultyAllocationStatus);
+router.get('/group-status', studentController.getStudentGroupStatus);
+
 // Group routes
 router.get('/groups', studentController.getStudentGroups);
 // Enhanced Group formation endpoints for Sem 5 - Specific routes FIRST
@@ -152,6 +157,7 @@ router.get('/groups/available', studentController.getAvailableGroups);
 // Note: joinGroup removed - use invitation/accept pattern instead
 router.post('/groups/:groupId/leave', studentController.leaveGroupEnhanced);
 router.post('/groups/:groupId/faculty-preferences', studentController.submitFacultyPreferences);
+router.get('/faculty', studentController.getFacultyList);
 
 // Sem 6 specific routes - Project Continuation & Advanced Features
 router.get('/projects/continuation', studentController.getContinuationProjects);

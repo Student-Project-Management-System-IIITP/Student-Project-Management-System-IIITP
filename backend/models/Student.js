@@ -54,6 +54,18 @@ const studentSchema = new mongoose.Schema({
     enum: ['CSE', 'ECE'],
     uppercase: true
   },
+  academicYear: {
+    type: String,
+    required: true,
+    trim: true,
+    match: [/^\d{4}-\d{2}$/, 'Academic year must be in format YYYY-YY (e.g., 2024-25)'],
+    default: function() {
+      // Auto-generate academic year based on current year
+      const currentYear = new Date().getFullYear();
+      const nextYear = currentYear + 1;
+      return `${currentYear}-${nextYear.toString().slice(-2)}`;
+    }
+  },
   
   // Current semester projects
   currentProjects: [{
@@ -234,6 +246,8 @@ const studentSchema = new mongoose.Schema({
 studentSchema.index({ branch: 1 });
 studentSchema.index({ semester: 1 });
 studentSchema.index({ degree: 1 });
+studentSchema.index({ academicYear: 1 });
+studentSchema.index({ semester: 1, academicYear: 1 });
 studentSchema.index({ 'currentProjects.project': 1 });
 studentSchema.index({ 'groupMemberships.group': 1 });
 studentSchema.index({ 'groupMemberships.semester': 1 });

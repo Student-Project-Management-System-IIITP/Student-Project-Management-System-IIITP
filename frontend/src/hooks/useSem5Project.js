@@ -80,13 +80,21 @@ export const useSem5Project = () => {
   const getProgressSteps = () => {
     const currentStep = getNextStep();
     
+    // Check if project is registered but waiting for faculty allocation
+    const isWaitingForFaculty = sem5Project && 
+                                sem5Project.status === 'registered' && 
+                                !hasFacultyAllocated();
+    
     return [
       {
         id: 'register_project',
         title: 'Register Minor Project 2',
-        description: 'Register for Minor Project 2',
+        description: isWaitingForFaculty 
+          ? 'Project registered - Waiting for faculty allocation' 
+          : 'Register for Minor Project 2',
         status: sem5Project ? 'completed' : (currentStep === 'register_project' ? 'current' : 'upcoming'),
-        completed: !!sem5Project
+        completed: !!sem5Project,
+        showWaitingMessage: isWaitingForFaculty
       },
       {
         id: 'create_group',

@@ -193,16 +193,28 @@ const StudentDashboard = () => {
         const memberCount = groupStats ? groupStats.memberCount : 0;
         
         if (groupStatus === 'finalized') {
-          // Group finalized - show register project
+          // Group finalized - show register project (only for group leader)
           if (!sem5Project && canRegisterSem5) {
-            actions.push({
-              title: 'Register Minor Project 2',
-              description: 'Register project details (Group finalized)',
-              icon: '📝',
-              link: '/student/sem5/register',
-              color: 'bg-blue-50 border-blue-200 hover:bg-blue-100',
-              textColor: 'text-blue-800',
-            });
+            if (isGroupLeader) {
+              actions.push({
+                title: 'Register Minor Project 2',
+                description: 'Register project details (Group finalized)',
+                icon: '📝',
+                link: '/student/sem5/register',
+                color: 'bg-blue-50 border-blue-200 hover:bg-blue-100',
+                textColor: 'text-blue-800',
+              });
+            } else {
+              actions.push({
+                title: 'Register Minor Project 2',
+                description: 'Only group leader can register project details',
+                icon: '📝',
+                link: '#',
+                color: 'bg-gray-50 border-gray-200',
+                textColor: 'text-gray-500',
+                disabled: true,
+              });
+            }
           }
         }
         
@@ -395,36 +407,33 @@ const StudentDashboard = () => {
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
                 </div>
               ) : sem5Project ? (
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <h3 className="font-medium text-gray-900">{sem5Project.title}</h3>
-                    <StatusBadge status={sem5Project.status} />
+                // Show waiting message instead of project details
+                <div className="text-center py-8">
+                  <div className="flex items-center justify-center mb-4">
+                    <div className="w-16 h-16 bg-yellow-100 rounded-full flex items-center justify-center">
+                      <svg className="w-8 h-8 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                    </div>
                   </div>
-                  <p className="text-sm text-gray-600">{sem5Project.description}</p>
-                  <div className="text-xs text-gray-500">
-                    Registered: {new Date(sem5Project.createdAt).toLocaleDateString()}
-                  </div>
-                  
-                  {/* Sem 5 Progress Steps */}
-                  <div className="mt-4">
-                    <h4 className="text-sm font-medium text-gray-700 mb-2">Progress</h4>
-                    <div className="space-y-2">
-                      {getProgressSteps().map((step, index) => (
-                        <div key={step.id} className="flex items-center space-x-2">
-                          <div className={`w-4 h-4 rounded-full flex items-center justify-center text-xs ${
-                            step.completed ? 'bg-green-500 text-white' : 
-                            step.status === 'current' ? 'bg-blue-500 text-white' : 'bg-gray-300 text-gray-600'
-                          }`}>
-                            {step.completed ? '✓' : index + 1}
-                          </div>
-                          <span className={`text-sm ${
-                            step.completed ? 'text-green-600' : 
-                            step.status === 'current' ? 'text-blue-600 font-medium' : 'text-gray-500'
-                          }`}>
-                            {step.title}
-                          </span>
-                        </div>
-                      ))}
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                    Project Registration Complete
+                  </h3>
+                  <p className="text-gray-600 mb-4">
+                    Your Minor Project 2 has been successfully registered.
+                  </p>
+                  <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                    <div className="flex items-center">
+                      <div className="flex-shrink-0">
+                        <svg className="h-5 w-5 text-yellow-400" viewBox="0 0 20 20" fill="currentColor">
+                          <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                        </svg>
+                      </div>
+                      <div className="ml-3">
+                        <p className="text-sm text-yellow-800">
+                          <strong>Project dashboard will be visible once a faculty has been allocated.</strong>
+                        </p>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -468,7 +477,27 @@ const StudentDashboard = () => {
                       </svg>
                     </div>
                     <p className="text-gray-700 mb-2">Group Finalized!</p>
-                    <p className="text-gray-500 text-sm">You can now register your Minor Project 2</p>
+                    <p className="text-gray-500 text-sm mb-4">You can now register your Minor Project 2</p>
+                    
+                    {/* Registration Button with Leader Restriction */}
+                    {isGroupLeader ? (
+                      <Link
+                        to="/student/sem5/register"
+                        className="inline-flex items-center px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
+                      >
+                        <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                        </svg>
+                        Register Minor Project 2
+                      </Link>
+                    ) : (
+                      <div className="inline-flex items-center px-4 py-2 bg-gray-100 text-gray-500 text-sm font-medium rounded-lg cursor-not-allowed">
+                        <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                        </svg>
+                        Only Group Leader Can Register
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <div className="text-center py-6">
@@ -809,8 +838,8 @@ const StudentDashboard = () => {
         </div>
       )}
 
-      {/* Project Timeline */}
-      {(isSem5 ? sem5Project : sem4Project) && (
+      {/* Project Timeline - Only show for Sem 4 or Sem 5 with faculty allocated */}
+      {((isSem5 && sem5Project && sem5Project.group?.allocatedFaculty) || (!isSem5 && sem4Project)) && (
         <div className="mt-8 bg-white rounded-lg shadow">
           <div className="px-6 py-4 border-b border-gray-200">
             <h2 className="text-lg font-semibold text-gray-900">
