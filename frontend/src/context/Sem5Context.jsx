@@ -163,21 +163,25 @@ export const Sem5Provider = ({ children }) => {
       });
     } catch (error) {
       console.error('Failed to load faculty Sem 5 data:', error);
+      // Set empty data on error
+      setAllocationStatus({
+        unallocatedGroups: [],
+        allocatedGroups: [],
+        statistics: {}
+      });
     }
   };
 
   // Admin-specific data loading
   const loadAdminSem5Data = async () => {
     try {
-      const [groupsResponse, configResponse, statsResponse] = await Promise.all([
-        adminAPI.getSem5Groups(),
-        adminAPI.getSystemConfig(),
-        adminAPI.getSem5Statistics()
-      ]);
+      // TODO: Implement admin Sem 5 endpoints
+      // For now, set empty data to prevent 404 errors
+      setSem5Group([]);
+      setSystemConfig({});
+      setAllocationStatus({});
       
-      setSem5Group(groupsResponse.data || []);
-      setSystemConfig(configResponse.data || {});
-      setAllocationStatus(statsResponse.data || {});
+      console.log('Admin Sem 5 data loading - endpoints not yet implemented');
     } catch (error) {
       console.error('Failed to load admin Sem 5 data:', error);
     }

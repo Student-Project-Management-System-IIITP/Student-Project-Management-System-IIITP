@@ -42,7 +42,7 @@ const Navbar = ({ userRole = null, user = null }) => {
   };
 
   return (
-    <nav className="bg-white shadow-lg border-b border-gray-200">
+    <nav className="sticky top-0 z-50 bg-white/95 backdrop-blur-sm shadow-lg border-b border-gray-200">
       <div className="w-full px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-16">
           {/* Logo and Brand */}

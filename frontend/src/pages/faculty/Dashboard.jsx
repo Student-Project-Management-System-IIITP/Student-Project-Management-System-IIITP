@@ -1,102 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { useAuth } from '../../context/AuthContext';
-import { facultyAPI } from '../../utils/api';
 import { Link } from 'react-router-dom';
-import StatusBadge from '../../components/common/StatusBadge';
+import { useAuth } from '../../context/AuthContext';
+import { useSem5 } from '../../context/Sem5Context';
 
 const FacultyDashboard = () => {
   const { user, isLoading: authLoading } = useAuth();
-  
-  // Sem 4 specific state
-  const [sem4Stats, setSem4Stats] = useState({
-    evaluationAssignments: 0,
-    sem4Projects: 0,
-    pendingEvaluations: 0,
-    completedEvaluations: 0
+  const { allocationStatus, chooseGroup, passGroup, loading } = useSem5();
+  const [activeTab, setActiveTab] = useState(() => {
+    // Get saved tab from localStorage, default to 'allocated' for new users
+    return localStorage.getItem('facultyDashboardTab') || 'allocated';
   });
-  const [sem4Projects, setSem4Projects] = useState([]);
-  const [evaluationAssignments, setEvaluationAssignments] = useState([]);
-  
-  // Sem 5 specific state
-  const [sem5Stats, setSem5Stats] = useState({
-    unallocatedGroups: 0,
-    allocatedGroups: 0,
-    pendingAllocations: 0,
-    totalGroups: 0
-  });
-  const [unallocatedGroups, setUnallocatedGroups] = useState([]);
-  const [allocatedGroups, setAllocatedGroups] = useState([]);
-  
-  const [loading, setLoading] = useState(true);
-
-  // Load both Sem 4 and Sem 5 data
-  useEffect(() => {
-    const loadFacultyData = async () => {
-      if (!user?._id) return; // Don't load if not logged in
-      try {
-        setLoading(true);
-        
-        // Load faculty Sem 4 data
-        const [projectsResponse, assignmentsResponse] = await Promise.all([
-          facultyAPI.getSem4Projects(),
-          facultyAPI.getEvaluationAssignments()
-        ]);
-
-        setSem4Projects(projectsResponse.data || []);
-        setEvaluationAssignments(assignmentsResponse.data || []);
-        
-        // Calculate Sem 4 stats
-        const projects = projectsResponse.data || [];
-        const assignments = assignmentsResponse.data || [];
-        const sem4Stats = {
-          evaluationAssignments: assignments.length,
-          sem4Projects: projects.length,
-          pendingEvaluations: assignments.filter(a => !a.evaluatedAt).length,
-          completedEvaluations: assignments.filter(a => a.evaluatedAt).length
-        };
-        
-        setSem4Stats(sem4Stats);
-
-        // Load faculty Sem 5 data
-        try {
-          const [unallocatedResponse, allocatedResponse] = await Promise.all([
-            facultyAPI.getUnallocatedGroups(),
-            facultyAPI.getAllocatedGroups()
-          ]);
-
-          setUnallocatedGroups(unallocatedResponse.data || []);
-          setAllocatedGroups(allocatedResponse.data || []);
-          
-          // Calculate Sem 5 stats
-          const unallocated = unallocatedResponse.data || [];
-          const allocated = allocatedResponse.data || [];
-          const sem5Stats = {
-            unallocatedGroups: unallocated.length,
-            allocatedGroups: allocated.length,
-            pendingAllocations: unallocated.filter(g => g.currentFaculty?._id === user._id).length,
-            totalGroups: unallocated.length + allocated.length
-          };
-          
-          setSem5Stats(sem5Stats);
-        } catch (sem5Error) {
-          console.warn('Sem 5 data not available:', sem5Error);
-          // Set default Sem 5 stats if not available
-          setSem5Stats({
-            unallocatedGroups: 0,
-            allocatedGroups: 0,
-            pendingAllocations: 0,
-            totalGroups: 0
-          });
-        }
-      } catch (error) {
-        console.error('Failed to load faculty data:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    loadFacultyData();
-  }, [user?._id]);
+  const [actionLoading, setActionLoading] = useState({});
 
   // Show loading screen if authentication is loading
   if (authLoading || !user) {
@@ -110,332 +24,273 @@ const FacultyDashboard = () => {
     );
   }
 
+  // Get data from context
+  const unallocatedGroups = allocationStatus?.unallocatedGroups || [];
+  const allocatedGroups = allocationStatus?.allocatedGroups || [];
+  const statistics = allocationStatus?.statistics || {};
+
+  // Handle tab change and save to localStorage
+  const handleTabChange = (tab) => {
+    setActiveTab(tab);
+    localStorage.setItem('facultyDashboardTab', tab);
+  };
+
+  const handleChooseGroup = async (groupId) => {
+    // Show confirmation dialog
+    const confirmed = window.confirm(
+      'Are you sure you want to allocate this group to yourself?\n\n' +
+      'This action will:\n' +
+      '• Assign the group to you for supervision\n' +
+      '• Remove the group from other faculty consideration\n' +
+      '• Lock the group allocation\n\n' +
+      'This action cannot be undone.'
+    );
+    
+    if (!confirmed) return;
+
+    setActionLoading(prev => ({ ...prev, [`choose-${groupId}`]: true }));
+    try {
+      await chooseGroup(groupId);
+      // The context will automatically refresh the data
+    } catch (error) {
+      console.error('Error choosing group:', error);
+    } finally {
+      setActionLoading(prev => ({ ...prev, [`choose-${groupId}`]: false }));
+    }
+  };
+
+  const handlePassGroup = async (groupId) => {
+    // Show confirmation dialog
+    const confirmed = window.confirm(
+      'Are you sure you want to pass this group to the next faculty?\n\n' +
+      'This action will:\n' +
+      '• Move the group to the next faculty in the preference list\n' +
+      '• Record your decision to pass on this group\n' +
+      '• Continue the allocation process\n\n' +
+      'If all faculty pass, the group will be sent to admin for manual allocation.'
+    );
+    
+    if (!confirmed) return;
+
+    setActionLoading(prev => ({ ...prev, [`pass-${groupId}`]: true }));
+    try {
+      await passGroup(groupId);
+      // The context will automatically refresh the data
+    } catch (error) {
+      console.error('Error passing group:', error);
+    } finally {
+      setActionLoading(prev => ({ ...prev, [`pass-${groupId}`]: false }));
+    }
+  };
+
+  const GroupCard = ({ group, isAllocated = false }) => {
+    const cardContent = (
+      <div className="bg-white rounded-lg shadow-md border border-gray-200 p-6 hover:shadow-lg transition-shadow">
+      <div className="flex justify-between items-start mb-4">
+        <div>
+          <h3 className="text-lg font-semibold text-gray-900">{group.groupName}</h3>
+          <p className="text-sm text-gray-600 mt-1">{group.projectTitle}</p>
+        </div>
+        <div className="text-right">
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+            Sem {group.semester}
+          </span>
+          <p className="text-xs text-gray-500 mt-1">{group.academicYear}</p>
+        </div>
+      </div>
+
+      <div className="mb-4">
+        <h4 className="text-sm font-medium text-gray-700 mb-2">Group Members</h4>
+        <div className="space-y-1">
+          {group.members.map((member, index) => (
+            <div key={index} className="flex justify-between text-sm">
+              <span className="text-gray-900">{member.name}</span>
+              <span className="text-gray-500">{member.misNumber} • {member.role}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {!isAllocated && group.preferences && (
+        <div className="mb-4">
+          <h4 className="text-sm font-medium text-gray-700 mb-2">Faculty Preferences</h4>
+          <div className="flex flex-wrap gap-2">
+            {group.preferences.map((faculty, index) => (
+              <span
+                key={index}
+                className={`inline-flex items-center px-2 py-1 rounded text-xs font-medium ${
+                  index === group.currentPreference - 1
+                    ? 'bg-green-100 text-green-800'
+                    : 'bg-gray-100 text-gray-600'
+                }`}
+              >
+                {faculty}
+                {index === group.currentPreference - 1 && ' (Current)'}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {isAllocated && (
+        <div className="mb-4">
+          <p className="text-sm text-gray-600">
+            <span className="font-medium">Allocated on:</span> {group.allocatedDate}
+          </p>
+        </div>
+      )}
+
+      {!isAllocated && (
+        <div className="flex space-x-3">
+          <button
+            onClick={() => handleChooseGroup(group.id)}
+            disabled={actionLoading[`choose-${group.id}`] || actionLoading[`pass-${group.id}`]}
+            className="flex-1 bg-green-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {actionLoading[`choose-${group.id}`] ? 'Choosing...' : 'Choose Group'}
+          </button>
+          <button
+            onClick={() => handlePassGroup(group.id)}
+            disabled={actionLoading[`choose-${group.id}`] || actionLoading[`pass-${group.id}`]}
+            className="flex-1 bg-orange-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {actionLoading[`pass-${group.id}`] ? 'Passing...' : 'Pass Group'}
+          </button>
+        </div>
+      )}
+    </div>
+    );
+
+    // If allocated, wrap in Link to project details
+    if (isAllocated) {
+      return (
+        <Link to="/faculty/project" className="block">
+          {cardContent}
+        </Link>
+      );
+    }
+
+    // If not allocated, return the card directly
+    return cardContent;
+  };
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      {/* Header */}
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-gray-900">
           Faculty Dashboard
         </h1>
         <p className="text-gray-600 mt-2">
-          Welcome, {user?.name || 'Faculty Member'}! Manage your students and projects
+          Welcome, {user?.name || 'Faculty Member'}! Manage group allocations for Minor Project 2
         </p>
       </div>
 
-      {/* Sem 4 Statistics */}
-      <div className="mb-8">
-        <div className="bg-gradient-to-r from-green-600 to-green-800 text-white p-6 rounded-lg shadow-md">
-          <h2 className="text-2xl font-bold mb-4">B.Tech Semester 4 - Minor Project 1</h2>
-          <p className="text-green-200 mb-6">Your evaluation assignments and project oversight</p>
-          
-          {loading ? (
-            <div className="flex items-center justify-center py-8">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div>
-            </div>
-          ) : (
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div className="bg-white bg-opacity-20 rounded-lg p-4">
-                <div className="text-2xl font-bold">{sem4Stats.evaluationAssignments}</div>
-                <div className="text-green-200 text-sm">Evaluation Assignments</div>
-              </div>
-              <div className="bg-white bg-opacity-20 rounded-lg p-4">
-                <div className="text-2xl font-bold">{sem4Stats.sem4Projects}</div>
-                <div className="text-green-200 text-sm">Sem 4 Projects</div>
-              </div>
-              <div className="bg-white bg-opacity-20 rounded-lg p-4">
-                <div className="text-2xl font-bold">{sem4Stats.pendingEvaluations}</div>
-                <div className="text-green-200 text-sm">Pending Evaluations</div>
-              </div>
-              <div className="bg-white bg-opacity-20 rounded-lg p-4">
-                <div className="text-2xl font-bold">{sem4Stats.completedEvaluations}</div>
-                <div className="text-green-200 text-sm">Completed Evaluations</div>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Sem 5 Statistics */}
-      <div className="mb-8">
-        <div className="bg-gradient-to-r from-blue-600 to-blue-800 text-white p-6 rounded-lg shadow-md">
-          <h2 className="text-2xl font-bold mb-4">B.Tech Semester 5 - Minor Project 2</h2>
-          <p className="text-blue-200 mb-6">Group allocation requests and project supervision</p>
-          
-          {loading ? (
-            <div className="flex items-center justify-center py-8">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div>
-            </div>
-          ) : (
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div className="bg-white bg-opacity-20 rounded-lg p-4">
-                <div className="text-2xl font-bold">{sem5Stats.unallocatedGroups}</div>
-                <div className="text-blue-200 text-sm">Unallocated Groups</div>
-              </div>
-              <div className="bg-white bg-opacity-20 rounded-lg p-4">
-                <div className="text-2xl font-bold">{sem5Stats.allocatedGroups}</div>
-                <div className="text-blue-200 text-sm">Allocated Groups</div>
-              </div>
-              <div className="bg-white bg-opacity-20 rounded-lg p-4">
-                <div className="text-2xl font-bold">{sem5Stats.pendingAllocations}</div>
-                <div className="text-blue-200 text-sm">Pending Requests</div>
-              </div>
-              <div className="bg-white bg-opacity-20 rounded-lg p-4">
-                <div className="text-2xl font-bold">{sem5Stats.totalGroups}</div>
-                <div className="text-blue-200 text-sm">Total Groups</div>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Quick Actions */}
-      <div className="mb-8">
-        <div className="flex items-center gap-3">
-          <Link
-            to="/faculty/evaluations"
-            className="inline-flex items-center px-4 py-2 rounded-md bg-blue-600 text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            📝 Manage Evaluations
-          </Link>
-          <Link
-            to="/faculty/projects/sem4"
-            className="inline-flex items-center px-4 py-2 rounded-md bg-purple-600 text-white hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500"
-          >
-            📚 View Sem 4 Projects
-          </Link>
-          <Link
-            to="/faculty/groups/allocation"
-            className="inline-flex items-center px-4 py-2 rounded-md bg-orange-600 text-white hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
-          >
-            👥 Group Allocation
-          </Link>
-          <Link
-            to="/faculty/groups/allocated"
-            className="inline-flex items-center px-4 py-2 rounded-md bg-indigo-600 text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-          >
-            📋 My Groups
-          </Link>
-        </div>
-      </div>
-
-      {/* Quick Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-        <div className="bg-white rounded-lg shadow p-6">
-          <div className="flex items-center">
-            <div className="p-2 bg-blue-100 rounded-lg">
-              <span className="text-2xl">👨‍🎓</span>
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">My Students</p>
-              <p className="text-2xl font-bold text-gray-900">12</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-lg shadow p-6">
-          <div className="flex items-center">
-            <div className="p-2 bg-green-100 rounded-lg">
-              <span className="text-2xl">📚</span>
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Active Projects</p>
-              <p className="text-2xl font-bold text-gray-900">8</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-lg shadow p-6">
-          <div className="flex items-center">
-            <div className="p-2 bg-purple-100 rounded-lg">
-              <span className="text-2xl">📝</span>
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Pending Reviews</p>
-              <p className="text-2xl font-bold text-gray-900">5</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-lg shadow p-6">
-          <div className="flex items-center">
-            <div className="p-2 bg-orange-100 rounded-lg">
-              <span className="text-2xl">🔔</span>
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Notifications</p>
-              <p className="text-2xl font-bold text-gray-900">3</p>
+      {/* Semester Filter */}
+      <div className="mb-6">
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold text-gray-900">Semester 5 - Minor Project 2</h2>
+            <div className="text-sm text-gray-500">
+              Academic Year: 2024-25
             </div>
           </div>
         </div>
       </div>
 
-      {/* Recent Activities */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="bg-white rounded-lg shadow">
-          <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-gray-900">Sem 4 Evaluation Assignments</h2>
-            <Link
-              to="/faculty/evaluations"
-              className="text-sm text-blue-600 hover:text-blue-700 font-medium"
+      {/* Tab Navigation */}
+      <div className="mb-6">
+        <div className="border-b border-gray-200">
+          <nav className="-mb-px flex space-x-8">
+            <button
+              onClick={() => handleTabChange('allocated')}
+              className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                activeTab === 'allocated'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
             >
-              View All →
-            </Link>
+              My Allocated Groups
+              <span className="ml-2 bg-gray-100 text-gray-900 py-0.5 px-2.5 rounded-full text-xs">
+                {allocatedGroups.length}
+              </span>
+            </button>
+            <button
+              onClick={() => handleTabChange('unallocated')}
+              className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                activeTab === 'unallocated'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              Unallocated Groups
+              <span className="ml-2 bg-gray-100 text-gray-900 py-0.5 px-2.5 rounded-full text-xs">
+                {unallocatedGroups.length}
+              </span>
+            </button>
+          </nav>
+        </div>
           </div>
+
+      {/* Content Area */}
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+        {activeTab === 'allocated' && (
           <div className="p-6">
-            {loading ? (
-              <div className="flex items-center justify-center py-8">
-                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+            <div className="mb-4">
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">Your Allocated Groups</h3>
+              <p className="text-gray-600 text-sm">
+                Groups that have been allocated to you for supervision.
+              </p>
+            </div>
+            
+            {allocatedGroups.length > 0 ? (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {allocatedGroups.map((group) => (
+                  <GroupCard key={group.id} group={group} isAllocated={true} />
+                ))}
               </div>
-            ) : evaluationAssignments.length === 0 ? (
-              <div className="text-center py-8">
+            ) : (
+              <div className="text-center py-12">
                 <div className="text-gray-400 mb-4">
                   <svg className="mx-auto h-12 w-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                   </svg>
                 </div>
-                <p className="text-gray-500">No evaluation assignments yet</p>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {evaluationAssignments.slice(0, 5).map((assignment) => (
-                  <div key={assignment._id} className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
-                    <div className="flex-1">
-                      <h3 className="font-medium text-gray-900">{assignment.project?.title || 'Project Title'}</h3>
-                      <p className="text-sm text-gray-600">
-                        {assignment.student?.fullName || 'Student Name'} • 
-                        {assignment.student?.rollNumber || 'Roll Number'}
-                      </p>
-                      <p className="text-xs text-gray-500 mt-1">
-                        Assigned: {new Date(assignment.createdAt).toLocaleDateString()}
-                      </p>
-                    </div>
-                    <div className="flex items-center space-x-3">
-                      <StatusBadge status={assignment.evaluatedAt ? 'completed' : 'pending'} />
-                      <Link
-                        to={`/faculty/evaluations/${assignment._id}`}
-                        className="text-sm text-blue-600 hover:text-blue-700"
-                      >
-                        Evaluate
-                      </Link>
-                    </div>
-                  </div>
-                ))}
+                <h3 className="text-lg font-medium text-gray-900 mb-2">No allocated groups</h3>
+                <p className="text-gray-500">You don't have any groups allocated to you yet.</p>
               </div>
             )}
           </div>
-        </div>
+        )}
 
-        <div className="bg-white rounded-lg shadow">
-          <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-gray-900">Sem 4 Students</h2>
-            <Link
-              to="/faculty/students/sem4"
-              className="text-sm text-purple-600 hover:text-purple-700 font-medium"
-            >
-              View All →
-            </Link>
-          </div>
+        {activeTab === 'unallocated' && (
           <div className="p-6">
-            {loading ? (
-              <div className="flex items-center justify-center py-8">
-                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-purple-600"></div>
-              </div>
-            ) : sem4Projects.length === 0 ? (
-              <div className="text-center py-8">
-                <div className="text-gray-400 mb-4">
-                  <svg className="mx-auto h-12 w-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
-                  </svg>
-                </div>
-                <p className="text-gray-500">No Sem 4 students assigned yet</p>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {sem4Projects.slice(0, 5).map((project) => (
-                  <div key={project._id} className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
-                    <div className="flex-1">
-                      <h3 className="font-medium text-gray-900">{project.student?.fullName || 'Student Name'}</h3>
-                      <p className="text-sm text-gray-600">
-                        {project.student?.rollNumber || 'Roll Number'} • 
-                        {project.student?.collegeEmail || 'Email'}
-                      </p>
-                      <p className="text-sm text-gray-600 mt-1">
-                        Project: {project.title}
-                      </p>
-                      <p className="text-xs text-gray-500 mt-1">
-                        Registered: {new Date(project.createdAt).toLocaleDateString()}
+            <div className="mb-4">
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">Groups Awaiting Your Decision</h3>
+              <p className="text-gray-600 text-sm">
+                These groups have selected you as their current preference. You can choose to allocate them to yourself or pass them to the next faculty in their preference list.
                       </p>
                     </div>
-                    <div className="flex items-center space-x-3">
-                      <StatusBadge status={project.status} />
-                      <Link
-                        to={`/faculty/projects/${project._id}`}
-                        className="text-sm text-purple-600 hover:text-purple-700"
-                      >
-                        View
-                      </Link>
-                    </div>
-                  </div>
+            
+            {unallocatedGroups.length > 0 ? (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {unallocatedGroups.map((group) => (
+                  <GroupCard key={group.id} group={group} />
                 ))}
               </div>
-            )}
-          </div>
-        </div>
-
-        <div className="bg-white rounded-lg shadow">
-          <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-gray-900">Sem 5 Group Requests</h2>
-            <Link
-              to="/faculty/groups/allocation"
-              className="text-sm text-orange-600 hover:text-orange-700 font-medium"
-            >
-              View All →
-            </Link>
-          </div>
-          <div className="p-6">
-            {loading ? (
-              <div className="flex items-center justify-center py-8">
-                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-orange-600"></div>
-              </div>
-            ) : unallocatedGroups.length === 0 ? (
-              <div className="text-center py-8">
+            ) : (
+              <div className="text-center py-12">
                 <div className="text-gray-400 mb-4">
                   <svg className="mx-auto h-12 w-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
                   </svg>
                 </div>
-                <p className="text-gray-500">No group allocation requests yet</p>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {unallocatedGroups
-                  .filter(group => group.currentFaculty?._id === user._id)
-                  .slice(0, 5)
-                  .map((group) => (
-                    <div key={group._id} className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
-                      <div className="flex-1">
-                        <h3 className="font-medium text-gray-900">{group.name}</h3>
-                        <p className="text-sm text-gray-600">
-                          {group.members?.length || 0} members • {group.project?.domain || 'No domain'}
-                        </p>
-                        <p className="text-xs text-gray-500 mt-1">
-                          Created: {new Date(group.createdAt).toLocaleDateString()}
-                        </p>
-                      </div>
-                      <div className="flex items-center space-x-3">
-                        <StatusBadge status="pending" />
-                        <Link
-                          to={`/faculty/groups/${group._id}/review`}
-                          className="text-sm text-orange-600 hover:text-orange-700"
-                        >
-                          Review
-                        </Link>
-                      </div>
-                    </div>
-                  ))}
+                <h3 className="text-lg font-medium text-gray-900 mb-2">No groups awaiting allocation</h3>
+                <p className="text-gray-500">There are currently no groups waiting for your decision.</p>
               </div>
             )}
           </div>
-        </div>
+        )}
       </div>
     </div>
   );

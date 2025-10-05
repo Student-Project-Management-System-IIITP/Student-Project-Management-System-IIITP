@@ -46,8 +46,7 @@ export const useSem5Project = () => {
   // Check if project has faculty allocated
   const hasFacultyAllocated = () => {
     return sem5Project && 
-           sem5Project.group && 
-           sem5Project.group.allocatedFaculty;
+           (sem5Project.faculty || sem5Project.group?.allocatedFaculty);
   };
 
   // Get next step for student

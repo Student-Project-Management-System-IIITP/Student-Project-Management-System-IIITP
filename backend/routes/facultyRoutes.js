@@ -26,8 +26,10 @@ router.post('/allocations/:id/accept', facultyController.acceptAllocation);
 router.post('/allocations/:id/reject', facultyController.rejectAllocation);
 
 // Sem 5 specific routes - Group Allocation
-router.get('/groups/allocation-requests', facultyController.getGroupAllocationRequests);
-router.post('/groups/:groupId/accept', facultyController.acceptGroupAllocation);
-router.post('/groups/:groupId/reject', facultyController.rejectGroupAllocation);
+router.get('/groups/unallocated', facultyController.getUnallocatedGroups);
+router.get('/groups/allocated', facultyController.getAllocatedGroups);
+router.post('/groups/:groupId/choose', facultyController.chooseGroup);
+router.post('/groups/:groupId/pass', facultyController.passGroup);
+router.get('/statistics/sem5', facultyController.getSem5Statistics);
 
 module.exports = router;

@@ -95,6 +95,20 @@ const facultyPreferenceSchema = new mongoose.Schema({
     }
   },
   
+  // Current faculty index for allocation workflow
+  currentFacultyIndex: {
+    type: Number,
+    default: 0,
+    min: 0,
+    max: 4, // 0-4 for 5 faculty preferences
+    validate: {
+      validator: function(value) {
+        return value >= 0 && value < (this.preferences?.length || 0);
+      },
+      message: 'Current faculty index must be within preferences range'
+    }
+  },
+  
   // Rejection Reason (if rejected)
   rejectionReason: {
     type: String,
@@ -303,6 +317,56 @@ facultyPreferenceSchema.methods.getSummary = function() {
   };
 };
 
+// Method to get current faculty being presented to
+facultyPreferenceSchema.methods.getCurrentFaculty = function() {
+  if (!this.preferences || this.preferences.length === 0) {
+    return null;
+  }
+  
+  const currentIndex = this.currentFacultyIndex || 0;
+  return this.preferences[currentIndex] || null;
+};
+
+// Method to check if all faculty have been presented to
+facultyPreferenceSchema.methods.allFacultyPresented = function() {
+  return this.currentFacultyIndex >= (this.preferences?.length || 0);
+};
+
+// Method to move to next faculty
+facultyPreferenceSchema.methods.moveToNextFaculty = function() {
+  if (this.allFacultyPresented()) {
+    throw new Error('All faculty have been presented to');
+  }
+  
+  this.currentFacultyIndex = (this.currentFacultyIndex || 0) + 1;
+  return this.save();
+};
+
+// Method to check if ready for admin allocation
+facultyPreferenceSchema.methods.isReadyForAdminAllocation = function() {
+  return this.allFacultyPresented() && this.status === 'pending';
+};
+
+// Method to record faculty response
+facultyPreferenceSchema.methods.recordFacultyResponse = function(facultyId, response, comments = '') {
+  const preference = this.preferences.find(p => 
+    p.faculty.toString() === facultyId.toString()
+  );
+  
+  if (!preference) {
+    throw new Error('Faculty is not in preferences');
+  }
+  
+  this.facultyResponse = {
+    status: response,
+    responseAt: new Date(),
+    comments: comments,
+    respondedBy: facultyId
+  };
+  
+  return this.save();
+};
+
 // Static method to get preferences by student
 facultyPreferenceSchema.statics.getByStudent = function(studentId, semester) {
   const query = { student: studentId };
@@ -346,6 +410,39 @@ facultyPreferenceSchema.statics.getUnallocated = function(semester, academicYear
   })
     .populate('student project group preferences.faculty')
     .sort({ priorityScore: -1, createdAt: 1 });
+};
+
+// Static method to get groups currently presented to a faculty
+facultyPreferenceSchema.statics.getGroupsForFaculty = function(facultyId, semester, academicYear) {
+  return this.find({
+    'preferences.faculty': facultyId,
+    status: 'pending',
+    semester: semester,
+    academicYear: academicYear
+  })
+    .populate('student project group preferences.faculty')
+    .sort({ createdAt: 1 })
+    .then(preferences => {
+      // Filter to only include preferences where the current faculty is at currentFacultyIndex
+      return preferences.filter(pref => {
+        const currentIndex = pref.currentFacultyIndex || 0;
+        const currentFaculty = pref.preferences && pref.preferences[currentIndex];
+        return currentFaculty && currentFaculty.faculty && 
+               currentFaculty.faculty._id.toString() === facultyId.toString();
+      });
+    });
+};
+
+// Static method to get allocated groups for a faculty
+facultyPreferenceSchema.statics.getAllocatedGroupsForFaculty = function(facultyId, semester, academicYear) {
+  return this.find({
+    allocatedFaculty: facultyId,
+    status: 'allocated',
+    semester: semester,
+    academicYear: academicYear
+  })
+    .populate('student project group')
+    .sort({ allocatedAt: -1 });
 };
 
 module.exports = mongoose.model('FacultyPreference', facultyPreferenceSchema);
