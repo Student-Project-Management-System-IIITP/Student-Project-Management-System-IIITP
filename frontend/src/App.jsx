@@ -13,6 +13,7 @@ import MinorProject2Registration from './pages/student/MinorProject2Registration
 import GroupFormation from './pages/student/GroupFormation';
 import GroupDashboard from './pages/student/GroupDashboard';
 import FacultyDashboard from './pages/faculty/Dashboard';
+import ProjectDetails from './pages/shared/ProjectDetails';
 import EvaluationInterface from './pages/faculty/EvaluationInterface';
 import GroupAllocation from './pages/faculty/GroupAllocation';
 import AllocatedGroups from './pages/faculty/AllocatedGroups';
@@ -133,6 +134,11 @@ function AppContent() {
               <GroupDashboard />
             </ProtectedRoute>
           } />
+          <Route path="/student/sem5/project" element={
+            <ProtectedRoute allowedRoles={['student']}>
+              <ProjectDetails />
+            </ProtectedRoute>
+          } />
           <Route path="/dashboard/faculty" element={
             <ProtectedRoute allowedRoles={['faculty']}>
               <Layout>
@@ -163,6 +169,11 @@ function AppContent() {
               <Layout>
                 <AllocatedGroups />
               </Layout>
+            </ProtectedRoute>
+          } />
+          <Route path="/faculty/project" element={
+            <ProtectedRoute allowedRoles={['faculty']}>
+              <ProjectDetails />
             </ProtectedRoute>
           } />
           <Route path="/dashboard/admin" element={

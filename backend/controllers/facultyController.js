@@ -530,124 +530,301 @@ const evaluateProject = async (req, res) => {
   }
 };
 
-// Sem 5 specific: Get group allocation requests
-const getGroupAllocationRequests = async (req, res) => {
+// Sem 5 specific: Get unallocated groups for faculty
+const getUnallocatedGroups = async (req, res) => {
   try {
     const facultyId = req.user.id;
-    const { status = 'pending' } = req.query;
+    const { semester = 5, academicYear = '2025-26' } = req.query;
 
     const faculty = await Faculty.findOne({ user: facultyId });
     if (!faculty) {
       return res.status(404).json({ success: false, message: 'Faculty not found' });
     }
 
-    // Find groups that have this faculty in their preferences
-    const groups = await Group.find({
-      'facultyPreferences.faculty': faculty._id,
-      status: 'complete',
-      isActive: true
-    })
-    .populate('members.student', 'fullName misNumber collegeEmail semester degree branch')
-    .populate('leader', 'fullName misNumber collegeEmail')
-    .sort({ createdAt: -1 });
 
-    // Filter by allocation status
-    let filteredGroups = groups;
-    if (status === 'pending') {
-      filteredGroups = groups.filter(group => !group.allocatedFaculty);
-    } else if (status === 'allocated') {
-      filteredGroups = groups.filter(group => group.allocatedFaculty);
+    // Get groups currently presented to this faculty
+    const preferences = await FacultyPreference.getGroupsForFaculty(
+      faculty._id, 
+      parseInt(semester), 
+      academicYear
+    );
+
+    // Populate student details for each group
+    for (const pref of preferences) {
+      if (pref.group) {
+        await pref.group.populate('members.student', 'fullName misNumber collegeEmail branch');
+      }
     }
+
+
+
+    // Format the response
+    const groups = preferences.map(pref => ({
+      id: pref._id,
+      groupName: pref.group?.name || 'Unnamed Group',
+      projectTitle: pref.project?.title || 'No Project',
+      members: pref.group?.members?.map(member => ({
+        name: member.student?.fullName || 'Unknown',
+        misNumber: member.student?.misNumber || 'N/A',
+        role: member.role || 'member'
+      })) || [],
+      preferences: pref.preferences?.map(p => p.faculty?.fullName || 'Unknown Faculty') || [],
+      currentPreference: pref.currentFacultyIndex + 1,
+      semester: pref.semester,
+      academicYear: pref.academicYear,
+      projectId: pref.project?._id,
+      groupId: pref.group?._id
+    }));
 
     res.json({
       success: true,
-      data: filteredGroups.map(group => group.getGroupSummary()),
-      message: `Found ${filteredGroups.length} group allocation requests`
+      data: groups,
+      message: `Found ${groups.length} groups awaiting your decision`
     });
   } catch (error) {
-    console.error('Error getting group allocation requests:', error);
-    res.status(500).json({ success: false, message: 'Error getting allocation requests', error: error.message });
+    console.error('Error getting unallocated groups:', error);
+    res.status(500).json({ success: false, message: 'Error getting unallocated groups', error: error.message });
   }
 };
 
-// Sem 5 specific: Accept group allocation
-const acceptGroupAllocation = async (req, res) => {
+// Sem 5 specific: Get allocated groups for faculty
+const getAllocatedGroups = async (req, res) => {
   try {
     const facultyId = req.user.id;
-    const { groupId } = req.params;
+    const { semester = 5, academicYear = '2025-26' } = req.query;
 
     const faculty = await Faculty.findOne({ user: facultyId });
     if (!faculty) {
       return res.status(404).json({ success: false, message: 'Faculty not found' });
     }
 
-    const group = await Group.findById(groupId);
-    if (!group) {
-      return res.status(404).json({ success: false, message: 'Group not found' });
+    // Get groups allocated to this faculty
+    const preferences = await FacultyPreference.getAllocatedGroupsForFaculty(
+      faculty._id, 
+      parseInt(semester), 
+      academicYear
+    );
+
+    // Populate student details for each group
+    for (const pref of preferences) {
+      if (pref.group) {
+        await pref.group.populate('members.student', 'fullName misNumber collegeEmail branch');
+      }
     }
 
-    // Check if faculty is in group preferences
-    const preference = group.facultyPreferences.find(p => p.faculty.toString() === faculty._id.toString());
-    if (!preference) {
-      return res.status(400).json({ success: false, message: 'Faculty is not in group preferences' });
-    }
-
-    // Check if group is already allocated
-    if (group.allocatedFaculty) {
-      return res.status(400).json({ success: false, message: 'Group is already allocated to another faculty' });
-    }
-
-    // Allocate group to faculty
-    group.allocatedFaculty = faculty._id;
-    group.status = 'locked';
-    await group.save();
+    // Format the response
+    const groups = preferences.map(pref => ({
+      id: pref._id,
+      groupName: pref.group?.name || 'Unnamed Group',
+      projectTitle: pref.project?.title || 'No Project',
+      members: pref.group?.members?.map(member => ({
+        name: member.student?.fullName || 'Unknown',
+        misNumber: member.student?.misNumber || 'N/A',
+        role: member.role || 'member'
+      })) || [],
+      allocatedDate: pref.allocatedAt,
+      semester: pref.semester,
+      academicYear: pref.academicYear,
+      projectId: pref.project?._id,
+      groupId: pref.group?._id
+    }));
 
     res.json({
       success: true,
-      data: group.getGroupSummary(),
-      message: 'Group allocation accepted successfully'
+      data: groups,
+      message: `Found ${groups.length} allocated groups`
     });
   } catch (error) {
-    console.error('Error accepting group allocation:', error);
-    res.status(500).json({ success: false, message: 'Error accepting allocation', error: error.message });
+    console.error('Error getting allocated groups:', error);
+    res.status(500).json({ success: false, message: 'Error getting allocated groups', error: error.message });
   }
 };
 
-// Sem 5 specific: Reject group allocation
-const rejectGroupAllocation = async (req, res) => {
+// Sem 5 specific: Choose group (faculty accepts)
+const chooseGroup = async (req, res) => {
   try {
     const facultyId = req.user.id;
     const { groupId } = req.params;
-    const { reason = 'Not available' } = req.body;
+    const { comments = '' } = req.body;
 
     const faculty = await Faculty.findOne({ user: facultyId });
     if (!faculty) {
       return res.status(404).json({ success: false, message: 'Faculty not found' });
     }
 
-    const group = await Group.findById(groupId);
-    if (!group) {
-      return res.status(404).json({ success: false, message: 'Group not found' });
-    }
+    // Find the faculty preference record by ID (groupId is actually the FacultyPreference ID)
+    const preference = await FacultyPreference.findById(groupId);
 
-    // Check if faculty is in group preferences
-    const preference = group.facultyPreferences.find(p => p.faculty.toString() === faculty._id.toString());
     if (!preference) {
-      return res.status(400).json({ success: false, message: 'Faculty is not in group preferences' });
+      return res.status(404).json({ success: false, message: 'Group allocation request not found' });
     }
 
-    // Remove faculty from preferences
-    group.facultyPreferences = group.facultyPreferences.filter(p => p.faculty.toString() !== faculty._id.toString());
-    await group.save();
+    // Check if the preference is still pending
+    if (preference.status !== 'pending') {
+      return res.status(400).json({ success: false, message: 'This group allocation is no longer pending' });
+    }
+
+    // Check if this faculty is the current one being presented to
+    const currentFaculty = preference.getCurrentFaculty();
+    if (!currentFaculty || currentFaculty.faculty.toString() !== faculty._id.toString()) {
+      return res.status(400).json({ success: false, message: 'This group is not currently presented to you' });
+    }
+
+    // Allocate the group to this faculty
+    await preference.allocateFaculty(faculty._id, 'faculty_choice');
+    
+    // Update the group and project with allocated faculty
+    if (preference.group) {
+      const group = await Group.findById(preference.group);
+      if (group) {
+        group.allocatedFaculty = faculty._id;
+        group.status = 'locked';
+        await group.save();
+      }
+    }
+
+    if (preference.project) {
+      const project = await Project.findById(preference.project);
+      if (project) {
+        project.faculty = faculty._id;
+        project.status = 'faculty_allocated';
+        project.allocatedBy = 'faculty_choice';
+        await project.save();
+      }
+    }
 
     res.json({
       success: true,
-      message: 'Group allocation rejected successfully',
-      reason
+      message: 'Group allocated successfully',
+      data: {
+        groupId: preference.group,
+        projectId: preference.project,
+        allocatedFaculty: faculty._id,
+        allocatedAt: new Date()
+      }
     });
   } catch (error) {
-    console.error('Error rejecting group allocation:', error);
-    res.status(500).json({ success: false, message: 'Error rejecting allocation', error: error.message });
+    console.error('Error choosing group:', error);
+    res.status(500).json({ success: false, message: 'Error choosing group', error: error.message });
+  }
+};
+
+// Sem 5 specific: Pass group (faculty passes to next preference)
+const passGroup = async (req, res) => {
+  try {
+    const facultyId = req.user.id;
+    const { groupId } = req.params;
+    const { comments = '' } = req.body;
+
+    const faculty = await Faculty.findOne({ user: facultyId });
+    if (!faculty) {
+      return res.status(404).json({ success: false, message: 'Faculty not found' });
+    }
+
+    // Find the faculty preference record by ID (groupId is actually the FacultyPreference ID)
+    const preference = await FacultyPreference.findById(groupId);
+
+    if (!preference) {
+      return res.status(404).json({ success: false, message: 'Group allocation request not found' });
+    }
+
+    // Check if the preference is still pending
+    if (preference.status !== 'pending') {
+      return res.status(400).json({ success: false, message: 'This group allocation is no longer pending' });
+    }
+
+    // Check if this faculty is the current one being presented to
+    const currentFaculty = preference.getCurrentFaculty();
+    if (!currentFaculty || currentFaculty.faculty.toString() !== faculty._id.toString()) {
+      return res.status(400).json({ success: false, message: 'This group is not currently presented to you' });
+    }
+
+    // Record the faculty response
+    await preference.recordFacultyResponse(faculty._id, 'rejected', comments);
+
+    // Move to next faculty
+    try {
+      await preference.moveToNextFaculty();
+      
+      res.json({
+        success: true,
+        message: 'Group passed to next faculty preference',
+        data: {
+          groupId: preference.group,
+          projectId: preference.project,
+          nextFaculty: preference.getCurrentFaculty(),
+          isReadyForAdmin: preference.isReadyForAdminAllocation()
+        }
+      });
+    } catch (moveError) {
+      // All faculty have been presented to - ready for admin allocation
+      res.json({
+        success: true,
+        message: 'All faculty have passed - group is ready for admin allocation',
+        data: {
+          groupId: preference.group,
+          projectId: preference.project,
+          isReadyForAdmin: true
+        }
+      });
+    }
+  } catch (error) {
+    console.error('Error passing group:', error);
+    res.status(500).json({ success: false, message: 'Error passing group', error: error.message });
+  }
+};
+
+// Sem 5 specific: Get faculty statistics
+const getSem5Statistics = async (req, res) => {
+  try {
+    const facultyId = req.user.id;
+    const { semester = 5, academicYear = '2025-26' } = req.query;
+
+    const faculty = await Faculty.findOne({ user: facultyId });
+    if (!faculty) {
+      return res.status(404).json({ success: false, message: 'Faculty not found' });
+    }
+
+    // Get statistics
+    const [unallocatedCount, allocatedCount, totalGroups] = await Promise.all([
+      FacultyPreference.countDocuments({
+        'preferences.faculty': faculty._id,
+        status: 'pending',
+        semester: parseInt(semester),
+        academicYear: academicYear,
+        $expr: {
+          $eq: [
+            { $arrayElemAt: ['$preferences.faculty', '$currentFacultyIndex'] },
+            faculty._id
+          ]
+        }
+      }),
+      FacultyPreference.countDocuments({
+        allocatedFaculty: faculty._id,
+        status: 'allocated',
+        semester: parseInt(semester),
+        academicYear: academicYear
+      }),
+      FacultyPreference.countDocuments({
+        'preferences.faculty': faculty._id,
+        semester: parseInt(semester),
+        academicYear: academicYear
+      })
+    ]);
+
+    res.json({
+      success: true,
+      data: {
+        unallocatedGroups: unallocatedCount,
+        allocatedGroups: allocatedCount,
+        totalGroups: totalGroups,
+        pendingDecisions: unallocatedCount
+      },
+      message: 'Statistics retrieved successfully'
+    });
+  } catch (error) {
+    console.error('Error getting faculty statistics:', error);
+    res.status(500).json({ success: false, message: 'Error getting statistics', error: error.message });
   }
 };
 
@@ -662,7 +839,9 @@ module.exports = {
   updateProject,
   evaluateProject,
   // Sem 5 specific functions
-  getGroupAllocationRequests,
-  acceptGroupAllocation,
-  rejectGroupAllocation
+  getUnallocatedGroups,
+  getAllocatedGroups,
+  chooseGroup,
+  passGroup,
+  getSem5Statistics
 };
