@@ -72,6 +72,6 @@ SPMS (Student Project Management System) is a comprehensive web application desi
 - Project management
 - Allocation overrides
 - System configuration
-- Reports and analytics
+- Reports 
 
 **SPMS@IIITP - Student Project Management System at IIIT Pune** 🎓
