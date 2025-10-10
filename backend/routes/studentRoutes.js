@@ -188,4 +188,10 @@ router.post('/mtech/internship/apply', studentController.applyForMTechInternship
 router.get('/mtech/coursework/eligibility', studentController.checkMTechCourseworkEligibility);
 router.get('/mtech/academic-path', studentController.getMTechAcademicPath);
 
+// System config routes (public for students)
+router.get('/system-config/:key', studentController.getSystemConfigForStudents);
+// Student profile routes
+router.get('/profile', studentController.getStudentProfile);
+router.put('/profile', studentController.updateStudentProfile);
+
 module.exports = router;

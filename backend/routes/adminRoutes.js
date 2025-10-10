@@ -7,6 +7,10 @@ const { authenticateToken, requireAdmin } = require('../middleware/auth');
 router.use(authenticateToken);
 router.use(requireAdmin);
 
+// Profile routes
+router.get('/profile', adminController.getAdminProfile);
+router.put('/profile', adminController.updateAdminProfile);
+
 // Dashboard routes
 router.get('/dashboard', adminController.getDashboardData);
 router.get('/stats', adminController.getSystemStats);
@@ -28,10 +32,21 @@ router.get('/unallocated-groups', adminController.getUnallocatedGroups);
 router.get('/allocations', adminController.getAllocations);
 router.post('/force-allocate', adminController.forceAllocateFaculty);
 
-// Sem 5 specific routes - Allocation Statistics
+// Sem 5 specific routes
 router.get('/allocation-statistics', adminController.getAllocationStatistics);
+router.get('/sem5/registrations', adminController.getSem5MinorProject2Registrations);
+router.get('/sem5/allocated-faculty', adminController.getSem5AllocatedFaculty);
+router.get('/sem5/non-registered-students', adminController.getSem5NonRegisteredStudents);
+router.get('/groups/sem5', adminController.getSem5Groups);
+router.get('/statistics/sem5', adminController.getSem5Statistics);
 
 // Sem 4 specific routes
 router.get('/sem4/registrations', adminController.getSem4MinorProject1Registrations);
+
+// System Configuration routes
+router.get('/system-config', adminController.getSystemConfigurations);
+router.get('/system-config/:key', adminController.getSystemConfig);
+router.put('/system-config/:key', adminController.updateSystemConfig);
+router.post('/system-config/initialize', adminController.initializeSystemConfigs);
 
 module.exports = router;

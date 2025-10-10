@@ -89,6 +89,10 @@ export const studentAPI = {
   getGroups: () => api.get('/student/groups'),
   getInternships: () => api.get('/student/internships'),
   
+  // Student Profile Management
+  getProfile: () => api.get('/student/profile'),
+  updateProfile: (data) => api.put('/student/profile', data),
+  
   // Sem 4 Project Management
   registerProject: (projectData) => api.post('/student/projects', projectData),
   updateProject: (projectId, data) => api.put(`/student/projects/${projectId}`, data),
@@ -120,6 +124,9 @@ export const studentAPI = {
 
   // Sem 5 Project Registration
   registerMinorProject2: (projectData) => api.post('/student/projects/minor2/register', projectData),
+  
+  // System Config
+  getSystemConfig: (key) => api.get(`/student/system-config/${key}`),
   
   // Sem 5 Group Management
   createGroup: (groupData) => api.post('/student/groups', groupData),
@@ -184,6 +191,8 @@ export const facultyAPI = {
   
   // Sem 5 Statistics
   getSem5Statistics: () => api.get('/faculty/statistics/sem5'),
+  getProfile: () => api.get('/faculty/profile'),
+  updateProfile: (data) => api.put('/faculty/profile', data),
 };
 
 export const adminAPI = {
@@ -195,6 +204,10 @@ export const adminAPI = {
   getProjects: () => api.get('/admin/projects'),
   getGroups: () => api.get('/admin/groups'),
   getStats: () => api.get('/admin/stats'),
+  
+  // Admin Profile Management
+  getProfile: () => api.get('/admin/profile'),
+  updateProfile: (data) => api.put('/admin/profile', data),
   
   // Sem 4 Project Management
   getSem4Projects: () => api.get('/admin/projects?semester=4&type=minor1'),
@@ -215,18 +228,66 @@ export const adminAPI = {
     return apiRequest(url.href.replace(API_BASE_URL, ''));
   },
 
+  getSem5Registrations: (params) => {
+    const url = new URL('/admin/sem5/registrations', API_BASE_URL);
+    if (params) {
+      Object.keys(params).forEach(key => url.searchParams.append(key, params[key]));
+    }
+    return apiRequest(url.href.replace(API_BASE_URL, ''));
+  },
+
+  getSem5AllocatedFaculty: (params) => {
+    const url = new URL('/admin/sem5/allocated-faculty', API_BASE_URL);
+    if (params) {
+      Object.keys(params).forEach(key => url.searchParams.append(key, params[key]));
+    }
+    return apiRequest(url.href.replace(API_BASE_URL, ''));
+  },
+
+  getSem5NonRegisteredStudents: (params) => {
+    const url = new URL('/admin/sem5/non-registered-students', API_BASE_URL);
+    if (params) {
+      Object.keys(params).forEach(key => url.searchParams.append(key, params[key]));
+    }
+    return apiRequest(url.href.replace(API_BASE_URL, ''));
+  },
+
   // Sem 5 Group Management
   getSem5Groups: () => api.get('/admin/groups/sem5'),
   getAllGroups: () => api.get('/admin/groups'),
   getUnallocatedGroups: () => api.get('/admin/groups/unallocated'),
   forceAllocateFaculty: (groupId, facultyId) => api.post(`/admin/groups/${groupId}/allocate`, { facultyId }),
   
-  // Sem 5 System Configuration
-  getSystemConfig: () => api.get('/admin/system-config'),
-  updateSystemConfig: (config) => api.put('/admin/system-config', config),
+  // System Configuration
+  getSystemConfigurations: (category) => {
+    const url = category ? `/admin/system-config?category=${category}` : '/admin/system-config';
+    return api.get(url);
+  },
+  getSystemConfigByKey: (key) => api.get(`/admin/system-config/${key}`),
+  updateSystemConfigByKey: (key, value, description, force = false) => api.put(`/admin/system-config/${key}`, { value, description, force }),
+  initializeSystemConfigs: () => api.post('/admin/system-config/initialize'),
   
   // Sem 5 Statistics
   getSem5Statistics: () => api.get('/admin/statistics/sem5'),
+  getSem5Groups: () => api.get('/admin/groups/sem5'),
+};
+
+// Project APIs (shared)
+export const projectAPI = {
+  // Get student's current project
+  getStudentCurrentProject: () => api.get('/projects/student/current'),
+  
+  // Get faculty's allocated projects
+  getFacultyAllocatedProjects: () => api.get('/projects/faculty/allocated'),
+  
+  // Get project details
+  getProjectDetails: (projectId) => api.get(`/projects/${projectId}`),
+  
+  // Get project messages
+  getProjectMessages: (projectId, limit = 50) => api.get(`/projects/${projectId}/messages?limit=${limit}`),
+  
+  // Send a message
+  sendMessage: (projectId, message) => api.post(`/projects/${projectId}/messages`, { message }),
 };
 
 export default api;

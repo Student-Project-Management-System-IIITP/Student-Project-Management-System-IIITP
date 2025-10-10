@@ -35,7 +35,7 @@ const facultyPreferenceSchema = new mongoose.Schema({
       type: Number,
       required: true,
       min: 1,
-      max: 7
+      max: 10
     },
     submittedAt: {
       type: Date,
@@ -100,7 +100,7 @@ const facultyPreferenceSchema = new mongoose.Schema({
     type: Number,
     default: 0,
     min: 0,
-    max: 4, // 0-4 for 5 faculty preferences
+    max: 9, // 0-9 for up to 10 faculty preferences
     validate: {
       validator: function(value) {
         return value >= 0 && value < (this.preferences?.length || 0);
@@ -162,8 +162,8 @@ facultyPreferenceSchema.pre('save', function(next) {
   
   // Validate priority range
   for (const pref of this.preferences) {
-    if (pref.priority < 1 || pref.priority > 7) {
-      return next(new Error('Faculty priority must be between 1 and 7'));
+    if (pref.priority < 1 || pref.priority > 10) {
+      return next(new Error('Faculty priority must be between 1 and 10'));
     }
   }
   

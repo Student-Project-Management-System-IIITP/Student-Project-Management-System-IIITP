@@ -22,6 +22,8 @@ import AdminDashboard from './pages/admin/Dashboard';
 import EvaluationManagement from './pages/admin/EvaluationManagement';
 import Sem4ProjectOverviewPage from './pages/admin/Sem4ProjectOverview';
 import Sem4RegistrationsTable from './pages/admin/Sem4RegistrationsTable';
+import Sem5RegistrationsTable from './pages/admin/Sem5RegistrationsTable';
+import Sem5AllocatedFaculty from './pages/admin/Sem5AllocatedFaculty';
 import GroupManagement from './pages/admin/GroupManagement';
 import UnallocatedGroups from './pages/admin/UnallocatedGroups';
 import SystemConfiguration from './pages/admin/SystemConfiguration';
@@ -30,6 +32,8 @@ import AdminProfile from './pages/admin/Profile';
 import ToastDemo from './components/common/ToastDemo';
 import SignupTestDemo from './components/auth/SignupTestDemo';
 import SpecificErrorTestDemo from './components/auth/SpecificErrorTestDemo';
+import FacultyProfile from './pages/faculty/Profile';
+import StudentProfile from './pages/student/Profile';
 
 function App() {
   return (
@@ -171,6 +175,13 @@ function AppContent() {
               <ProjectDetails />
             </ProtectedRoute>
           } />
+          <Route path="/student/profile" element={
+            <ProtectedRoute allowedRoles={['student']}>
+              <Layout>
+                <StudentProfile />
+              </Layout>
+            </ProtectedRoute>
+          } />
           <Route path="/dashboard/faculty" element={
             <ProtectedRoute allowedRoles={['faculty']}>
               <Layout>
@@ -208,6 +219,13 @@ function AppContent() {
               <ProjectDetails />
             </ProtectedRoute>
           } />
+          <Route path="/faculty/profile" element={
+            <ProtectedRoute allowedRoles={['faculty']}>
+              <Layout>
+                <FacultyProfile />
+              </Layout>
+            </ProtectedRoute>
+          } />
           <Route path="/dashboard/admin" element={
             <ProtectedRoute allowedRoles={['admin']}>
               <Layout>
@@ -229,6 +247,20 @@ function AppContent() {
             <ProtectedRoute allowedRoles={['admin']}>
               <Layout>
                 <Sem4RegistrationsTable />
+              </Layout>
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/sem5/registrations" element={
+            <ProtectedRoute allowedRoles={['admin']}>
+              <Layout>
+                <Sem5RegistrationsTable />
+              </Layout>
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/sem5/allocated-faculty" element={
+            <ProtectedRoute allowedRoles={['admin']}>
+              <Layout>
+                <Sem5AllocatedFaculty />
               </Layout>
             </ProtectedRoute>
           } />

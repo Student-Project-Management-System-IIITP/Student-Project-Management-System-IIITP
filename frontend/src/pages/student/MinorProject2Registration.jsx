@@ -31,6 +31,7 @@ const MinorProject2Registration = () => {
     const saved = localStorage.getItem('minorProject2Registration_customDomain');
     return saved || '';
   });
+  const [facultyPreferenceLimit, setFacultyPreferenceLimit] = useState(7); // Default to 7
   // Simple access validation - only redirect if we have group data and conditions are not met
   useEffect(() => {
     // Only validate if we have group data loaded
@@ -57,6 +58,24 @@ const MinorProject2Registration = () => {
     }
     }
   }, [groupLoading, sem5Group, isGroupLeader, getGroupStats, navigate]);
+
+  // Load faculty preference limit from system config
+  useEffect(() => {
+    const loadFacultyPreferenceLimit = async () => {
+      try {
+        const response = await studentAPI.getSystemConfig('sem5.facultyPreferenceLimit');
+        if (response.success && response.data) {
+          setFacultyPreferenceLimit(response.data.value);
+          console.log('Loaded faculty preference limit:', response.data.value);
+        }
+      } catch (error) {
+        console.error('Failed to load faculty preference limit, using default:', error);
+        // Keep default value of 7
+      }
+    };
+
+    loadFacultyPreferenceLimit();
+  }, []);
 
   // Load faculty list for preferences
   useEffect(() => {
@@ -208,8 +227,8 @@ const MinorProject2Registration = () => {
   };
 
   const addFacultyPreference = (faculty) => {
-    if (facultyPreferences.length >= 5) {
-      toast.error('You can only select 5 faculty preferences');
+    if (facultyPreferences.length >= facultyPreferenceLimit) {
+      toast.error(`You can only select up to ${facultyPreferenceLimit} faculty preferences`);
       return;
     }
 
@@ -494,48 +513,7 @@ const MinorProject2Registration = () => {
     
     return (
       <div className="space-y-6">
-        <div className="text-center mb-6">
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">Step 5: Faculty Preferences</h2>
-          <p className="text-gray-600">Select exactly 5 faculty members in order of preference. Use the up/down arrows to reorder your selections.</p>
-          <p className="text-red-600 font-medium mt-1">⚠️ You must select exactly 5 faculty members to proceed with registration</p>
-        </div>
-
-        {/* Progress Indicator */}
-        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-4 mb-6">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-lg font-semibold text-blue-900">Faculty Selection Progress</h3>
-            <span className={`px-3 py-1 rounded-full text-sm font-medium ${
-              facultyPreferences.length === 5 
-                ? 'bg-green-100 text-green-800' 
-                : facultyPreferences.length > 0 
-                ? 'bg-yellow-100 text-yellow-800'
-                : 'bg-gray-100 text-gray-800'
-            }`}>
-              {facultyPreferences.length}/5 Selected
-            </span>
-          </div>
-          
-          {/* Progress Bar */}
-          <div className="w-full bg-gray-200 rounded-full h-3 mb-3">
-            <div 
-              className={`h-3 rounded-full transition-all duration-500 ${
-                facultyPreferences.length === 5 ? 'bg-green-500' : 'bg-blue-500'
-              }`}
-              style={{ width: `${(facultyPreferences.length / 5) * 100}%` }}
-            ></div>
-          </div>
-          
-          <div className="flex items-center justify-between text-sm">
-            <span className="text-blue-700">
-              {facultyPreferences.length === 5 
-                ? '✅ All 5 faculty members selected!' 
-                : `${5 - facultyPreferences.length} more faculty member${5 - facultyPreferences.length !== 1 ? 's' : ''} needed`
-              }
-            </span>
-            <span className="text-blue-600 font-medium">
-              {Math.round((facultyPreferences.length / 5) * 100)}% Complete
-            </span>
-          </div>
+        <div className="text-center mb-5">
         </div>
 
         {/* Instructions */}
@@ -553,8 +531,8 @@ const MinorProject2Registration = () => {
                 <p><strong>2. Add Faculty:</strong> Click on any faculty member from the right panel to add them to your preferences</p>
                 <p><strong>3. Reorder:</strong> Use the ↑ ↓ arrows next to each selected faculty to change their priority order</p>
                 <p><strong>4. Remove:</strong> Click the × button to remove any faculty from your preferences</p>
-                <p><strong>5. Complete:</strong> Select exactly 5 faculty members and click "Complete Registration"</p>
-                <p className="text-red-600 font-semibold"><strong>⚠️ Required:</strong> You must select exactly 5 faculty preferences to proceed</p>
+                <p><strong>5. Complete:</strong> Select exactly {facultyPreferenceLimit} faculty members and click "Complete Registration"</p>
+                <p className="text-red-600 font-semibold"><strong>⚠️ Required:</strong> You must select exactly {facultyPreferenceLimit} faculty preferences to proceed</p>
               </div>
             </div>
           </div>
@@ -565,8 +543,8 @@ const MinorProject2Registration = () => {
           {/* Selected Preferences */}
           <div className="space-y-4">
             <h3 className="text-lg font-semibold text-gray-900">
-              Your Preferences ({facultyPreferences.length}/5)
-              {facultyPreferences.length === 5 && (
+              Your Preferences ({facultyPreferences.length}/{facultyPreferenceLimit})
+              {facultyPreferences.length === facultyPreferenceLimit && (
                 <span className="ml-2 text-sm text-green-600 font-medium">✓ Complete</span>
               )}
             </h3>
@@ -578,7 +556,7 @@ const MinorProject2Registration = () => {
                 </svg>
                 <p className="mt-2 text-sm text-gray-500">No faculty selected yet</p>
                 <p className="text-xs text-gray-400">Click on faculty members from the right panel to add them to your preferences</p>
-                <p className="text-xs text-red-500 font-medium mt-2">⚠️ You need to select exactly 5 faculty members</p>
+                <p className="text-xs text-red-500 font-medium mt-2">⚠️ You need to select exactly {facultyPreferenceLimit} faculty members</p>
               </div>
             ) : (
               <div className="max-h-80 overflow-y-auto space-y-2 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100 pr-2">
@@ -722,9 +700,9 @@ const MinorProject2Registration = () => {
               <button
             type="button"
             onClick={handleSubmit(onSubmit)}
-            disabled={facultyPreferences.length !== 5 || isSubmitting || loading}
+            disabled={facultyPreferences.length !== facultyPreferenceLimit || isSubmitting || loading}
                 className={`px-6 py-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors flex items-center ${
-                  facultyPreferences.length === 5
+                  facultyPreferences.length === facultyPreferenceLimit
                     ? 'bg-blue-600 text-white hover:bg-blue-700'
                     : 'bg-gray-300 text-gray-500 cursor-not-allowed'
                 }`}
@@ -737,19 +715,19 @@ const MinorProject2Registration = () => {
                     </svg>
                     Registering...
                   </>
-                ) : facultyPreferences.length === 5 ? (
+                ) : facultyPreferences.length === facultyPreferenceLimit ? (
                   'Complete Registration'
                 ) : (
-                  `Select ${5 - facultyPreferences.length} More Faculty`
+                  `Select ${facultyPreferenceLimit - facultyPreferences.length} More Faculty`
                 )}
               </button>
             </div>
 
-        {facultyPreferences.length !== 5 && (
+        {facultyPreferences.length !== facultyPreferenceLimit && (
           <div className="text-center text-sm text-gray-500">
             {facultyPreferences.length === 0 
-              ? 'Please select exactly 5 faculty preferences to complete registration'
-              : `Please select ${5 - facultyPreferences.length} more faculty preferences to complete registration`
+              ? `Please select exactly ${facultyPreferenceLimit} faculty preferences to complete registration`
+              : `Please select ${facultyPreferenceLimit - facultyPreferences.length} more faculty preferences to complete registration`
             }
           </div>
         )}
