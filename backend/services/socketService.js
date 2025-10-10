@@ -73,6 +73,9 @@ class SocketService {
         // 💼 SEM 5 GROUP FORMATION EVENTS
         this.setupGroupEvents(socket);
         
+        // 💬 PROJECT CHAT EVENTS
+        this.setupProjectChatEvents(socket);
+        
         // Cleanup on disconnect
         socket.on('disconnect', () => {
           this.handleDisconnect(socket);
@@ -163,6 +166,28 @@ class SocketService {
 
     socket.on('group_finalization', (data) => {
       socket.to(`group_${data.groupId}`).emit('group_finalization', data);
+    });
+  }
+
+  setupProjectChatEvents(socket) {
+    // Join project room
+    socket.on('join_project_room', (projectId) => {
+      socket.join(`project_${projectId}`);
+      socket.emit('joined_project_room', { projectId });
+    });
+
+    // Leave project room
+    socket.on('leave_project_room', (projectId) => {
+      socket.leave(`project_${projectId}`);
+    });
+
+    // Typing indicator
+    socket.on('typing', (data) => {
+      socket.to(`project_${data.projectId}`).emit('user_typing', {
+        userId: socket.userId,
+        userName: socket.user?.fullName || 'Unknown',
+        isTyping: data.isTyping
+      });
     });
   }
 
@@ -325,6 +350,27 @@ class SocketService {
     await this.broadcastMembershipChange(groupId, {
       ...leaveData,
       changeType: 'member_left',
+      timestamp: new Date()
+    });
+  }
+
+  // 💬 PROJECT CHAT BROADCASTING METHODS
+  
+  async broadcastNewMessage(projectId, messageData) {
+    this.io.to(`project_${projectId}`).emit('new_message', {
+      type: 'new_message',
+      projectId,
+      message: messageData,
+      timestamp: new Date()
+    });
+  }
+
+  async broadcastMessageUpdate(projectId, messageId, updateData) {
+    this.io.to(`project_${projectId}`).emit('message_updated', {
+      type: 'message_updated',
+      projectId,
+      messageId,
+      update: updateData,
       timestamp: new Date()
     });
   }

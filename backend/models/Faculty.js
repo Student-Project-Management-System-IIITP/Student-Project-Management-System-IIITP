@@ -16,6 +16,12 @@ const facultySchema = new mongoose.Schema({
     trim: true,
     maxlength: 100
   },
+  email: {
+    type: String,
+    trim: true,
+    lowercase: true,
+    match: [/^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,3})+$/, 'Please enter a valid email address']
+  },
   phone: {
     type: String,
     required: true,

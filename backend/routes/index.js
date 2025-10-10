@@ -22,4 +22,8 @@ router.use('/student', studentRoutes);
 const facultyRoutes = require('./facultyRoutes');
 router.use('/faculty', facultyRoutes);
 
+// Project routes (shared between student and faculty)
+const projectRoutes = require('./projectRoutes');
+router.use('/projects', projectRoutes);
+
 module.exports = router;
