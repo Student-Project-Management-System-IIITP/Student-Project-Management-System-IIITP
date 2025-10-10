@@ -89,6 +89,10 @@ export const studentAPI = {
   getGroups: () => api.get('/student/groups'),
   getInternships: () => api.get('/student/internships'),
   
+  // Student Profile Management
+  getProfile: () => api.get('/student/profile'),
+  updateProfile: (data) => api.put('/student/profile', data),
+  
   // Sem 4 Project Management
   registerProject: (projectData) => api.post('/student/projects', projectData),
   updateProject: (projectId, data) => api.put(`/student/projects/${projectId}`, data),
@@ -184,6 +188,8 @@ export const facultyAPI = {
   
   // Sem 5 Statistics
   getSem5Statistics: () => api.get('/faculty/statistics/sem5'),
+  getProfile: () => api.get('/faculty/profile'),
+  updateProfile: (data) => api.put('/faculty/profile', data),
 };
 
 export const adminAPI = {
@@ -195,6 +201,10 @@ export const adminAPI = {
   getProjects: () => api.get('/admin/projects'),
   getGroups: () => api.get('/admin/groups'),
   getStats: () => api.get('/admin/stats'),
+  
+  // Admin Profile Management
+  getProfile: () => api.get('/admin/profile'),
+  updateProfile: (data) => api.put('/admin/profile', data),
   
   // Sem 4 Project Management
   getSem4Projects: () => api.get('/admin/projects?semester=4&type=minor1'),

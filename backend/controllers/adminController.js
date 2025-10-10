@@ -1,9 +1,136 @@
 const Student = require('../models/Student');
 const Faculty = require('../models/Faculty');
+const Admin = require('../models/Admin');
 const User = require('../models/User');
 const Project = require('../models/Project');
 const Group = require('../models/Group');
 const FacultyPreference = require('../models/FacultyPreference');
+
+// Get admin profile data
+const getAdminProfile = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    
+    // Get admin details with populated user data
+    const admin = await Admin.findOne({ user: userId })
+      .populate('user', 'email role isActive lastLogin createdAt')
+      .lean();
+
+    if (!admin) {
+      return res.status(404).json({
+        success: false,
+        message: 'Admin profile not found'
+      });
+    }
+
+    res.json({
+      success: true,
+      data: {
+        admin: {
+          id: admin._id,
+          fullName: admin.fullName,
+          phone: admin.phone,
+          adminId: admin.adminId,
+          department: admin.department,
+          designation: admin.designation,
+          isSuperAdmin: admin.isSuperAdmin,
+          createdAt: admin.createdAt,
+          updatedAt: admin.updatedAt
+        },
+        user: {
+          id: admin.user._id,
+          email: admin.user.email,
+          role: admin.user.role,
+          isActive: admin.user.isActive,
+          lastLogin: admin.user.lastLogin,
+          createdAt: admin.user.createdAt
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Error getting admin profile:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching admin profile',
+      error: error.message
+    });
+  }
+};
+
+// Update admin profile
+const updateAdminProfile = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { fullName, phone, department, designation } = req.body;
+
+    // Validate required fields
+    if (!fullName || !phone) {
+      return res.status(400).json({
+        success: false,
+        message: 'Full name and phone are required'
+      });
+    }
+
+    // Validate phone number format
+    const phoneRegex = /^[6-9]\d{9}$/;
+    if (!phoneRegex.test(phone)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please enter a valid 10-digit phone number'
+      });
+    }
+
+    // Update admin profile
+    const admin = await Admin.findOneAndUpdate(
+      { user: userId },
+      { 
+        fullName: fullName.trim(),
+        phone: phone.trim(),
+        ...(department && { department }),
+        ...(designation && { designation })
+      },
+      { new: true, runValidators: true }
+    ).populate('user', 'email role isActive lastLogin createdAt');
+
+    if (!admin) {
+      return res.status(404).json({
+        success: false,
+        message: 'Admin profile not found'
+      });
+    }
+
+    res.json({
+      success: true,
+      message: 'Profile updated successfully',
+      data: {
+        admin: {
+          id: admin._id,
+          fullName: admin.fullName,
+          phone: admin.phone,
+          adminId: admin.adminId,
+          department: admin.department,
+          designation: admin.designation,
+          isSuperAdmin: admin.isSuperAdmin,
+          updatedAt: admin.updatedAt
+        },
+        user: {
+          id: admin.user._id,
+          email: admin.user.email,
+          role: admin.user.role,
+          isActive: admin.user.isActive,
+          lastLogin: admin.user.lastLogin
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Error updating admin profile:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error updating profile',
+      error: error.message
+    });
+  }
+};
 
 // Get admin dashboard data
 const getDashboardData = async (req, res) => {
@@ -599,6 +726,8 @@ const getSem4MinorProject1Registrations = async (req, res) => {
 };
 
 module.exports = {
+  getAdminProfile,
+  updateAdminProfile,
   getDashboardData,
   getUsers,
   getStudents,

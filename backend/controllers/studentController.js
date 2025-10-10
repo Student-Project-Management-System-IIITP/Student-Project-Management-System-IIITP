@@ -4,6 +4,7 @@ const Group = require('../models/Group');
 const Faculty = require('../models/Faculty');
 const FacultyPreference = require('../models/FacultyPreference');
 const mongoose = require('mongoose');
+const User = require('../models/User');
 
 // Helper function to generate academic year in YYYY-YY format
 const generateAcademicYear = () => {
@@ -4430,6 +4431,121 @@ const testStudentLookup = async (req, res) => {
   }
 };
 
+// Get student profile
+const getStudentProfile = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const student = await Student.findOne({ user: userId }).populate('user', 'email role isActive lastLogin').lean();
+    if (!student) {
+      return res.status(404).json({ success: false, message: 'Student profile not found' });
+    }
+    res.json({
+      success: true,
+      data: {
+        student: {
+          id: student._id,
+          fullName: student.fullName,
+          misNumber: student.misNumber,
+          semester: student.semester,
+          degree: student.degree,
+          branch: student.branch,
+          contactNumber: student.contactNumber,
+          academicYear: student.academicYear,
+          createdAt: student.createdAt,
+          updatedAt: student.updatedAt,
+          isGraduated: student.isGraduated,
+          graduationYear: student.graduationYear,
+        },
+        user: student.user
+      }
+    });
+  } catch (err) {
+    console.error('Error fetching student profile:', err);
+    res.status(500).json({ success: false, message: 'Error fetching student profile' });
+  }
+};
+
+// Update student profile
+const updateStudentProfile = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    let { fullName, contactNumber, branch } = req.body;
+
+    if (fullName !== undefined) {
+      fullName = String(fullName).trim();
+      if (fullName.length === 0) {
+        return res.status(400).json({ success: false, message: 'Full name cannot be empty' });
+      }
+    }
+    if (contactNumber !== undefined) {
+      contactNumber = String(contactNumber).trim();
+      const phoneRegex = /^[6-9]\d{9}$/;
+      if (!phoneRegex.test(contactNumber)) {
+        return res.status(400).json({ success: false, message: 'Please enter a valid 10-digit phone number' });
+      }
+    }
+
+    // Build update object only with provided fields
+    const update = {};
+    if (fullName !== undefined) update.fullName = fullName;
+    if (contactNumber !== undefined) update.contactNumber = contactNumber;
+    if (branch !== undefined) update.branch = branch;
+
+    const updated = await Student.findOneAndUpdate(
+      { user: userId },
+      update,
+      { new: true, runValidators: true }
+    ).populate('user', 'email role isActive lastLogin');
+
+    if (!updated) {
+      return res.status(404).json({ success: false, message: 'Student profile not found' });
+    }
+
+    // Sync User document for global displays (e.g., navbar)
+    try {
+      const userDoc = await User.findById(updated.user._id);
+      if (userDoc) {
+        if (fullName !== undefined) userDoc.name = updated.fullName;
+        if (contactNumber !== undefined) userDoc.phone = updated.contactNumber;
+        await userDoc.save();
+      }
+    } catch (e) {
+      // Non-fatal; proceed even if user sync fails
+      console.warn('Warning: failed to sync User with Student profile update:', e?.message);
+    }
+
+    // Re-populate user to reflect latest
+    const refreshedUser = await User.findById(updated.user._id).select('email role isActive lastLogin createdAt name phone');
+
+    return res.json({
+      success: true,
+      data: {
+        student: {
+          id: updated._id,
+          fullName: updated.fullName,
+          misNumber: updated.misNumber,
+          semester: updated.semester,
+          degree: updated.degree,
+          branch: updated.branch,
+          contactNumber: updated.contactNumber,
+          academicYear: updated.academicYear,
+          createdAt: updated.createdAt,
+          updatedAt: updated.updatedAt,
+          isGraduated: updated.isGraduated,
+          graduationYear: updated.graduationYear,
+        },
+        user: refreshedUser
+      }
+    });
+  } catch (err) {
+    console.error('Error updating student profile:', err);
+    if (err.name === 'ValidationError' || err.name === 'MongoServerError') {
+      return res.status(400).json({ success: false, message: err.message });
+    }
+    return res.status(500).json({ success: false, message: 'Error updating student profile' });
+  }
+};
+
 module.exports = {
   getDashboardData,
   getSemesterFeatures,
@@ -4497,5 +4613,7 @@ module.exports = {
   // Faculty functions
   getFacultyList,
   // Test functions
-  testStudentLookup
+  testStudentLookup,
+  getStudentProfile,
+  updateStudentProfile
 };

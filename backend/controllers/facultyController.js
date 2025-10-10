@@ -828,6 +828,80 @@ const getSem5Statistics = async (req, res) => {
   }
 };
 
+// Get faculty profile
+const getFacultyProfile = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const faculty = await Faculty.findOne({ user: userId })
+      .populate('user', 'email role isActive lastLogin createdAt')
+      .lean();
+    if (!faculty) {
+      return res.status(404).json({ success: false, message: 'Faculty profile not found' });
+    }
+    res.json({
+      success: true,
+      data: {
+        faculty: {
+          id: faculty._id,
+          fullName: faculty.fullName,
+          phone: faculty.phone,
+          facultyId: faculty.facultyId,
+          department: faculty.department,
+          mode: faculty.mode,
+          designation: faculty.designation,
+          isRetired: faculty.isRetired,
+          createdAt: faculty.createdAt,
+          updatedAt: faculty.updatedAt
+        },
+        user: faculty.user
+      }
+    });
+  } catch (err) {
+    console.error('Error fetching faculty profile:', err);
+    res.status(500).json({ success: false, message: 'Error fetching faculty profile' });
+  }
+};
+
+// Update faculty profile
+const updateFacultyProfile = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { fullName, phone, department, mode, designation } = req.body;
+    const faculty = await Faculty.findOne({ user: userId });
+    if (!faculty) {
+      return res.status(404).json({ success: false, message: 'Faculty profile not found' });
+    }
+    if (fullName !== undefined) faculty.fullName = fullName;
+    if (phone !== undefined) faculty.phone = phone;
+    if (department !== undefined) faculty.department = department;
+    if (mode !== undefined) faculty.mode = mode;
+    if (designation !== undefined) faculty.designation = designation;
+    await faculty.save();
+    const refreshed = await Faculty.findOne({ user: userId }).populate('user', 'email role isActive lastLogin createdAt').lean();
+    res.json({
+      success: true,
+      data: {
+        faculty: {
+          id: refreshed._id,
+          fullName: refreshed.fullName,
+          phone: refreshed.phone,
+          facultyId: refreshed.facultyId,
+          department: refreshed.department,
+          mode: refreshed.mode,
+          designation: refreshed.designation,
+          isRetired: refreshed.isRetired,
+          createdAt: refreshed.createdAt,
+          updatedAt: refreshed.updatedAt
+        },
+        user: refreshed.user
+      }
+    });
+  } catch (err) {
+    console.error('Error updating faculty profile:', err);
+    res.status(500).json({ success: false, message: 'Error updating faculty profile' });
+  }
+};
+
 module.exports = {
   getDashboardData,
   getFacultyStudents,
@@ -843,5 +917,7 @@ module.exports = {
   getAllocatedGroups,
   chooseGroup,
   passGroup,
-  getSem5Statistics
+  getSem5Statistics,
+  getFacultyProfile,
+  updateFacultyProfile
 };
