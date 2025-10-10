@@ -269,6 +269,25 @@ export const adminAPI = {
   
   // Sem 5 Statistics
   getSem5Statistics: () => api.get('/admin/statistics/sem5'),
+  getSem5Groups: () => api.get('/admin/groups/sem5'),
+};
+
+// Project APIs (shared)
+export const projectAPI = {
+  // Get student's current project
+  getStudentCurrentProject: () => api.get('/projects/student/current'),
+  
+  // Get faculty's allocated projects
+  getFacultyAllocatedProjects: () => api.get('/projects/faculty/allocated'),
+  
+  // Get project details
+  getProjectDetails: (projectId) => api.get(`/projects/${projectId}`),
+  
+  // Get project messages
+  getProjectMessages: (projectId, limit = 50) => api.get(`/projects/${projectId}/messages?limit=${limit}`),
+  
+  // Send a message
+  sendMessage: (projectId, message) => api.post(`/projects/${projectId}/messages`, { message }),
 };
 
 export default api;
