@@ -3,6 +3,7 @@ const Project = require('../models/Project');
 const Group = require('../models/Group');
 const Faculty = require('../models/Faculty');
 const FacultyPreference = require('../models/FacultyPreference');
+const SystemConfig = require('../models/SystemConfig');
 const mongoose = require('mongoose');
 
 // Helper function to generate academic year in YYYY-YY format
@@ -40,20 +41,27 @@ const getDashboardData = async (req, res) => {
       projectCapabilities[projectType] = supportsGroupsAndFaculty(projectType, student.semester, student.degree);
     });
     
-    // Get current semester projects
-    const currentProjects = await Project.find({ 
-      student: student._id, 
-      semester: student.semester,
-      status: { $in: ['registered', 'faculty_allocated', 'active'] }
-    }).populate('faculty group');
-
-    // Get active group memberships (only if project type supports groups)
+    // Get active group memberships first
     const activeGroups = await Group.find({
       'members.student': student._id,
       'members.isActive': true,
       semester: student.semester,
       isActive: true
     }).populate('members.student allocatedFaculty project');
+
+    // Get current semester projects
+    // Include projects where:
+    // 1. Student is the direct owner (for solo projects)
+    // 2. Student is in a group that has the project (for group projects)
+    const groupIds = activeGroups.map(g => g._id);
+    const currentProjects = await Project.find({ 
+      semester: student.semester,
+      status: { $in: ['registered', 'faculty_allocated', 'active'] },
+      $or: [
+        { student: student._id }, // Direct ownership
+        { group: { $in: groupIds } } // Group membership
+      ]
+    }).populate('faculty group');
 
     // Get faculty preferences for current semester (only if project type supports faculty preferences)
     const facultyPreferences = await FacultyPreference.find({
@@ -260,8 +268,23 @@ const getStudentProjects = async (req, res) => {
       });
     }
 
-    // Build query
-    const query = { student: student._id };
+    // Get student's groups for the semester
+    const targetSemester = semester ? parseInt(semester) : student.semester;
+    const studentGroups = await Group.find({
+      'members.student': student._id,
+      'members.isActive': true,
+      semester: targetSemester,
+      isActive: true
+    }).select('_id');
+    const groupIds = studentGroups.map(g => g._id);
+
+    // Build query to include both direct projects and group projects
+    const query = {
+      $or: [
+        { student: student._id }, // Direct ownership
+        { group: { $in: groupIds } } // Group membership
+      ]
+    };
     
     if (semester) {
       query.semester = parseInt(semester);
@@ -674,10 +697,16 @@ const registerMinorProject2 = async (req, res) => {
         throw new Error('Minor Project 2 is already registered for this group');
       }
 
+      // Get faculty preference limit from system config
+      const facultyPreferenceLimit = await SystemConfig.getConfigValue('sem5.facultyPreferenceLimit', 7);
+      
       // Validate faculty preferences
-      if (!facultyPreferences || facultyPreferences.length !== 5) {
-        throw new Error('You must select exactly 5 faculty preferences');
+      if (!facultyPreferences || facultyPreferences.length !== facultyPreferenceLimit) {
+        throw new Error(`You must select exactly ${facultyPreferenceLimit} faculty preferences (current system requirement)`);
       }
+      
+      // Note: Existing projects with different preference counts are preserved
+      // This validation only applies to NEW registrations
 
       // Validate that all faculty preferences are unique
       const facultyIds = facultyPreferences.map(p => p.faculty._id || p.faculty);
@@ -729,6 +758,35 @@ const registerMinorProject2 = async (req, res) => {
         { session }
       );
       console.log(`Updated group ${group._id} with project reference`);
+
+      // Add project to ALL group members' currentProjects array
+      const groupMembers = group.members.filter(m => m.isActive);
+      console.log(`Adding project to ${groupMembers.length} group members' currentProjects`);
+      
+      for (const member of groupMembers) {
+        const memberStudent = await Student.findById(member.student).session(session);
+        if (memberStudent) {
+          // Determine role based on whether they're the leader
+          const role = member.role === 'leader' ? 'leader' : 'member';
+          
+          // Check if project already exists in currentProjects (avoid duplicates)
+          const existingProject = memberStudent.currentProjects.find(cp => 
+            cp.project.toString() === project._id.toString()
+          );
+          
+          if (!existingProject) {
+            memberStudent.currentProjects.push({
+              project: project._id,
+              role: role,
+              semester: 5,
+              status: 'active',
+              joinedAt: new Date()
+            });
+            await memberStudent.save({ session });
+            console.log(`Added project to ${memberStudent.fullName}'s currentProjects as ${role}`);
+          }
+        }
+      }
 
       // Create FacultyPreference document for tracking allocation process
       const facultyPreferenceData = {
@@ -3744,18 +3802,26 @@ const getSem5Dashboard = async (req, res) => {
       });
     }
 
-    // Get student's current semester projects
-    const projects = await Project.find({ 
-      student: student._id, 
-      semester: 5 
-    }).populate('faculty group');
-
-    // Get current group
+    // Get current group first
     const group = await Group.findOne({
       'members.student': student._id,
       semester: 5,
       isActive: true
     }).populate('members.student allocatedFaculty project');
+
+    // Get student's current semester projects
+    // Include projects where:
+    // 1. Student is the owner (for solo projects like minor1)
+    // 2. Student is in a group that has the project (for group projects like minor2)
+    const projectQuery = {
+      semester: 5,
+      $or: [
+        { student: student._id }, // Direct ownership
+        { group: group?._id } // Group membership
+      ]
+    };
+    
+    const projects = await Project.find(projectQuery).populate('faculty group');
 
     // Get faculty preferences
     const facultyPreferences = await FacultyPreference.find({
@@ -4497,5 +4563,36 @@ module.exports = {
   // Faculty functions
   getFacultyList,
   // Test functions
-  testStudentLookup
+  testStudentLookup,
+  // System config functions
+  getSystemConfigForStudents: async (req, res) => {
+    try {
+      const { key } = req.params;
+      
+      const config = await SystemConfig.findOne({ configKey: key, isActive: true });
+      
+      if (!config) {
+        return res.status(404).json({
+          success: false,
+          message: 'Configuration not found'
+        });
+      }
+
+      res.json({
+        success: true,
+        data: {
+          key: config.configKey,
+          value: config.configValue,
+          description: config.description
+        }
+      });
+    } catch (error) {
+      console.error('Error getting system configuration:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Error fetching system configuration',
+        error: error.message
+      });
+    }
+  }
 };

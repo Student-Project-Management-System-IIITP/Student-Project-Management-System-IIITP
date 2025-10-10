@@ -322,8 +322,28 @@ const AdminDashboard = () => {
       {/* Sem 5 Statistics */}
       <div className="mb-8">
         <div className="bg-gradient-to-r from-blue-600 to-blue-800 text-white p-6 rounded-lg shadow-md">
-          <h2 className="text-2xl font-bold mb-4">B.Tech Semester 5 - Minor Project 2</h2>
-          <p className="text-blue-200 mb-6">Group formation and faculty allocation overview</p>
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-2xl font-bold mb-4">B.Tech Semester 5 - Minor Project 2</h2>
+              <p className="text-blue-200 mb-6">Group formation and faculty allocation overview</p>
+            </div>
+            <div className="flex space-x-4">
+              <Link
+                to="/admin/sem5/registrations"
+                className="bg-white bg-opacity-20 hover:bg-opacity-30 px-4 py-2 rounded-md text-white font-medium transition-all duration-200 flex items-center space-x-2"
+              >
+                <span>📊</span>
+                <span>View Registrations</span>
+              </Link>
+              <Link
+                to="/admin/sem5/allocated-faculty"
+                className="bg-white bg-opacity-20 hover:bg-opacity-30 px-4 py-2 rounded-md text-white font-medium transition-all duration-200 flex items-center space-x-2"
+              >
+                <span>👥</span>
+                <span>View Allocated Faculty</span>
+              </Link>
+            </div>
+          </div>
           
           {loading ? (
             <div className="flex items-center justify-center py-8">

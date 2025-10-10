@@ -674,8 +674,9 @@ const chooseGroup = async (req, res) => {
     await preference.allocateFaculty(faculty._id, 'faculty_choice');
     
     // Update the group and project with allocated faculty
+    let group = null;
     if (preference.group) {
-      const group = await Group.findById(preference.group);
+      group = await Group.findById(preference.group).populate('members.student');
       if (group) {
         group.allocatedFaculty = faculty._id;
         group.status = 'locked';
@@ -690,6 +691,23 @@ const chooseGroup = async (req, res) => {
         project.status = 'faculty_allocated';
         project.allocatedBy = 'faculty_choice';
         await project.save();
+        
+        // Update all group members' currentProjects status
+        if (group && group.members) {
+          const activeMembers = group.members.filter(m => m.isActive);
+          for (const member of activeMembers) {
+            const memberStudent = await Student.findById(member.student);
+            if (memberStudent) {
+              const currentProject = memberStudent.currentProjects.find(cp => 
+                cp.project.toString() === project._id.toString()
+              );
+              if (currentProject) {
+                currentProject.status = 'active'; // Update status when faculty is allocated
+              }
+              await memberStudent.save();
+            }
+          }
+        }
       }
     }
 
