@@ -27,11 +27,85 @@ const signupStudent = async (req, res) => {
       confirmPassword 
     } = req.body;
 
-    // Validate required fields
-    if (!fullName || !degree || !semester || !misNumber || !collegeEmail || !contactNumber || !branch || !password || !confirmPassword) {
+    // Validate required fields with specific messages
+    if (!fullName) {
       return res.status(400).json({
         success: false,
-        message: 'Please provide all required fields'
+        message: 'Full name is required',
+        errorCode: 'MISSING_FULL_NAME'
+      });
+    }
+    
+    if (!degree) {
+      return res.status(400).json({
+        success: false,
+        message: 'Degree is required',
+        errorCode: 'MISSING_DEGREE'
+      });
+    }
+    
+    if (!semester) {
+      return res.status(400).json({
+        success: false,
+        message: 'Semester is required',
+        errorCode: 'MISSING_SEMESTER'
+      });
+    }
+    
+    if (!misNumber) {
+      return res.status(400).json({
+        success: false,
+        message: 'MIS number is required',
+        errorCode: 'MISSING_MIS_NUMBER'
+      });
+    }
+    
+    if (!collegeEmail) {
+      return res.status(400).json({
+        success: false,
+        message: 'College email is required',
+        errorCode: 'MISSING_EMAIL'
+      });
+    }
+    
+    if (!contactNumber) {
+      return res.status(400).json({
+        success: false,
+        message: 'Contact number is required',
+        errorCode: 'MISSING_CONTACT'
+      });
+    }
+    
+    if (!branch) {
+      return res.status(400).json({
+        success: false,
+        message: 'Branch is required',
+        errorCode: 'MISSING_BRANCH'
+      });
+    }
+    
+    if (!password) {
+      return res.status(400).json({
+        success: false,
+        message: 'Password is required',
+        errorCode: 'MISSING_PASSWORD'
+      });
+    }
+    
+    if (!confirmPassword) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please confirm your password',
+        errorCode: 'MISSING_CONFIRM_PASSWORD'
+      });
+    }
+
+    // Validate password strength
+    if (password.length < 6) {
+      return res.status(400).json({
+        success: false,
+        message: 'Password must be at least 6 characters long',
+        errorCode: 'WEAK_PASSWORD'
       });
     }
 
@@ -39,7 +113,36 @@ const signupStudent = async (req, res) => {
     if (password !== confirmPassword) {
       return res.status(400).json({
         success: false,
-        message: 'Passwords do not match'
+        message: 'Passwords do not match',
+        errorCode: 'PASSWORD_MISMATCH'
+      });
+    }
+
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(collegeEmail)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please enter a valid email address',
+        errorCode: 'INVALID_EMAIL'
+      });
+    }
+
+    // Validate MIS number format (9 digits)
+    if (!/^\d{9}$/.test(misNumber)) {
+      return res.status(400).json({
+        success: false,
+        message: 'MIS number must be exactly 9 digits',
+        errorCode: 'INVALID_MIS_NUMBER'
+      });
+    }
+
+    // Validate contact number format (10 digits starting with 6-9)
+    if (!/^[6-9]\d{9}$/.test(contactNumber)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please enter a valid 10-digit phone number',
+        errorCode: 'INVALID_CONTACT_NUMBER'
       });
     }
 
@@ -296,7 +399,8 @@ const loginUser = async (req, res) => {
     if (!user) {
       return res.status(401).json({
         success: false,
-        message: 'Invalid email or password'
+        message: 'Email not found. Please check your email or sign up for a new account.',
+        errorCode: 'EMAIL_NOT_FOUND'
       });
     }
 
@@ -304,7 +408,8 @@ const loginUser = async (req, res) => {
     if (!user.isActive) {
       return res.status(401).json({
         success: false,
-        message: 'Account is deactivated. Please contact administrator.'
+        message: 'Account is deactivated. Please contact administrator.',
+        errorCode: 'ACCOUNT_DEACTIVATED'
       });
     }
 
@@ -313,7 +418,8 @@ const loginUser = async (req, res) => {
     if (!isPasswordValid) {
       return res.status(401).json({
         success: false,
-        message: 'Invalid email or password'
+        message: 'Incorrect password. Please try again.',
+        errorCode: 'INVALID_PASSWORD'
       });
     }
 

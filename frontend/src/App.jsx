@@ -1,5 +1,6 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { Toaster } from 'react-hot-toast';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { Sem5Provider } from './context/Sem5Context';
 import Layout from './components/common/Layout';
@@ -28,6 +29,9 @@ import UnallocatedGroups from './pages/admin/UnallocatedGroups';
 import SystemConfiguration from './pages/admin/SystemConfiguration';
 import NotFound from './pages/NotFound';
 import AdminProfile from './pages/admin/Profile';
+import ToastDemo from './components/common/ToastDemo';
+import SignupTestDemo from './components/auth/SignupTestDemo';
+import SpecificErrorTestDemo from './components/auth/SpecificErrorTestDemo';
 import FacultyProfile from './pages/faculty/Profile';
 import StudentProfile from './pages/student/Profile';
 
@@ -88,12 +92,40 @@ function AppContent() {
   };
 
   return (
-        <Routes>
-          <Route path="/" element={
-            <Layout>
-              <Home />
-            </Layout>
-          } />
+    <>
+      <Toaster
+        position="top-right"
+        toastOptions={{
+          duration: 4000,
+          style: {
+            background: '#363636',
+            color: '#fff',
+          },
+          success: {
+            duration: 3000,
+            iconTheme: {
+              primary: '#10B981',
+              secondary: '#fff',
+            },
+          },
+          error: {
+            duration: 5000,
+            iconTheme: {
+              primary: '#EF4444',
+              secondary: '#fff',
+            },
+          },
+          loading: {
+            duration: Infinity,
+          },
+        }}
+      />
+      <Routes>
+        <Route path="/" element={
+          <Layout>
+            <Home />
+          </Layout>
+        } />
           <Route path="/login" element={
             <Layout>
               <Login />
@@ -261,12 +293,29 @@ function AppContent() {
               </Layout>
             </ProtectedRoute>
           } />
+          {/* Demo Routes - Remove in production */}
+          <Route path="/toast-demo" element={
+            <Layout>
+              <ToastDemo />
+            </Layout>
+          } />
+          <Route path="/signup-test-demo" element={
+            <Layout>
+              <SignupTestDemo />
+            </Layout>
+          } />
+          <Route path="/specific-error-test-demo" element={
+            <Layout>
+              <SpecificErrorTestDemo />
+            </Layout>
+          } />
           <Route path="*" element={
             <Layout>
               <NotFound />
             </Layout>
           } />
-        </Routes>
+      </Routes>
+    </>
   );
 }
 
