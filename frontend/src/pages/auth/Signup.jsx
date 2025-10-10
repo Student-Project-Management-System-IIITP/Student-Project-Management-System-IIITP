@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import toast from 'react-hot-toast';
 
 const Signup = () => {
   const [formData, setFormData] = useState({
@@ -18,9 +19,60 @@ const Signup = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [showPw, setShowPw] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
+  const [passwordStrength, setPasswordStrength] = useState({
+    score: 0,
+    feedback: []
+  });
   
   const { signup } = useAuth();
   const navigate = useNavigate();
+
+  // Password strength checker
+  const checkPasswordStrength = (password) => {
+    const feedback = [];
+    let score = 0;
+
+    if (password.length < 6) {
+      feedback.push('Password must be at least 6 characters long');
+    } else {
+      score += 1;
+    }
+
+    if (password.length >= 8) {
+      score += 1;
+      feedback.push('✓ Good length (8+ characters)');
+    }
+
+    if (/[a-z]/.test(password)) {
+      score += 1;
+      feedback.push('✓ Contains lowercase letter');
+    } else {
+      feedback.push('Add lowercase letters');
+    }
+
+    if (/[A-Z]/.test(password)) {
+      score += 1;
+      feedback.push('✓ Contains uppercase letter');
+    } else {
+      feedback.push('Add uppercase letters');
+    }
+
+    if (/[0-9]/.test(password)) {
+      score += 1;
+      feedback.push('✓ Contains number');
+    } else {
+      feedback.push('Add numbers');
+    }
+
+    if (/[^A-Za-z0-9]/.test(password)) {
+      score += 1;
+      feedback.push('✓ Contains special character');
+    } else {
+      feedback.push('Add special characters (!@#$%^&*)');
+    }
+
+    return { score, feedback };
+  };
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -36,6 +88,12 @@ const Signup = () => {
         [name]: value,
         semester: ''
       }));
+    }
+    
+    // Check password strength in real-time (no toasts on each keystroke)
+    if (name === 'password') {
+      const strength = checkPasswordStrength(value);
+      setPasswordStrength(strength);
     }
     
     // Clear error when user starts typing
@@ -81,6 +139,8 @@ const Signup = () => {
     
     if (!formData.collegeEmail.trim()) {
       newErrors.collegeEmail = 'College email is required';
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.collegeEmail)) {
+      newErrors.collegeEmail = 'Please enter a valid email address';
     }
     
     if (!formData.contactNumber.trim()) {
@@ -93,6 +153,8 @@ const Signup = () => {
       newErrors.password = 'Password is required';
     } else if (formData.password.length < 6) {
       newErrors.password = 'Password must be at least 6 characters';
+    } else if (passwordStrength.score < 3) {
+      newErrors.password = 'Password is too weak. Please add uppercase letters, numbers, or special characters.';
     }
     
     if (!formData.confirmPassword) {
@@ -102,6 +164,10 @@ const Signup = () => {
     }
     
     setErrors(newErrors);
+    
+    // Optionally surface a single validation toast on submit only
+    // (keep UI errors inline to avoid spam)
+    
     return Object.keys(newErrors).length === 0;
   };
 
@@ -117,14 +183,21 @@ const Signup = () => {
     try {
       const result = await signup(formData);
       if (result.success) {
-        // Show success message and redirect to login
-        alert('Account created successfully! Please login to continue.');
-        navigate('/login');
+        // Show a single success toast on submit
+        toast.success('Account created successfully! Please login to continue.', { duration: 2500 });
+        // Redirect to login after a short delay
+        setTimeout(() => {
+          navigate('/login');
+        }, 2000); // Give user time to see the success message
       } else {
-        setErrors({ general: result.error });
+        const errorMessage = result.error || 'Signup failed. Please try again.';
+        toast.error(errorMessage, { duration: 4000 });
+        setErrors({ general: errorMessage });
       }
     } catch (error) {
-        setErrors({ general: 'Signup failed. Please try again.' });
+      const errorMessage = error?.message || 'Signup failed. Please try again.';
+      toast.error(errorMessage, { duration: 4000 });
+      setErrors({ general: errorMessage });
     } finally {
       setIsLoading(false);
     }
@@ -317,6 +390,42 @@ const Signup = () => {
               </button>
             </div>
             {errors.password && <p className="mt-1 text-sm text-red-600">{errors.password}</p>}
+            
+            {/* Password Strength Indicator */}
+            {formData.password && (
+              <div className="mt-2">
+                <div className="flex items-center space-x-2">
+                  <div className="flex-1 bg-gray-200 rounded-full h-2">
+                    <div 
+                      className={`h-2 rounded-full transition-all duration-300 ${
+                        passwordStrength.score < 2 ? 'bg-red-500' :
+                        passwordStrength.score < 4 ? 'bg-yellow-500' :
+                        'bg-green-500'
+                      }`}
+                      style={{ width: `${(passwordStrength.score / 6) * 100}%` }}
+                    ></div>
+                  </div>
+                  <span className={`text-xs font-medium ${
+                    passwordStrength.score < 2 ? 'text-red-600' :
+                    passwordStrength.score < 4 ? 'text-yellow-600' :
+                    'text-green-600'
+                  }`}>
+                    {passwordStrength.score < 2 ? 'Weak' :
+                     passwordStrength.score < 4 ? 'Medium' :
+                     'Strong'}
+                  </span>
+                </div>
+                
+                {/* Password Requirements */}
+                <div className="mt-2 text-xs text-gray-600">
+                  {passwordStrength.feedback.slice(0, 3).map((item, index) => (
+                    <div key={index} className={`${item.startsWith('✓') ? 'text-green-600' : 'text-red-600'}`}>
+                      {item}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
           
           <div>

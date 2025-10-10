@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import toast from 'react-hot-toast';
+import { handleAuthError } from '../../utils/signupErrorHandler';
 
 const Login = () => {
   const [formData, setFormData] = useState({
@@ -29,12 +31,19 @@ const Login = () => {
     try {
       const result = await login(formData.email, formData.password);
       if (result.success) {
-        navigate('/dashboard');
+        toast.success('Logged in successfully!', { duration: 2000 });
+        setTimeout(() => {
+          navigate('/dashboard');
+        }, 800);
       } else {
-        setError(result.error || 'Login failed');
+        const errorMessage = result.error || 'Login failed. Please check your credentials.';
+        toast.error(errorMessage, { duration: 3500 });
+        setError(errorMessage);
       }
     } catch (error) {
-      setError('An unexpected error occurred');
+      const errorMessage = handleAuthError(error);
+      toast.error(errorMessage, { duration: 3500 });
+      setError(errorMessage);
     } finally {
       setIsLoading(false);
     }

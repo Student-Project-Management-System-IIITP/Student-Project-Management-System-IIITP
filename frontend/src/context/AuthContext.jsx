@@ -48,6 +48,7 @@ export const AuthProvider = ({ children }) => {
     try {
       setIsLoading(true);
       
+      // Use base API; surface specific errors back to caller
       const data = await authAPI.login({ email, password });
       
       if (data.success) {
@@ -62,6 +63,8 @@ export const AuthProvider = ({ children }) => {
         return { success: false, error: data.message };
       }
     } catch (error) {
+      // If the enhanced API already showed a toast, we still need to return an error
+      // for the component to handle (like not redirecting)
       const errorMessage = handleApiError(error, false);
       return { success: false, error: errorMessage };
     } finally {
@@ -73,6 +76,7 @@ export const AuthProvider = ({ children }) => {
     try {
       setIsLoading(true);
       
+      // Use base API; return server message so UI can show precise toast
       const data = await authAPI.registerStudent(userData);
       
       if (data.success) {
@@ -82,6 +86,8 @@ export const AuthProvider = ({ children }) => {
         return { success: false, error: data.message };
       }
     } catch (error) {
+      // If the enhanced API already showed a toast, we still need to return an error
+      // for the component to handle (like not redirecting)
       const errorMessage = handleApiError(error, false);
       return { success: false, error: errorMessage };
     } finally {
@@ -89,12 +95,23 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const logout = () => {
-    localStorage.removeItem('token');
-    setUser(null);
-    setRoleData(null);
-    setUserRole(null);
-    // Navigation will be handled by the component calling logout
+  const logout = async () => {
+    try {
+      // Call logout API if user is authenticated
+      if (user) {
+        await authAPI.logout();
+      }
+    } catch (error) {
+      // Even if logout API fails, we should still clear local state
+      console.error('Logout API error:', error);
+    } finally {
+      // Always clear local state
+      localStorage.removeItem('token');
+      setUser(null);
+      setRoleData(null);
+      setUserRole(null);
+      // Navigation will be handled by the component calling logout
+    }
   };
 
   const value = {
