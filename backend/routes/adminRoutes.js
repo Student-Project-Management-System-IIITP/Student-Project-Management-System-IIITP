@@ -7,6 +7,10 @@ const { authenticateToken, requireAdmin } = require('../middleware/auth');
 router.use(authenticateToken);
 router.use(requireAdmin);
 
+// Profile routes
+router.get('/profile', adminController.getAdminProfile);
+router.put('/profile', adminController.updateAdminProfile);
+
 // Dashboard routes
 router.get('/dashboard', adminController.getDashboardData);
 router.get('/stats', adminController.getSystemStats);
