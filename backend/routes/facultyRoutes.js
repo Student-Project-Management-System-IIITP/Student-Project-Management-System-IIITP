@@ -32,4 +32,8 @@ router.post('/groups/:groupId/choose', facultyController.chooseGroup);
 router.post('/groups/:groupId/pass', facultyController.passGroup);
 router.get('/statistics/sem5', facultyController.getSem5Statistics);
 
+// Faculty profile routes
+router.get('/profile', facultyController.getFacultyProfile);
+router.put('/profile', facultyController.updateFacultyProfile);
+
 module.exports = router;

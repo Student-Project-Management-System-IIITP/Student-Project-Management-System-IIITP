@@ -28,6 +28,8 @@ import UnallocatedGroups from './pages/admin/UnallocatedGroups';
 import SystemConfiguration from './pages/admin/SystemConfiguration';
 import NotFound from './pages/NotFound';
 import AdminProfile from './pages/admin/Profile';
+import FacultyProfile from './pages/faculty/Profile';
+import StudentProfile from './pages/student/Profile';
 
 function App() {
   return (
@@ -141,6 +143,13 @@ function AppContent() {
               <ProjectDetails />
             </ProtectedRoute>
           } />
+          <Route path="/student/profile" element={
+            <ProtectedRoute allowedRoles={['student']}>
+              <Layout>
+                <StudentProfile />
+              </Layout>
+            </ProtectedRoute>
+          } />
           <Route path="/dashboard/faculty" element={
             <ProtectedRoute allowedRoles={['faculty']}>
               <Layout>
@@ -176,6 +185,13 @@ function AppContent() {
           <Route path="/faculty/project" element={
             <ProtectedRoute allowedRoles={['faculty']}>
               <ProjectDetails />
+            </ProtectedRoute>
+          } />
+          <Route path="/faculty/profile" element={
+            <ProtectedRoute allowedRoles={['faculty']}>
+              <Layout>
+                <FacultyProfile />
+              </Layout>
             </ProtectedRoute>
           } />
           <Route path="/dashboard/admin" element={

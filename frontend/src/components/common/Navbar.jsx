@@ -21,10 +21,17 @@ const Navbar = ({ userRole = null, user = null }) => {
       { name: 'Dashboard', path: `/dashboard/${userRole}`, icon: '📊' }
     ];
 
-    // Show Profile only for admin role per requirement
+    // Show Profile for admin and faculty roles
     if (userRole === 'admin') {
       items.push({ name: 'Profile', path: `/admin/profile`, icon: '👤' });
     }
+    if (userRole === 'faculty') {
+      items.push({ name: 'Profile', path: `/faculty/profile`, icon: '👤' });
+    }
+    if (userRole === 'student') {
+      items.push({ name: 'Profile', path: `/student/profile`, icon: '👤' });
+    }
+    // Removed student profile from navbar
 
     return items;
   };
