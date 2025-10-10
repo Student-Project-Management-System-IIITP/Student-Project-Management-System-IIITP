@@ -174,17 +174,12 @@ export const Sem5Provider = ({ children }) => {
 
   // Admin-specific data loading
   const loadAdminSem5Data = async () => {
-    try {
-      // TODO: Implement admin Sem 5 endpoints
-      // For now, set empty data to prevent 404 errors
-      setSem5Group([]);
-      setSystemConfig({});
-      setAllocationStatus({});
-      
-      console.log('Admin Sem 5 data loading - endpoints not yet implemented');
-    } catch (error) {
-      console.error('Failed to load admin Sem 5 data:', error);
-    }
+    // Admins don't need Sem 5 context data - they use dedicated dashboard pages
+    // Just set empty states to prevent errors
+    setSem5Group(null);
+    setSem5Project(null);
+    setSystemConfig(null);
+    setAllocationStatus(null);
   };
 
   // Student Actions
