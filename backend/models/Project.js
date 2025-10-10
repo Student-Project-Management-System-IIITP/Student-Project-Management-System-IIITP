@@ -49,7 +49,7 @@ const projectSchema = new mongoose.Schema({
       type: Number,
       required: true,
       min: 1,
-      max: 5
+      max: 10 // Support up to 10 faculty preferences
     }
   }],
   
@@ -192,15 +192,15 @@ const projectSchema = new mongoose.Schema({
     type: Number,
     default: 0,
     min: 0,
-    max: 4, // 0-4 for 5 faculty preferences
+    max: 9, // 0-9 for up to 10 faculty preferences
     validate: {
       validator: function(value) {
         // Only validate for Sem 5+ projects that support faculty allocation
         const supportsFacultyAllocation = this.semester >= 5 && 
           ['minor2', 'minor3', 'major1', 'major2'].includes(this.projectType);
-        return !supportsFacultyAllocation || (value >= 0 && value <= 4);
+        return !supportsFacultyAllocation || (value >= 0 && value <= 9);
       },
-      message: 'Current faculty index must be between 0 and 4 for Sem 5+ projects'
+      message: 'Current faculty index must be between 0 and 9 for Sem 5+ projects'
     }
   },
   allocationHistory: [{

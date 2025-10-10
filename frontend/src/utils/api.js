@@ -125,6 +125,9 @@ export const studentAPI = {
   // Sem 5 Project Registration
   registerMinorProject2: (projectData) => api.post('/student/projects/minor2/register', projectData),
   
+  // System Config
+  getSystemConfig: (key) => api.get(`/student/system-config/${key}`),
+  
   // Sem 5 Group Management
   createGroup: (groupData) => api.post('/student/groups', groupData),
   getMyGroups: () => api.get('/student/groups'),
@@ -225,15 +228,44 @@ export const adminAPI = {
     return apiRequest(url.href.replace(API_BASE_URL, ''));
   },
 
+  getSem5Registrations: (params) => {
+    const url = new URL('/admin/sem5/registrations', API_BASE_URL);
+    if (params) {
+      Object.keys(params).forEach(key => url.searchParams.append(key, params[key]));
+    }
+    return apiRequest(url.href.replace(API_BASE_URL, ''));
+  },
+
+  getSem5AllocatedFaculty: (params) => {
+    const url = new URL('/admin/sem5/allocated-faculty', API_BASE_URL);
+    if (params) {
+      Object.keys(params).forEach(key => url.searchParams.append(key, params[key]));
+    }
+    return apiRequest(url.href.replace(API_BASE_URL, ''));
+  },
+
+  getSem5NonRegisteredStudents: (params) => {
+    const url = new URL('/admin/sem5/non-registered-students', API_BASE_URL);
+    if (params) {
+      Object.keys(params).forEach(key => url.searchParams.append(key, params[key]));
+    }
+    return apiRequest(url.href.replace(API_BASE_URL, ''));
+  },
+
   // Sem 5 Group Management
   getSem5Groups: () => api.get('/admin/groups/sem5'),
   getAllGroups: () => api.get('/admin/groups'),
   getUnallocatedGroups: () => api.get('/admin/groups/unallocated'),
   forceAllocateFaculty: (groupId, facultyId) => api.post(`/admin/groups/${groupId}/allocate`, { facultyId }),
   
-  // Sem 5 System Configuration
-  getSystemConfig: () => api.get('/admin/system-config'),
-  updateSystemConfig: (config) => api.put('/admin/system-config', config),
+  // System Configuration
+  getSystemConfigurations: (category) => {
+    const url = category ? `/admin/system-config?category=${category}` : '/admin/system-config';
+    return api.get(url);
+  },
+  getSystemConfigByKey: (key) => api.get(`/admin/system-config/${key}`),
+  updateSystemConfigByKey: (key, value, description, force = false) => api.put(`/admin/system-config/${key}`, { value, description, force }),
+  initializeSystemConfigs: () => api.post('/admin/system-config/initialize'),
   
   // Sem 5 Statistics
   getSem5Statistics: () => api.get('/admin/statistics/sem5'),

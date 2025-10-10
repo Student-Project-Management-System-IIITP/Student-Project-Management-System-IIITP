@@ -5,6 +5,7 @@ const User = require('../models/User');
 const Project = require('../models/Project');
 const Group = require('../models/Group');
 const FacultyPreference = require('../models/FacultyPreference');
+const SystemConfig = require('../models/SystemConfig');
 
 // Get admin profile data
 const getAdminProfile = async (req, res) => {
@@ -532,6 +533,15 @@ const forceAllocateFaculty = async (req, res) => {
     await allocation.adminAllocate(facultyId, req.user.id);
 
     // Update project/group with faculty allocation
+    let group = null;
+    if (allocation.group) {
+      group = await Group.findById(allocation.group).populate('members.student');
+      if (group) {
+        group.allocatedFaculty = facultyId;
+        await group.save();
+      }
+    }
+
     if (allocation.project) {
       const project = await Project.findById(allocation.project);
       if (project) {
@@ -539,14 +549,23 @@ const forceAllocateFaculty = async (req, res) => {
         project.status = 'faculty_allocated';
         project.allocatedBy = 'admin_allocation';
         await project.save();
-      }
-    }
-
-    if (allocation.group) {
-      const group = await Group.findById(allocation.group);
-      if (group) {
-        group.allocatedFaculty = facultyId;
-        await group.save();
+        
+        // Update all group members' currentProjects status
+        if (group && group.members) {
+          const activeMembers = group.members.filter(m => m.isActive);
+          for (const member of activeMembers) {
+            const memberStudent = await Student.findById(member.student);
+            if (memberStudent) {
+              const currentProject = memberStudent.currentProjects.find(cp => 
+                cp.project.toString() === project._id.toString()
+              );
+              if (currentProject) {
+                currentProject.status = 'active'; // Update status when faculty is allocated
+              }
+              await memberStudent.save();
+            }
+          }
+        }
       }
     }
 
@@ -725,6 +744,609 @@ const getSem4MinorProject1Registrations = async (req, res) => {
   }
 };
 
+// Get Sem 5 Non-Registered Students
+const getSem5NonRegisteredStudents = async (req, res) => {
+  try {
+    const { batch, currentYear, academicYear } = req.query;
+    
+    let query = {
+      semester: 5
+    };
+
+    // Add academic year filter
+    if (academicYear) {
+      query.academicYear = academicYear;
+    } else if (batch || currentYear) {
+      if (batch) {
+        const startYear = batch.split('-')[0];
+        const acYear = `${startYear}-${parseInt(startYear) + 4}`;
+        query.academicYear = acYear;
+      } else if (currentYear === 'true') {
+        const currentDate = new Date();
+        const currentYearNum = currentDate.getFullYear();
+        const isPreMid = currentDate.getMonth() < 6;
+        const academicStartYear = isPreMid ? currentYearNum - 1 : currentYearNum;
+        const acYear = `${academicStartYear}-${academicStartYear + 4}`;
+        query.academicYear = acYear;
+      }
+    }
+
+    // Get all Sem 5 students
+    const students = await Student.find(query)
+      .populate('user', 'email')
+      .populate('groupId', 'name status allocatedFaculty')
+      .sort({ fullName: 1 });
+
+    // Get all Sem 5 projects
+    const projects = await Project.find({
+      projectType: 'minor2',
+      semester: 5,
+      ...(query.academicYear && { academicYear: query.academicYear })
+    }).select('student');
+
+    // Create a set of students who have registered
+    const registeredStudentIds = new Set(projects.map(p => p.student.toString()));
+
+    // Get all groups with allocated faculty for Sem 5
+    const allocatedGroups = await Group.find({
+      semester: 5,
+      allocatedFaculty: { $exists: true, $ne: null },
+      isActive: true,
+      ...(query.academicYear && { academicYear: query.academicYear })
+    }).select('members');
+
+    // Create a set of students who are in groups with allocated faculty
+    const studentsInAllocatedGroups = new Set();
+    allocatedGroups.forEach(group => {
+      group.members.forEach(member => {
+        if (member.isActive) {
+          studentsInAllocatedGroups.add(member.student.toString());
+        }
+      });
+    });
+
+    // Filter students who:
+    // 1. Haven't registered for minor2 project
+    // 2. Are NOT in a group that has allocated faculty
+    const nonRegisteredStudents = students.filter(student => 
+      !registeredStudentIds.has(student._id.toString()) &&
+      !studentsInAllocatedGroups.has(student._id.toString())
+    );
+
+    // Format the response
+    const formattedStudents = nonRegisteredStudents.map(student => ({
+      _id: student._id,
+      fullName: student.fullName,
+      misNumber: student.misNumber,
+      email: student.user?.email || 'N/A',
+      contactNumber: student.contactNumber,
+      branch: student.branch,
+      academicYear: student.academicYear,
+      groupStatus: student.groupId ? 'In Group' : 'Not in Group',
+      groupName: student.groupId?.name || 'N/A',
+      groupId: student.groupId?._id || null
+    }));
+
+    // Calculate statistics
+    const stats = {
+      totalNotRegistered: formattedStudents.length,
+      inGroup: formattedStudents.filter(s => s.groupId).length,
+      notInGroup: formattedStudents.filter(s => !s.groupId).length
+    };
+
+    res.json({
+      success: true,
+      data: formattedStudents,
+      stats,
+      total: formattedStudents.length
+    });
+
+  } catch (error) {
+    console.error('Error getting non-registered students:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching non-registered students',
+      error: error.message
+    });
+  }
+};
+
+// Get Sem 5 Groups for Admin Dashboard
+const getSem5Groups = async (req, res) => {
+  try {
+    const { academicYear } = req.query;
+    
+    const query = {
+      semester: 5,
+      isActive: true
+    };
+
+    if (academicYear) {
+      query.academicYear = academicYear;
+    } else {
+      // Default to current academic year
+      const currentDate = new Date();
+      const currentYearNum = currentDate.getFullYear();
+      const isPreMid = currentDate.getMonth() < 6;
+      const academicStartYear = isPreMid ? currentYearNum - 1 : currentYearNum;
+      query.academicYear = `${academicStartYear}-${(academicStartYear + 1).toString().slice(-2)}`;
+    }
+
+    const groups = await Group.find(query)
+      .populate('members.student', 'fullName misNumber')
+      .populate('allocatedFaculty', 'fullName department')
+      .populate('project', 'title status')
+      .sort({ createdAt: -1 });
+
+    res.json({
+      success: true,
+      data: groups,
+      total: groups.length
+    });
+  } catch (error) {
+    console.error('Error getting Sem 5 groups:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching Sem 5 groups',
+      error: error.message
+    });
+  }
+};
+
+// Get Sem 5 Statistics for Admin Dashboard
+const getSem5Statistics = async (req, res) => {
+  try {
+    const { academicYear } = req.query;
+    
+    const query = {
+      semester: 5
+    };
+
+    if (academicYear) {
+      query.academicYear = academicYear;
+    } else {
+      // Default to current academic year
+      const currentDate = new Date();
+      const currentYearNum = currentDate.getFullYear();
+      const isPreMid = currentDate.getMonth() < 6;
+      const academicStartYear = isPreMid ? currentYearNum - 1 : currentYearNum;
+      query.academicYear = `${academicStartYear}-${(academicStartYear + 1).toString().slice(-2)}`;
+    }
+
+    // Get group statistics
+    const totalGroups = await Group.countDocuments({ ...query, isActive: true });
+    const formedGroups = await Group.countDocuments({ ...query, isActive: true, status: { $in: ['finalized', 'locked', 'open'] } });
+    const allocatedGroups = await Group.countDocuments({ ...query, isActive: true, allocatedFaculty: { $exists: true } });
+    const unallocatedGroups = totalGroups - allocatedGroups;
+
+    // Get project statistics
+    const totalProjects = await Project.countDocuments({ ...query, projectType: 'minor2' });
+    const registeredProjects = await Project.countDocuments({ ...query, projectType: 'minor2', status: 'registered' });
+    const allocatedProjects = await Project.countDocuments({ ...query, projectType: 'minor2', status: 'faculty_allocated' });
+    const activeProjects = await Project.countDocuments({ ...query, projectType: 'minor2', status: 'active' });
+
+    res.json({
+      success: true,
+      data: {
+        totalGroups,
+        formedGroups,
+        allocatedGroups,
+        unallocatedGroups,
+        totalProjects,
+        registeredProjects,
+        allocatedProjects,
+        activeProjects,
+        allocationRate: totalGroups > 0 ? ((allocatedGroups / totalGroups) * 100).toFixed(2) : 0
+      }
+    });
+  } catch (error) {
+    console.error('Error getting Sem 5 statistics:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching Sem 5 statistics',
+      error: error.message
+    });
+  }
+};
+
+// Get Sem 5 Allocated Faculty Overview
+const getSem5AllocatedFaculty = async (req, res) => {
+  try {
+    const { batch, currentYear, academicYear } = req.query;
+    
+    let query = {
+      semester: 5,
+      isActive: true
+    };
+
+    // Add academic year filter
+    if (academicYear) {
+      query.academicYear = academicYear;
+    } else if (batch || currentYear) {
+      if (batch) {
+        const startYear = batch.split('-')[0];
+        const acYear = `${startYear}-${parseInt(startYear) + 4}`;
+        query.academicYear = acYear;
+      } else if (currentYear === 'true') {
+        const currentDate = new Date();
+        const currentYearNum = currentDate.getFullYear();
+        const isPreMid = currentDate.getMonth() < 6;
+        const academicStartYear = isPreMid ? currentYearNum - 1 : currentYearNum;
+        const acYear = `${academicStartYear}-${academicStartYear + 4}`;
+        query.academicYear = acYear;
+      }
+    }
+
+    // Get all groups with populated data
+    const groups = await Group.find(query)
+      .populate({
+        path: 'members.student',
+        select: 'fullName misNumber contactNumber branch user',
+        populate: {
+          path: 'user',
+          select: 'email'
+        }
+      })
+      .populate({
+        path: 'allocatedFaculty',
+        select: 'fullName department designation'
+      })
+      .populate({
+        path: 'project',
+        select: 'title status'
+      })
+      .sort({ allocatedFaculty: 1, createdAt: -1 }); // Sort by faculty first, then by creation date
+
+    // Format the response with group members and allocated faculty
+    const formattedGroups = groups.map(group => {
+      const members = group.members?.filter(m => m.isActive) || [];
+      
+      const groupData = {
+        _id: group._id,
+        groupName: group.name || 'Unnamed Group',
+        status: group.status,
+        createdAt: group.createdAt,
+        projectTitle: group.project?.title || 'Not registered yet',
+        projectStatus: group.project?.status || 'N/A',
+        allocatedFaculty: group.allocatedFaculty?.fullName || 'Not Allocated',
+        facultyDepartment: group.allocatedFaculty?.department || '',
+        facultyDesignation: group.allocatedFaculty?.designation || '',
+        isAllocated: !!group.allocatedFaculty,
+        memberCount: members.length,
+        academicYear: group.academicYear
+      };
+
+      // Add all group members (up to 5)
+      for (let i = 0; i < 5; i++) {
+        const member = members[i];
+        const memberNum = i + 1;
+        
+        if (member && member.student) {
+          groupData[`member${memberNum}Name`] = member.student.fullName || '';
+          groupData[`member${memberNum}MIS`] = member.student.misNumber || '';
+          groupData[`member${memberNum}Contact`] = member.student.contactNumber || '';
+          groupData[`member${memberNum}Branch`] = member.student.branch || '';
+          groupData[`member${memberNum}Email`] = member.student.user?.email || '';
+        } else {
+          groupData[`member${memberNum}Name`] = '';
+          groupData[`member${memberNum}MIS`] = '';
+          groupData[`member${memberNum}Contact`] = '';
+          groupData[`member${memberNum}Branch`] = '';
+          groupData[`member${memberNum}Email`] = '';
+        }
+      }
+
+      return groupData;
+    });
+
+    // Sort: Allocated groups first (sorted by faculty name), then unallocated groups
+    const allocatedGroups = formattedGroups.filter(g => g.isAllocated);
+    // Unallocated groups should only include those who have registered (have a project)
+    const unallocatedGroups = formattedGroups.filter(g => 
+      !g.isAllocated && g.projectTitle !== 'Not registered yet'
+    );
+    
+    // Sort allocated groups by faculty name
+    allocatedGroups.sort((a, b) => a.allocatedFaculty.localeCompare(b.allocatedFaculty));
+    
+    const sortedGroups = [...allocatedGroups, ...unallocatedGroups];
+
+    // Calculate statistics
+    const stats = {
+      totalGroups: formattedGroups.length,
+      allocatedGroups: allocatedGroups.length,
+      unallocatedGroups: unallocatedGroups.length,
+      allocationRate: formattedGroups.length > 0 
+        ? ((allocatedGroups.length / formattedGroups.length) * 100).toFixed(2) 
+        : 0
+    };
+
+    res.json({
+      success: true,
+      data: sortedGroups,
+      stats,
+      total: sortedGroups.length
+    });
+
+  } catch (error) {
+    console.error('Error getting Sem 5 allocated faculty overview:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching allocated faculty data',
+      error: error.message
+    });
+  }
+};
+
+// Get Sem 5 Minor Project 2 registrations
+const getSem5MinorProject2Registrations = async (req, res) => {
+  try {
+    const { batch, currentYear } = req.query;
+    
+    let query = {
+      projectType: 'minor2',
+      semester: 5
+    };
+
+    // Add academic year filter based on batch
+    if (batch || currentYear) {
+      if (batch) {
+        const startYear = batch.split('-')[0];
+        const academicYear = `${startYear}-${parseInt(startYear) + 4}`;
+        query.academicYear = academicYear;
+      } else if (currentYear === 'true') {
+        const currentDate = new Date();
+        const currentYearNum = currentDate.getFullYear();
+        const isPreMid = currentDate.getMonth() < 6;
+        const academicStartYear = isPreMid ? currentYearNum - 1 : currentYearNum;
+        const academicYear = `${academicStartYear}-${academicStartYear + 4}`;
+        query.academicYear = academicYear;
+      }
+    }
+
+    // Get projects with populated data
+    const projects = await Project.find(query)
+      .populate({
+        path: 'group',
+        populate: {
+          path: 'members.student',
+          select: 'fullName misNumber contactNumber branch user',
+          populate: {
+            path: 'user',
+            select: 'email'
+          }
+        }
+      })
+      .populate({
+        path: 'facultyPreferences.faculty',
+        select: 'fullName'
+      })
+      .sort({ createdAt: -1 });
+
+    // Format the response with all group members and faculty preferences
+    const formattedRegistrations = projects.map(project => {
+      const group = project.group;
+      const members = group?.members?.filter(m => m.isActive) || [];
+      
+      // Create a flat structure with all member details
+      const registration = {
+        _id: project._id,
+        timestamp: project.createdAt,
+        email: members[0]?.student?.user?.email || 'N/A',
+        projectTitle: project.title,
+        academicYear: project.academicYear,
+        status: project.status,
+        groupId: group?._id,
+        groupName: group?.name || 'N/A'
+      };
+
+      // Add all group members (up to 5)
+      for (let i = 0; i < 5; i++) {
+        const member = members[i];
+        const memberNum = i + 1;
+        
+        if (member && member.student) {
+          registration[`member${memberNum}Name`] = member.student.fullName || 'N/A';
+          registration[`member${memberNum}MIS`] = member.student.misNumber || 'N/A';
+          registration[`member${memberNum}Contact`] = member.student.contactNumber || 'N/A';
+          registration[`member${memberNum}Branch`] = member.student.branch || 'N/A';
+        } else {
+          registration[`member${memberNum}Name`] = '';
+          registration[`member${memberNum}MIS`] = '';
+          registration[`member${memberNum}Contact`] = '';
+          registration[`member${memberNum}Branch`] = '';
+        }
+      }
+
+      // Add faculty preferences (up to 10 to support any configuration)
+      const facultyPrefs = project.facultyPreferences || [];
+      for (let i = 0; i < 10; i++) {
+        const pref = facultyPrefs.find(p => p.priority === i + 1);
+        registration[`supervisor${i + 1}`] = pref?.faculty?.fullName || '';
+      }
+
+      return registration;
+    });
+
+    res.json({
+      success: true,
+      data: formattedRegistrations,
+      total: formattedRegistrations.length
+    });
+
+  } catch (error) {
+    console.error('Error getting Sem 5 Minor Project 2 registrations:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching registrations',
+      error: error.message
+    });
+  }
+};
+
+// Get all system configurations
+const getSystemConfigurations = async (req, res) => {
+  try {
+    const { category } = req.query;
+    
+    let configs;
+    if (category) {
+      configs = await SystemConfig.getConfigsByCategory(category);
+    } else {
+      configs = await SystemConfig.find({ isActive: true }).sort({ category: 1, configKey: 1 });
+    }
+
+    res.json({
+      success: true,
+      data: configs,
+      total: configs.length
+    });
+  } catch (error) {
+    console.error('Error getting system configurations:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching system configurations',
+      error: error.message
+    });
+  }
+};
+
+// Get specific system configuration
+const getSystemConfig = async (req, res) => {
+  try {
+    const { key } = req.params;
+    
+    const config = await SystemConfig.findOne({ configKey: key, isActive: true });
+    
+    if (!config) {
+      return res.status(404).json({
+        success: false,
+        message: 'Configuration not found'
+      });
+    }
+
+    res.json({
+      success: true,
+      data: config
+    });
+  } catch (error) {
+    console.error('Error getting system configuration:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching system configuration',
+      error: error.message
+    });
+  }
+};
+
+// Update system configuration
+const updateSystemConfig = async (req, res) => {
+  try {
+    const { key } = req.params;
+    const { value, description, force } = req.body;
+    
+    const config = await SystemConfig.findOne({ configKey: key });
+    
+    if (!config) {
+      return res.status(404).json({
+        success: false,
+        message: 'Configuration not found'
+      });
+    }
+
+    // Special validation for faculty preference limit
+    if (key === 'sem5.facultyPreferenceLimit') {
+      const oldValue = config.configValue;
+      const newValue = value;
+      
+      // If reducing the limit, check for existing registrations
+      if (newValue < oldValue && !force) {
+        // Check if any projects have more preferences than the new limit
+        const projectsWithMorePrefs = await Project.find({
+          semester: 5,
+          projectType: 'minor2',
+          'facultyPreferences': { $exists: true }
+        }).select('facultyPreferences title student');
+        
+        const affectedProjects = projectsWithMorePrefs.filter(project => 
+          project.facultyPreferences && project.facultyPreferences.length > newValue
+        );
+        
+        if (affectedProjects.length > 0) {
+          // Populate student details for affected projects
+          await Project.populate(affectedProjects, { 
+            path: 'student', 
+            select: 'fullName misNumber' 
+          });
+          
+          return res.status(400).json({
+            success: false,
+            message: 'Cannot reduce faculty preference limit',
+            warning: {
+              type: 'EXISTING_REGISTRATIONS_AFFECTED',
+              oldLimit: oldValue,
+              newLimit: newValue,
+              affectedCount: affectedProjects.length,
+              affectedProjects: affectedProjects.map(p => ({
+                projectId: p._id,
+                title: p.title,
+                studentName: p.student?.fullName,
+                currentPreferences: p.facultyPreferences.length
+              })),
+              suggestion: 'Some groups have already submitted more preferences than the new limit. You can force update, but existing registrations will remain unchanged.'
+            }
+          });
+        }
+      }
+    }
+
+    // Update config
+    const oldValue = config.configValue;
+    config.configValue = value;
+    if (description) {
+      config.description = description;
+    }
+    config.updatedBy = req.user.id;
+    config.updatedAt = Date.now();
+    
+    await config.save();
+
+    res.json({
+      success: true,
+      data: config,
+      message: 'System configuration updated successfully',
+      note: oldValue !== value ? `Changed from ${oldValue} to ${value}` : 'No change in value'
+    });
+  } catch (error) {
+    console.error('Error updating system configuration:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error updating system configuration',
+      error: error.message
+    });
+  }
+};
+
+// Initialize default system configurations
+const initializeSystemConfigs = async (req, res) => {
+  try {
+    const count = await SystemConfig.initializeDefaults();
+    
+    res.json({
+      success: true,
+      message: `Initialized ${count} default configurations`,
+      count: count
+    });
+  } catch (error) {
+    console.error('Error initializing system configurations:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error initializing system configurations',
+      error: error.message
+    });
+  }
+};
+
 module.exports = {
   getAdminProfile,
   updateAdminProfile,
@@ -741,6 +1363,16 @@ module.exports = {
   updateProjectStatus,
   // Sem 5 specific functions
   getAllocationStatistics,
+  getSem5MinorProject2Registrations,
+  getSem5AllocatedFaculty,
+  getSem5NonRegisteredStudents,
+  getSem5Groups,
+  getSem5Statistics,
   // Sem 4 specific functions
-  getSem4MinorProject1Registrations
+  getSem4MinorProject1Registrations,
+  // System Configuration functions
+  getSystemConfigurations,
+  getSystemConfig,
+  updateSystemConfig,
+  initializeSystemConfigs
 };
