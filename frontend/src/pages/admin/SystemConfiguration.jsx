@@ -15,10 +15,14 @@ const SystemConfiguration = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [originalValues, setOriginalValues] = useState({});
+  
+  // Confirmation modal state
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+  
+  // Warning modal state (for reducing faculty preference limit)
   const [showWarningModal, setShowWarningModal] = useState(false);
   const [warningData, setWarningData] = useState(null);
-  const [configsNotFound, setConfigsNotFound] = useState(false);
-  const [initializing, setInitializing] = useState(false);
+  const [pendingSave, setPendingSave] = useState(null);
 
   // Load system configuration
   useEffect(() => {
@@ -28,59 +32,87 @@ const SystemConfiguration = () => {
         const response = await adminAPI.getSystemConfigurations('sem5');
         const configData = response.data || [];
         
-        setConfigs(configData);
-        
-        // Check if configs exist
+        // If no configs found, auto-initialize them
         if (configData.length === 0) {
-          setConfigsNotFound(true);
-          toast.error('System configurations not found. Please initialize them first.');
+          toast.info('Initializing system configurations...');
+          try {
+            await adminAPI.initializeSystemConfigs();
+            // Reload configs after initialization
+            const newResponse = await adminAPI.getSystemConfigurations('sem5');
+            const newConfigData = newResponse.data || [];
+            setConfigs(newConfigData);
+            loadConfigValues(newConfigData);
+            toast.success('System configurations initialized successfully');
+          } catch (initError) {
+            console.error('Failed to initialize configurations:', initError);
+            toast.error('Failed to initialize system configurations');
+          }
         } else {
-          setConfigsNotFound(false);
+          setConfigs(configData);
+          loadConfigValues(configData);
         }
-        
-        // Extract specific values
-        const facultyPrefConfig = configData.find(c => c.configKey === 'sem5.facultyPreferenceLimit');
-        const minMembersConfig = configData.find(c => c.configKey === 'sem5.minGroupMembers');
-        const maxMembersConfig = configData.find(c => c.configKey === 'sem5.maxGroupMembers');
-        
-        if (facultyPrefConfig) {
-          setFacultyPreferenceLimit(facultyPrefConfig.configValue);
-        }
-        if (minMembersConfig) {
-          setMinGroupMembers(minMembersConfig.configValue);
-        }
-        if (maxMembersConfig) {
-          setMaxGroupMembers(maxMembersConfig.configValue);
-        }
-        
-        // Store original values
-        setOriginalValues({
-          facultyPreferenceLimit: facultyPrefConfig?.configValue || 7,
-          minGroupMembers: minMembersConfig?.configValue || 4,
-          maxGroupMembers: maxMembersConfig?.configValue || 5
-        });
       } catch (error) {
         console.error('Failed to load system configuration:', error);
         toast.error('Failed to load system configuration');
-        setConfigsNotFound(true);
       } finally {
         setLoading(false);
       }
     };
 
+    const loadConfigValues = (configData) => {
+      // Extract specific values
+      const facultyPrefConfig = configData.find(c => c.configKey === 'sem5.facultyPreferenceLimit');
+      const minMembersConfig = configData.find(c => c.configKey === 'sem5.minGroupMembers');
+      const maxMembersConfig = configData.find(c => c.configKey === 'sem5.maxGroupMembers');
+      
+      if (facultyPrefConfig) {
+        setFacultyPreferenceLimit(facultyPrefConfig.configValue);
+      }
+      if (minMembersConfig) {
+        setMinGroupMembers(minMembersConfig.configValue);
+      }
+      if (maxMembersConfig) {
+        setMaxGroupMembers(maxMembersConfig.configValue);
+      }
+      
+      // Store original values
+      setOriginalValues({
+        facultyPreferenceLimit: facultyPrefConfig?.configValue || 7,
+        minGroupMembers: minMembersConfig?.configValue || 4,
+        maxGroupMembers: maxMembersConfig?.configValue || 5
+      });
+    };
+
     loadConfig();
   }, []);
 
-  const handleSave = async (forceUpdate = false) => {
+
+  const handleSaveClick = () => {
     // Validate that all values are numbers
     if (typeof facultyPreferenceLimit !== 'number' || 
         typeof minGroupMembers !== 'number' || 
         typeof maxGroupMembers !== 'number') {
       toast.error('Please enter valid numeric values');
-      setSaving(false);
       return;
     }
-    
+
+    // Validate min <= max
+    if (minGroupMembers > maxGroupMembers) {
+      toast.error('Minimum group members cannot be greater than maximum');
+      return;
+    }
+
+    // Show confirmation modal
+    setPendingSave({ forceUpdate: false });
+    setShowConfirmModal(true);
+  };
+
+  const handleConfirmSave = async () => {
+    setShowConfirmModal(false);
+    await executeSave(pendingSave?.forceUpdate || false);
+  };
+
+  const executeSave = async (forceUpdate = false) => {
     try {
       setSaving(true);
       
@@ -107,17 +139,21 @@ const SystemConfiguration = () => {
       await adminAPI.updateSystemConfigByKey('sem5.maxGroupMembers', maxGroupMembers,
         'Maximum number of members allowed in a Sem 5 group');
       
-      // Update original values
+      // Update original values to current values
       setOriginalValues({
         facultyPreferenceLimit,
         minGroupMembers,
         maxGroupMembers
       });
       
-      toast.success('System configuration updated successfully!');
+      toast.success('Configuration saved successfully!');
+      
+      // Reload configs to confirm changes
+      const response = await adminAPI.getSystemConfigurations('sem5');
+      setConfigs(response.data || []);
     } catch (error) {
-      const errorMessage = error.response?.data?.message || error.message;
-      toast.error(`Failed to update configuration: ${errorMessage}`);
+      console.error('Error saving configuration:', error);
+      toast.error(error.response?.data?.message || 'Failed to save configuration');
     } finally {
       setSaving(false);
     }
@@ -125,25 +161,7 @@ const SystemConfiguration = () => {
 
   const handleForceUpdate = async () => {
     setShowWarningModal(false);
-    await handleSave(true);
-  };
-
-  const handleInitialize = async () => {
-    try {
-      setInitializing(true);
-      
-      await adminAPI.initializeSystemConfigs();
-      
-      toast.success('System configurations initialized successfully!');
-      
-      // Reload configs
-      window.location.reload();
-    } catch (error) {
-      console.error('Failed to initialize configurations:', error);
-      toast.error('Failed to initialize configurations');
-    } finally {
-      setInitializing(false);
-    }
+    await executeSave(true); // Force update = true
   };
 
   const handleReset = () => {
@@ -163,10 +181,7 @@ const SystemConfiguration = () => {
       <div className="min-h-screen bg-gray-50 py-8">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-center py-12">
-            <div className="text-center">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto"></div>
-              <p className="mt-4 text-gray-600">Loading system configuration...</p>
-            </div>
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
           </div>
         </div>
       </div>
@@ -200,35 +215,21 @@ const SystemConfiguration = () => {
           </div>
         </div>
 
-        {/* Initialization Banner - Show if configs not found */}
-        {configsNotFound && (
-          <div className="mb-6 bg-red-50 border-l-4 border-red-500 p-6 rounded-lg">
-            <div className="flex items-start">
-              <div className="flex-shrink-0">
-                <svg className="h-6 w-6 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                </svg>
-              </div>
-              <div className="ml-3 flex-1">
-                <h3 className="text-lg font-medium text-red-800">
-                  System Configurations Not Initialized
-                </h3>
-                <div className="mt-2 text-sm text-red-700">
-                  <p>The system configurations have not been set up yet. Click the button below to initialize default settings.</p>
-                </div>
-                <div className="mt-4">
-                  <button
-                    onClick={handleInitialize}
-                    disabled={initializing}
-                    className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {initializing ? 'Initializing...' : 'Initialize System Configurations'}
-                  </button>
-                </div>
-              </div>
+        {/* Info Notice */}
+        <div className="mb-6 bg-blue-50 border-l-4 border-blue-500 p-4 rounded-lg">
+          <div className="flex">
+            <div className="flex-shrink-0">
+              <svg className="h-5 w-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+            <div className="ml-3">
+              <p className="text-sm text-blue-700">
+                <strong>System-Wide Settings:</strong> Changes made here will affect all students registering for Sem 5 projects. You'll be asked to confirm before saving.
+              </p>
             </div>
           </div>
-        )}
+        </div>
 
         {/* Configuration Form */}
         <div className="bg-white rounded-lg shadow">
@@ -247,90 +248,145 @@ const SystemConfiguration = () => {
                 Minor Project 2 Settings
               </h3>
               
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Faculty Preference Limit
-                  </label>
-                  <input
-                    type="number"
-                    min="1"
-                    max="10"
-                    value={facultyPreferenceLimit}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      if (val === '') {
-                        setFacultyPreferenceLimit('');
-                      } else {
-                        const num = parseInt(val);
-                        if (!isNaN(num) && num >= 1 && num <= 10) {
-                          setFacultyPreferenceLimit(num);
+              <div className="space-y-6">
+                {/* Faculty Preference Limit */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-start">
+                  <div className="md:col-span-1">
+                    <label className="block text-sm font-medium text-gray-700">
+                      Faculty Preference Limit
+                    </label>
+                    <p className="text-xs text-gray-500 mt-1">
+                      Number of faculty preferences required during registration
+                    </p>
+                  </div>
+                  <div className="md:col-span-2">
+                    <input
+                      type="number"
+                      min="1"
+                      max="10"
+                      value={facultyPreferenceLimit}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        if (val === '') {
+                          setFacultyPreferenceLimit('');
+                        } else {
+                          const num = parseInt(val);
+                          if (!isNaN(num) && num >= 1 && num <= 10) {
+                            setFacultyPreferenceLimit(num);
+                          }
                         }
-                      }
-                    }}
-                    onBlur={(e) => {
-                      // On blur, ensure we have a valid number
-                      if (facultyPreferenceLimit === '' || facultyPreferenceLimit < 1) {
-                        setFacultyPreferenceLimit(1);
-                      } else if (facultyPreferenceLimit > 10) {
-                        setFacultyPreferenceLimit(10);
-                      }
-                    }}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  />
-                  <p className="text-xs text-gray-500 mt-1">
-                    Number of faculty preferences students must select (1-10)
-                  </p>
+                      }}
+                      onBlur={(e) => {
+                        if (facultyPreferenceLimit === '' || facultyPreferenceLimit < 1) {
+                          setFacultyPreferenceLimit(1);
+                        } else if (facultyPreferenceLimit > 10) {
+                          setFacultyPreferenceLimit(10);
+                        }
+                      }}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">
+                      Range: 1-10 preferences
+                    </p>
+                  </div>
                 </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Minimum Group Members
-                  </label>
-                  <input
-                    type="number"
-                    min="2"
-                    max="10"
-                    value={minGroupMembers}
-                    onChange={(e) => setMinGroupMembers(parseInt(e.target.value) || 2)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  />
-                  <p className="text-xs text-gray-500 mt-1">
-                    Minimum members required in a group
-                  </p>
+
+                {/* Min Group Members */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-start">
+                  <div className="md:col-span-1">
+                    <label className="block text-sm font-medium text-gray-700">
+                      Minimum Group Members
+                    </label>
+                    <p className="text-xs text-gray-500 mt-1">
+                      Minimum number of students required in a group
+                    </p>
+                  </div>
+                  <div className="md:col-span-2">
+                    <input
+                      type="number"
+                      min="1"
+                      max="10"
+                      value={minGroupMembers}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        if (val === '') {
+                          setMinGroupMembers('');
+                        } else {
+                          const num = parseInt(val);
+                          if (!isNaN(num) && num >= 1 && num <= 10) {
+                            setMinGroupMembers(num);
+                          }
+                        }
+                      }}
+                      onBlur={(e) => {
+                        if (minGroupMembers === '' || minGroupMembers < 1) {
+                          setMinGroupMembers(1);
+                        } else if (minGroupMembers > 10) {
+                          setMinGroupMembers(10);
+                        }
+                      }}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">
+                      Range: 1-10 members
+                    </p>
+                  </div>
                 </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Maximum Group Members
-                  </label>
-                  <input
-                    type="number"
-                    min="2"
-                    max="10"
-                    value={maxGroupMembers}
-                    onChange={(e) => setMaxGroupMembers(parseInt(e.target.value) || 2)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  />
-                  <p className="text-xs text-gray-500 mt-1">
-                    Maximum members allowed in a group
-                  </p>
+
+                {/* Max Group Members */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-start">
+                  <div className="md:col-span-1">
+                    <label className="block text-sm font-medium text-gray-700">
+                      Maximum Group Members
+                    </label>
+                    <p className="text-xs text-gray-500 mt-1">
+                      Maximum number of students allowed in a group
+                    </p>
+                  </div>
+                  <div className="md:col-span-2">
+                    <input
+                      type="number"
+                      min="1"
+                      max="10"
+                      value={maxGroupMembers}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        if (val === '') {
+                          setMaxGroupMembers('');
+                        } else {
+                          const num = parseInt(val);
+                          if (!isNaN(num) && num >= 1 && num <= 10) {
+                            setMaxGroupMembers(num);
+                          }
+                        }
+                      }}
+                      onBlur={(e) => {
+                        if (maxGroupMembers === '' || maxGroupMembers < 1) {
+                          setMaxGroupMembers(1);
+                        } else if (maxGroupMembers > 10) {
+                          setMaxGroupMembers(10);
+                        }
+                      }}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">
+                      Range: 1-10 members
+                    </p>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
-          
-          {/* Action Buttons */}
-          <div className="px-6 py-4 border-t border-gray-200 bg-gray-50">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-4">
-                {hasChanges && (
-                  <span className="text-sm text-orange-600 font-medium">
-                    You have unsaved changes
-                  </span>
-                )}
-              </div>
-              <div className="flex items-center space-x-3">
+
+            {/* Action Buttons */}
+            <div className="border-t border-gray-200 pt-6">
+              <div className="flex justify-between items-center">
+                <div className="text-sm text-gray-600">
+                  {hasChanges ? (
+                    <span className="text-orange-600 font-medium">● You have unsaved changes</span>
+                  ) : (
+                    <span className="text-green-600">✓ All changes saved</span>
+                  )}
+                </div>
                 <button
                   onClick={handleReset}
                   disabled={!hasChanges}
@@ -339,141 +395,168 @@ const SystemConfiguration = () => {
                   Reset
                 </button>
                 <button
-                  onClick={handleSave}
+                  onClick={handleSaveClick}
                   disabled={!hasChanges || saving}
-                  className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center"
                 >
-                  {saving ? 'Saving...' : 'Save Configuration'}
+                  {saving ? (
+                    <>
+                      <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      Saving...
+                    </>
+                  ) : (
+                    'Save Configuration'
+                  )}
                 </button>
               </div>
             </div>
           </div>
         </div>
 
-        {/* Current Configuration Summary */}
-        <div className="mt-8 bg-white rounded-lg shadow">
-          <div className="px-6 py-4 border-b border-gray-200">
-            <h2 className="text-xl font-semibold text-gray-900">Current Configuration</h2>
-            <p className="text-gray-600 mt-1">
-              Overview of current Sem 5 system settings
-            </p>
+        {/* Current Configuration Display */}
+        <div className="mt-6 bg-white rounded-lg shadow p-6">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">Current Active Configurations</h3>
+          <div className="space-y-2">
+            {configs.map((config) => (
+              <div key={config._id} className="flex justify-between items-center py-2 border-b border-gray-100">
+                <div>
+                  <p className="text-sm font-medium text-gray-900">{config.configKey}</p>
+                  <p className="text-xs text-gray-500">{config.description}</p>
+                </div>
+                <div className="text-sm font-mono bg-gray-100 px-3 py-1 rounded">
+                  {typeof config.configValue === 'object' ? JSON.stringify(config.configValue) : config.configValue}
+                </div>
+              </div>
+            ))}
           </div>
-          <div className="p-6">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
-                <h4 className="font-medium text-blue-900 mb-2">Faculty Preferences</h4>
-                <div className="text-sm text-blue-800 space-y-1">
-                  <p className="text-2xl font-bold">{facultyPreferenceLimit}</p>
-                  <p>Faculty preferences required</p>
-                </div>
-              </div>
-              
-              <div className="bg-green-50 rounded-lg p-4 border border-green-200">
-                <h4 className="font-medium text-green-900 mb-2">Minimum Group Size</h4>
-                <div className="text-sm text-green-800 space-y-1">
-                  <p className="text-2xl font-bold">{minGroupMembers}</p>
-                  <p>Minimum members per group</p>
-                </div>
-              </div>
-              
-              <div className="bg-purple-50 rounded-lg p-4 border border-purple-200">
-                <h4 className="font-medium text-purple-900 mb-2">Maximum Group Size</h4>
-                <div className="text-sm text-purple-800 space-y-1">
-                  <p className="text-2xl font-bold">{maxGroupMembers}</p>
-                  <p>Maximum members per group</p>
-                </div>
-              </div>
+        </div>
+      </div>
+
+      {/* Confirmation Modal */}
+      {showConfirmModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
+            <div className="px-6 py-4 border-b border-gray-200">
+              <h3 className="text-lg font-semibold text-gray-900 flex items-center">
+                <svg className="w-6 h-6 text-yellow-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+                Confirm Configuration Changes
+              </h3>
             </div>
-          </div>
-        </div>
-
-        {/* Information Card */}
-        <div className="mt-8 bg-blue-50 rounded-lg p-6 border border-blue-200">
-          <h3 className="text-lg font-semibold text-blue-900 mb-4">About System Configuration</h3>
-          <div className="text-blue-800 space-y-2 text-sm">
-            <p>• <strong>Faculty Preference Limit:</strong> Controls how many faculty preferences students must select during registration</p>
-            <p>• <strong>Group Size Limits:</strong> Defines the minimum and maximum members allowed in a Sem 5 group</p>
-            <p>• <strong>Dynamic Updates:</strong> Changes are applied immediately and affect new registrations</p>
-            <p>• <strong>Impact:</strong> Students will see the updated limits when they register for Minor Project 2</p>
-            <p>• <strong>Safety:</strong> System will warn you if reducing limits affects existing registrations</p>
-          </div>
-        </div>
-
-        {/* Warning Modal */}
-        {showWarningModal && warningData && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4">
-              <div className="px-6 py-4 border-b border-gray-200 bg-red-50">
-                <div className="flex items-center">
-                  <svg className="w-6 h-6 text-red-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                  </svg>
-                  <h3 className="text-lg font-semibold text-red-900">Warning: Existing Registrations Affected</h3>
-                </div>
-              </div>
-              
-              <div className="p-6">
-                <div className="mb-4">
-                  <p className="text-gray-700 mb-2">
-                    You are trying to reduce the faculty preference limit from <strong>{warningData.oldLimit}</strong> to <strong>{warningData.newLimit}</strong>.
-                  </p>
-                  <p className="text-gray-700 mb-4">
-                    <strong className="text-red-600">{warningData.affectedCount}</strong> group(s) have already submitted <strong>{warningData.oldLimit}</strong> preferences.
-                  </p>
-                </div>
-
-                {warningData.affectedProjects && warningData.affectedProjects.length > 0 && (
-                  <div className="mb-4 bg-yellow-50 border border-yellow-200 rounded-lg p-4 max-h-60 overflow-y-auto">
-                    <h4 className="font-medium text-yellow-900 mb-2">Affected Groups:</h4>
-                    <ul className="space-y-2 text-sm">
-                      {warningData.affectedProjects.map((project, idx) => (
-                        <li key={idx} className="text-yellow-800">
-                          • <strong>{project.studentName}</strong> - {project.title} ({project.currentPreferences} preferences)
-                        </li>
-                      ))}
+            <div className="px-6 py-4">
+              <p className="text-sm text-gray-700 mb-4">
+                You are about to update system-wide configuration settings. This will affect:
+              </p>
+              <ul className="list-disc list-inside space-y-2 mb-4 text-sm text-gray-600">
+                <li>All students registering for Sem 5 Minor Project 2</li>
+                <li>Faculty preference requirements</li>
+                <li>Group formation rules</li>
+              </ul>
+              <div className="bg-blue-50 border-l-4 border-blue-400 p-3 mb-4">
+                <div className="flex">
+                  <div className="flex-shrink-0">
+                    <svg className="h-5 w-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </div>
+                  <div className="ml-3">
+                    <p className="text-sm text-blue-700">
+                      <strong>Changes Summary:</strong>
+                    </p>
+                    <ul className="text-xs text-blue-600 mt-1">
+                      <li>Faculty Preferences: {originalValues.facultyPreferenceLimit || 7} → <strong>{facultyPreferenceLimit}</strong></li>
+                      <li>Min Group Members: {originalValues.minGroupMembers || 4} → <strong>{minGroupMembers}</strong></li>
+                      <li>Max Group Members: {originalValues.maxGroupMembers || 5} → <strong>{maxGroupMembers}</strong></li>
                     </ul>
                   </div>
+                </div>
+              </div>
+              <p className="text-sm text-gray-700 font-medium">
+                Are you sure you want to proceed?
+              </p>
+            </div>
+            <div className="px-6 py-4 bg-gray-50 rounded-b-lg flex justify-end space-x-3">
+              <button
+                onClick={() => {
+                  setShowConfirmModal(false);
+                  setPendingSave(null);
+                }}
+                className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                disabled={saving}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmSave}
+                disabled={saving}
+                className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 transition-colors flex items-center"
+              >
+                {saving ? (
+                  <>
+                    <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Saving...
+                  </>
+                ) : (
+                  'Confirm & Save'
                 )}
-
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
-                  <p className="text-sm text-blue-800">
-                    <strong>Note:</strong> {warningData.suggestion}
-                  </p>
-                </div>
-
-                <div className="bg-gray-50 border border-gray-300 rounded-lg p-4">
-                  <h4 className="font-medium text-gray-900 mb-2">What will happen?</h4>
-                  <ul className="space-y-1 text-sm text-gray-700">
-                    <li>✓ Existing registrations will keep their {warningData.oldLimit} preferences (no data lost)</li>
-                    <li>✓ New registrations will require {warningData.newLimit} preferences</li>
-                    <li>✓ Admin tables will show all preferences dynamically</li>
-                  </ul>
-                </div>
-              </div>
-
-              <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 flex justify-end space-x-3">
-                <button
-                  onClick={() => {
-                    setShowWarningModal(false);
-                    setWarningData(null);
-                    // Reset to original value
-                    setFacultyPreferenceLimit(originalValues.facultyPreferenceLimit);
-                  }}
-                  className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleForceUpdate}
-                  className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
-                >
-                  Proceed Anyway
-                </button>
-              </div>
+              </button>
             </div>
           </div>
-        )}
-      </div>
+        </div>
+      )}
+
+      {/* Warning Modal for Reducing Faculty Preference Limit */}
+      {showWarningModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4">
+            <div className="px-6 py-4 border-b border-gray-200 bg-red-50">
+              <h3 className="text-lg font-semibold text-red-900">⚠️ Warning: Existing Registrations Affected</h3>
+            </div>
+            <div className="px-6 py-4">
+              <p className="text-sm text-gray-700 mb-4">
+                Reducing the faculty preference limit will affect <strong>{warningData?.affectedCount}</strong> existing project registration(s).
+              </p>
+              <div className="bg-gray-50 rounded-lg p-4 mb-4 max-h-64 overflow-y-auto">
+                <h4 className="text-sm font-semibold text-gray-900 mb-2">Affected Projects:</h4>
+                <ul className="space-y-2">
+                  {warningData?.affectedProjects?.map((project) => (
+                    <li key={project._id} className="text-sm text-gray-700 border-b border-gray-200 pb-2">
+                      <p className="font-medium">{project.title || 'Untitled Project'}</p>
+                      <p className="text-xs text-gray-500">
+                        Group: {project.group?.name || 'N/A'} | Current preferences: {project.currentPreferences}
+                      </p>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              <p className="text-sm text-red-600">
+                Do you want to proceed with this change? This action cannot be undone automatically.
+              </p>
+            </div>
+            <div className="px-6 py-4 bg-gray-50 rounded-b-lg flex justify-end space-x-3">
+              <button
+                onClick={() => setShowWarningModal(false)}
+                className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleForceUpdate}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+              >
+                Proceed Anyway
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
