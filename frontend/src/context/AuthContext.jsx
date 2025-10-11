@@ -110,6 +110,9 @@ export const AuthProvider = ({ children }) => {
       setUser(null);
       setRoleData(null);
       setUserRole(null);
+      // Show logout success toast
+      const { showSuccess } = await import('../utils/toast');
+      showSuccess('Logged out successfully!');
       // Navigation will be handled by the component calling logout
     }
   };

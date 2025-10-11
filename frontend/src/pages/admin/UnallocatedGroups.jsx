@@ -55,6 +55,11 @@ const UnallocatedGroups = () => {
   );
 
   const handleAllocateFaculty = async (groupId, facultyId) => {
+    // Prevent multiple calls for the same group
+    if (actionLoading[groupId]) {
+      return;
+    }
+    
     try {
       setActionLoading(prev => ({ ...prev, [groupId]: 'allocating' }));
       
@@ -91,6 +96,9 @@ const UnallocatedGroups = () => {
     if (!selectedFaculty) {
       toast.error('Please select a faculty member');
       return;
+    }
+    if (actionLoading[selectedGroup._id]) {
+      return; // Prevent multiple calls
     }
     handleAllocateFaculty(selectedGroup._id, selectedFaculty);
   };
@@ -331,6 +339,7 @@ const UnallocatedGroups = () => {
                         </button>
                         <button
                           onClick={() => {
+                            if (actionLoading[group._id]) return; // Prevent multiple clicks
                             setSelectedGroup(group);
                             setSelectedFaculty('');
                           }}
