@@ -283,11 +283,41 @@ export const projectAPI = {
   // Get project details
   getProjectDetails: (projectId) => api.get(`/projects/${projectId}`),
   
-  // Get project messages
+  // Chat Messages
   getProjectMessages: (projectId, limit = 50) => api.get(`/projects/${projectId}/messages?limit=${limit}`),
-  
-  // Send a message
   sendMessage: (projectId, message) => api.post(`/projects/${projectId}/messages`, { message }),
+  sendMessageWithFiles: async (projectId, message, files) => {
+    const formData = new FormData();
+    if (message) formData.append('message', message);
+    if (files && files.length > 0) {
+      for (let i = 0; i < files.length; i++) {
+        formData.append('files', files[i]);
+      }
+    }
+    
+    const token = localStorage.getItem('token');
+    const response = await fetch(`${API_BASE_URL}/projects/${projectId}/messages`, {
+      method: 'POST',
+      headers: {
+        ...(token && { Authorization: `Bearer ${token}` }),
+      },
+      body: formData
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+    }
+    return response.json();
+  },
+  editMessage: (projectId, messageId, message) => api.put(`/projects/${projectId}/messages/${messageId}`, { message }),
+  deleteMessage: (projectId, messageId) => api.delete(`/projects/${projectId}/messages/${messageId}`),
+  searchMessages: (projectId, query) => api.get(`/projects/${projectId}/messages/search?q=${encodeURIComponent(query)}`),
+  getFileUrl: (projectId, filename) => `${API_BASE_URL}/projects/${projectId}/files/${filename}`,
+  
+  // Message Reactions
+  addReaction: (projectId, messageId, emoji) => api.post(`/projects/${projectId}/messages/${messageId}/reactions`, { emoji }),
+  removeReaction: (projectId, messageId, emoji) => api.delete(`/projects/${projectId}/messages/${messageId}/reactions/${encodeURIComponent(emoji)}`),
 };
 
 export default api;

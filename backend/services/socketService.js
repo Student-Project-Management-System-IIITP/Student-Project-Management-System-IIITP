@@ -375,6 +375,25 @@ class SocketService {
     });
   }
 
+  async broadcastMessageDelete(projectId, messageId) {
+    this.io.to(`project_${projectId}`).emit('message_deleted', {
+      type: 'message_deleted',
+      projectId,
+      messageId,
+      timestamp: new Date()
+    });
+  }
+
+  async broadcastReactionUpdate(projectId, messageId, reactions) {
+    this.io.to(`project_${projectId}`).emit('reaction_updated', {
+      type: 'reaction_updated',
+      projectId,
+      messageId,
+      reactions,
+      timestamp: new Date()
+    });
+  }
+
   handleDisconnect(socket) {
     console.log(`Socket.IO: User disconnected - ${socket.userId}`);
     
