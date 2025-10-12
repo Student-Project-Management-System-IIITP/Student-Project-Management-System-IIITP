@@ -5,6 +5,16 @@ const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 const handleApiResponse = async (response) => {
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}));
+    
+    // Handle 401 Unauthorized - redirect to login
+    if (response.status === 401) {
+      localStorage.removeItem('token');
+      // Use window.location for hard redirect to ensure context is cleared
+      if (window.location.pathname !== '/login') {
+        window.location.href = '/login';
+      }
+    }
+    
     throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
   }
   return response.json();

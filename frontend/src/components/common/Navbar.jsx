@@ -42,9 +42,9 @@ const Navbar = ({ userRole = null, user = null }) => {
     return location.pathname === path;
   };
 
-  const handleLogout = () => {
-    logout();
-    navigate('/');
+  const handleLogout = async () => {
+    await logout();
+    navigate('/login');
     setIsMenuOpen(false);
   };
 

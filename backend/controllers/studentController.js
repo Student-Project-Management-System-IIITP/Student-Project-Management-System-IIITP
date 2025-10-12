@@ -577,9 +577,6 @@ const registerMinorProject2 = async (req, res) => {
       const studentId = req.user.id;
       const { title, domain, facultyPreferences } = req.body;
       
-      console.log(`Starting Minor Project 2 registration for student ${studentId}`);
-      console.log('Registration data:', { title, domain, facultyPreferencesCount: facultyPreferences?.length });
-      
       // Get student with session
       const student = await Student.findOne({ user: studentId }).session(session);
       if (!student) {
@@ -590,8 +587,6 @@ const registerMinorProject2 = async (req, res) => {
       let studentAcademicYear = student.academicYear;
       
       if (!studentAcademicYear) {
-        console.warn('Student academic year is undefined, trying to find matching group...');
-        
         // Try to find any group for this student to get the academic year
         const anyGroup = await Group.findOne({
           'members.student': student._id,
@@ -600,27 +595,17 @@ const registerMinorProject2 = async (req, res) => {
         
         if (anyGroup && anyGroup.academicYear) {
           studentAcademicYear = anyGroup.academicYear;
-          console.log('Found group with academic year, using it:', studentAcademicYear);
         } else {
           // Generate academic year based on current year
           const currentYear = new Date().getFullYear();
           const nextYear = currentYear + 1;
           studentAcademicYear = `${currentYear}-${nextYear.toString().slice(-2)}`;
-          console.log('No group found, using generated academic year:', studentAcademicYear);
         }
         
         // Update student with determined academic year
         student.academicYear = studentAcademicYear;
         await student.save({ session });
       }
-
-      console.log('Student data:', {
-        id: student._id,
-        fullName: student.fullName,
-        semester: student.semester,
-        academicYear: student.academicYear,
-        degree: student.degree
-      });
 
       // Check if student is in semester 5
       if (student.semester !== 5) {
@@ -634,14 +619,6 @@ const registerMinorProject2 = async (req, res) => {
         academicYear: studentAcademicYear
       }).populate('members.student', 'fullName misNumber contactNumber branch').session(session);
 
-      console.log('Group lookup result:', group ? {
-        id: group._id,
-        name: group.name,
-        status: group.status,
-        memberCount: group.members.length,
-        academicYear: group.academicYear
-      } : 'No group found');
-
       if (!group) {
         // Let's check if there are any groups for this student in any status
         const anyGroup = await Group.findOne({
@@ -650,13 +627,6 @@ const registerMinorProject2 = async (req, res) => {
         }).session(session);
         
         if (anyGroup) {
-          console.log('Found group with different academic year:', {
-            id: anyGroup._id,
-            name: anyGroup.name,
-            status: anyGroup.status,
-            academicYear: anyGroup.academicYear,
-            studentAcademicYear: studentAcademicYear
-          });
           throw new Error(`You are in a group but academic year mismatch. Group: ${anyGroup.academicYear}, Student: ${studentAcademicYear}`);
         }
         
@@ -664,11 +634,6 @@ const registerMinorProject2 = async (req, res) => {
       }
 
       // Check if group is finalized
-      console.log('Group status check:', {
-        currentStatus: group.status,
-        requiredStatus: 'finalized',
-        isFinalized: group.status === 'finalized'
-      });
       
       if (group.status !== 'finalized') {
         throw new Error(`Your group must be finalized before registering for Minor Project 2. Current status: ${group.status}. Please finalize your group first.`);
@@ -676,11 +641,6 @@ const registerMinorProject2 = async (req, res) => {
 
       // Check if current student is the group leader
       const isGroupLeader = group.leader.toString() === student._id.toString();
-      console.log('Leader validation:', {
-        groupLeaderId: group.leader.toString(),
-        currentStudentId: student._id.toString(),
-        isGroupLeader: isGroupLeader
-      });
 
       if (!isGroupLeader) {
         throw new Error('Only the group leader can register for Minor Project 2');
@@ -726,7 +686,6 @@ const registerMinorProject2 = async (req, res) => {
       });
 
       const validatedFaculty = await Promise.all(facultyValidationPromises);
-      console.log(`Validated ${validatedFaculty.length} faculty members`);
 
       // Create project with group and faculty preferences
       const projectData = {
@@ -750,7 +709,6 @@ const registerMinorProject2 = async (req, res) => {
 
       const project = new Project(projectData);
       await project.save({ session });
-      console.log(`Created project: ${project._id}`);
 
       // Update group with project reference using findByIdAndUpdate to avoid pre-save middleware
       await Group.findByIdAndUpdate(
@@ -758,11 +716,9 @@ const registerMinorProject2 = async (req, res) => {
         { project: project._id },
         { session }
       );
-      console.log(`Updated group ${group._id} with project reference`);
 
       // Add project to ALL group members' currentProjects array
       const groupMembers = group.members.filter(m => m.isActive);
-      console.log(`Adding project to ${groupMembers.length} group members' currentProjects`);
       
       for (const member of groupMembers) {
         const memberStudent = await Student.findById(member.student).session(session);
@@ -784,7 +740,6 @@ const registerMinorProject2 = async (req, res) => {
               joinedAt: new Date()
             });
             await memberStudent.save({ session });
-            console.log(`Added project to ${memberStudent.fullName}'s currentProjects as ${role}`);
           }
         }
       }
@@ -806,14 +761,11 @@ const registerMinorProject2 = async (req, res) => {
 
       const facultyPreferenceDoc = new FacultyPreference(facultyPreferenceData);
       await facultyPreferenceDoc.save({ session });
-      console.log(`Created FacultyPreference document: ${facultyPreferenceDoc._id}`);
 
       // Present project to first faculty (start the allocation process)
       try {
         await project.presentToCurrentFaculty();
-        console.log(`Presented project to first faculty (priority 1)`);
       } catch (presentError) {
-        console.warn('Could not present project to faculty:', presentError.message);
         // Don't fail registration if presentation fails - this is not critical
       }
 
@@ -822,8 +774,6 @@ const registerMinorProject2 = async (req, res) => {
         { path: 'group', populate: { path: 'members.student', select: 'fullName misNumber contactNumber branch' } },
         { path: 'facultyPreferences.faculty', select: 'fullName department designation mode' }
       ]);
-
-      console.log('Minor Project 2 registration completed successfully');
       
       res.status(201).json({
         success: true,
@@ -1293,7 +1243,6 @@ const createGroup = async (req, res) => {
     // Check if student can form groups - Sem 5 students should be allowed
     if (student.semester === 5) {
       // Semester 5 students explicitly allowed for Minor Project 2
-      console.log(`Student ${student.misNumber} is Semester 5, allowing group formation`);
     } else if (!student.canFormGroups()) {
       return res.status(400).json({
         success: false,
@@ -1385,43 +1334,8 @@ const createGroup = async (req, res) => {
     // Add group membership to creator (who is the leader)
     await student.addGroupMembershipAtomic(group._id, 'leader', student.semester, session);
 
-    // Note: Minimum member requirement validation removed
-    // Students can send invitations later through Group Dashboard
-    // Groups can be created with any number of initial invitations
-
-                // Create invites for additional members INSIDE the transaction
-                if (memberIds.length > 0) {
-                  // Validate that all invited students exist
-                  const existingStudents = await Student.find({ _id: { $in: memberIds } }).session(session);
-                  const existingStudentIds = existingStudents.map(s => s._id.toString());
-                  const missingStudentIds = memberIds.filter(id => !existingStudentIds.includes(id.toString()));
-                  
-                  if (missingStudentIds.length > 0) {
-                    await session.abortTransaction();
-                    await session.endSession();
-                    return res.status(400).json({
-                      success: false,
-                      message: `Some invited students do not exist: ${missingStudentIds.join(', ')}`
-                    });
-                  }
-                  
-                  for (const memberId of memberIds) {
-                    try {
-                      // Add invitation directly to the invites array
-                      group.invites.push({
-                        student: memberId,
-                        role: 'member',
-                        invitedBy: student._id,
-                        invitedAt: new Date(),
-                        status: 'pending'
-                      });
-                    } catch (inviteError) {
-                      console.warn(`Could not invite member ${memberId}:`, inviteError.message);
-                    }
-                  }
-                  // Save the updated group with all invitations
-                  await group.save({ session });
-                }
+    // Note: Do NOT create invites here - they will be created by sendGroupInvitations endpoint
+    // This prevents the invites from being auto-rejected by cancelAllStudentInvitations below
 
     await session.commitTransaction();
     await session.endSession();
@@ -1432,8 +1346,7 @@ const createGroup = async (req, res) => {
       cancelSession.startTransaction();
       
       const socketService = req.app.get('socketService');
-      const cancelledCount = await cancelAllStudentInvitations(student._id, cancelSession, socketService, 'Student created their own group');
-      console.log(`Cancelled ${cancelledCount} invitations for student ${student.misNumber} after group creation`);
+      await cancelAllStudentInvitations(student._id, cancelSession, socketService, 'Student created their own group');
       
       await cancelSession.commitTransaction();
       await cancelSession.endSession();
@@ -1530,7 +1443,10 @@ const sendGroupInvitations = async (req, res) => {
       // Send invitations to each member
       for (const memberId of memberIds) {
         try {
-          const invitedStudent = await Student.findById(memberId);
+          // Refresh group to get latest state
+          const freshGroup = await Group.findById(groupId).session(session);
+          
+          const invitedStudent = await Student.findById(memberId).session(session);
           if (!invitedStudent) {
             invitationResults.push({
               studentId: memberId,
@@ -1541,21 +1457,49 @@ const sendGroupInvitations = async (req, res) => {
           }
 
           // Check if student is already invited
-          const existingInvite = group.invites.find(inv => inv.student.toString() === memberId);
+          const existingInvite = freshGroup.invites.find(inv => inv.student.toString() === memberId);
           if (existingInvite) {
             invitationResults.push({
               studentId: memberId,
               status: 'already_invited',
-              message: 'Student already invited'
+              message: `Student already invited (${existingInvite.status})`
+            });
+            continue;
+          }
+
+          // Check group capacity before adding invite
+          const activeMembers = freshGroup.members.filter(member => member.isActive);
+          const availableSlots = freshGroup.maxMembers - activeMembers.length;
+          
+          if (availableSlots <= 0) {
+            invitationResults.push({
+              studentId: memberId,
+              status: 'failed',
+              message: 'Group is now full'
             });
             continue;
           }
 
           // Add invitation to group
-          const invite = await group.addInvite(memberId, 'member', student._id);
+          freshGroup.invites.push({
+            student: memberId,
+            role: 'member',
+            invitedBy: student._id,
+            invitedAt: new Date(),
+            status: 'pending'
+          });
+          
+          await freshGroup.save({ session });
           
           // Add invitation to student's invites array
-          await invitedStudent.addInvitation(group._id, 'member', student._id);
+          invitedStudent.invites.push({
+            group: freshGroup._id,
+            role: 'member',
+            invitedBy: student._id,
+            invitedAt: new Date(),
+            status: 'pending'
+          });
+          await invitedStudent.save({ session });
           
           invitationResults.push({
             studentId: memberId,
@@ -1567,8 +1511,8 @@ const sendGroupInvitations = async (req, res) => {
           const socketService = req.app.get('socketService');
           if (socketService) {
             socketService.sendGroupInvitation(invitedStudent.user.toString(), {
-              groupId: group._id,
-              groupName: group.name,
+              groupId: freshGroup._id,
+              groupName: freshGroup.name,
               inviterName: student.fullName,
               role: 'member'
             });
@@ -1668,17 +1612,6 @@ const getGroupById = async (req, res) => {
     await group.populate('members.student');
     await group.populate('createdBy');
 
-    console.log('🔍 Backend Debug - After Population:', {
-      groupId: group?._id,
-      leader: group?.leader,
-      leaderType: typeof group?.leader,
-      leaderId: group?.leader?._id,
-      leaderString: group?.leader?.toString()
-    });
-
-
-
-
     if (!group) {
       return res.status(404).json({
         success: false,
@@ -1704,16 +1637,6 @@ const getGroupById = async (req, res) => {
       finalizedAt: group.finalizedAt,
       finalizedBy: group.finalizedBy
     };
-
-    // Debug: Log leader data being sent
-    console.log('🔍 Backend Debug - Group Leader Data:', {
-      groupId: group._id,
-      leader: group.leader,
-      leaderId: group.leader?._id,
-      leaderType: typeof group.leader,
-      leaderString: group.leader?.toString(),
-      groupDataLeader: groupData.leader
-    });
 
     // Mark if current user has any invites
     const myInvites = group.invites.filter(invite => 
@@ -2459,8 +2382,7 @@ const acceptInvitation = async (req, res) => {
       // Cancel all invitations for this student (both sent and received)
       try {
         const socketService = req.app.get('socketService');
-        const cancelledCount = await cancelAllStudentInvitations(student._id, session, socketService, 'Student joined another group');
-        console.log(`Cancelled ${cancelledCount} invitations for student ${student.misNumber}`);
+        await cancelAllStudentInvitations(student._id, session, socketService, 'Student joined another group');
       } catch (cancelError) {
         console.error('Cancel student invitations error:', cancelError.message);
         // Don't fail the entire transaction for this cleanup operation
@@ -2840,7 +2762,7 @@ const submitFacultyPreferences = async (req, res) => {
     }
 
     // Find group
-    const group = await Group.findById(groupId);
+    const group = await Group.findById(groupId).populate('project');
     if (!group) {
       return res.status(404).json({
         success: false,
@@ -2874,6 +2796,45 @@ const submitFacultyPreferences = async (req, res) => {
 
     // Add faculty preferences to group
     await group.addFacultyPreferences(preferences);
+
+    // Check if FacultyPreference document already exists for this group
+    let facultyPrefDoc = await FacultyPreference.findOne({
+      group: group._id,
+      student: student._id,
+      semester: group.semester,
+      academicYear: group.academicYear
+    });
+
+    if (facultyPrefDoc) {
+      // Update existing FacultyPreference document
+      facultyPrefDoc.preferences = preferences.map((pref, index) => ({
+        faculty: pref.faculty,
+        priority: index + 1,
+        submittedAt: new Date()
+      }));
+      facultyPrefDoc.currentFacultyIndex = 0; // Reset to first preference
+      facultyPrefDoc.status = 'pending';
+      await facultyPrefDoc.save();
+    } else {
+      // Create new FacultyPreference document for tracking allocation process
+      const facultyPreferenceData = {
+        student: student._id,
+        project: group.project,
+        group: group._id,
+        semester: group.semester,
+        academicYear: group.academicYear,
+        status: 'pending',
+        preferences: preferences.map((pref, index) => ({
+          faculty: pref.faculty,
+          priority: index + 1,
+          submittedAt: new Date()
+        })),
+        currentFacultyIndex: 0 // Start with first preference
+      };
+
+      facultyPrefDoc = new FacultyPreference(facultyPreferenceData);
+      await facultyPrefDoc.save();
+    }
 
     res.json({
       success: true,

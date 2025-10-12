@@ -535,10 +535,14 @@ const forceAllocateFaculty = async (req, res) => {
     // Update project/group with faculty allocation
     let group = null;
     if (allocation.group) {
-      group = await Group.findById(allocation.group).populate('members.student');
+      // Don't populate when saving to avoid validation issues
+      group = await Group.findById(allocation.group);
       if (group) {
         group.allocatedFaculty = facultyId;
         await group.save();
+        
+        // Get populated version for member updates below
+        group = await Group.findById(allocation.group).populate('members.student');
       }
     }
 

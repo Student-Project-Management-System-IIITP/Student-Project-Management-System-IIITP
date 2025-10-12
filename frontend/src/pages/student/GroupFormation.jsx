@@ -107,42 +107,10 @@ const GroupFormation = () => {
   useEffect(() => {
     if (!isConnected) return;
 
-    const handleGroupCreated = (data) => {
-      console.log('Group created via WebSocket:', data);
-      toast.success('Group created successfully!');
-      // Refresh group data if needed
-      if (data.groupId) {
-        // Could refresh group data here if needed
-      }
-    };
-
-    const handleInvitationUpdate = (data) => {
-      console.log('Invitation update via WebSocket:', data);
-      if (data.type === 'invitation_sent') {
-        toast.success(`Invitation sent to ${data.studentName}`);
-      } else if (data.type === 'invitation_accepted') {
-        toast.success(`${data.studentName} accepted the invitation`);
-      } else if (data.type === 'invitation_rejected') {
-        toast.error(`${data.studentName} rejected the invitation`);
-      }
-    };
-
-    const handleGroupUpdate = (data) => {
-      console.log('Group update via WebSocket:', data);
-      // Handle group updates if needed
-    };
-
-    // Subscribe to WebSocket events
-    websocketManager.on('group_created', handleGroupCreated);
-    websocketManager.on('invitation_update', handleInvitationUpdate);
-    websocketManager.on('group_update', handleGroupUpdate);
-
-    // Cleanup listeners on unmount
-    return () => {
-      websocketManager.off('group_created', handleGroupCreated);
-      websocketManager.off('invitation_update', handleInvitationUpdate);
-      websocketManager.off('group_update', handleGroupUpdate);
-    };
+    // Note: Removed all WebSocket toast handlers to avoid duplicates with API response toasts.
+    // - Group creation: Toast shown in handleSendInvitations (line ~525)
+    // - Invitation responses: Handled in Dashboard.jsx (for the accepting user)
+    // - Group updates: Real-time updates shown in GroupDashboard.jsx (not toasts)
   }, [isConnected]);
 
   // Load available students with pagination and search optimization
@@ -651,10 +619,10 @@ const GroupFormation = () => {
                     
                     {getGroupStats().isComplete && (
                       <button
-                        onClick={() => navigate('/student/projects/details')}
+                        onClick={() => navigate('/student/sem5/register')}
                         className="w-full px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
                       >
-                        Add Project Details
+                        Register Project
                       </button>
                     )}
                     

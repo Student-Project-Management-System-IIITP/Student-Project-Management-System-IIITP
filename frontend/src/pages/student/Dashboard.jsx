@@ -411,7 +411,7 @@ const StudentDashboard = () => {
                   // Show project card when faculty is allocated
                   <div className="space-y-4">
                     <Link 
-                      to="/student/sem5/project" 
+                      to={`/projects/${sem5Project._id}`} 
                       className="block bg-white border border-gray-200 rounded-lg p-6 hover:shadow-md transition-shadow cursor-pointer"
                     >
                       <div className="flex items-start justify-between">
