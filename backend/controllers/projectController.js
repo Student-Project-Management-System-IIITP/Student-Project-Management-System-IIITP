@@ -177,11 +177,13 @@ const sendMessage = async (req, res) => {
     const { message } = req.body;
     const userId = req.user.id;
     const userRole = req.user.role;
+    const files = req.files; // Uploaded files from multer
 
-    if (!message || !message.trim()) {
+    // Message or files must be present
+    if ((!message || !message.trim()) && (!files || files.length === 0)) {
       return res.status(400).json({
         success: false,
-        message: 'Message cannot be empty'
+        message: 'Message or file attachment is required'
       });
     }
 
@@ -226,13 +228,30 @@ const sendMessage = async (req, res) => {
       });
     }
 
+    // Process file attachments
+    const attachments = [];
+    if (files && files.length > 0) {
+      files.forEach(file => {
+        attachments.push({
+          filename: file.filename,
+          originalName: file.originalname,
+          url: `/api/projects/${projectId}/files/${file.filename}`,
+          fileType: file.mimetype.split('/')[0], // 'image', 'application', etc.
+          fileSize: file.size,
+          mimeType: file.mimetype,
+          uploadedAt: new Date()
+        });
+      });
+    }
+
     // Create message
     const newMessage = new Message({
       project: projectId,
       sender: userId,
       senderModel,
       senderName,
-      message: message.trim()
+      message: message ? message.trim() : '',
+      attachments: attachments
     });
 
     await newMessage.save();
@@ -423,10 +442,407 @@ const getFacultyAllocatedProjects = async (req, res) => {
   }
 };
 
+// Edit a message
+const editMessage = async (req, res) => {
+  try {
+    const { projectId, messageId } = req.params;
+    const { message: newMessage } = req.body;
+    const userId = req.user.id;
+
+    if (!newMessage || !newMessage.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Message cannot be empty'
+      });
+    }
+
+    // Find the message
+    const message = await Message.findById(messageId);
+    if (!message) {
+      return res.status(404).json({
+        success: false,
+        message: 'Message not found'
+      });
+    }
+
+    // Verify message belongs to this project
+    if (message.project.toString() !== projectId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Message does not belong to this project'
+      });
+    }
+
+    // Edit the message (will throw error if not allowed)
+    try {
+      await message.editMessage(newMessage.trim(), userId);
+      await message.populate('sender', 'fullName');
+
+      // Broadcast update via Socket.IO
+      const socketService = req.app.get('socketService');
+      if (socketService) {
+        await socketService.broadcastMessageUpdate(projectId, messageId, message);
+      }
+
+      res.json({
+        success: true,
+        data: message,
+        message: 'Message edited successfully'
+      });
+    } catch (editError) {
+      return res.status(403).json({
+        success: false,
+        message: editError.message
+      });
+    }
+  } catch (error) {
+    console.error('Error editing message:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error editing message',
+      error: error.message
+    });
+  }
+};
+
+// Delete a message
+const deleteMessage = async (req, res) => {
+  try {
+    const { projectId, messageId } = req.params;
+    const userId = req.user.id;
+    const userRole = req.user.role;
+
+    const message = await Message.findById(messageId);
+    if (!message) {
+      return res.status(404).json({
+        success: false,
+        message: 'Message not found'
+      });
+    }
+
+    // Verify message belongs to this project
+    if (message.project.toString() !== projectId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Message does not belong to this project'
+      });
+    }
+
+    // Only sender or admin can delete
+    if (message.sender.toString() !== userId && userRole !== 'admin') {
+      return res.status(403).json({
+        success: false,
+        message: 'You can only delete your own messages'
+      });
+    }
+
+    // Check if message can be deleted (5 minute window for non-admins)
+    if (userRole !== 'admin' && !message.canDelete(userId)) {
+      return res.status(403).json({
+        success: false,
+        message: 'Messages can only be deleted within 5 minutes of sending'
+      });
+    }
+
+    await Message.findByIdAndDelete(messageId);
+
+    // Broadcast deletion via Socket.IO
+    const socketService = req.app.get('socketService');
+    if (socketService) {
+      await socketService.broadcastMessageDelete(projectId, messageId);
+    }
+
+    res.json({
+      success: true,
+      message: 'Message deleted successfully'
+    });
+  } catch (error) {
+    console.error('Error deleting message:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error deleting message',
+      error: error.message
+    });
+  }
+};
+
+// Search messages
+const searchMessages = async (req, res) => {
+  try {
+    const { projectId } = req.params;
+    const { q: searchQuery } = req.query;
+    const userId = req.user.id;
+    const userRole = req.user.role;
+
+    if (!searchQuery || !searchQuery.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Search query is required'
+      });
+    }
+
+    // Verify access to project
+    const project = await Project.findById(projectId);
+    if (!project) {
+      return res.status(404).json({
+        success: false,
+        message: 'Project not found'
+      });
+    }
+
+    // Access control
+    let hasAccess = false;
+
+    if (userRole === 'student') {
+      const student = await Student.findOne({ user: userId });
+      if (student && project.group) {
+        const group = await Group.findById(project.group);
+        const isMember = group.members.some(member => 
+          member.student.toString() === student._id.toString()
+        );
+        hasAccess = isMember;
+      }
+    } else if (userRole === 'faculty') {
+      const faculty = await Faculty.findOne({ user: userId });
+      if (faculty && project.faculty) {
+        hasAccess = project.faculty.toString() === faculty._id.toString();
+      }
+    } else if (userRole === 'admin') {
+      hasAccess = true;
+    }
+
+    if (!hasAccess) {
+      return res.status(403).json({
+        success: false,
+        message: 'You do not have access to this project'
+      });
+    }
+
+    // Search messages
+    const messages = await Message.searchMessages(projectId, searchQuery.trim());
+
+    res.json({
+      success: true,
+      data: messages,
+      count: messages.length
+    });
+  } catch (error) {
+    console.error('Error searching messages:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error searching messages',
+      error: error.message
+    });
+  }
+};
+
+// Add reaction to message
+const addReaction = async (req, res) => {
+  try {
+    const { projectId, messageId } = req.params;
+    const { emoji } = req.body;
+    const userId = req.user.id;
+    const userRole = req.user.role;
+
+    if (!emoji) {
+      return res.status(400).json({
+        success: false,
+        message: 'Emoji is required'
+      });
+    }
+
+    const message = await Message.findById(messageId);
+    if (!message) {
+      return res.status(404).json({
+        success: false,
+        message: 'Message not found'
+      });
+    }
+
+    // Verify message belongs to this project
+    if (message.project.toString() !== projectId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Message does not belong to this project'
+      });
+    }
+
+    // Get user name
+    let userName = 'Unknown';
+    if (userRole === 'student') {
+      const student = await Student.findOne({ user: userId });
+      userName = student?.fullName || 'Unknown Student';
+    } else if (userRole === 'faculty') {
+      const faculty = await Faculty.findOne({ user: userId });
+      userName = faculty?.fullName || 'Unknown Faculty';
+    }
+
+    // Add reaction
+    try {
+      await message.addReaction(emoji, userId, userName);
+      await message.populate('sender', 'fullName');
+
+      // Broadcast reaction via Socket.IO
+      const socketService = req.app.get('socketService');
+      if (socketService) {
+        await socketService.broadcastReactionUpdate(projectId, messageId, message.reactions);
+      }
+
+      res.json({
+        success: true,
+        data: message,
+        message: 'Reaction added successfully'
+      });
+    } catch (reactionError) {
+      return res.status(400).json({
+        success: false,
+        message: reactionError.message
+      });
+    }
+  } catch (error) {
+    console.error('Error adding reaction:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error adding reaction',
+      error: error.message
+    });
+  }
+};
+
+// Remove reaction from message
+const removeReaction = async (req, res) => {
+  try {
+    const { projectId, messageId, emoji } = req.params;
+    const userId = req.user.id;
+
+    const message = await Message.findById(messageId);
+    if (!message) {
+      return res.status(404).json({
+        success: false,
+        message: 'Message not found'
+      });
+    }
+
+    // Verify message belongs to this project
+    if (message.project.toString() !== projectId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Message does not belong to this project'
+      });
+    }
+
+    // Remove reaction
+    try {
+      await message.removeReaction(emoji, userId);
+      await message.populate('sender', 'fullName');
+
+      // Broadcast reaction update via Socket.IO
+      const socketService = req.app.get('socketService');
+      if (socketService) {
+        await socketService.broadcastReactionUpdate(projectId, messageId, message.reactions);
+      }
+
+      res.json({
+        success: true,
+        data: message,
+        message: 'Reaction removed successfully'
+      });
+    } catch (reactionError) {
+      return res.status(400).json({
+        success: false,
+        message: reactionError.message
+      });
+    }
+  } catch (error) {
+    console.error('Error removing reaction:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error removing reaction',
+      error: error.message
+    });
+  }
+};
+
+// Download/serve chat file
+const downloadChatFile = async (req, res) => {
+  try {
+    const { projectId, filename } = req.params;
+    const userId = req.user.id;
+    const userRole = req.user.role;
+
+    // Verify access to project
+    const project = await Project.findById(projectId);
+    if (!project) {
+      return res.status(404).json({
+        success: false,
+        message: 'Project not found'
+      });
+    }
+
+    // Access control
+    let hasAccess = false;
+
+    if (userRole === 'student') {
+      const student = await Student.findOne({ user: userId });
+      if (student && project.group) {
+        const group = await Group.findById(project.group);
+        const isMember = group.members.some(member => 
+          member.student.toString() === student._id.toString()
+        );
+        hasAccess = isMember;
+      }
+    } else if (userRole === 'faculty') {
+      const faculty = await Faculty.findOne({ user: userId });
+      if (faculty && project.faculty) {
+        hasAccess = project.faculty.toString() === faculty._id.toString();
+      }
+    } else if (userRole === 'admin') {
+      hasAccess = true;
+    }
+
+    if (!hasAccess) {
+      return res.status(403).json({
+        success: false,
+        message: 'You do not have access to this project'
+      });
+    }
+
+    // Serve the file
+    const path = require('path');
+    const { chatUploadDir } = require('../middleware/chatUpload');
+    const filePath = path.join(chatUploadDir, filename);
+
+    // Check if file exists
+    const fs = require('fs');
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({
+        success: false,
+        message: 'File not found'
+      });
+    }
+
+    // Send file
+    res.sendFile(filePath);
+  } catch (error) {
+    console.error('Error downloading file:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error downloading file',
+      error: error.message
+    });
+  }
+};
+
 module.exports = {
   getProjectDetails,
   getProjectMessages,
   sendMessage,
+  editMessage,
+  deleteMessage,
+  searchMessages,
+  addReaction,
+  removeReaction,
+  downloadChatFile,
   getStudentCurrentProject,
   getFacultyAllocatedProjects
 };
