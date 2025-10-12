@@ -293,6 +293,12 @@ function AppContent() {
               </Layout>
             </ProtectedRoute>
           } />
+          {/* Shared Routes - Accessible by all authenticated users */}
+          <Route path="/projects/:projectId" element={
+            <ProtectedRoute allowedRoles={['student', 'faculty', 'admin']}>
+              <ProjectDetails />
+            </ProtectedRoute>
+          } />
           {/* Demo Routes - Remove in production */}
           <Route path="/toast-demo" element={
             <Layout>

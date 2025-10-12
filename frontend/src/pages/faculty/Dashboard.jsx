@@ -164,7 +164,7 @@ const FacultyDashboard = () => {
     // If allocated, wrap in Link to project details
     if (isAllocated) {
       return (
-        <Link to="/faculty/project" className="block">
+        <Link to={`/projects/${group.projectId}`} className="block">
           {cardContent}
         </Link>
       );

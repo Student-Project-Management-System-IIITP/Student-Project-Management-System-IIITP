@@ -676,11 +676,15 @@ const chooseGroup = async (req, res) => {
     // Update the group and project with allocated faculty
     let group = null;
     if (preference.group) {
-      group = await Group.findById(preference.group).populate('members.student');
+      // Don't populate when saving to avoid validation issues
+      group = await Group.findById(preference.group);
       if (group) {
         group.allocatedFaculty = faculty._id;
         group.status = 'locked';
         await group.save();
+        
+        // Get populated version for member updates below
+        group = await Group.findById(preference.group).populate('members.student');
       }
     }
 
