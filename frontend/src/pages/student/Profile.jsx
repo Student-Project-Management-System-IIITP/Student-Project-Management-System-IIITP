@@ -155,129 +155,117 @@ const StudentProfile = () => {
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           {/* Personal Information */}
-          <div className="pro-card">
-            <div className="pro-section">
-              <div className="pro-section-icon bg-green-100">
-                <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
+          <div className="pro-card shadow-lg border-0 transition-shadow hover:shadow-2xl w-full max-w-xl mx-auto lg:mx-0">
+            <div className="pro-section flex items-center justify-between mb-6 border-b border-gray-100 pb-4">
+              <div className="flex items-center">
+                <div className="pro-section-icon bg-gradient-to-br from-green-200 via-green-100 to-white">
+                  <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
+                </div>
+                <h2 className="pro-section-title ml-2 text-xl font-semibold">Personal Information</h2>
               </div>
-              <h2 className="pro-section-title">Personal Information</h2>
               {!isEditMode && (
-                <button onClick={() => setIsEditMode(true)} className="ml-auto pro-btn-primary px-3 py-1.5">
-                  <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                <button onClick={() => setIsEditMode(true)} className="pro-btn-primary px-4 py-2 text-base shadow-sm animate-bounce focus:animate-none">
+                  <svg className="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
                   Edit
                 </button>
               )}
             </div>
 
             {isEditMode ? (
-              <div className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 gap-3">
                   <div>
                     <label className="pro-label">Full Name *</label>
                     <input type="text" value={editForm.fullName} onChange={e => setEditForm({ ...editForm, fullName: e.target.value })} className="pro-input" required />
                   </div>
                   <div>
-                    <label className="pro-label">MIS Number</label>
-                    <input type="text" value={student?.misNumber || ''} disabled className="pro-input pro-input-disabled" />
-                  </div>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div>
-                    <label className="pro-label">Semester</label>
-                    <input type="text" value={student?.semester ?? ''} disabled className="pro-input pro-input-disabled" />
+                    <label className="pro-label">Contact Number *</label>
+                    <input type="tel" value={editForm.contactNumber} onChange={e => setEditForm({ ...editForm, contactNumber: e.target.value })} className="pro-input" required />
                   </div>
                   <div>
-                    <label className="pro-label">Degree</label>
-                    <input type="text" value={student?.degree || ''} disabled className="pro-input pro-input-disabled" />
-                  </div>
-                  <div>
-                    <label className="pro-label">Academic Year</label>
-                    <input type="text" value={student?.academicYear || ''} disabled className="pro-input pro-input-disabled" />
+                    <label className="pro-label">Email</label>
+                    <input type="email" value={userData?.email || ''} disabled className="pro-input pro-input-disabled" />
                   </div>
                 </div>
-                <div>
-                  <label className="pro-label">Branch</label>
-                  <input type="text" value={editForm.branch} disabled className="pro-input pro-input-disabled" />
-                </div>
-                <div>
-                  <label className="pro-label">Contact Number *</label>
-                  <input type="tel" value={editForm.contactNumber} onChange={e => setEditForm({ ...editForm, contactNumber: e.target.value })} className="pro-input" required />
-                </div>
-                <div className="pro-actions">
-                  <button onClick={updateProfile} disabled={editSubmitting} className="pro-btn-primary disabled:opacity-50 disabled:cursor-not-allowed">
+                <div className="pro-actions flex flex-col md:flex-row gap-3 pt-2">
+                  <button onClick={updateProfile} disabled={editSubmitting} className="pro-btn-primary w-full md:w-auto disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center">
                     {editSubmitting ? (<><div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>Saving...</>) : (<><svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>Save Changes</>)}
                   </button>
-                  <button onClick={() => setIsEditMode(false)} className="pro-btn-secondary">Cancel</button>
+                  <button onClick={() => setIsEditMode(false)} className="pro-btn-secondary w-full md:w-auto">Cancel</button>
                 </div>
               </div>
             ) : (
-              <div className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="pro-label">Full Name</label>
-                    <div className="pro-kv">{student?.fullName || 'Not provided'}</div>
-                  </div>
-                  <div>
-                    <label className="pro-label">MIS Number</label>
-                    <div className="pro-kv">{student?.misNumber || 'Not provided'}</div>
-                  </div>
+              <div className="space-y-4 divide-y divide-gray-100">
+                <div className="pb-3">
+                  <label className="pro-label">Full Name</label>
+                  <div className="pro-kv">{student?.fullName || 'Not provided'}</div>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div>
-                    <label className="pro-label">Semester</label>
-                    <div className="pro-kv">{student?.semester ?? 'N/A'}</div>
-                  </div>
-                  <div>
-                    <label className="pro-label">Degree</label>
-                    <div className="pro-kv">{student?.degree || 'Not set'}</div>
-                  </div>
-                  <div>
-                    <label className="pro-label">Academic Year</label>
-                    <div className="pro-kv">{student?.academicYear || 'Not set'}</div>
-                  </div>
-                </div>
-                <div>
-                  <label className="pro-label">Branch</label>
-                  <div className="pro-kv">{student?.branch || 'Not set'}</div>
-                </div>
-                <div>
+                <div className="py-3">
                   <label className="pro-label">Contact Number</label>
                   <div className="pro-kv">{student?.contactNumber || 'Not provided'}</div>
                 </div>
-                {/* Account Status */}
-                <div>
-                  <label className="pro-label">Account Status</label>
-                  <div className="pro-status-chip">
-                    <div className="flex items-center">
-                      <div className={`w-2 h-2 rounded-full mr-2 ${userData?.isActive ? 'bg-green-500' : 'bg-red-500'}`}></div>
-                      <span className={`text-sm font-medium ${userData?.isActive ? 'text-green-700' : 'text-red-700'}`}>{userData?.isActive ? 'Active' : 'Inactive'}</span>
-                    </div>
-                  </div>
+                <div className="pt-3">
+                  <label className="pro-label">Email</label>
+                  <div className="pro-kv">{userData?.email || 'Not provided'}</div>
                 </div>
               </div>
             )}
           </div>
 
-          {/* Contact Details */}
-          <div className="pro-card">
-            <div className="pro-section">
-              <div className="pro-section-icon bg-yellow-100">
-                <svg className="w-5 h-5 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 4.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
+          {/* Academic & Account Information */}
+          <div className="pro-card shadow-lg border-0 transition-shadow hover:shadow-2xl w-full max-w-xl mx-auto lg:mx-0">
+            <div className="pro-section flex items-center justify-between mb-6 border-b border-gray-100 pb-4">
+              <div className="flex items-center">
+                <div className="pro-section-icon bg-gradient-to-br from-yellow-200 via-yellow-100 to-white">
+                  <svg className="w-6 h-6 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 4.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
+                </div>
+                <h2 className="pro-section-title ml-2 text-xl font-semibold">Academic & Account Information</h2>
               </div>
-              <h2 className="pro-section-title">Contact Details</h2>
+              <div className="flex items-center ml-4">
+                <span className={`flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold shadow-sm ${userData?.isActive ? 'bg-green-100 text-green-800 border border-green-200' : 'bg-red-100 text-red-700 border border-red-200'}`} style={{minWidth:'80px'}}>
+                  <span className={`w-2 h-2 rounded-full inline-block ${userData?.isActive ? 'bg-green-500' : 'bg-red-500'}`}></span>
+                  {userData?.isActive ? 'Active' : 'Inactive'}
+                </span>
+              </div>
             </div>
-            <div className="space-y-6">
-              <div>
-                <label className="pro-label">Email</label>
-                <div className="pro-kv">{userData?.email || 'Not provided'}</div>
+            <div className="space-y-6 divide-y divide-gray-100">
+              {/* Line 1: MIS only */}
+              <div className="pb-4">
+                <label className="pro-label">MIS Number</label>
+                <div className="pro-kv">{student?.misNumber || 'Not provided'}</div>
               </div>
-              <div>
-                <label className="pro-label">Last Login</label>
-                <div className="pro-kv">{userData?.lastLogin ? new Date(userData.lastLogin).toLocaleDateString('en-US', {year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'}) : 'Never'}</div>
+              {/* Line 2: Degree | Branch */}
+              <div className="py-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="pro-label">Degree</label>
+                  <div className="pro-kv">{student?.degree || 'Not set'}</div>
+                </div>
+                <div>
+                  <label className="pro-label">Branch</label>
+                  <div className="pro-kv">{student?.branch || 'Not set'}</div>
+                </div>
               </div>
-              <div>
-                <label className="pro-label">Member Since</label>
-                <div className="pro-kv">{student?.createdAt ? new Date(student.createdAt).toLocaleDateString('en-US', {year: 'numeric', month: 'long', day: 'numeric'}) : 'Unknown'}</div>
+              {/* Line 3: Academic Year | Semester */}
+              <div className="py-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="pro-label">Academic Year</label>
+                  <div className="pro-kv">{student?.academicYear || 'Not set'}</div>
+                </div>
+                <div>
+                  <label className="pro-label">Semester</label>
+                  <div className="pro-kv">{student?.semester ?? 'N/A'}</div>
+                </div>
+              </div>
+              {/* Line 4: Last Login | Member Since */}
+              <div className="pt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="pro-label">Last Login</label>
+                  <div className="pro-kv">{userData?.lastLogin ? new Date(userData.lastLogin).toLocaleDateString('en-US', {year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'}) : 'Never'}</div>
+                </div>
+                <div>
+                  <label className="pro-label">Member Since</label>
+                  <div className="pro-kv">{student?.createdAt ? new Date(student.createdAt).toLocaleDateString('en-US', {year: 'numeric', month: 'long', day: 'numeric'}) : 'Unknown'}</div>
+                </div>
               </div>
             </div>
           </div>
