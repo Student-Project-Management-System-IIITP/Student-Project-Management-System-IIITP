@@ -180,18 +180,18 @@ export const studentAPIWithToast = {
 
   acceptGroupInvitation: async (groupId, inviteId) => {
     return apiWithToast.request(
-      studentAPI.acceptGroupInvitation(groupId, inviteId),
-      toastMessages.groupJoined,
-      'Failed to accept invitation'
-    );
+    studentAPI.acceptGroupInvitation(groupId, inviteId),
+    null, // Remove success toast message
+    'Failed to accept invitation'
+   );
   },
 
   rejectGroupInvitation: async (groupId, inviteId) => {
-    return apiWithToast.request(
-      studentAPI.rejectGroupInvitation(groupId, inviteId),
-      'Invitation rejected',
-      'Failed to reject invitation'
-    );
+  return apiWithToast.request(
+    studentAPI.rejectGroupInvitation(groupId, inviteId),
+    null, // Remove success toast message
+    'Failed to reject invitation'
+  );
   },
 
   transferLeadership: async (groupId, data) => {

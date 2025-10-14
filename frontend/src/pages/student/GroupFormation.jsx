@@ -321,35 +321,34 @@ const GroupFormation = () => {
   };
 
   const handleStudentSelection = (student) => {
-    const inviteStatus = getInviteStatus(student);
-    
-    // Only allow selection of students who can be invited
-    const canSelect = inviteStatus.status === 'available' || 
-                     inviteStatus.status === 'selected' || 
-                     inviteStatus.status === 'rejected_from_current_group';
-    
-    if (!canSelect) {
-      toast.error(`Cannot select ${student.fullName}: ${inviteStatus.message}`);
+  const inviteStatus = getInviteStatus(student);
+  
+  // Only allow selection of students who can be invited
+  const canSelect = inviteStatus.status === 'available' || 
+                   inviteStatus.status === 'selected' || 
+                   inviteStatus.status === 'rejected_from_current_group';
+  
+  if (!canSelect) {
+    toast.error(`Cannot select ${student.fullName}: ${inviteStatus.message}`);
+    return;
+  }
+  
+  // Moved toast calls OUTSIDE the state updater
+  const isSelected = selectedStudents.some(s => s._id === student._id);
+  if (isSelected) {
+    setSelectedStudents(prev => prev.filter(s => s._id !== student._id));
+    toast.success(`${student.fullName} removed from selection`);
+  } else {
+    // Check if we're at max group size
+    const currentGroupSize = selectedStudents.length + 1; // +1 for creator
+    if (currentGroupSize >= 5) {
+      toast.error('Group is full (maximum 5 members)');
       return;
     }
-    
-    setSelectedStudents(prev => {
-      const isSelected = prev.some(s => s._id === student._id);
-      if (isSelected) {
-        toast.success(`${student.fullName} removed from selection`);
-        return prev.filter(s => s._id !== student._id);
-      } else {
-        // Check if we're at max group size
-        const currentGroupSize = prev.length + 1; // +1 for creator
-        if (currentGroupSize >= 5) {
-          toast.error('Group is full (maximum 5 members)');
-          return prev;
-        }
-        toast.success(`${student.fullName} added to selection`);
-        return [...prev, student];
-      }
-    });
-  };
+    setSelectedStudents(prev => [...prev, student]);
+    toast.success(`${student.fullName} added to selection`);
+  }
+};
 
   // Load more students for pagination
   const handleLoadMore = () => {
