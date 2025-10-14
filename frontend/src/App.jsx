@@ -94,32 +94,39 @@ function AppContent() {
   return (
     <>
       <Toaster
-        position="top-right"
-        toastOptions={{
-          duration: 4000,
-          style: {
-            background: '#363636',
-            color: '#fff',
-          },
-          success: {
-            duration: 3000,
-            iconTheme: {
-              primary: '#10B981',
-              secondary: '#fff',
-            },
-          },
-          error: {
-            duration: 5000,
-            iconTheme: {
-              primary: '#EF4444',
-              secondary: '#fff',
-            },
-          },
-          loading: {
-            duration: Infinity,
-          },
-        }}
-      />
+  position="top-center"
+  containerStyle={{
+    top: '50px', // Adjust this value based on your navbar height
+    left: '50%',
+    transform: 'translateX(-50%)',
+  }}
+  toastOptions={{
+    duration: 4000,
+    style: {
+      background: '#363636',
+      color: '#fff',
+      marginTop: '20px',
+    },
+    success: {
+      duration: 3000,
+      iconTheme: {
+        primary: '#10B981',
+        secondary: '#fff',
+      },
+    },
+    error: {
+      duration: 5000,
+      iconTheme: {
+        primary: '#EF4444',
+        secondary: '#fff',
+      },
+    },
+    loading: {
+      duration: Infinity,
+    },
+  }}
+/>
+      
       <Routes>
         <Route path="/" element={
           <Layout>

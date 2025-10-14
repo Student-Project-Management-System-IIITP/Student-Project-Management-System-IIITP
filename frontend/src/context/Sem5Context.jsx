@@ -187,7 +187,7 @@ export const Sem5Provider = ({ children }) => {
     try {
       const response = await studentAPI.registerMinorProject2(projectData);
       setSem5Project(response.data);
-      toast.success('Minor Project 2 registered successfully!');
+      //toast.success('Minor Project 2 registered successfully!');
       return response.data;
     } catch (error) {
       toast.error(`Project registration failed: ${error.message}`);
@@ -210,7 +210,7 @@ export const Sem5Provider = ({ children }) => {
   const inviteToGroup = async (groupId, studentIds, roles) => {
     try {
       await studentAPI.inviteToGroup(groupId, studentIds, roles);
-      toast.success('Invitations sent successfully!');
+      //toast.success('Invitations sent successfully!');
       await loadGroupInvitations(); // Refresh invitations
     } catch (error) {
       toast.error(`Failed to send invitations: ${error.message}`);
@@ -229,7 +229,7 @@ export const Sem5Provider = ({ children }) => {
       }
       
       await studentAPI.acceptGroupInvitation(invitation.group._id, invitationId);
-      toast.success('Invitation accepted successfully!');
+      //toast.success('Invitation accepted successfully!');
       await Promise.all([loadStudentSem5Data(), loadGroupInvitations()]);
     } catch (error) {
       // Provide more specific error messages
@@ -248,7 +248,7 @@ export const Sem5Provider = ({ children }) => {
         errorMessage = error.message;
       }
       
-      toast.error(errorMessage);
+      //toast.error(errorMessage);
       
       // Always refresh invitations after any error to reflect backend state changes
       // This handles cases like auto-rejection when group becomes full
@@ -272,7 +272,7 @@ export const Sem5Provider = ({ children }) => {
       }
       
       await studentAPI.rejectGroupInvitation(invitation.group._id, invitationId);
-      toast.success('Invitation rejected');
+      //toast.success('Invitation rejected');
       await loadGroupInvitations();
     } catch (error) {
       // Provide more specific error messages
@@ -285,7 +285,7 @@ export const Sem5Provider = ({ children }) => {
         errorMessage = error.message;
       }
       
-      toast.error(errorMessage);
+      //toast.error(errorMessage);
       throw error;
     }
   };
