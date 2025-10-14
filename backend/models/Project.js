@@ -309,8 +309,25 @@ projectSchema.statics.getByType = function(projectType, semester) {
 };
 
 // Sem 4 specific method: Submit PPT
-projectSchema.methods.submitPPT = function(pptData) {
+projectSchema.methods.submitPPT = async function(pptData) {
+  const fs = require('fs').promises;
+  const path = require('path');
+  
   const pptDeliverable = this.deliverables.find(d => d.name.toLowerCase().includes('ppt'));
+  
+  // Delete old file if it exists (when replacing)
+  if (pptDeliverable && pptDeliverable.filePath) {
+    try {
+      const oldFilePath = pptDeliverable.filePath;
+      // Check if file exists before attempting to delete
+      await fs.access(oldFilePath);
+      await fs.unlink(oldFilePath);
+      console.log(`Deleted old PPT file: ${oldFilePath}`);
+    } catch (error) {
+      // File doesn't exist or couldn't be deleted, log but continue
+      console.log('Could not delete old PPT file:', error.message);
+    }
+  }
   
   // Prepare comprehensive metadata
   const now = new Date();
@@ -321,16 +338,15 @@ projectSchema.methods.submitPPT = function(pptData) {
     uploadVersion: 1
   };
   
-  // Add version history entry
+  // Add version history entry (metadata only, not the actual file)
   if (pptDeliverable) {
-    // Track previous upload if it exists
+    // Track previous upload metadata
     const previousVersion = {
       filename: pptDeliverable.filename,
       originalName: pptDeliverable.originalName,
-      filePath: pptDeliverable.filePath,
       fileSize: pptDeliverable.fileSize,
       uploadedAt: pptDeliverable.submittedAt,
-      notes: 'Previous version'
+      notes: 'Replaced version (file deleted)'
     };
     
     pptDeliverable.versionHistory = pptDeliverable.versionHistory || [];

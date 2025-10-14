@@ -289,6 +289,13 @@ const AdminDashboard = () => {
                 <span>📊</span>
                 <span>View Registrations</span>
               </Link>
+              <Link
+                to="/admin/sem4/unregistered"
+                className="bg-white bg-opacity-20 hover:bg-opacity-30 px-4 py-2 rounded-md text-white font-medium transition-all duration-200 flex items-center space-x-2"
+              >
+                <span>📋</span>
+                <span>Unregistered Students</span>
+              </Link>
             </div>
           </div>
           
@@ -329,18 +336,11 @@ const AdminDashboard = () => {
             </div>
             <div className="flex space-x-4">
               <Link
-                to="/admin/sem5/registrations"
-                className="bg-white bg-opacity-20 hover:bg-opacity-30 px-4 py-2 rounded-md text-white font-medium transition-all duration-200 flex items-center space-x-2"
-              >
-                <span>📊</span>
-                <span>View Registrations</span>
-              </Link>
-              <Link
                 to="/admin/sem5/allocated-faculty"
                 className="bg-white bg-opacity-20 hover:bg-opacity-30 px-4 py-2 rounded-md text-white font-medium transition-all duration-200 flex items-center space-x-2"
               >
                 <span>👥</span>
-                <span>View Allocated Faculty</span>
+                <span>View Faculty Allocation & Registrations</span>
               </Link>
             </div>
           </div>

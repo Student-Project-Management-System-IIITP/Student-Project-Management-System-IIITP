@@ -8,7 +8,7 @@ import StatusBadge from '../common/StatusBadge';
 
 const ProjectRegistrationForm = () => {
   const navigate = useNavigate();
-  const { user, roleData } = useAuth();
+  const { user, roleData, refreshUserData } = useAuth();
   const { registerProject, loading, error } = useSem4Project();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -38,10 +38,12 @@ const ProjectRegistrationForm = () => {
     try {
       const result = await registerProject(data);
       toast.success('Project registered successfully!');
-      // Small delay to ensure data is persisted
-      setTimeout(() => {
-        navigate('/dashboard/student');
-      }, 500);
+      
+      // Refresh user data to update navbar and other components
+      await refreshUserData();
+      
+      // Navigate to dashboard
+      navigate('/dashboard/student');
     } catch (error) {
       toast.error(error.message || 'Failed to register project');
     } finally {

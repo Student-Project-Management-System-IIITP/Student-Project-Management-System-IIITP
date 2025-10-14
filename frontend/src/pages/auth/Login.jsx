@@ -53,7 +53,7 @@ const Login = () => {
       <div className="max-w-md w-full bg-white rounded-xl shadow-xl p-8">
         <div className="text-center mb-8">
           <img 
-            src="/IIIT Pune Logo New.png" 
+            src="/IIIT Pune Logo New.jpg" 
             alt="IIIT Pune Logo" 
             className="h-16 w-auto mx-auto mb-4"
           />

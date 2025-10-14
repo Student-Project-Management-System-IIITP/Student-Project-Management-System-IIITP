@@ -7,11 +7,13 @@ const Sem5AllocatedFaculty = () => {
   const [filteredGroups, setFilteredGroups] = useState([]);
   const [students, setStudents] = useState([]);
   const [filteredStudents, setFilteredStudents] = useState([]);
+  const [registrations, setRegistrations] = useState([]);
+  const [filteredRegistrations, setFilteredRegistrations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedBatch, setSelectedBatch] = useState('');
   const [currentYearOnly, setCurrentYearOnly] = useState(true);
   const [availableBatches, setAvailableBatches] = useState([]);
-  const [activeTab, setActiveTab] = useState('allocated'); // allocated, unallocated, notregistered
+  const [activeTab, setActiveTab] = useState('allocated'); // allocated, unallocated, notregistered, registrations
   const [stats, setStats] = useState({
     totalGroups: 0,
     allocatedGroups: 0,
@@ -23,6 +25,7 @@ const Sem5AllocatedFaculty = () => {
     inGroup: 0,
     notInGroup: 0
   });
+  const [maxSupervisors, setMaxSupervisors] = useState(7);
 
   // Function to calculate batch from registration date
   const calculateBatch = (registrationDate) => {
@@ -120,6 +123,43 @@ const Sem5AllocatedFaculty = () => {
     return filtered;
   };
 
+  // Function to sort and filter registrations
+  const sortAndFilterRegistrations = (regs) => {
+    // Add calculated batch to each registration
+    const registrationsWithBatch = regs.map(reg => ({
+      ...reg,
+      calculatedBatch: calculateBatch(reg.timestamp)
+    }));
+    
+    // Group by batch and sort batches
+    const batchGroups = {};
+    registrationsWithBatch.forEach(reg => {
+      const batch = reg.calculatedBatch;
+      if (!batchGroups[batch]) batchGroups[batch] = [];
+      batchGroups[batch].push(reg);
+    });
+    
+    // Return filtered data based on selection
+    let filtered;
+    if (currentYearOnly) {
+      const currentBatch = calculateBatch(new Date());
+      filtered = registrationsWithBatch.filter(reg => 
+        reg.calculatedBatch === currentBatch
+      );
+    } else if (selectedBatch) {
+      filtered = registrationsWithBatch.filter(reg => 
+        reg.calculatedBatch === selectedBatch
+      );
+    } else {
+      filtered = registrationsWithBatch;
+    }
+    
+    // Sort within each batch by timestamp (newest first)
+    filtered.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+    
+    return filtered;
+  };
+
   useEffect(() => {
     loadData();
   }, []);
@@ -158,6 +198,25 @@ const Sem5AllocatedFaculty = () => {
       
       const filteredStuds = sortAndFilterStudents(allStudents);
       setFilteredStudents(filteredStuds);
+
+      // Load registrations data
+      const registrationsResponse = await adminAPI.getSem5Registrations();
+      const allRegistrations = registrationsResponse.data || [];
+      setRegistrations(allRegistrations);
+      
+      // Calculate maximum number of supervisors in the data
+      let maxSups = 0;
+      allRegistrations.forEach(reg => {
+        for (let i = 1; i <= 10; i++) {
+          if (reg[`supervisor${i}`]) {
+            maxSups = Math.max(maxSups, i);
+          }
+        }
+      });
+      setMaxSupervisors(maxSups || 7);
+      
+      const filteredRegs = sortAndFilterRegistrations(allRegistrations);
+      setFilteredRegistrations(filteredRegs);
     } catch (error) {
       console.error('Failed to load data:', error);
     } finally {
@@ -175,10 +234,24 @@ const Sem5AllocatedFaculty = () => {
       const filtered = sortAndFilterStudents(students);
       setFilteredStudents(filtered);
     }
-  }, [groups, students, selectedBatch, currentYearOnly, activeTab]);
+    if (registrations.length > 0) {
+      const filtered = sortAndFilterRegistrations(registrations);
+      setFilteredRegistrations(filtered);
+    }
+  }, [groups, students, registrations, selectedBatch, currentYearOnly, activeTab]);
 
-  const formatTimestamp = (timestamp) => {
+  const formatTimestamp = (timestamp, includeTime = false) => {
     const date = new Date(timestamp);
+    if (includeTime) {
+      return date.toLocaleDateString('en-IN', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit'
+      });
+    }
     return date.toLocaleDateString('en-IN', {
       year: 'numeric',
       month: '2-digit',
@@ -186,7 +259,7 @@ const Sem5AllocatedFaculty = () => {
     });
   };
 
-  // Function to generate CSV content
+  // Function to generate CSV content for groups
   const generateCSV = (grps) => {
     const headers = [
       'Group Name',
@@ -249,6 +322,80 @@ const Sem5AllocatedFaculty = () => {
         `"${grp.status}"`,
         `"${formatTimestamp(grp.createdAt)}"`
       ].join(','))
+    ].join('\n');
+    
+    return csvContent;
+  };
+
+  // Function to generate CSV content for registrations
+  const generateRegistrationsCSV = (regs) => {
+    const headers = [
+      'Timestamp',
+      'Email Address',
+      'Name of Group Member 1',
+      'MIS No. of Group Member 1',
+      'Contact No. of Group Member 1',
+      'Branch of Group Member 1',
+      'Name of Group Member 2',
+      'MIS No. of Group Member 2',
+      'Contact No. of Group Member 2',
+      'Branch of Group Member 2',
+      'Name of Group Member 3',
+      'MIS No. of Group Member 3',
+      'Contact No. of Group Member 3',
+      'Branch of Group Member 3',
+      'Name of Group Member 4',
+      'MIS No. of Group Member 4',
+      'Contact No. of Group Member 4',
+      'Branch of Group Member 4',
+      'Name of Group Member 5 (If Any)',
+      'MIS No. of Group Member 5 (If Any)',
+      'Contact No. of Group Member 5 (If Any)',
+      'Branch of Group Member 5 (If Any)',
+      'Proposed Project Title/Area'
+    ];
+    
+    // Add dynamic supervisor preference headers
+    for (let i = 1; i <= maxSupervisors; i++) {
+      headers.push(`Supervisor Preference ${i}`);
+    }
+    
+    const csvContent = [
+      headers.join(','),
+      ...regs.map(reg => {
+        const row = [
+          `"${formatTimestamp(reg.timestamp, true)}"`,
+          `"${reg.email}"`,
+          `"${reg.member1Name || ''}"`,
+          `"${reg.member1MIS || ''}"`,
+          `"${reg.member1Contact || ''}"`,
+          `"${reg.member1Branch || ''}"`,
+          `"${reg.member2Name || ''}"`,
+          `"${reg.member2MIS || ''}"`,
+          `"${reg.member2Contact || ''}"`,
+          `"${reg.member2Branch || ''}"`,
+          `"${reg.member3Name || ''}"`,
+          `"${reg.member3MIS || ''}"`,
+          `"${reg.member3Contact || ''}"`,
+          `"${reg.member3Branch || ''}"`,
+          `"${reg.member4Name || ''}"`,
+          `"${reg.member4MIS || ''}"`,
+          `"${reg.member4Contact || ''}"`,
+          `"${reg.member4Branch || ''}"`,
+          `"${reg.member5Name || ''}"`,
+          `"${reg.member5MIS || ''}"`,
+          `"${reg.member5Contact || ''}"`,
+          `"${reg.member5Branch || ''}"`,
+          `"${reg.projectTitle || ''}"`
+        ];
+        
+        // Add dynamic supervisor columns
+        for (let i = 1; i <= maxSupervisors; i++) {
+          row.push(`"${reg[`supervisor${i}`] || ''}"`);
+        }
+        
+        return row.join(',');
+      })
     ].join('\n');
     
     return csvContent;
@@ -400,6 +547,19 @@ const Sem5AllocatedFaculty = () => {
                 </svg>
                 <span>Not Registered ({studentStats.totalNotRegistered})</span>
               </button>
+              <button
+                onClick={() => setActiveTab('registrations')}
+                className={`${
+                  activeTab === 'registrations'
+                    ? 'border-purple-500 text-purple-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center space-x-2`}
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                <span>All Registrations ({filteredRegistrations.length})</span>
+              </button>
             </nav>
           </div>
         </div>
@@ -457,7 +617,9 @@ const Sem5AllocatedFaculty = () => {
         </div>
 
         {/* Export Button */}
-        {((activeTab !== 'notregistered' && filteredGroups.length > 0) || (activeTab === 'notregistered' && filteredStudents.length > 0)) && (
+        {((activeTab !== 'notregistered' && activeTab !== 'registrations' && filteredGroups.length > 0) || 
+          (activeTab === 'notregistered' && filteredStudents.length > 0) ||
+          (activeTab === 'registrations' && filteredRegistrations.length > 0)) && (
           <div className="mb-4 flex justify-end">
             <button
               onClick={() => {
@@ -477,6 +639,8 @@ const Sem5AllocatedFaculty = () => {
                       `"${stud.groupName}"`
                     ].join(','))
                   ].join('\n');
+                } else if (activeTab === 'registrations') {
+                  csvContent = generateRegistrationsCSV(filteredRegistrations);
                 } else {
                   csvContent = generateCSV(filteredGroups);
                 }
@@ -488,6 +652,8 @@ const Sem5AllocatedFaculty = () => {
                   link.setAttribute('href', url);
                   const fileName = activeTab === 'notregistered' 
                     ? `sem5_not_registered_students.csv`
+                    : activeTab === 'registrations'
+                    ? `sem5_minor_project_2_registrations.csv`
                     : `sem5_${activeTab}_groups.csv`;
                   link.setAttribute('download', fileName);
                   document.body.appendChild(link);
@@ -509,26 +675,32 @@ const Sem5AllocatedFaculty = () => {
         <div className={`mb-6 border rounded-lg p-4 ${
           activeTab === 'allocated' ? 'bg-green-50 border-green-200' : 
           activeTab === 'unallocated' ? 'bg-orange-50 border-orange-200' :
-          'bg-red-50 border-red-200'
+          activeTab === 'notregistered' ? 'bg-red-50 border-red-200' :
+          'bg-purple-50 border-purple-200'
         }`}>
           <div className="flex items-center justify-between">
             <div>
               <h3 className={`font-medium ${
                 activeTab === 'allocated' ? 'text-green-900' : 
                 activeTab === 'unallocated' ? 'text-orange-900' :
-                'text-red-900'
+                activeTab === 'notregistered' ? 'text-red-900' :
+                'text-purple-900'
               }`}>
                 {activeTab === 'allocated' ? 'Allocated Groups:' : 
                  activeTab === 'unallocated' ? 'Pending Allocation:' :
-                 'Not Registered Students:'}
+                 activeTab === 'notregistered' ? 'Not Registered Students:' :
+                 'Total Registrations:'}
               </h3>
               <p className={
                 activeTab === 'allocated' ? 'text-green-700' : 
                 activeTab === 'unallocated' ? 'text-orange-700' :
-                'text-red-700'
+                activeTab === 'notregistered' ? 'text-red-700' :
+                'text-purple-700'
               }>
                 {activeTab === 'notregistered' 
                   ? `${filteredStudents.length} students` 
+                  : activeTab === 'registrations'
+                  ? `${filteredRegistrations.length} Minor Project 2 group registrations`
                   : `${filteredGroups.length} groups`
                 }
               </p>
@@ -548,7 +720,7 @@ const Sem5AllocatedFaculty = () => {
           </div>
         </div>
 
-        {/* Groups/Students Table */}
+        {/* Groups/Students/Registrations Table */}
         {activeTab === 'notregistered' ? (
           /* Students Table */
           <div className="bg-white shadow overflow-hidden sm:rounded-lg">
@@ -620,6 +792,190 @@ const Sem5AllocatedFaculty = () => {
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                           {student.groupName}
                         </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        ) : activeTab === 'registrations' ? (
+          /* Registrations Table */
+          <div className="bg-white shadow overflow-hidden sm:rounded-lg">
+            {filteredRegistrations.length === 0 ? (
+              <div className="text-center py-12">
+                <div className="mx-auto h-12 w-12 text-gray-400">
+                  <svg className="h-12 w-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                </div>
+                <h3 className="mt-2 text-sm font-medium text-gray-900">No registrations found</h3>
+                <p className="mt-1 text-sm text-gray-500">
+                  {currentYearOnly ? 'No registrations for current year' : 
+                   selectedBatch ? `No registrations for batch ${selectedBatch}` : 
+                   'No registrations available'}
+                </p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky left-0 bg-gray-50 z-10">
+                        Timestamp
+                      </th>
+                      <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Email
+                      </th>
+                      <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Member 1 Name
+                      </th>
+                      <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Member 1 MIS
+                      </th>
+                      <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Member 1 Contact
+                      </th>
+                      <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Member 1 Branch
+                      </th>
+                      <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Member 2 Name
+                      </th>
+                      <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Member 2 MIS
+                      </th>
+                      <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Member 2 Contact
+                      </th>
+                      <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Member 2 Branch
+                      </th>
+                      <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Member 3 Name
+                      </th>
+                      <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Member 3 MIS
+                      </th>
+                      <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Member 3 Contact
+                      </th>
+                      <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Member 3 Branch
+                      </th>
+                      <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Member 4 Name
+                      </th>
+                      <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Member 4 MIS
+                      </th>
+                      <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Member 4 Contact
+                      </th>
+                      <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Member 4 Branch
+                      </th>
+                      <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Member 5 Name
+                      </th>
+                      <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Member 5 MIS
+                      </th>
+                      <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Member 5 Contact
+                      </th>
+                      <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Member 5 Branch
+                      </th>
+                      <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Project Title
+                      </th>
+                      {/* Dynamic Supervisor Headers */}
+                      {Array.from({ length: maxSupervisors }, (_, i) => (
+                        <th key={`supervisor-header-${i + 1}`} className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Supervisor {i + 1}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {filteredRegistrations.map((reg, index) => (
+                      <tr key={reg._id || index} className="hover:bg-gray-50">
+                        <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900 sticky left-0 bg-white">
+                          {formatTimestamp(reg.timestamp, true)}
+                        </td>
+                        <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900">
+                          {reg.email}
+                        </td>
+                        <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900">
+                          {reg.member1Name || '-'}
+                        </td>
+                        <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900">
+                          {reg.member1MIS || '-'}
+                        </td>
+                        <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900">
+                          {reg.member1Contact || '-'}
+                        </td>
+                        <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900">
+                          {reg.member1Branch || '-'}
+                        </td>
+                        <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900">
+                          {reg.member2Name || '-'}
+                        </td>
+                        <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900">
+                          {reg.member2MIS || '-'}
+                        </td>
+                        <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900">
+                          {reg.member2Contact || '-'}
+                        </td>
+                        <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900">
+                          {reg.member2Branch || '-'}
+                        </td>
+                        <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900">
+                          {reg.member3Name || '-'}
+                        </td>
+                        <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900">
+                          {reg.member3MIS || '-'}
+                        </td>
+                        <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900">
+                          {reg.member3Contact || '-'}
+                        </td>
+                        <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900">
+                          {reg.member3Branch || '-'}
+                        </td>
+                        <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900">
+                          {reg.member4Name || '-'}
+                        </td>
+                        <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900">
+                          {reg.member4MIS || '-'}
+                        </td>
+                        <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900">
+                          {reg.member4Contact || '-'}
+                        </td>
+                        <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900">
+                          {reg.member4Branch || '-'}
+                        </td>
+                        <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900">
+                          {reg.member5Name || '-'}
+                        </td>
+                        <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900">
+                          {reg.member5MIS || '-'}
+                        </td>
+                        <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900">
+                          {reg.member5Contact || '-'}
+                        </td>
+                        <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900">
+                          {reg.member5Branch || '-'}
+                        </td>
+                        <td className="px-3 py-4 text-sm text-gray-900 max-w-xs truncate">
+                          {reg.projectTitle || '-'}
+                        </td>
+                        {/* Dynamic Supervisor Columns */}
+                        {Array.from({ length: maxSupervisors }, (_, i) => (
+                          <td key={`supervisor-${index}-${i + 1}`} className="px-3 py-4 whitespace-nowrap text-sm text-gray-900">
+                            {reg[`supervisor${i + 1}`] || '-'}
+                          </td>
+                        ))}
                       </tr>
                     ))}
                   </tbody>
