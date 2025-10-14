@@ -13,7 +13,7 @@ const FacultyProfile = () => {
   const [pwForm, setPwForm] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
   const [pwError, setPwError] = useState('');
   const [pwSuccess, setPwSuccess] = useState('');
-  const [editForm, setEditForm] = useState({ fullName: '', phone: '', department: '', mode: '', designation: '' });
+  const [editForm, setEditForm] = useState({ fullName: '', phone: '', email: '', department: '', mode: '', designation: '' });
   const [editSubmitting, setEditSubmitting] = useState(false);
 
   // Fetch faculty profile data
@@ -27,6 +27,7 @@ const FacultyProfile = () => {
         setEditForm({
           fullName: response.data.faculty.fullName || '',
           phone: response.data.faculty.phone || '',
+          email: response.data.user?.email || '',
           department: response.data.faculty.department || '',
           mode: response.data.faculty.mode || '',
           designation: response.data.faculty.designation || '',
@@ -134,18 +135,21 @@ const FacultyProfile = () => {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           {/* Personal Information Card */}
           <div className="pro-card">
-            <div className="pro-section">
-              <div className="pro-section-icon bg-green-100">
-                <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
+            <div className="pro-section flex items-center justify-between mb-6 border-b border-gray-100 pb-4">
+              <div className="flex items-center">
+                <div className="pro-section-icon bg-green-100">
+                  <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
+                </div>
+                <h2 className="pro-section-title ml-2 text-xl font-semibold">Personal Information</h2>
               </div>
-              <h2 className="pro-section-title">Personal Information</h2>
               {!isEditMode && (
-                <button onClick={() => setIsEditMode(true)} className="ml-auto pro-btn-primary px-3 py-1.5">
+                <button onClick={() => setIsEditMode(true)} className="pro-btn-primary px-4 py-2 text-base shadow-sm">
                   <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
                   Edit
                 </button>
               )}
             </div>
+
             {isEditMode ? (
               <div className="space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -154,71 +158,67 @@ const FacultyProfile = () => {
                     <input type="text" value={editForm.fullName} onChange={e => setEditForm({ ...editForm, fullName: e.target.value })} className="pro-input" required />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Faculty ID</label>
-                    <input type="text" value={faculty?.facultyId || ''} disabled className="pro-input-disabled pro-input" />
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Phone Number *</label>
+                    <input type="tel" value={editForm.phone} onChange={e => setEditForm({ ...editForm, phone: e.target.value })} className="pro-input" required />
                   </div>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Department</label>
-                  <select value={editForm.department} onChange={e => setEditForm({ ...editForm, department: e.target.value })} className="pro-input">
-                    <option value="">Select Department</option>
-                    <option value="CSE">Computer Science & Engineering</option>
-                    <option value="ECE">Electronics & Communication Engineering</option>
-                    <option value="ASH">Applied Sciences & Humanities</option>
-                  </select>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Email *</label>
+                  <input type="email" value={editForm.email} onChange={e => setEditForm({ ...editForm, email: e.target.value })} className="pro-input" required />
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Mode</label>
-                  <select value={editForm.mode} onChange={e => setEditForm({ ...editForm, mode: e.target.value })} className="pro-input">
-                    <option value="">Select Mode</option>
-                    <option value="Regular">Regular</option>
-                    <option value="Adjunct">Adjunct</option>
-                    <option value="On Lien">On Lien</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Designation</label>
-                  <select value={editForm.designation} onChange={e => setEditForm({ ...editForm, designation: e.target.value })} className="pro-input">
-                    <option value="">Select Designation</option>
-                    <option value="HOD">HOD</option>
-                    <option value="Assistant Professor">Assistant Professor</option>
-                    <option value="Adjunct Assistant Professor">Adjunct Assistant Professor</option>
-                    <option value="Assistant Registrar">Assistant Registrar</option>
-                    <option value="TPO">TPO</option>
-                    <option value="Warden">Warden</option>
-                    <option value="Chief Warden">Chief Warden</option>
-                    <option value="Associate Dean">Associate Dean</option>
-                    <option value="Coordinator(PG, PhD)">Coordinator(PG, PhD)</option>
-                    <option value="Tenders/Purchase">Tenders/Purchase</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Phone Number *</label>
-                  <input type="tel" value={editForm.phone} onChange={e => setEditForm({ ...editForm, phone: e.target.value })} className="pro-input" required />
-                </div>
-                <div className="flex items-center space-x-3 pt-4">
-                  <button onClick={updateProfile} disabled={editSubmitting} className="pro-btn-primary disabled:opacity-50 disabled:cursor-not-allowed">
+                <div className="pro-actions flex flex-col md:flex-row gap-3 pt-2">
+                  <button onClick={updateProfile} disabled={editSubmitting} className="pro-btn-primary w-full md:w-auto disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center">
                     {editSubmitting ? (<><div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>Saving...</>) : (<><svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>Save Changes</>)}
                   </button>
-                  <button onClick={() => setIsEditMode(false)} className="pro-btn-secondary">Cancel</button>
+                  <button onClick={() => setIsEditMode(false)} className="pro-btn-secondary w-full md:w-auto">Cancel</button>
                 </div>
               </div>
             ) : (
-              <div className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="pro-label">Full Name</label>
-                    <div className="pro-kv">{faculty?.fullName || 'Not provided'}</div>
-                  </div>
-                  <div>
-                    <label className="pro-label">Faculty ID</label>
-                    <div className="pro-kv">{faculty?.facultyId || 'Not provided'}</div>
-                  </div>
+              <div className="space-y-6 divide-y divide-gray-100">
+                <div className="pb-4">
+                  <label className="pro-label">Full Name</label>
+                  <div className="pro-kv">{faculty?.fullName || 'Not provided'}</div>
+                </div>
+                <div className="py-4">
+                  <label className="pro-label">Phone Number</label>
+                  <div className="pro-kv">{faculty?.phone || 'Not provided'}</div>
+                </div>
+                <div className="pt-4">
+                  <label className="pro-label">Email</label>
+                  <div className="pro-kv break-words">{userData?.email || 'Not provided'}</div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Academic & Account Information Card */}
+          <div className="pro-card">
+            <div className="pro-section flex items-center justify-between mb-6 border-b border-gray-100 pb-4">
+              <div className="flex items-center">
+                <div className="pro-section-icon bg-yellow-100">
+                  <svg className="w-5 h-5 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 4.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
+                </div>
+                <h2 className="pro-section-title ml-2 text-xl font-semibold">Academic & Account Information</h2>
+              </div>
+              <div className="flex items-center ml-4">
+                <span className={`flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold shadow-sm ${userData?.isActive ? 'bg-green-100 text-green-800 border border-green-200' : 'bg-red-100 text-red-700 border border-red-200'}`} style={{minWidth:'80px'}}>
+                  <span className={`w-2 h-2 rounded-full inline-block ${userData?.isActive ? 'bg-green-500' : 'bg-red-500'}`}></span>
+                  {userData?.isActive ? 'Active' : 'Inactive'}
+                </span>
+              </div>
+            </div>
+            <div className="space-y-6 divide-y divide-gray-100">
+              <div className="pb-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="pro-label">Faculty ID</label>
+                  <div className="pro-kv">{faculty?.facultyId || 'Not provided'}</div>
                 </div>
                 <div>
                   <label className="pro-label">Department</label>
                   <div className="pro-kv">{faculty?.department || 'Not assigned'}</div>
                 </div>
+              </div>
+              <div className="py-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="pro-label">Mode</label>
                   <div className="pro-kv">{faculty?.mode || 'Not set'}</div>
@@ -227,47 +227,23 @@ const FacultyProfile = () => {
                   <label className="pro-label">Designation</label>
                   <div className="pro-kv">{faculty?.designation || 'Not set'}</div>
                 </div>
-                {/* Account Status */}
+              </div>
+              <div className="py-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="pro-label">Account Status</label>
-                  <div className="pro-status-chip">
-                    <div className="flex items-center">
-                      <div className={`w-2 h-2 rounded-full mr-2 ${userData?.isActive ? 'bg-green-500' : 'bg-red-500'}`}></div>
-                      <span className={`text-sm font-medium ${userData?.isActive ? 'text-green-700' : 'text-red-700'}`}>{userData?.isActive ? 'Active' : 'Inactive'}</span>
-                    </div>
-                  </div>
+                  <label className="pro-label">Last Login</label>
+                  <div className="pro-kv">{userData?.lastLogin ? new Date(userData.lastLogin).toLocaleDateString('en-US', {year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'}) : 'Never'}</div>
                 </div>
-                {/* Retired Status */}
-                {faculty?.isRetired && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Retired</label>
-                    <div className="w-full px-4 py-3 border border-gray-300 rounded-lg bg-gray-50 text-red-700 font-medium">Yes</div>
-                  </div>
-                )}
+                <div>
+                  <label className="pro-label">Member Since</label>
+                  <div className="pro-kv">{faculty?.createdAt ? new Date(faculty.createdAt).toLocaleDateString('en-US', {year: 'numeric', month: 'long', day: 'numeric'}) : 'Unknown'}</div>
+                </div>
               </div>
-            )}
-          </div>
-          {/* Contact Details Card */}
-          <div className="pro-card">
-            <div className="pro-section">
-              <div className="pro-section-icon bg-yellow-100">
-                <svg className="w-5 h-5 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 4.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
-              </div>
-              <h2 className="pro-section-title">Contact Details</h2>
-            </div>
-            <div className="space-y-6">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
-                <div className="w-full px-4 py-3 border border-gray-300 rounded-lg bg-gray-50 text-gray-900 font-medium">{userData?.email || 'Not provided'}</div>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Last Login</label>
-                <div className="w-full px-4 py-3 border border-gray-300 rounded-lg bg-gray-50 text-gray-900 font-medium">{userData?.lastLogin ? new Date(userData.lastLogin).toLocaleDateString('en-US', {year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'}) : 'Never'}</div>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Member Since</label>
-                <div className="w-full px-4 py-3 border border-gray-300 rounded-lg bg-gray-50 text-gray-900 font-medium">{faculty?.createdAt ? new Date(faculty.createdAt).toLocaleDateString('en-US', {year: 'numeric', month: 'long', day: 'numeric'}) : 'Unknown'}</div>
-              </div>
+              {faculty?.isRetired && (
+                <div className="pt-4">
+                  <label className="pro-label">Retired</label>
+                  <div className="pro-kv text-red-700">Yes</div>
+                </div>
+              )}
             </div>
           </div>
         </div>

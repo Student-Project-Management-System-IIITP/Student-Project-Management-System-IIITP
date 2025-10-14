@@ -16,7 +16,7 @@ const StudentProfile = () => {
   const [pwSuccess, setPwSuccess] = useState('');
 
   // Edit state
-  const [editForm, setEditForm] = useState({ fullName: '', contactNumber: '', branch: '' });
+  const [editForm, setEditForm] = useState({ fullName: '', contactNumber: '', email: '', branch: '' });
   const [editSubmitting, setEditSubmitting] = useState(false);
 
   const fetchProfile = async () => {
@@ -29,6 +29,7 @@ const StudentProfile = () => {
         setEditForm({
           fullName: res.data.student.fullName || '',
           contactNumber: res.data.student.contactNumber || '',
+          email: res.data.user?.email || '',
           branch: res.data.student.branch || ''
         });
       } else {
@@ -46,33 +47,42 @@ const StudentProfile = () => {
   const updateProfile = async () => {
     try {
       setEditSubmitting(true);
-      const payload = {};
-      if (editForm.fullName !== profileData?.student?.fullName) payload.fullName = editForm.fullName;
-      if (editForm.contactNumber !== profileData?.student?.contactNumber) payload.contactNumber = editForm.contactNumber;
+      const studentPayload = {};
+      if (editForm.fullName !== profileData?.student?.fullName) studentPayload.fullName = editForm.fullName;
+      if (editForm.contactNumber !== profileData?.student?.contactNumber) studentPayload.contactNumber = editForm.contactNumber;
 
-      if (Object.keys(payload).length === 0) {
+      const authPayload = {};
+      if (editForm.email && editForm.email !== profileData?.user?.email) authPayload.email = editForm.email;
+
+      if (Object.keys(studentPayload).length === 0 && Object.keys(authPayload).length === 0) {
         setIsEditMode(false);
         toast.success('No changes to save');
         setEditSubmitting(false);
         return;
       }
 
-      const res = await studentAPI.updateProfile(payload);
-      if (!res.success) {
-        toast.error(res.message || 'Update failed');
-        setEditSubmitting(false);
-        return;
+      // Update auth email first if changed
+      if (Object.keys(authPayload).length > 0) {
+        const authRes = await authAPI.updateProfile(authPayload);
+        if (!authRes.success) {
+          toast.error(authRes.message || 'Failed to update email');
+          setEditSubmitting(false);
+          return;
+        }
       }
 
-      // Apply immediately, then refresh
-      setProfileData(res.data);
-      setEditForm({
-        fullName: res.data.student.fullName || '',
-        contactNumber: res.data.student.contactNumber || '',
-        branch: res.data.student.branch || ''
-      });
-      setIsEditMode(false);
+      // Update student fields if needed
+      if (Object.keys(studentPayload).length > 0) {
+        const stuRes = await studentAPI.updateProfile(studentPayload);
+        if (!stuRes.success) {
+          toast.error(stuRes.message || 'Failed to update profile');
+          setEditSubmitting(false);
+          return;
+        }
+      }
+
       toast.success('Profile updated successfully');
+      setIsEditMode(false);
       await fetchProfile();
     } catch (_e) {
       toast.error('Failed to update profile');
@@ -164,7 +174,7 @@ const StudentProfile = () => {
                 <h2 className="pro-section-title ml-2 text-xl font-semibold">Personal Information</h2>
               </div>
               {!isEditMode && (
-                <button onClick={() => setIsEditMode(true)} className="pro-btn-primary px-4 py-2 text-base shadow-sm animate-bounce focus:animate-none">
+                <button onClick={() => setIsEditMode(true)} className="pro-btn-primary px-4 py-2 text-base shadow-sm">
                   <svg className="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
                   Edit
                 </button>
@@ -173,7 +183,7 @@ const StudentProfile = () => {
 
             {isEditMode ? (
               <div className="space-y-4">
-                <div className="grid grid-cols-1 gap-3">
+                <div className="grid grid-cols-1 gap-4">
                   <div>
                     <label className="pro-label">Full Name *</label>
                     <input type="text" value={editForm.fullName} onChange={e => setEditForm({ ...editForm, fullName: e.target.value })} className="pro-input" required />
@@ -183,8 +193,8 @@ const StudentProfile = () => {
                     <input type="tel" value={editForm.contactNumber} onChange={e => setEditForm({ ...editForm, contactNumber: e.target.value })} className="pro-input" required />
                   </div>
                   <div>
-                    <label className="pro-label">Email</label>
-                    <input type="email" value={userData?.email || ''} disabled className="pro-input pro-input-disabled" />
+                    <label className="pro-label">Email *</label>
+                    <input type="email" value={editForm.email} onChange={e => setEditForm({ ...editForm, email: e.target.value })} className="pro-input" required />
                   </div>
                 </div>
                 <div className="pro-actions flex flex-col md:flex-row gap-3 pt-2">
