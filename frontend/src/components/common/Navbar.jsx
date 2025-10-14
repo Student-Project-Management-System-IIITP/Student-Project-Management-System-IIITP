@@ -9,13 +9,32 @@ const Navbar = ({ userRole: propUserRole = null, user: propUser = null, roleData
   const user = propUser || auth.user;
   const roleData = propRoleData || auth.roleData;
   
+  // Get user's actual name based on role
+  const getUserName = () => {
+    if (!user) return 'User';
+    
+    // If user has name directly, use it
+    if (user.name) return user.name;
+    
+    // Otherwise, get name from role-specific data
+    if (roleData) {
+      return roleData.fullName || 'User';
+    }
+    
+    return 'User';
+  };
+  
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [isProjectMenuOpen, setIsProjectMenuOpen] = useState(false);
+  const [openDropdowns, setOpenDropdowns] = useState({});
   const location = useLocation();
   const navigate = useNavigate();
   const userMenuRef = useRef(null);
   const projectMenuRef = useRef(null);
+
+  // Create refs for dropdown menus
+  const dropdownRefs = useRef({});
 
   // Close menus when clicking outside
   useEffect(() => {
@@ -26,16 +45,37 @@ const Navbar = ({ userRole: propUserRole = null, user: propUser = null, roleData
       if (projectMenuRef.current && !projectMenuRef.current.contains(event.target)) {
         setIsProjectMenuOpen(false);
       }
+      
+      // Close any open dropdowns if clicking outside
+      Object.keys(openDropdowns).forEach(key => {
+        if (openDropdowns[key] && dropdownRefs.current[key] && !dropdownRefs.current[key].contains(event.target)) {
+          setOpenDropdowns(prev => ({...prev, [key]: false}));
+        }
+      });
     };
 
-    if (isUserMenuOpen || isProjectMenuOpen) {
+    if (isUserMenuOpen || isProjectMenuOpen || Object.values(openDropdowns).some(Boolean)) {
       document.addEventListener('mousedown', handleClickOutside);
     }
 
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [isUserMenuOpen, isProjectMenuOpen]);
+  }, [isUserMenuOpen, isProjectMenuOpen, openDropdowns]);
+  
+  // Toggle dropdown menu
+  const toggleDropdown = (name) => {
+    setOpenDropdowns(prev => {
+      // Close all other dropdowns
+      const newState = Object.keys(prev).reduce((acc, key) => {
+        acc[key] = key === name ? !prev[key] : false;
+        return acc;
+      }, {});
+      
+      // Toggle the clicked dropdown
+      return { ...newState, [name]: !prev[name] };
+    });
+  };
 
   // Get project dashboard items based on student semester and history
   const getProjectDashboardItems = () => {
@@ -160,9 +200,7 @@ const Navbar = ({ userRole: propUserRole = null, user: propUser = null, roleData
     // Faculty Navigation
     if (userRole === 'faculty') {
       items.push(
-        { name: 'Dashboard', path: '/dashboard/faculty' },
-        { name: 'Projects', path: '/faculty/projects' },
-        { name: 'Evaluations', path: '/faculty/evaluations' }
+        { name: 'Dashboard', path: '/dashboard/faculty' }
       );
     }
 
@@ -170,10 +208,57 @@ const Navbar = ({ userRole: propUserRole = null, user: propUser = null, roleData
     if (userRole === 'admin') {
       items.push(
         { name: 'Dashboard', path: '/dashboard/admin' },
-        { name: 'Users', path: '/admin/users' },
-        { name: 'Projects', path: '/admin/projects' },
-        { name: 'Groups', path: '/admin/groups' },
-        { name: 'Settings', path: '/admin/settings' }
+        { 
+          name: 'Users', 
+          path: '#',
+          isDropdown: true,
+          items: [
+            { name: 'Students', path: '/admin/users/students' },
+            { name: 'Faculty', path: '/admin/users/faculty' },
+            { name: 'Admins', path: '/admin/users/admins' }
+          ]
+        },
+        { 
+          name: 'Projects', 
+          path: '#',
+          isDropdown: true,
+          items: [
+            { 
+              name: 'B.Tech', 
+              isSection: true,
+              items: [
+                { name: 'Minor Project 1 (Sem 4)', path: '/admin/projects/btech/minor1' },
+                { name: 'Minor Project 2 (Sem 5)', path: '/admin/projects/btech/minor2' },
+                { name: 'Minor Project 3 (Sem 6)', path: '/admin/projects/btech/minor3' },
+                { name: 'Major Project 1 (Sem 7)', path: '/admin/projects/btech/major1' },
+                { name: 'Internship 1 (2 Month)', path: '/admin/projects/btech/internship1' },
+                { name: 'Major Project 2 (Sem 8)', path: '/admin/projects/btech/major2' },
+                { name: 'Internship 2 (6 Month)', path: '/admin/projects/btech/internship2' }
+              ]
+            },
+            { 
+              name: 'M.Tech', 
+              isSection: true,
+              items: [
+                { name: 'Minor Project 1 (Sem 1)', path: '/admin/projects/mtech/minor1' },
+                { name: 'Minor Project 2 (Sem 2)', path: '/admin/projects/mtech/minor2' },
+                { name: 'Major Project 1 (Sem 3)', path: '/admin/projects/mtech/major1' },
+                { name: 'Internship 1 (6 Month)', path: '/admin/projects/mtech/internship1' },
+                { name: 'Major Project 2 (Sem 4)', path: '/admin/projects/mtech/major2' },
+                { name: 'Internship 2 (6 Month)', path: '/admin/projects/mtech/internship2' }
+              ]
+            }
+          ]
+        },
+        { 
+          name: 'Settings', 
+          path: '#',
+          isDropdown: true,
+          items: [
+            { name: 'B.Tech', path: '/admin/settings/btech' },
+            { name: 'M.Tech', path: '/admin/settings/mtech' }
+          ]
+        }
       );
     }
 
@@ -207,7 +292,7 @@ const Navbar = ({ userRole: propUserRole = null, user: propUser = null, roleData
     <nav className="bg-slate-800 border-b border-slate-700 shadow-md sticky top-0 z-50">
       <div className="w-full px-8">
         <div className="flex justify-between items-center h-14">
-          {/* Logo and Brand - Compact */}
+          {/* Logo and Brand - Left */}
           <div className="flex items-center flex-shrink-0">
             <Link to="/" className="flex items-center gap-2 hover:opacity-90 transition-opacity">
               <img 
@@ -222,86 +307,144 @@ const Navbar = ({ userRole: propUserRole = null, user: propUser = null, roleData
             </Link>
           </div>
 
-          {/* Desktop Navigation - Centered */}
-          {navigationItems.length > 0 && (
-            <div className="hidden md:flex items-center gap-1">
-              {navigationItems.map((item) => (
-                <Link
-                  key={item.name}
-                  to={item.path}
-                  className={`px-3 py-1.5 text-sm font-medium rounded transition-colors ${
-                    isActivePath(item.path)
-                      ? 'bg-indigo-600 text-white'
-                      : 'text-slate-300 hover:text-white hover:bg-slate-700'
-                  }`}
-                >
-                  {item.name}
-                </Link>
-              ))}
+          {/* Right Side Container - Combines Navigation and User Menu */}
+          <div className="flex items-center ml-auto">
+            {/* Navigation Items - Right Side */}
+            {navigationItems.length > 0 && (
+              <div className="hidden md:flex items-center gap-5">
+                {navigationItems.map((item) => 
+                  item.isDropdown ? (
+                    <div 
+                      key={item.name}
+                      className="relative" 
+                      ref={el => dropdownRefs.current[item.name] = el}
+                    >
+                      <button
+                        onClick={() => toggleDropdown(item.name)}
+                        className={`px-3 py-1.5 text-sm font-medium rounded transition-colors flex items-center gap-1 ${
+                          isActivePath(item.path)
+                            ? 'bg-indigo-600 text-white'
+                            : 'text-slate-300 hover:text-white hover:bg-slate-700'
+                        }`}
+                      >
+                        {item.name}
+                        <svg className={`w-3 h-3 transition-transform ${openDropdowns[item.name] ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
+                      </button>
 
-              {/* Project Dashboard Dropdown - Only for Students */}
-              {userRole === 'student' && projectDashboardItems.length > 0 && (
-                <div className="relative" ref={projectMenuRef}>
-                  <button
-                    onClick={() => setIsProjectMenuOpen(!isProjectMenuOpen)}
-                    className={`px-3 py-1.5 text-sm font-medium rounded transition-colors flex items-center gap-1 ${
-                      location.pathname.includes('/student/project/')
-                        ? 'bg-indigo-600 text-white'
-                        : 'text-slate-300 hover:text-white hover:bg-slate-700'
-                    }`}
-                  >
-                    Project Dashboard
-                    <svg className={`w-3 h-3 transition-transform ${isProjectMenuOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                    </svg>
-                  </button>
-
-                  {/* Dropdown Menu */}
-                  {isProjectMenuOpen && (
-                    <div className="absolute left-0 mt-1 w-56 bg-white rounded-md shadow-lg border border-slate-200 py-1">
-                      {projectDashboardItems.map((project) => (
-                        <Link
-                          key={project.type}
-                          to={project.path}
-                          onClick={() => setIsProjectMenuOpen(false)}
-                          className={`block px-3 py-2 text-sm transition-colors ${
-                            location.pathname === project.path
-                              ? 'bg-indigo-50 text-indigo-700 font-medium'
-                              : 'text-slate-700 hover:bg-slate-50'
-                          }`}
-                        >
-                          <div className="flex items-center justify-between">
-                            <span>{project.name}</span>
-                            <span className="text-xs text-slate-500">Sem {project.semester}</span>
-                          </div>
-                        </Link>
-                      ))}
+                      {/* Main Dropdown Menu */}
+                      {openDropdowns[item.name] && (
+                        <div className="absolute right-0 mt-1 w-56 bg-white rounded-md shadow-lg border border-slate-200 py-1">
+                          {item.items.map((subItem, idx) => 
+                            subItem.isSection ? (
+                              <div key={subItem.name}>
+                                {idx > 0 && <div className="border-t border-slate-200 my-1"></div>}
+                                <div className="px-3 py-1 text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                                  {subItem.name}
+                                </div>
+                                {subItem.items.map(sectionItem => (
+                                  <Link
+                                    key={`${subItem.name}-${sectionItem.name}`}
+                                    to={sectionItem.path}
+                                    onClick={() => toggleDropdown(item.name)}
+                                    className="block px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
+                                  >
+                                    {sectionItem.name}
+                                  </Link>
+                                ))}
+                              </div>
+                            ) : (
+                              <Link
+                                key={subItem.name}
+                                to={subItem.path}
+                                onClick={() => toggleDropdown(item.name)}
+                                className="block px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
+                              >
+                                {subItem.name}
+                              </Link>
+                            )
+                          )}
+                        </div>
+                      )}
                     </div>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
+                  ) : (
+                    <Link
+                      key={item.name}
+                      to={item.path}
+                      className={`px-3 py-1.5 text-sm font-medium rounded transition-colors ${
+                        isActivePath(item.path)
+                          ? 'bg-indigo-600 text-white'
+                          : 'text-slate-300 hover:text-white hover:bg-slate-700'
+                      }`}
+                    >
+                      {item.name}
+                    </Link>
+                  )
+                )}
 
-          {/* Right Side Actions */}
-          <div className="flex items-center gap-2">
+                {/* Project Dashboard Dropdown - Only for Students */}
+                {userRole === 'student' && projectDashboardItems.length > 0 && (
+                  <div className="relative" ref={projectMenuRef}>
+                    <button
+                      onClick={() => setIsProjectMenuOpen(!isProjectMenuOpen)}
+                      className={`px-3 py-1.5 text-sm font-medium rounded transition-colors flex items-center gap-1 ${
+                        location.pathname.includes('/student/project/')
+                          ? 'bg-indigo-600 text-white'
+                          : 'text-slate-300 hover:text-white hover:bg-slate-700'
+                      }`}
+                    >
+                      Project Dashboard
+                      <svg className={`w-3 h-3 transition-transform ${isProjectMenuOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </button>
+
+                    {/* Dropdown Menu */}
+                    {isProjectMenuOpen && (
+                      <div className="absolute right-0 mt-1 w-56 bg-white rounded-md shadow-lg border border-slate-200 py-1">
+                        {projectDashboardItems.map((project) => (
+                          <Link
+                            key={project.type}
+                            to={project.path}
+                            onClick={() => setIsProjectMenuOpen(false)}
+                            className={`block px-3 py-2 text-sm transition-colors ${
+                              location.pathname === project.path
+                                ? 'bg-indigo-50 text-indigo-700 font-medium'
+                                : 'text-slate-700 hover:bg-slate-50'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between">
+                              <span>{project.name}</span>
+                              <span className="text-xs text-slate-500">Sem {project.semester}</span>
+                            </div>
+                          </Link>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* User Menu */}
             {userRole ? (
               // Logged in user menu
               <>
                 {/* User Profile Dropdown - Compact */}
-                <div className="relative hidden md:block" ref={userMenuRef}>
+                <div className="relative hidden md:block ml-6" ref={userMenuRef}>
                   <button 
                     onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
                     className="flex items-center gap-2 px-2 py-1 rounded-md hover:bg-slate-700 transition-colors"
                   >
                     <div className="w-7 h-7 bg-indigo-600 rounded-full flex items-center justify-center">
                       <span className="text-xs font-semibold text-white">
-                        {user?.name?.charAt(0)?.toUpperCase() || userRole.charAt(0).toUpperCase()}
+                        {getUserName().charAt(0).toUpperCase()}
                       </span>
                     </div>
                     <div className="text-left">
                       <p className="text-xs font-medium text-white leading-tight">
-                        {user?.name || 'User'}
+                        {getUserName()}
                       </p>
                       <p className="text-[10px] text-slate-400 leading-tight">
                         {getRoleDisplayName(userRole)}
@@ -384,18 +527,58 @@ const Navbar = ({ userRole: propUserRole = null, user: propUser = null, roleData
             {navigationItems.length > 0 && (
               <div className="space-y-1 mb-2">
                 {navigationItems.map((item) => (
-                  <Link
-                    key={item.name}
-                    to={item.path}
-                    className={`block px-3 py-2 text-sm font-medium rounded transition-colors ${
-                      isActivePath(item.path)
-                        ? 'bg-indigo-600 text-white'
-                        : 'text-slate-300 hover:text-white hover:bg-slate-700'
-                    }`}
-                    onClick={() => setIsMenuOpen(false)}
-                  >
-                    {item.name}
-                  </Link>
+                  item.isDropdown ? (
+                    <div key={item.name} className="py-1">
+                      <div className="px-3 py-1 text-xs font-semibold text-slate-400 uppercase tracking-wide">
+                        {item.name}
+                      </div>
+                      <div className="pl-2 border-l border-slate-700 ml-3 space-y-1">
+                        {item.items.map((subItem, idx) => 
+                          subItem.isSection ? (
+                            <div key={subItem.name} className="pt-1">
+                              <div className="px-3 py-1 text-xs font-semibold text-slate-500">
+                                {subItem.name}
+                              </div>
+                              <div className="pl-2 space-y-1">
+                                {subItem.items.map(sectionItem => (
+                                  <Link
+                                    key={`${subItem.name}-${sectionItem.name}`}
+                                    to={sectionItem.path}
+                                    className="block px-3 py-1.5 text-sm text-slate-300 hover:text-white hover:bg-slate-700 rounded-md"
+                                    onClick={() => setIsMenuOpen(false)}
+                                  >
+                                    {sectionItem.name}
+                                  </Link>
+                                ))}
+                              </div>
+                            </div>
+                          ) : (
+                            <Link
+                              key={subItem.name}
+                              to={subItem.path}
+                              className="block px-3 py-1.5 text-sm text-slate-300 hover:text-white hover:bg-slate-700 rounded-md"
+                              onClick={() => setIsMenuOpen(false)}
+                            >
+                              {subItem.name}
+                            </Link>
+                          )
+                        )}
+                      </div>
+                    </div>
+                  ) : (
+                    <Link
+                      key={item.name}
+                      to={item.path}
+                      className={`block px-3 py-2 text-sm font-medium rounded transition-colors ${
+                        isActivePath(item.path)
+                          ? 'bg-indigo-600 text-white'
+                          : 'text-slate-300 hover:text-white hover:bg-slate-700'
+                      }`}
+                      onClick={() => setIsMenuOpen(false)}
+                    >
+                      {item.name}
+                    </Link>
+                  )
                 ))}
 
                 {/* Project Dashboard - Mobile */}
@@ -432,11 +615,11 @@ const Navbar = ({ userRole: propUserRole = null, user: propUser = null, roleData
                 <div className="flex items-center gap-2 px-3 py-2">
                   <div className="w-8 h-8 bg-indigo-600 rounded-full flex items-center justify-center">
                     <span className="text-sm font-semibold text-white">
-                      {user?.name?.charAt(0)?.toUpperCase() || userRole.charAt(0).toUpperCase()}
+                      {getUserName().charAt(0).toUpperCase()}
                     </span>
                   </div>
                   <div>
-                    <p className="text-sm font-medium text-white">{user?.name || 'User'}</p>
+                    <p className="text-sm font-medium text-white">{getUserName()}</p>
                     <p className="text-xs text-slate-400">{getRoleDisplayName(userRole)}</p>
                   </div>
                 </div>
