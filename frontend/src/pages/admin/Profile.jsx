@@ -23,7 +23,8 @@ const AdminProfile = () => {
     fullName: '',
     phone: '',
     department: '',
-    designation: ''
+    designation: '',
+    email: ''
   });
   const [editSubmitting, setEditSubmitting] = useState(false);
 
@@ -41,7 +42,8 @@ const AdminProfile = () => {
           fullName: response.data.admin.fullName || '',
           phone: response.data.admin.phone || '',
           department: response.data.admin.department || '',
-          designation: response.data.admin.designation || ''
+          designation: response.data.admin.designation || '',
+          email: response.data.user?.email || ''
         });
       } else {
         setError(response.message || 'Failed to fetch profile data');
@@ -175,15 +177,17 @@ const AdminProfile = () => {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           {/* Personal Information Card */}
           <div className="pro-card">
-            <div className="pro-section">
-              <div className="pro-section-icon bg-green-100">
-                <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                </svg>
+            <div className="pro-section flex items-center justify-between mb-6 border-b border-gray-100 pb-4">
+              <div className="flex items-center">
+                <div className="pro-section-icon bg-green-100">
+                  <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                  </svg>
+                </div>
+                <h2 className="pro-section-title ml-2 text-xl font-semibold">Personal Information</h2>
               </div>
-              <h2 className="pro-section-title">Personal Information</h2>
               {!isEditMode && (
-                <button onClick={() => setIsEditMode(true)} className="ml-auto pro-btn-primary px-3 py-1.5">
+                <button onClick={() => setIsEditMode(true)} className="pro-btn-primary px-4 py-2 text-base shadow-sm">
                   <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                   </svg>
@@ -195,85 +199,52 @@ const AdminProfile = () => {
             {isEditMode ? (
               <div className="space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Full Name *
-                    </label>
-                    <input
-                      type="text"
-                      value={editForm.fullName}
-                      onChange={(e) => setEditForm({ ...editForm, fullName: e.target.value })}
-                      className="pro-input"
-                      required
-                    />
-            </div>
-            <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Admin ID
-                    </label>
-                    <input
-                      type="text"
-                      value={admin?.adminId || ''}
-                      disabled
-                      className="pro-input"
-                    />
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Full Name *</label>
+                    <input type="text" value={editForm.fullName} onChange={(e) => setEditForm({ ...editForm, fullName: e.target.value })} className="pro-input" required />
                   </div>
                 </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Department
-                  </label>
-                  <select
-                    value={editForm.department}
-                    onChange={(e) => setEditForm({ ...editForm, department: e.target.value })}
-                    className="pro-input"
-                  >
-                    <option value="">Select Department</option>
-                    <option value="CSE">Computer Science & Engineering</option>
-                    <option value="ECE">Electronics & Communication Engineering</option>
-                    <option value="ASH">Applied Sciences & Humanities</option>
-                    <option value="ADMINISTRATION">Administration</option>
-                  </select>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Department</label>
+                    <select value={editForm.department} onChange={(e) => setEditForm({ ...editForm, department: e.target.value })} className="pro-input">
+                      <option value="">Select Department</option>
+                      <option value="CSE">Computer Science & Engineering</option>
+                      <option value="ECE">Electronics & Communication Engineering</option>
+                      <option value="ASH">Applied Sciences & Humanities</option>
+                      <option value="ADMINISTRATION">Administration</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Designation</label>
+                    <select value={editForm.designation} onChange={(e) => setEditForm({ ...editForm, designation: e.target.value })} className="pro-input">
+                      <option value="">Select Designation</option>
+                      <option value="Super Admin">Super Admin</option>
+                      <option value="Department Admin">Department Admin</option>
+                      <option value="System Admin">System Admin</option>
+                      <option value="Academic Admin">Academic Admin</option>
+                    </select>
+                  </div>
                 </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Designation
-                  </label>
-                  <select
-                    value={editForm.designation}
-                    onChange={(e) => setEditForm({ ...editForm, designation: e.target.value })}
-                    className="pro-input"
-                  >
-                    <option value="">Select Designation</option>
-                    <option value="Super Admin">Super Admin</option>
-                    <option value="Department Admin">Department Admin</option>
-                    <option value="System Admin">System Admin</option>
-                    <option value="Academic Admin">Academic Admin</option>
-                  </select>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Phone Number *</label>
+                    <input type="tel" value={editForm.phone} onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })} className="pro-input" required />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Email *</label>
+                    <input type="email" value={editForm.email} onChange={(e) => setEditForm({ ...editForm, email: e.target.value })} className="pro-input" required />
+                  </div>
                 </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    About Me
-                  </label>
-                  <textarea
-                    placeholder="Tell us about yourself, your role, and what drives you to make a difference..."
-                    rows={4}
-                    className="pro-input"
-                  />
-                </div>
-
-                <div className="flex items-center space-x-3 pt-4">
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 pt-4">
                   <button
                     onClick={updateProfile}
                     disabled={editSubmitting}
-                    className="pro-btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="pro-btn-primary w-full sm:w-auto disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {editSubmitting ? (
                       <>
-                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2 inline-block"></div>
                         Saving...
                       </>
                     ) : (
@@ -287,115 +258,69 @@ const AdminProfile = () => {
                   </button>
                   <button
                     onClick={() => setIsEditMode(false)}
-                    className="pro-btn-secondary"
+                    className="pro-btn-secondary w-full sm:w-auto"
                   >
                     Cancel
                   </button>
                 </div>
               </div>
             ) : (
-              <div className="space-y-6">
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Full Name</label>
+                  <div className="pro-kv">{admin?.fullName || 'Not provided'}</div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Phone Number</label>
+                  <div className="pro-kv">{admin?.phone || 'Not provided'}</div>
+                </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Full Name
-                    </label>
-                    <div className="pro-kv">{admin?.fullName || 'Not provided'}</div>
-            </div>
-            <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Admin ID
-                    </label>
-                    <div className="pro-kv">{admin?.adminId || 'Not provided'}</div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Department</label>
+                    <div className="pro-kv">{admin?.department || 'Not assigned'}</div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Designation</label>
+                    <div className="pro-kv">{admin?.designation || 'Not assigned'}</div>
                   </div>
                 </div>
-                
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Department
-                  </label>
-                  <div className="pro-kv">{admin?.department || 'Not assigned'}</div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
+                  <div className="pro-kv break-words">{userData?.email || 'Not provided'}</div>
                 </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Designation
-                  </label>
-                  <div className="pro-kv">{admin?.designation || 'Not assigned'}</div>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Administrative Level
-                  </label>
-                  <div className="pro-kv">
-                    {admin?.isSuperAdmin ? 'Super Admin' : 'Standard Admin'}
-                  </div>
-            </div>
-
-                {/* Account Status moved here */}
-            <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Account Status
-                  </label>
-                  <div className="pro-status-chip">
-                    <div className="flex items-center">
-                      <div className={`w-2 h-2 rounded-full mr-2 ${userData?.isActive ? 'bg-green-500' : 'bg-red-500'}`}></div>
-                      <p className={`text-sm font-semibold ${userData?.isActive ? 'text-green-700' : 'text-red-700'}`}>
-                        {userData?.isActive ? 'Active' : 'Inactive'}
-                      </p>
-                    </div>
-                  </div>
-            </div>
-          </div>
+              </div>
             )}
           </div>
 
-          {/* Contact Details Card */}
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8">
-            <div className="flex items-center mb-6">
-              <div className="w-8 h-8 bg-yellow-100 rounded-lg flex items-center justify-center mr-3">
-                <svg className="w-5 h-5 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 4.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                </svg>
+          {/* Account Information Card */}
+          <div className="pro-card">
+            <div className="pro-section flex items-center justify-between mb-6 border-b border-gray-100 pb-4">
+              <div className="flex items-center">
+                <div className="pro-section-icon bg-yellow-100">
+                  <svg className="w-5 h-5 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 4.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                  </svg>
+                </div>
+                <h2 className="pro-section-title ml-2 text-xl font-semibold">Account Information</h2>
               </div>
-              <h2 className="text-xl font-semibold text-gray-900">Contact Details</h2>
+              <div className="flex items-center ml-4">
+                <span className={`flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold shadow-sm ${userData?.isActive ? 'bg-green-100 text-green-800 border border-green-200' : 'bg-red-100 text-red-700 border border-red-200'}`} style={{minWidth:'80px'}}>
+                  <span className={`w-2 h-2 rounded-full inline-block ${userData?.isActive ? 'bg-green-500' : 'bg-red-500'}`}></span>
+                  {userData?.isActive ? 'Active' : 'Inactive'}
+                </span>
+              </div>
             </div>
-
             <div className="space-y-6">
-            <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Email
-                </label>
-                <div className="pro-kv">{userData?.email || 'Not provided'}</div>
-            </div>
-
-              {isEditMode ? (
-            <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Phone Number *
-                  </label>
-                  <input
-                    type="tel"
-                    value={editForm.phone}
-                    onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
-                    className="pro-input"
-                    required
-                  />
-            </div>
-              ) : (
-            <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Phone Number
-                  </label>
-                  <div className="pro-kv">{admin?.phone || 'Not provided'}</div>
-            </div>
-              )}
-
-            <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Last Login
-                </label>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Admin ID</label>
+                <div className="pro-kv">{admin?.adminId || 'Not provided'}</div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Administrative Level</label>
+                <div className="pro-kv">{admin?.isSuperAdmin ? 'Super Admin' : 'Standard Admin'}</div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Last Login</label>
                 <div className="pro-kv">
                   {userData?.lastLogin 
                     ? new Date(userData.lastLogin).toLocaleDateString('en-US', {
@@ -407,13 +332,10 @@ const AdminProfile = () => {
                       })
                     : 'Never'
                   }
-            </div>
-          </div>
-
+                </div>
+              </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Member Since
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Member Since</label>
                 <div className="pro-kv">
                   {admin?.createdAt 
                     ? new Date(admin.createdAt).toLocaleDateString('en-US', {
