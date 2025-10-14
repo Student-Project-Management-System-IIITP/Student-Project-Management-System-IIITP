@@ -294,15 +294,31 @@ const Navbar = ({ userRole: propUserRole = null, user: propUser = null, roleData
         <div className="flex justify-between items-center h-14">
           {/* Logo and Brand - Left */}
           <div className="flex items-center flex-shrink-0">
-            <Link to="/" className="flex items-center gap-2 hover:opacity-90 transition-opacity">
-              <img 
-                src="/IIIT Pune Logo New.jpg" 
-                alt="IIIT Pune" 
-                className="h-9 w-auto"
-              />
-              <div className="border-l border-slate-600 pl-2">
-                <h1 className="text-base font-semibold text-white leading-tight">SPMS</h1>
-                <p className="text-[10px] text-slate-400 leading-tight">IIIT Pune</p>
+            <Link to="/" className="flex items-center gap-3 hover:opacity-90 transition-opacity">
+              <div className="relative">
+                <div className="absolute inset-0 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full opacity-70 blur-[1px]"></div>
+                <img 
+                  src="/IIIT Pune Logo New.jpg" 
+                  alt="IIIT Pune" 
+                  className="h-10 w-10.1 rounded-full object-cover border-2 border-blue-900 relative z-10 shadow-md"
+                />
+              </div>
+              <div className="flex flex-col">
+                <div className="flex items-baseline">
+                  <h1 className="text-lg font-bold text-white" style={{ fontFamily: "'Montserrat', sans-serif", letterSpacing: '0.05em' }}>
+                    SPMS
+                  </h1>
+                  <span className="mx-0.5 text-sm font-normal text-gray-300" style={{ fontFamily: "'Montserrat', sans-serif" }}>@</span>
+                  <h2 className="text-lg font-semibold text-white" style={{ fontFamily: "'Montserrat', sans-serif", letterSpacing: '0.02em' }}>
+                    IIIT-Pune
+                  </h2>
+                </div>
+                <div className="flex items-center mt-0.5">
+                  <div className="h-1 w-1 rounded-full bg-blue-200 mr-1.5"></div>
+                  <p className="text-[10px] text-slate-300" style={{ fontFamily: "'Lora', serif", letterSpacing: '0.04em', fontWeight: 500 }}>
+                    STUDENT PROJECT MANAGEMENT SYSTEM
+                  </p>
+                </div>
               </div>
             </Link>
           </div>
