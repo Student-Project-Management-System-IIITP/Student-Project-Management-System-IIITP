@@ -3,7 +3,7 @@ import { useAuth } from '../../context/AuthContext';
 import Navbar from './Navbar';
 
 const Layout = ({ children, showNavbar = true }) => {
-  const { user, userRole, isLoading } = useAuth();
+  const { user, userRole, roleData, isLoading } = useAuth();
 
   if (isLoading) {
     return (
@@ -18,7 +18,7 @@ const Layout = ({ children, showNavbar = true }) => {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {showNavbar && <Navbar userRole={userRole} user={user} />}
+      {showNavbar && <Navbar userRole={userRole} user={user} roleData={roleData} />}
       <main>
         {children}
       </main>
