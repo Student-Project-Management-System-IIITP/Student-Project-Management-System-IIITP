@@ -296,11 +296,11 @@ const Navbar = ({ userRole: propUserRole = null, user: propUser = null, roleData
           <div className="flex items-center flex-shrink-0">
             <Link to="/" className="flex items-center gap-3 hover:opacity-90 transition-opacity">
               <div className="relative">
-                <div className="absolute inset-0 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full opacity-70 blur-[1px]"></div>
+                <div className="absolute inset-0 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full opacity-70 blur-[1px]"></div>
                 <img 
                   src="/IIIT Pune Logo New.jpg" 
                   alt="IIIT Pune" 
-                  className="h-10 w-10.1 rounded-full object-cover border-2 border-blue-900 relative z-10 shadow-md"
+                  className="h-10 w-10.1 rounded-full object-cover border-2 border-white relative z-10 shadow-md"
                 />
               </div>
               <div className="flex flex-col">
