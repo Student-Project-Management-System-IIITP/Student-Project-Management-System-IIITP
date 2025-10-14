@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useSem5 } from '../../context/Sem5Context';
@@ -28,6 +28,108 @@ const FacultyDashboard = () => {
   const unallocatedGroups = allocationStatus?.unallocatedGroups || [];
   const allocatedGroups = allocationStatus?.allocatedGroups || [];
   const statistics = allocationStatus?.statistics || {};
+  
+  // No debugging code needed
+  
+  // Helper function to categorize groups by semester and project type
+  const categorizeGroups = (groups) => {
+    // First, group by semester
+    const bySemester = groups.reduce((acc, group) => {
+      const semester = group.semester || 'Unknown';
+      if (!acc[semester]) {
+        acc[semester] = [];
+      }
+      acc[semester].push(group);
+      return acc;
+    }, {});
+    
+    // Then within each semester, group by project type
+    const categorized = Object.entries(bySemester).map(([semester, semesterGroups]) => {
+      // Group by project type
+      const byProjectType = semesterGroups.reduce((acc, group) => {
+        // Get project type from the group or project object
+        let projectType = 'Unknown';
+        
+        // Try to determine project type from various properties
+        if (group.projectType) {
+          projectType = group.projectType;
+        } else if (group.project && group.project.projectType) {
+          projectType = group.project.projectType;
+        } else if (group.semester === 4) {
+          // For Semester 4, it's typically Minor Project 1
+          projectType = 'minor1';
+        } else if (group.semester === 5) {
+          // For Semester 5, it's typically Minor Project 2
+          projectType = 'minor2';
+        } else if (group.semester === 6) {
+          // For Semester 6, it's typically Minor Project 3
+          projectType = 'minor3';
+        } else if (group.semester === 7) {
+          // For Semester 7, it's typically Major Project 1
+          projectType = 'major1';
+        } else if (group.semester === 8) {
+          // For Semester 8, it's typically Major Project 2
+          projectType = 'major2';
+        }
+        
+        // Format project type for display
+        let displayName = projectType;
+        switch (projectType.toLowerCase()) {
+          case 'minor1':
+            displayName = 'Minor Project 1';
+            break;
+          case 'minor2':
+            displayName = 'Minor Project 2';
+            break;
+          case 'minor3':
+            displayName = 'Minor Project 3';
+            break;
+          case 'major1':
+            displayName = 'Major Project 1';
+            break;
+          case 'major2':
+            displayName = 'Major Project 2';
+            break;
+          case 'internship1':
+            displayName = 'Internship (2 Month)';
+            break;
+          case 'internship2':
+            displayName = 'Internship (6 Month)';
+            break;
+          default:
+            displayName = projectType || 'Unknown';
+        }
+        
+        if (!acc[projectType]) {
+          acc[projectType] = {
+            displayName,
+            groups: []
+          };
+        }
+        acc[projectType].groups.push(group);
+        return acc;
+      }, {});
+      
+      return {
+        semester,
+        projectTypes: Object.values(byProjectType)
+      };
+    });
+    
+    // Sort by semester (numerically)
+    return categorized.sort((a, b) => {
+      const semA = parseInt(a.semester);
+      const semB = parseInt(b.semester);
+      return !isNaN(semA) && !isNaN(semB) ? semA - semB : 0;
+    });
+  };
+  
+  // Organize groups by semester and project type
+  const categorizedUnallocatedGroups = useMemo(() => 
+    categorizeGroups(unallocatedGroups), [unallocatedGroups]);
+  
+  const categorizedAllocatedGroups = useMemo(() => 
+    categorizeGroups(allocatedGroups), [allocatedGroups]);
 
   // Handle tab change and save to localStorage
   const handleTabChange = (tab) => {
@@ -182,17 +284,33 @@ const FacultyDashboard = () => {
           Faculty Dashboard
         </h1>
         <p className="text-gray-600 mt-2">
-          Welcome, {user?.name || 'Faculty Member'}! Manage group allocations for Minor Project 2
+          Welcome, {user?.fullName ? 
+            (user.fullName.charAt(0).toUpperCase() + user.fullName.slice(1)) : 
+            user?.email?.split('@')[0] ? 
+              (user.email.split('@')[0].charAt(0).toUpperCase() + user.email.split('@')[0].slice(1)) : 
+              'Faculty Member'}! Manage your project groups and student allocations
         </p>
       </div>
 
-      {/* Semester Filter */}
+      {/* Dashboard Overview */}
       <div className="mb-6">
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-gray-900">Semester 5 - Minor Project 2</h2>
-            <div className="text-sm text-gray-500">
-              Academic Year: 2024-25
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900">Project Supervision Overview</h2>
+              <p className="text-sm text-gray-600 mt-1">
+                Review and manage your allocated groups across all semesters
+              </p>
+            </div>
+            <div className="flex items-center gap-4">
+              <div className="text-sm bg-blue-50 text-blue-800 px-4 py-2 rounded-md flex items-center">
+                <span className="font-semibold">{allocatedGroups.length}</span>
+                <span className="mx-2">Allocated Groups</span>
+              </div>
+              <div className="text-sm bg-orange-50 text-orange-800 px-4 py-2 rounded-md flex items-center">
+                <span className="font-semibold">{unallocatedGroups.length}</span>
+                <span className="mx-2">Pending Decisions</span>
+              </div>
             </div>
           </div>
         </div>
@@ -244,9 +362,38 @@ const FacultyDashboard = () => {
             </div>
             
             {allocatedGroups.length > 0 ? (
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {allocatedGroups.map((group) => (
-                  <GroupCard key={group.id} group={group} isAllocated={true} />
+              <div className="space-y-8">
+                {categorizedAllocatedGroups.map((semesterData) => (
+                  // Only show semesters that have groups
+                  semesterData.projectTypes.length > 0 && (
+                    <div key={`semester-${semesterData.semester}`} className="mb-8">
+                      <h3 className="text-xl font-semibold text-gray-900 pb-2 border-b border-gray-200 mb-4">
+                        Semester {semesterData.semester}
+                      </h3>
+                      
+                      <div className="space-y-8">
+                        {semesterData.projectTypes.map((projectType) => (
+                          // Only show project types that have groups
+                          projectType.groups.length > 0 && (
+                            <div key={`${semesterData.semester}-${projectType.displayName}`} className="mb-6">
+                              <h4 className="text-lg font-medium text-gray-800 mb-4 pl-4 border-l-4 border-green-500">
+                                {projectType.displayName}
+                                <span className="ml-2 text-sm text-gray-500">
+                                  ({projectType.groups.length} group{projectType.groups.length !== 1 ? 's' : ''})
+                                </span>
+                              </h4>
+                              
+                              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                                {projectType.groups.map((group) => (
+                                  <GroupCard key={group.id} group={group} isAllocated={true} />
+                                ))}
+                              </div>
+                            </div>
+                          )
+                        ))}
+                      </div>
+                    </div>
+                  )
                 ))}
               </div>
             ) : (
@@ -269,13 +416,42 @@ const FacultyDashboard = () => {
               <h3 className="text-lg font-semibold text-gray-900 mb-2">Groups Awaiting Your Decision</h3>
               <p className="text-gray-600 text-sm">
                 These groups have selected you as their current preference. You can choose to allocate them to yourself or pass them to the next faculty in their preference list.
-                      </p>
-                    </div>
+              </p>
+            </div>
             
             {unallocatedGroups.length > 0 ? (
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {unallocatedGroups.map((group) => (
-                  <GroupCard key={group.id} group={group} />
+              <div className="space-y-8">
+                {categorizedUnallocatedGroups.map((semesterData) => (
+                  // Only show semesters that have groups
+                  semesterData.projectTypes.length > 0 && (
+                    <div key={`semester-${semesterData.semester}`} className="mb-8">
+                      <h3 className="text-xl font-semibold text-gray-900 pb-2 border-b border-gray-200 mb-4">
+                        Semester {semesterData.semester}
+                      </h3>
+                      
+                      <div className="space-y-8">
+                        {semesterData.projectTypes.map((projectType) => (
+                          // Only show project types that have groups
+                          projectType.groups.length > 0 && (
+                            <div key={`${semesterData.semester}-${projectType.displayName}`} className="mb-6">
+                              <h4 className="text-lg font-medium text-gray-800 mb-4 pl-4 border-l-4 border-blue-500">
+                                {projectType.displayName}
+                                <span className="ml-2 text-sm text-gray-500">
+                                  ({projectType.groups.length} group{projectType.groups.length !== 1 ? 's' : ''})
+                                </span>
+                              </h4>
+                              
+                              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                                {projectType.groups.map((group) => (
+                                  <GroupCard key={group.id} group={group} />
+                                ))}
+                              </div>
+                            </div>
+                          )
+                        ))}
+                      </div>
+                    </div>
+                  )
                 ))}
               </div>
             ) : (

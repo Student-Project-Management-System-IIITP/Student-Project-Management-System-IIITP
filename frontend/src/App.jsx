@@ -19,14 +19,10 @@ import EvaluationInterface from './pages/faculty/EvaluationInterface';
 import GroupAllocation from './pages/faculty/GroupAllocation';
 import AllocatedGroups from './pages/faculty/AllocatedGroups';
 import AdminDashboard from './pages/admin/Dashboard';
-import EvaluationManagement from './pages/admin/EvaluationManagement';
-import Sem4ProjectOverviewPage from './pages/admin/Sem4ProjectOverview';
 import Sem4RegistrationsTable from './pages/admin/Sem4RegistrationsTable';
 import Sem4UnregisteredStudents from './pages/admin/Sem4UnregisteredStudents';
 import Sem5RegistrationsTable from './pages/admin/Sem5RegistrationsTable';
 import Sem5AllocatedFaculty from './pages/admin/Sem5AllocatedFaculty';
-import GroupManagement from './pages/admin/GroupManagement';
-import UnallocatedGroups from './pages/admin/UnallocatedGroups';
 import SystemConfiguration from './pages/admin/SystemConfiguration';
 import NotFound from './pages/NotFound';
 import AdminProfile from './pages/admin/Profile';
@@ -243,16 +239,6 @@ function AppContent() {
               </Layout>
             </ProtectedRoute>
           } />
-          <Route path="/admin/evaluations" element={
-            <ProtectedRoute allowedRoles={['admin']}>
-              <EvaluationManagement />
-            </ProtectedRoute>
-          } />
-          <Route path="/admin/projects/sem4" element={
-            <ProtectedRoute allowedRoles={['admin']}>
-              <Sem4ProjectOverviewPage />
-            </ProtectedRoute>
-          } />
           <Route path="/admin/sem4/registrations" element={
             <ProtectedRoute allowedRoles={['admin']}>
               <Layout>
@@ -284,20 +270,6 @@ function AppContent() {
             </ProtectedRoute>
           } />
           {/* Sem 5 Admin Routes */}
-          <Route path="/admin/groups/sem5" element={
-            <ProtectedRoute allowedRoles={['admin']}>
-              <Layout>
-                <GroupManagement />
-              </Layout>
-            </ProtectedRoute>
-          } />
-          <Route path="/admin/groups/unallocated" element={
-            <ProtectedRoute allowedRoles={['admin']}>
-              <Layout>
-                <UnallocatedGroups />
-              </Layout>
-            </ProtectedRoute>
-          } />
           <Route path="/admin/system-config" element={
             <ProtectedRoute allowedRoles={['admin']}>
               <Layout>
