@@ -250,12 +250,7 @@ const StudentDashboard = () => {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      {/* Semester Header */}
-      <SemesterHeader 
-        semester={currentSemester} 
-        degree="B.Tech" 
-        title={isSem5 ? "B.Tech Semester 5 - Minor Project 2" : "B.Tech Semester 4 - Minor Project 1"}
-      />
+      {/* Removed semester header as requested */}
 
       {/* Welcome Message */}
       <div className="mb-8">
