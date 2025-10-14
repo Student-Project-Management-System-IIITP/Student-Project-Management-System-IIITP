@@ -748,6 +748,46 @@ const getSem4MinorProject1Registrations = async (req, res) => {
   }
 };
 
+// Get Unregistered Sem 4 Students
+const getUnregisteredSem4Students = async (req, res) => {
+  try {
+    // Find all Semester 4 students
+    const allSem4Students = await Student.find({ 
+      semester: 4,
+      degree: 'B.Tech'
+    })
+    .populate('user', 'email')
+    .lean();
+
+    // Find all students who have registered for Minor Project 1
+    const registeredProjects = await Project.find({
+      projectType: 'minor1',
+      semester: 4
+    }).distinct('student');
+
+    // Filter out students who have already registered
+    const unregisteredStudents = allSem4Students.filter(
+      student => !registeredProjects.some(
+        registeredId => registeredId.toString() === student._id.toString()
+      )
+    );
+
+    res.json({
+      success: true,
+      data: unregisteredStudents,
+      count: unregisteredStudents.length,
+      message: 'Unregistered Sem 4 students retrieved successfully'
+    });
+  } catch (error) {
+    console.error('Error getting unregistered Sem 4 students:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching unregistered students',
+      error: error.message
+    });
+  }
+};
+
 // Get Sem 5 Non-Registered Students
 const getSem5NonRegisteredStudents = async (req, res) => {
   try {
@@ -1374,6 +1414,7 @@ module.exports = {
   getSem5Statistics,
   // Sem 4 specific functions
   getSem4MinorProject1Registrations,
+  getUnregisteredSem4Students,
   // System Configuration functions
   getSystemConfigurations,
   getSystemConfig,

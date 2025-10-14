@@ -151,23 +151,14 @@ const StudentDashboard = () => {
         });
       }
 
-      if (sem4Project && canUploadPPT()) {
-        actions.push({
-          title: 'Upload PPT',
-          description: 'Upload your presentation file',
-          icon: '📊',
-          link: `/student/projects/${sem4Project._id}/upload`,
-          color: 'bg-green-50 border-green-200 hover:bg-green-100',
-          textColor: 'text-green-800',
-        });
-      }
+      // Removed Upload PPT quick action - now integrated into project dashboard
 
       if (sem4Project && (sem4Project.status === 'registered' || sem4Project.status === 'active')) {
         actions.push({
           title: 'View Project',
           description: 'View your project details',
           icon: '👁️',
-          link: `/student/projects/${sem4Project._id}`,
+          link: `/student/projects/sem4/${sem4Project._id}`,
           color: 'bg-purple-50 border-purple-200 hover:bg-purple-100',
           textColor: 'text-purple-800',
         });
@@ -563,7 +554,6 @@ const StudentDashboard = () => {
                     <h3 className="font-medium text-gray-900">{sem4Project.title}</h3>
                     <StatusBadge status={sem4Project.status} />
                   </div>
-                  <p className="text-sm text-gray-600">{sem4Project.description}</p>
                   <div className="text-xs text-gray-500">
                     Registered: {new Date(sem4Project.createdAt).toLocaleDateString()}
                   </div>
@@ -586,7 +576,7 @@ const StudentDashboard = () => {
                             </span>
                           </div>
                           <Link
-                            to={`/student/projects/${sem4Project._id}/upload`}
+                            to={`/student/projects/sem4/${sem4Project._id}`}
                             className="inline-flex items-center px-3 py-1.5 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700"
                           >
                             View/Replace
@@ -602,7 +592,7 @@ const StudentDashboard = () => {
                       <div className="flex items-center justify-between">
                         <span className="text-sm text-gray-600">PPT Upload Available</span>
                         <Link
-                          to={`/student/projects/${sem4Project._id}/upload`}
+                          to={`/student/projects/sem4/${sem4Project._id}`}
                           className="inline-flex items-center px-3 py-1.5 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700"
                         >
                           Upload PPT

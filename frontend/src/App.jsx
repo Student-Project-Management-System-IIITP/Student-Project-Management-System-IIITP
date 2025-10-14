@@ -9,7 +9,7 @@ import Login from './pages/auth/Login';
 import Signup from './pages/auth/Signup';
 import StudentDashboard from './pages/student/Dashboard';
 import ProjectRegistration from './pages/student/ProjectRegistration';
-import PPTUpload from './pages/student/PPTUpload';
+// PPTUpload removed - functionality merged into Sem4ProjectDashboard
 import MinorProject2Registration from './pages/student/MinorProject2Registration';
 import GroupFormation from './pages/student/GroupFormation';
 import GroupDashboard from './pages/student/GroupDashboard';
@@ -22,6 +22,7 @@ import AdminDashboard from './pages/admin/Dashboard';
 import EvaluationManagement from './pages/admin/EvaluationManagement';
 import Sem4ProjectOverviewPage from './pages/admin/Sem4ProjectOverview';
 import Sem4RegistrationsTable from './pages/admin/Sem4RegistrationsTable';
+import Sem4UnregisteredStudents from './pages/admin/Sem4UnregisteredStudents';
 import Sem5RegistrationsTable from './pages/admin/Sem5RegistrationsTable';
 import Sem5AllocatedFaculty from './pages/admin/Sem5AllocatedFaculty';
 import GroupManagement from './pages/admin/GroupManagement';
@@ -34,6 +35,7 @@ import SignupTestDemo from './components/auth/SignupTestDemo';
 import SpecificErrorTestDemo from './components/auth/SpecificErrorTestDemo';
 import FacultyProfile from './pages/faculty/Profile';
 import StudentProfile from './pages/student/Profile';
+import Sem4ProjectDashboard from './pages/student/Sem4ProjectDashboard';
 
 function App() {
   return (
@@ -156,11 +158,7 @@ function AppContent() {
               <ProjectRegistration />
             </ProtectedRoute>
           } />
-          <Route path="/student/projects/:id/upload" element={
-            <ProtectedRoute allowedRoles={['student']}>
-              <PPTUpload />
-            </ProtectedRoute>
-          } />
+          {/* Old PPTUpload route removed - functionality merged into Sem4ProjectDashboard */}
           {/* Sem 5 Routes */}
           <Route path="/student/sem5/register" element={
             <ProtectedRoute allowedRoles={['student']}>
@@ -187,6 +185,11 @@ function AppContent() {
               <Layout>
                 <StudentProfile />
               </Layout>
+            </ProtectedRoute>
+          } />
+          <Route path="/student/projects/sem4/:projectId" element={
+            <ProtectedRoute allowedRoles={['student']}>
+              <Sem4ProjectDashboard />
             </ProtectedRoute>
           } />
           <Route path="/dashboard/faculty" element={
@@ -257,12 +260,14 @@ function AppContent() {
               </Layout>
             </ProtectedRoute>
           } />
-          <Route path="/admin/sem5/registrations" element={
+          <Route path="/admin/sem4/unregistered" element={
             <ProtectedRoute allowedRoles={['admin']}>
-              <Layout>
-                <Sem5RegistrationsTable />
-              </Layout>
+              <Sem4UnregisteredStudents />
             </ProtectedRoute>
+          } />
+          {/* Redirects to allocated-faculty page - registrations is now a tab there */}
+          <Route path="/admin/sem5/registrations" element={
+            <Navigate to="/admin/sem5/allocated-faculty" replace />
           } />
           <Route path="/admin/sem5/allocated-faculty" element={
             <ProtectedRoute allowedRoles={['admin']}>

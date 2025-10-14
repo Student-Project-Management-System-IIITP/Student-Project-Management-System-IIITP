@@ -222,6 +222,7 @@ export const adminAPI = {
   // Sem 4 Project Management
   getSem4Projects: () => api.get('/admin/projects?semester=4&type=minor1'),
   updateProjectStatus: (projectId, data) => api.put(`/admin/projects/${projectId}/status`, data),
+  getUnregisteredSem4Students: () => api.get('/admin/sem4/unregistered-students'),
   
   // Sem 4 Evaluation Management
   setEvaluationDates: (data) => api.post('/admin/evaluations/schedule', data),

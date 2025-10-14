@@ -117,6 +117,25 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const refreshUserData = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      if (token) {
+        const data = await authAPI.getProfile();
+        if (data.success) {
+          setUser(data.data.user);
+          setRoleData(data.data.roleData);
+          setUserRole(data.data.user.role);
+          return { success: true };
+        }
+      }
+      return { success: false };
+    } catch (error) {
+      console.error('Failed to refresh user data:', error);
+      return { success: false };
+    }
+  };
+
   const value = {
     user,
     roleData,
@@ -125,6 +144,7 @@ export const AuthProvider = ({ children }) => {
     login,
     signup,
     logout,
+    refreshUserData,
     isAuthenticated: !!user
   };
 

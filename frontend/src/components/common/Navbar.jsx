@@ -40,7 +40,6 @@ const Navbar = ({ userRole: propUserRole = null, user: propUser = null, roleData
   // Get project dashboard items based on student semester and history
   const getProjectDashboardItems = () => {
     if (userRole !== 'student') {
-      console.log('🔍 Navbar Debug: Not a student', { userRole });
       return [];
     }
 
@@ -48,15 +47,8 @@ const Navbar = ({ userRole: propUserRole = null, user: propUser = null, roleData
     const studentData = roleData;
     
     if (!studentData) {
-      console.log('🔍 Navbar Debug: No roleData available', { user, roleData });
       return [];
     }
-
-    console.log('🔍 Navbar Debug: Student data:', {
-      semester: studentData.semester,
-      currentProjects: studentData.currentProjects,
-      fullName: studentData.fullName
-    });
 
     const items = [];
     const currentSemester = studentData.semester || 0;
@@ -75,7 +67,7 @@ const Navbar = ({ userRole: propUserRole = null, user: propUser = null, roleData
       const projectId = sem4Project?.project;
       items.push({
         name: 'Minor Project 1',
-        path: projectId ? `/projects/${projectId}` : '/student/projects/register',
+        path: projectId ? `/student/projects/sem4/${projectId}` : '/student/projects/register',
         semester: 4,
         type: 'minor1',
         hasProject: !!sem4Project,
@@ -139,7 +131,6 @@ const Navbar = ({ userRole: propUserRole = null, user: propUser = null, roleData
       });
     }
 
-    console.log('🔍 Navbar Debug: Project Dashboard Items:', items);
     return items;
   };
 
@@ -153,10 +144,17 @@ const Navbar = ({ userRole: propUserRole = null, user: propUser = null, roleData
 
     // Student Navigation
     if (userRole === 'student') {
-      items.push(
-        { name: 'Dashboard', path: '/dashboard/student' },
-        { name: 'Groups', path: '/student/groups', showFor: 'student' }
-      );
+      items.push({ name: 'Dashboard', path: '/dashboard/student' });
+
+      // Only show Groups if student is in a group
+      const studentData = roleData;
+      if (studentData?.groupId) {
+        const groupId = studentData.groupId;
+        items.push({ 
+          name: 'Groups', 
+          path: `/student/groups/${groupId}/dashboard` 
+        });
+      }
     }
 
     // Faculty Navigation
@@ -213,7 +211,7 @@ const Navbar = ({ userRole: propUserRole = null, user: propUser = null, roleData
           <div className="flex items-center flex-shrink-0">
             <Link to="/" className="flex items-center gap-2 hover:opacity-90 transition-opacity">
               <img 
-                src="/IIIT Pune Logo New.png" 
+                src="/IIIT Pune Logo New.jpg" 
                 alt="IIIT Pune" 
                 className="h-9 w-auto"
               />
