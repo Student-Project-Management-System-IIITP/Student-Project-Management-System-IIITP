@@ -314,7 +314,6 @@ const Navbar = ({ userRole: propUserRole = null, user: propUser = null, roleData
                   </h2>
                 </div>
                 <div className="flex items-center mt-0.5">
-                  <div className="h-1 w-1 rounded-full bg-blue-200 mr-1.5"></div>
                   <p className="text-[10px] text-slate-300" style={{ fontFamily: "'Lora', serif", letterSpacing: '0.04em', fontWeight: 500 }}>
                     STUDENT PROJECT MANAGEMENT SYSTEM
                   </p>
