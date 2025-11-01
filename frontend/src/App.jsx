@@ -32,6 +32,8 @@ import SpecificErrorTestDemo from './components/auth/SpecificErrorTestDemo';
 import FacultyProfile from './pages/faculty/Profile';
 import StudentProfile from './pages/student/Profile';
 import Sem4ProjectDashboard from './pages/student/Sem4ProjectDashboard';
+import Sem6Registration from './pages/student/Sem6Registration';
+import SemesterManagement from './pages/admin/SemesterManagement';
 
 function App() {
   return (
@@ -161,6 +163,13 @@ function AppContent() {
               <MinorProject2Registration />
             </ProtectedRoute>
           } />
+          
+          {/* Sem 6 Registration */}
+          <Route path="/student/sem6/register" element={
+            <ProtectedRoute allowedRoles={['student']}>
+              <Sem6Registration />
+            </ProtectedRoute>
+          } />
           <Route path="/student/groups/create" element={
             <ProtectedRoute allowedRoles={['student']}>
               <GroupFormation />
@@ -275,6 +284,11 @@ function AppContent() {
               <Layout>
                 <SystemConfiguration />
               </Layout>
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/semester-management" element={
+            <ProtectedRoute allowedRoles={['admin']}>
+              <SemesterManagement />
             </ProtectedRoute>
           } />
           {/* Shared Routes - Accessible by all authenticated users */}

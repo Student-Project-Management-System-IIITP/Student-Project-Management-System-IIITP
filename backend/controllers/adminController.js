@@ -1391,6 +1391,242 @@ const initializeSystemConfigs = async (req, res) => {
   }
 };
 
+// Update Student Semesters (for testing and semester progression)
+const updateStudentSemesters = async (req, res) => {
+  try {
+    const { fromSemester, toSemester, studentIds, degree, validatePrerequisites } = req.body;
+
+    // Validation
+    if (!fromSemester || !toSemester) {
+      return res.status(400).json({
+        success: false,
+        message: 'Both fromSemester and toSemester are required'
+      });
+    }
+
+    if (toSemester < 1 || toSemester > 8) {
+      return res.status(400).json({
+        success: false,
+        message: 'toSemester must be between 1 and 8'
+      });
+    }
+
+    // Build query
+    let query = { semester: fromSemester };
+    
+    // If specific students are provided
+    if (studentIds && studentIds.length > 0) {
+      query._id = { $in: studentIds };
+    }
+    
+    // Filter by degree if provided
+    if (degree) {
+      query.degree = degree;
+    }
+
+    // Find students matching criteria
+    const students = await Student.find(query)
+      .populate('user', 'email')
+      .lean();
+
+    if (students.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'No students found matching the criteria'
+      });
+    }
+
+    // Validation results
+    const validationResults = [];
+    const eligibleStudents = [];
+    const ineligibleStudents = [];
+
+    // Validate prerequisites if requested
+    if (validatePrerequisites) {
+      for (const student of students) {
+        const validation = {
+          studentId: student._id,
+          fullName: student.fullName,
+          misNumber: student.misNumber,
+          email: student.user?.email,
+          currentSemester: student.semester,
+          eligible: true,
+          issues: []
+        };
+
+        // For Sem 5 to Sem 6 progression - check if they have a finalized group and project
+        if (fromSemester === 5 && toSemester === 6) {
+          // Check for Sem 5 group
+          const sem5Group = await Group.findOne({
+            'members.student': student._id,
+            semester: 5,
+            status: 'finalized'
+          });
+
+          if (!sem5Group) {
+            validation.eligible = false;
+            validation.issues.push('No finalized Sem 5 group found');
+          }
+
+          // Check for Sem 5 project
+          const sem5Project = await Project.findOne({
+            semester: 5,
+            $or: [
+              { student: student._id },
+              { group: sem5Group?._id }
+            ]
+          });
+
+          if (!sem5Project) {
+            validation.eligible = false;
+            validation.issues.push('No Sem 5 project found');
+          }
+
+          // Check if faculty is allocated
+          if (sem5Group && !sem5Group.allocatedFaculty) {
+            validation.eligible = false;
+            validation.issues.push('No faculty allocated to Sem 5 group');
+          }
+        }
+
+        validationResults.push(validation);
+        
+        if (validation.eligible) {
+          eligibleStudents.push(student._id);
+        } else {
+          ineligibleStudents.push(validation);
+        }
+      }
+
+      // If validation requested and some are ineligible, return validation results
+      if (ineligibleStudents.length > 0) {
+        return res.json({
+          success: true,
+          validated: true,
+          totalStudents: students.length,
+          eligibleCount: eligibleStudents.length,
+          ineligibleCount: ineligibleStudents.length,
+          eligibleStudents: eligibleStudents,
+          ineligibleStudents: ineligibleStudents,
+          message: `${eligibleStudents.length} students eligible for semester update, ${ineligibleStudents.length} ineligible`,
+          validationResults: validationResults
+        });
+      }
+    }
+
+    // Update students
+    const updateQuery = validatePrerequisites && eligibleStudents.length > 0
+      ? { _id: { $in: eligibleStudents } }
+      : query;
+    
+    const updateResult = await Student.updateMany(
+      updateQuery,
+      { 
+        $set: { 
+          semester: toSemester,
+          updatedAt: new Date()
+        } 
+      }
+    );
+
+    // Get updated students for confirmation
+    const updatedStudents = await Student.find({ 
+      _id: { $in: validatePrerequisites ? eligibleStudents : students.map(s => s._id) }
+    })
+      .populate('user', 'email')
+      .select('fullName misNumber semester degree')
+      .lean();
+
+    res.json({
+      success: true,
+      message: `Successfully updated ${updateResult.modifiedCount} students from Semester ${fromSemester} to Semester ${toSemester}`,
+      data: {
+        fromSemester,
+        toSemester,
+        totalMatched: students.length,
+        totalUpdated: updateResult.modifiedCount,
+        matchedCount: updateResult.matchedCount,
+        validated: validatePrerequisites || false,
+        updatedStudents: updatedStudents,
+        ineligibleStudents: validatePrerequisites ? ineligibleStudents : []
+      }
+    });
+  } catch (error) {
+    console.error('Error updating student semesters:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error updating student semesters',
+      error: error.message
+    });
+  }
+};
+
+// Get Students by Semester (helper for the UI)
+const getStudentsBySemester = async (req, res) => {
+  try {
+    const { semester, degree } = req.query;
+
+    let query = {};
+    
+    if (semester) {
+      query.semester = parseInt(semester);
+    }
+    
+    if (degree) {
+      query.degree = degree;
+    }
+
+    const students = await Student.find(query)
+      .populate('user', 'email')
+      .select('fullName misNumber semester degree branch')
+      .sort({ misNumber: 1 })
+      .lean();
+
+    // Get group and project info for each student
+    const studentsWithInfo = await Promise.all(students.map(async (student) => {
+      // Check for current semester group
+      const group = await Group.findOne({
+        'members.student': student._id,
+        semester: student.semester
+      }).select('name status allocatedFaculty').populate('allocatedFaculty', 'fullName');
+
+      // Check for current semester project
+      const project = await Project.findOne({
+        semester: student.semester,
+        $or: [
+          { student: student._id },
+          { group: group?._id }
+        ]
+      }).select('title status projectType');
+
+      return {
+        ...student,
+        hasGroup: !!group,
+        groupStatus: group?.status,
+        hasFaculty: !!group?.allocatedFaculty,
+        facultyName: group?.allocatedFaculty?.fullName,
+        hasProject: !!project,
+        projectTitle: project?.title,
+        projectStatus: project?.status
+      };
+    }));
+
+    res.json({
+      success: true,
+      data: studentsWithInfo,
+      count: studentsWithInfo.length,
+      filters: { semester, degree }
+    });
+  } catch (error) {
+    console.error('Error getting students by semester:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching students',
+      error: error.message
+    });
+  }
+};
+
 module.exports = {
   getAdminProfile,
   updateAdminProfile,
@@ -1419,5 +1655,8 @@ module.exports = {
   getSystemConfigurations,
   getSystemConfig,
   updateSystemConfig,
-  initializeSystemConfigs
+  initializeSystemConfigs,
+  // Semester Management functions
+  updateStudentSemesters,
+  getStudentsBySemester
 };

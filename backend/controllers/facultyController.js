@@ -530,36 +530,46 @@ const evaluateProject = async (req, res) => {
   }
 };
 
-// Sem 5 specific: Get unallocated groups for faculty
+// Get unallocated groups for faculty (all active semesters)
 const getUnallocatedGroups = async (req, res) => {
   try {
     const facultyId = req.user.id;
-    const { semester = 5, academicYear = '2025-26' } = req.query;
+    const { semester, academicYear = '2025-26' } = req.query;
 
     const faculty = await Faculty.findOne({ user: facultyId });
     if (!faculty) {
       return res.status(404).json({ success: false, message: 'Faculty not found' });
     }
 
+    // If semester specified, use it; otherwise get all active semesters (4-8)
+    const semestersToFetch = semester ? [parseInt(semester)] : [4, 5, 6, 7, 8];
+    
+    // Get groups currently presented to this faculty across all semesters
+    const allPreferences = [];
+    for (const sem of semestersToFetch) {
+      const preferences = await FacultyPreference.getGroupsForFaculty(
+        faculty._id, 
+        sem, 
+        academicYear
+      );
+      allPreferences.push(...preferences);
+    }
 
-    // Get groups currently presented to this faculty
-    const preferences = await FacultyPreference.getGroupsForFaculty(
-      faculty._id, 
-      parseInt(semester), 
-      academicYear
-    );
+    // Filter out preferences where the project is completed (moved to next semester)
+    const activePreferences = allPreferences.filter(pref => {
+      // Only include if project is not completed
+      return pref.project && pref.project.status !== 'completed';
+    });
 
     // Populate student details for each group
-    for (const pref of preferences) {
+    for (const pref of activePreferences) {
       if (pref.group) {
         await pref.group.populate('members.student', 'fullName misNumber collegeEmail branch');
       }
     }
 
-
-
     // Format the response
-    const groups = preferences.map(pref => ({
+    const groups = activePreferences.map(pref => ({
       id: pref._id,
       groupName: pref.group?.name || 'Unnamed Group',
       projectTitle: pref.project?.title || 'No Project',
@@ -587,33 +597,64 @@ const getUnallocatedGroups = async (req, res) => {
   }
 };
 
-// Sem 5 specific: Get allocated groups for faculty
+// Get allocated groups for faculty (all active semesters)
 const getAllocatedGroups = async (req, res) => {
   try {
     const facultyId = req.user.id;
-    const { semester = 5, academicYear = '2025-26' } = req.query;
+    const { semester, academicYear = '2025-26' } = req.query;
 
     const faculty = await Faculty.findOne({ user: facultyId });
     if (!faculty) {
       return res.status(404).json({ success: false, message: 'Faculty not found' });
     }
 
-    // Get groups allocated to this faculty
-    const preferences = await FacultyPreference.getAllocatedGroupsForFaculty(
-      faculty._id, 
-      parseInt(semester), 
-      academicYear
-    );
+    // If semester specified, use it; otherwise get all active semesters (4-8)
+    const semestersToFetch = semester ? [parseInt(semester)] : [4, 5, 6, 7, 8];
+    
+    // Method 1: Get groups from FacultyPreference records (for Sem 4-5)
+    const allPreferences = [];
+    for (const sem of semestersToFetch) {
+      const preferences = await FacultyPreference.getAllocatedGroupsForFaculty(
+        faculty._id, 
+        sem, 
+        academicYear
+      );
+      allPreferences.push(...preferences);
+    }
 
-    // Populate student details for each group
-    for (const pref of preferences) {
-      if (pref.group) {
+    // Filter out preferences where the project is completed (moved to next semester)
+    const activePreferences = allPreferences.filter(pref => {
+      // Only include if project is not completed
+      return pref.project && pref.project.status !== 'completed';
+    });
+
+    // Populate nested student details in groups from preferences
+    for (const pref of activePreferences) {
+      if (pref.group && pref.group._id) {
         await pref.group.populate('members.student', 'fullName misNumber collegeEmail branch');
       }
     }
 
-    // Format the response
-    const groups = preferences.map(pref => ({
+    // Method 2: Get groups directly allocated to faculty (for Sem 6+ where no FacultyPreference exists)
+    const groupQuery = {
+      allocatedFaculty: faculty._id,
+      isActive: true,
+      semester: { $in: semestersToFetch },
+      academicYear: academicYear
+    };
+    
+    const directlyAllocatedGroups = await Group.find(groupQuery)
+      .populate('members.student', 'fullName misNumber collegeEmail branch')
+      .populate('project', 'title description status _id')
+      .lean();
+
+    // Filter out groups with completed projects
+    const activeDirectGroups = directlyAllocatedGroups.filter(group => {
+      return group.project && group.project.status !== 'completed';
+    });
+
+    // Combine both methods and format the response
+    const groupsFromPreferences = activePreferences.map(pref => ({
       id: pref._id,
       groupName: pref.group?.name || 'Unnamed Group',
       projectTitle: pref.project?.title || 'No Project',
@@ -629,10 +670,36 @@ const getAllocatedGroups = async (req, res) => {
       groupId: pref.group?._id
     }));
 
+    const groupsFromDirect = activeDirectGroups.map(group => ({
+      id: group._id,
+      groupName: group.name || 'Unnamed Group',
+      projectTitle: group.project?.title || 'No Project',
+      members: group.members?.map(member => ({
+        name: member.student?.fullName || 'Unknown',
+        misNumber: member.student?.misNumber || 'N/A',
+        role: member.role || 'member'
+      })) || [],
+      allocatedDate: group.finalizedAt || group.createdAt,
+      semester: group.semester,
+      academicYear: group.academicYear,
+      projectId: group.project?._id,
+      groupId: group._id
+    }));
+
+    // Merge and deduplicate by groupId
+    const allGroups = [...groupsFromPreferences];
+    const existingGroupIds = new Set(groupsFromPreferences.map(g => g.groupId?.toString()));
+    
+    for (const group of groupsFromDirect) {
+      if (!existingGroupIds.has(group.groupId?.toString())) {
+        allGroups.push(group);
+      }
+    }
+
     res.json({
       success: true,
-      data: groups,
-      message: `Found ${groups.length} allocated groups`
+      data: allGroups,
+      message: `Found ${allGroups.length} allocated groups`
     });
   } catch (error) {
     console.error('Error getting allocated groups:', error);

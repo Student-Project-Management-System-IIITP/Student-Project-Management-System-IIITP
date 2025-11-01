@@ -231,6 +231,12 @@ const AdminDashboard = () => {
           >
             ⚙️ System Config
           </Link>
+          <Link
+            to="/admin/semester-management"
+            className="inline-flex items-center px-4 py-2 rounded-md bg-purple-600 text-white hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500"
+          >
+            🔄 Semester Management
+          </Link>
           <button
             onClick={() => setIsAddOpen(true)}
             className="inline-flex items-center px-4 py-2 rounded-md bg-gray-600 text-white hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-500"

@@ -6,13 +6,7 @@ const FacultyPreference = require('../models/FacultyPreference');
 const SystemConfig = require('../models/SystemConfig');
 const mongoose = require('mongoose');
 const User = require('../models/User');
-
-// Helper function to generate academic year in YYYY-YY format
-const generateAcademicYear = () => {
-  const currentYear = new Date().getFullYear();
-  const nextYear = currentYear + 1;
-  return `${currentYear}-${nextYear.toString().slice(-2)}`;
-};
+const { migrateGroupToSem6, createNewGroupForSem6, generateAcademicYear } = require('../utils/semesterMigration');
 
 // Get student dashboard data
 const getDashboardData = async (req, res) => {
@@ -258,7 +252,7 @@ const getSemesterFeaturesData = (semester, degree = 'B.Tech') => {
 const getStudentProjects = async (req, res) => {
   try {
     const studentId = req.user.id;
-    const { semester, status, projectType } = req.query;
+    const { semester, status, projectType, allSemesters } = req.query;
     
     // Get student
     const student = await Student.findOne({ user: studentId });
@@ -269,14 +263,25 @@ const getStudentProjects = async (req, res) => {
       });
     }
 
-    // Get student's groups for the semester
-    const targetSemester = semester ? parseInt(semester) : student.semester;
-    const studentGroups = await Group.find({
-      'members.student': student._id,
-      'members.isActive': true,
-      semester: targetSemester,
-      isActive: true
-    }).select('_id');
+    // Determine target semester(s) for group lookup
+    let targetSemester;
+    let groupQuery = {
+      'members.student': student._id
+    };
+    
+    // If allSemesters=true, get groups from all semesters
+    if (allSemesters === 'true') {
+      // No semester filter - get all groups
+      groupQuery['members.isActive'] = true;
+    } else {
+      // Filter by specific semester or current semester
+      targetSemester = semester ? parseInt(semester) : student.semester;
+      groupQuery.semester = targetSemester;
+      groupQuery['members.isActive'] = true;
+      groupQuery.isActive = true;
+    }
+    
+    const studentGroups = await Group.find(groupQuery).select('_id');
     const groupIds = studentGroups.map(g => g._id);
 
     // Build query to include both direct projects and group projects
@@ -287,10 +292,13 @@ const getStudentProjects = async (req, res) => {
       ]
     };
     
-    if (semester) {
-      query.semester = parseInt(semester);
-    } else {
-      query.semester = student.semester; // Default to current semester
+    // Apply semester filter only if not requesting all semesters
+    if (allSemesters !== 'true') {
+      if (semester) {
+        query.semester = parseInt(semester);
+      } else {
+        query.semester = student.semester; // Default to current semester
+      }
     }
     
     if (status) {
@@ -327,7 +335,7 @@ const getStudentProjects = async (req, res) => {
     console.error('Error getting student projects:', error);
     res.status(500).json({
       success: false,
-      message: 'Error fetching student projects',
+      message: 'Error fetching projects',
       error: error.message
     });
   }
@@ -337,7 +345,7 @@ const getStudentProjects = async (req, res) => {
 const getStudentGroups = async (req, res) => {
   try {
     const studentId = req.user.id;
-    const { semester, status } = req.query;
+    const { semester, status, allSemesters } = req.query;
     
     // Get student
     const student = await Student.findOne({ user: studentId });
@@ -355,10 +363,13 @@ const getStudentGroups = async (req, res) => {
       isActive: true
     };
     
-    if (semester) {
-      query.semester = parseInt(semester);
-    } else {
-      query.semester = student.semester; // Default to current semester
+    // Apply semester filter only if not requesting all semesters
+    if (allSemesters !== 'true') {
+      if (semester) {
+        query.semester = parseInt(semester);
+      } else {
+        query.semester = student.semester; // Default to current semester
+      }
     }
     
     if (status) {
@@ -1611,6 +1622,8 @@ const getGroupById = async (req, res) => {
     
     await group.populate('members.student');
     await group.populate('createdBy');
+    await group.populate('project', 'title description projectType status');
+    await group.populate('allocatedFaculty', 'fullName department designation');
 
     if (!group) {
       return res.status(404).json({
@@ -1623,9 +1636,11 @@ const getGroupById = async (req, res) => {
 
     const groupData = {
       id: group._id,
+      _id: group._id,
       name: group.name,
       description: group.description,
       status: group.status,
+      semester: group.semester,
       academicYear: group.academicYear,
       maxMembers: group.maxMembers,
       minMembers: group.minMembers,
@@ -1634,6 +1649,8 @@ const getGroupById = async (req, res) => {
       members: group.members.filter(m => m.isActive),
       invites: group.invites,
       createdBy: group.createdBy,
+      project: group.project,
+      allocatedFaculty: group.allocatedFaculty,
       finalizedAt: group.finalizedAt,
       finalizedBy: group.finalizedBy
     };
@@ -4604,6 +4621,310 @@ const getSystemConfigForStudents = async (req, res) => {
   }
 };
 
+// Sem 6: Get Sem 5 group and faculty for Sem 6 registration
+const getSem5GroupForSem6 = async (req, res) => {
+  try {
+    const studentId = req.user.id;
+    const student = await Student.findOne({ user: studentId });
+    
+    if (!student) {
+      return res.status(404).json({
+        success: false,
+        message: 'Student not found'
+      });
+    }
+    
+    if (student.semester !== 6) {
+      return res.status(400).json({
+        success: false,
+        message: 'Student must be in Semester 6'
+      });
+    }
+    
+    // Find Sem 5 group membership
+    const sem5Membership = student.groupMemberships.find(
+      gm => gm.semester === 5 && gm.isActive
+    );
+    
+    if (!sem5Membership) {
+      return res.status(404).json({
+        success: false,
+        message: 'No Sem 5 group found. You must have completed Semester 5 with a group.'
+      });
+    }
+    
+    // Get Sem 5 group with populated data
+    const sem5Group = await Group.findById(sem5Membership.group)
+      .populate('members.student', 'fullName misNumber collegeEmail branch')
+      .populate('leader', 'fullName misNumber collegeEmail')
+      .populate('allocatedFaculty', 'fullName department designation email phone')
+      .populate('project', 'title description projectType status createdAt');
+    
+    if (!sem5Group) {
+      return res.status(404).json({
+        success: false,
+        message: 'Sem 5 group not found'
+      });
+    }
+    
+    // Check if group has allocated faculty
+    if (!sem5Group.allocatedFaculty) {
+      return res.status(400).json({
+        success: false,
+        message: 'Your Sem 5 group does not have an allocated faculty. Please contact admin.'
+      });
+    }
+    
+    // Check if current student is the group leader (for UI display, not blocking)
+    // Note: sem5Group.leader is populated, so we need to access ._id
+    const isGroupLeader = sem5Group.leader._id.toString() === student._id.toString();
+    
+    // Check if already registered for Sem 6
+    const existingSem6Project = await Project.findOne({
+      group: sem5Group._id,
+      semester: 6,
+      projectType: 'minor3'
+    });
+    
+    if (existingSem6Project) {
+      return res.status(400).json({
+        success: false,
+        message: 'Group already registered for Semester 6 project',
+        alreadyRegistered: true
+      });
+    }
+    
+    res.json({
+      success: true,
+      data: {
+        group: {
+          _id: sem5Group._id,
+          name: sem5Group.name,
+          description: sem5Group.description,
+          members: sem5Group.members,
+          leader: sem5Group.leader,
+          status: sem5Group.status,
+          academicYear: sem5Group.academicYear
+        },
+        faculty: sem5Group.allocatedFaculty,
+        sem5Project: sem5Group.project,
+        canContinue: !!sem5Group.project && sem5Group.project.status !== 'cancelled',
+        isGroupLeader: isGroupLeader // Return this so frontend knows if user can submit
+      }
+    });
+  } catch (error) {
+    console.error('Error getting Sem 5 group for Sem 6:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching Sem 5 group data',
+      error: error.message
+    });
+  }
+};
+
+// Sem 6: Register project (continuation or new)
+const registerSem6Project = async (req, res) => {
+  const session = await mongoose.startSession();
+  
+  try {
+    await session.withTransaction(async () => {
+      const studentId = req.user.id;
+      const { 
+        isContinuing, 
+        previousProjectId, 
+        title, 
+        description 
+      } = req.body;
+      
+      const student = await Student.findOne({ user: studentId }).session(session);
+      
+      if (!student) {
+        throw new Error('Student not found');
+      }
+      
+      if (student.semester !== 6) {
+        throw new Error('Student must be in Semester 6');
+      }
+      
+      // Find Sem 5 group membership
+      const sem5Membership = student.groupMemberships.find(
+        gm => gm.semester === 5 && gm.isActive
+      );
+      
+      if (!sem5Membership) {
+        throw new Error('No Sem 5 group found');
+      }
+      
+      const sem5Group = await Group.findById(sem5Membership.group)
+        .populate('members.student')
+        .session(session);
+      
+      if (!sem5Group) {
+        throw new Error('Sem 5 group not found');
+      }
+      
+      // Verify group leader
+      // Note: leader is not populated here, so it's an ObjectId - direct comparison works
+      const isGroupLeader = sem5Group.leader.toString() === student._id.toString();
+      if (!isGroupLeader) {
+        throw new Error('Only the group leader can register for Sem 6 project');
+      }
+      
+      // Check if already registered
+      const existingProject = await Project.findOne({
+        group: sem5Group._id,
+        semester: 6,
+        projectType: 'minor3'
+      }).session(session);
+      
+      if (existingProject) {
+        throw new Error('Group already registered for Sem 6 project');
+      }
+      
+      // Get academic year
+      const newAcademicYear = generateAcademicYear();
+      
+      let sem6Group;
+      let sem6Project;
+      let sem5Project = null;
+      
+      if (isContinuing) {
+        // Option A: Continue Sem 5 project
+        if (!previousProjectId) {
+          throw new Error('Previous project ID required for continuation');
+        }
+        
+        sem5Project = await Project.findById(previousProjectId).session(session);
+        if (!sem5Project || sem5Project.semester !== 5) {
+          throw new Error('Invalid Sem 5 project');
+        }
+        
+        if (sem5Project.group.toString() !== sem5Group._id.toString()) {
+          throw new Error('Previous project does not belong to this group');
+        }
+        
+        // Migrate existing group to Sem 6
+        sem6Group = await migrateGroupToSem6(sem5Group._id, newAcademicYear, session);
+        
+        // Create continuation project
+        sem6Project = new Project({
+          title: sem5Project.title, // Same title
+          description: sem5Project.description, // Same description
+          projectType: 'minor3',
+          semester: 6,
+          academicYear: newAcademicYear,
+          student: student._id, // Group leader
+          group: sem6Group._id,
+          faculty: sem5Group.allocatedFaculty, // Same faculty
+          isContinuation: true,
+          previousProject: sem5Project._id,
+          status: 'registered',
+          startDate: new Date()
+        });
+        
+        await sem6Project.save({ session });
+        
+        // Mark Sem 5 project as completed
+        sem5Project.status = 'completed';
+        sem5Project.endDate = new Date();
+        await sem5Project.save({ session });
+        
+      } else {
+        // Option B: New project
+        if (!title || !description) {
+          throw new Error('Title and description required for new project');
+        }
+        
+        // Create new group for Sem 6 (don't migrate existing)
+        sem6Group = await createNewGroupForSem6(sem5Group._id, newAcademicYear, session);
+        
+        // Create new project
+        sem6Project = new Project({
+          title: title.trim(),
+          description: description.trim(),
+          projectType: 'minor3',
+          semester: 6,
+          academicYear: newAcademicYear,
+          student: student._id,
+          group: sem6Group._id,
+          faculty: sem5Group.allocatedFaculty, // Same faculty
+          isContinuation: false,
+          previousProject: null,
+          status: 'registered',
+          startDate: new Date()
+        });
+        
+        await sem6Project.save({ session });
+        
+        // Mark Sem 5 project as completed (if exists)
+        if (sem5Group.project) {
+          const oldProject = await Project.findById(sem5Group.project).session(session);
+          if (oldProject) {
+            oldProject.status = 'completed';
+            oldProject.endDate = new Date();
+            await oldProject.save({ session });
+          }
+        }
+      }
+      
+      // Update group with new project
+      sem6Group.project = sem6Project._id;
+      await sem6Group.save({ session });
+      
+      // Update all group members' current projects
+      const groupMembers = sem6Group.members.filter(m => m.isActive);
+      
+      for (const member of groupMembers) {
+        const memberStudent = await Student.findById(member.student).session(session);
+        if (memberStudent) {
+          const role = member.role === 'leader' ? 'leader' : 'member';
+          
+          // Check if project already exists in currentProjects
+          const existingProject = memberStudent.currentProjects.find(cp => 
+            cp.project && cp.project.toString() === sem6Project._id.toString()
+          );
+          
+          if (!existingProject) {
+            memberStudent.currentProjects.push({
+              project: sem6Project._id,
+              role: role,
+              semester: 6,
+              status: 'active',
+              joinedAt: new Date()
+            });
+            await memberStudent.save({ session });
+          }
+        }
+      }
+      
+      // Populate project before returning
+      await sem6Project.populate('group', 'name members leader');
+      await sem6Project.populate('faculty', 'fullName department designation');
+      
+      res.json({
+        success: true,
+        data: {
+          project: sem6Project,
+          group: sem6Group,
+          isContinuation: isContinuing,
+          previousProject: sem5Project
+        },
+        message: isContinuing 
+          ? 'Sem 6 project registered successfully (continuing from Sem 5)' 
+          : 'Sem 6 project registered successfully (new project)'
+      });
+    });
+  } catch (error) {
+    console.error('Error registering Sem 6 project:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Error registering Sem 6 project'
+    });
+  } finally {
+    session.endSession();
+  }
+};
+
 module.exports = {
   getDashboardData,
   getSemesterFeatures,
@@ -4648,6 +4969,8 @@ module.exports = {
   getProjectMilestones,
   updateMilestone,
   getProjectProgress,
+  getSem5GroupForSem6,
+  registerSem6Project,
   // Sem 7 specific functions
   getSem7Options,
   applyForInternship,

@@ -4,7 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useSem5 } from '../../context/Sem5Context';
 
 const FacultyDashboard = () => {
-  const { user, isLoading: authLoading } = useAuth();
+  const { user, roleData, isLoading: authLoading } = useAuth();
   const { allocationStatus, chooseGroup, passGroup, loading } = useSem5();
   const [activeTab, setActiveTab] = useState(() => {
     // Get saved tab from localStorage, default to 'allocated' for new users
@@ -284,8 +284,10 @@ const FacultyDashboard = () => {
           Faculty Dashboard
         </h1>
         <p className="text-gray-600 mt-2">
-          Welcome, {user?.fullName ? 
-            (user.fullName.charAt(0).toUpperCase() + user.fullName.slice(1)) : 
+          Welcome, {roleData?.fullName ? 
+            (roleData.fullName.charAt(0).toUpperCase() + roleData.fullName.slice(1)) : 
+            user?.fullName ? 
+              (user.fullName.charAt(0).toUpperCase() + user.fullName.slice(1)) :
             user?.email?.split('@')[0] ? 
               (user.email.split('@')[0].charAt(0).toUpperCase() + user.email.split('@')[0].slice(1)) : 
               'Faculty Member'}! Manage your project groups and student allocations
