@@ -95,8 +95,14 @@ export const studentAPI = {
   // Existing methods
   getDashboard: () => api.get('/student/dashboard'),
   getFeatures: () => api.get('/student/features'),
-  getProjects: () => api.get('/student/projects'),
-  getGroups: () => api.get('/student/groups'),
+  getProjects: (params = {}) => {
+    const queryString = new URLSearchParams(params).toString();
+    return api.get(`/student/projects${queryString ? '?' + queryString : ''}`);
+  },
+  getGroups: (params = {}) => {
+    const queryString = new URLSearchParams(params).toString();
+    return api.get(`/student/groups${queryString ? '?' + queryString : ''}`);
+  },
   getInternships: () => api.get('/student/internships'),
   
   // Student Profile Management
@@ -176,6 +182,15 @@ export const studentAPI = {
   // Sem 5 Status Tracking
   getSem5Status: (projectId) => api.get(`/student/projects/${projectId}/sem5-status`),
   getSem5Dashboard: () => api.get('/student/dashboard/sem5'),
+  getGroupInvitations: () => api.get('/student/groups/invitations'),
+  
+  // Sem 6 specific methods
+  getSem5GroupForSem6: () => api.get('/student/sem6/pre-registration'),
+  registerSem6Project: (data) => api.post('/student/sem6/register', data),
+  
+  // Project continuation (Sem 6)
+  getContinuationProjects: () => api.get('/student/projects/continuation'),
+  createContinuationProject: (data) => api.post('/student/projects/continuation', data),
 };
 
 export const facultyAPI = {
@@ -281,6 +296,15 @@ export const adminAPI = {
   // Sem 5 Statistics
   getSem5Statistics: () => api.get('/admin/statistics/sem5'),
   getSem5Groups: () => api.get('/admin/groups/sem5'),
+  
+  // Semester Management
+  updateStudentSemesters: (data) => api.post('/admin/students/update-semesters', data),
+  getStudentsBySemester: (semester, degree) => {
+    const params = new URLSearchParams();
+    if (semester) params.append('semester', semester);
+    if (degree) params.append('degree', degree);
+    return api.get(`/admin/students/by-semester?${params.toString()}`);
+  },
 };
 
 // Project APIs (shared)

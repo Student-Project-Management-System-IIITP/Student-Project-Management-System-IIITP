@@ -12,7 +12,7 @@ import Layout from '../../components/common/Layout';
 
 const GroupDashboard = () => {
   const navigate = useNavigate();
-  const { groupId } = useParams();
+  const { id: groupId } = useParams(); // Route uses :id, so we rename it to groupId
   const { user, roleData } = useAuth();
   
   // States
@@ -27,17 +27,22 @@ const GroupDashboard = () => {
   const [inviteLoading, setInviteLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   
-  // Get group management data
+  // Get group management data (mainly for Sem 5, but keep for backward compatibility)
   const { 
     sem5Group, 
     isInGroup, 
-    isGroupLeader, 
+    isGroupLeader: isGroupLeaderSem5, 
     fetchSem5Data,
     inviteToGroup,
     canInviteMembers,
     getAvailableSlots,
     finalizeGroup
   } = useGroupManagement();
+  
+  // Calculate isGroupLeader locally for any semester
+  const isGroupLeader = groupDetails?.leader?._id === roleData?._id || 
+                        groupDetails?.leader === roleData?._id ||
+                        isGroupLeaderSem5;
 
   // Sync groupDetails with sem5Group from context
   useEffect(() => {
@@ -71,6 +76,12 @@ const GroupDashboard = () => {
       return false;
     }
     
+    // Sem 6+ groups that have a project are already finalized (continued from previous semester)
+    // Only allow finalization for Sem 5 groups that are forming
+    if (groupDetails.semester >= 6 && groupDetails.project) {
+      return false;
+    }
+    
     // Check if group has minimum required members (4)
     const activeMembers = groupDetails.members?.filter(member => member.isActive) || [];
     const minMembers = groupDetails.minMembers || 4;
@@ -100,13 +111,15 @@ const GroupDashboard = () => {
 
   // Load group details - only when groupId changes
   useEffect(() => {
-    if (!groupId) return;
+    if (!groupId) {
+      return;
+    }
     
     const loadGroupDetails = async () => {
       try {
         setLoading(true);
-          const response = await studentAPI.getGroupDetails(groupId);
-          setGroupDetails(response.data.group);
+        const response = await studentAPI.getGroupDetails(groupId);
+        setGroupDetails(response.data.group);
         
         // Populate student data for invites
         if (response.data.group.invites && response.data.group.invites.length > 0) {
@@ -991,7 +1004,9 @@ const GroupDashboard = () => {
     );
   }
 
-  if (!isInGroup || !groupDetails) {
+  // Only check groupDetails, not isInGroup (which is Sem 5-specific)
+  // If we have a groupId from URL, we're loading group details directly
+  if (!groupDetails && !loading) {
     return (
       <div className="min-h-screen bg-gray-50 py-8">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">

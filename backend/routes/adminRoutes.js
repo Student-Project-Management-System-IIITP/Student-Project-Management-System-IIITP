@@ -50,4 +50,8 @@ router.get('/system-config/:key', adminController.getSystemConfig);
 router.put('/system-config/:key', adminController.updateSystemConfig);
 router.post('/system-config/initialize', adminController.initializeSystemConfigs);
 
+// Semester Management routes
+router.post('/students/update-semesters', adminController.updateStudentSemesters);
+router.get('/students/by-semester', adminController.getStudentsBySemester);
+
 module.exports = router;

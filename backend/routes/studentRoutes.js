@@ -162,6 +162,9 @@ router.get('/faculty', studentController.getFacultyList);
 // Sem 6 specific routes - Project Continuation & Advanced Features
 router.get('/projects/continuation', studentController.getContinuationProjects);
 router.post('/projects/continuation', studentController.createContinuationProject);
+// Sem 6 registration routes
+router.get('/sem6/pre-registration', studentController.getSem5GroupForSem6);
+router.post('/sem6/register', studentController.registerSem6Project);
 router.get('/projects/:id/milestones', studentController.getProjectMilestones);
 router.put('/projects/:id/milestones/:milestoneId', studentController.updateMilestone);
 router.get('/projects/:id/progress', studentController.getProjectProgress);

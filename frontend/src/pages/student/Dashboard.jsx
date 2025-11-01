@@ -26,6 +26,11 @@ const StudentDashboard = () => {
   const [previousProjects, setPreviousProjects] = useState([]);
   const [previousProjectsLoading, setPreviousProjectsLoading] = useState(false);
   
+  // Sem 6 state
+  const [sem6Project, setSem6Project] = useState(null);
+  const [sem6ProjectLoading, setSem6ProjectLoading] = useState(false);
+  const [sem6Group, setSem6Group] = useState(null);
+  
   // Invitation handling state
   const [invitationLoading, setInvitationLoading] = useState({});
   
@@ -84,33 +89,95 @@ const StudentDashboard = () => {
         const previousSemesters = Array.from({length: currentSemester - 4}, (_, i) => i + 4);
         const previousProjectsData = [];
         
-        // First, try to get all projects and filter by semester  
+        // Get all projects across all semesters
         try {
-          const response = await studentAPI.getProjects();
+          const response = await studentAPI.getProjects({ allSemesters: true });
+          
           if (response.success && response.data) {
             // Filter projects by previous semesters
-            previousProjectsData.push(...response.data.filter(p => previousSemesters.includes(p.semester)));
+            const filtered = response.data.filter(p => previousSemesters.includes(p.semester));
+            previousProjectsData.push(...filtered);
           }
         } catch (err) {
           console.error('Error loading previous projects:', err);
         }
+        
         setPreviousProjects(previousProjectsData);
       }
     } catch (error) {
-      console.error('Error loading previous projects:', error);
+      console.error('Error in loadPreviousProjects:', error);
       setPreviousProjects([]);
     } finally {
       setPreviousProjectsLoading(false);
     }
   };
 
-  // Load previous projects on component mount
+  // Load previous projects when student loads
   useEffect(() => {
-    const currentSemester = (roleData?.semester || user?.semester) || 4;
-    if (currentSemester > 4) {
+    if (roleData || user) {
       loadPreviousProjects();
     }
-  }, [user, roleData]);
+  }, [roleData, user]);
+
+  // Load Sem 6 project
+  useEffect(() => {
+    const currentSemester = (roleData?.semester || user?.semester) || 4;
+    if (currentSemester === 6) {
+      loadSem6Project();
+    }
+  }, [roleData, user]);
+
+  const loadSem6Project = async () => {
+    try {
+      setSem6ProjectLoading(true);
+      
+      // Get all projects to find Sem 6 project
+      const response = await studentAPI.getProjects({ allSemesters: true });
+      
+      if (response.success && response.data) {
+        const sem6ProjectData = response.data.find(
+          p => p.semester === 6 && p.projectType === 'minor3'
+        );
+        setSem6Project(sem6ProjectData || null);
+        
+        // Load Sem 6 group
+        if (sem6ProjectData?.group) {
+          // Get all groups (not filtered by semester)
+          const groupsResponse = await studentAPI.getGroups({ allSemesters: true });
+          
+          if (groupsResponse.success && groupsResponse.data) {
+            // The group field might be an ObjectId string or a populated object
+            const groupId = typeof sem6ProjectData.group === 'string' 
+              ? sem6ProjectData.group 
+              : sem6ProjectData.group._id;
+            
+            const sem6GroupData = groupsResponse.data.find(
+              g => g._id === groupId || g._id.toString() === groupId.toString()
+            );
+            
+            setSem6Group(sem6GroupData || null);
+          }
+        } else {
+          // If no Sem 6 project registered yet, check for Sem 5 group
+          const groupsResponse = await studentAPI.getGroups({ allSemesters: true });
+          if (groupsResponse.success && groupsResponse.data) {
+            const sem5GroupData = groupsResponse.data.find(g => g.semester === 5);
+            if (sem5GroupData) {
+              // Store Sem 5 group info so we can display it
+              setSem6Group(sem5GroupData);
+            } else {
+              // No Sem 5 group found - student cannot proceed with Sem 6 registration
+              setSem6Group(null);
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error loading Sem 6 project:', error);
+    } finally {
+      setSem6ProjectLoading(false);
+    }
+  };
 
   // Handle invitation response
   const handleInvitationResponse = async (invitationId, accept = true) => {
@@ -135,8 +202,8 @@ const StudentDashboard = () => {
 
   // Get quick actions based on semester  
   const getQuickActions = () => {
-    const actions = [];
-    const currentSemester = (roleData?.semester || user?.semester) || 4;
+      const actions = [];
+      const currentSemester = (roleData?.semester || user?.semester) || 4;
 
     if (currentSemester === 4) {
       // Sem 4 actions
@@ -234,6 +301,55 @@ const StudentDashboard = () => {
           textColor: 'text-green-800',
         });
       }
+    } else if (currentSemester === 6) {
+      // Sem 6 actions
+      if (!sem6Project) {
+        // Only show register option if student has a Sem 5 group (carried forward)
+        if (sem6Group && !sem6ProjectLoading) {
+          actions.push({
+            title: 'Register Minor Project 3',
+            description: 'Register your Minor Project 3 (continue or new)',
+            icon: '📝',
+            link: '/student/sem6/register',
+            color: 'bg-blue-50 border-blue-200 hover:bg-blue-100',
+            textColor: 'text-blue-800',
+          });
+        } else if (!sem6ProjectLoading && !sem6Group) {
+          // Student has no group - show warning (no link needed, handled in group status card)
+          actions.push({
+            title: '⚠️ No Group Found',
+            description: 'Contact admin to be added to a group',
+            icon: '⚠️',
+            link: null,
+            color: 'bg-orange-50 border-orange-200',
+            textColor: 'text-orange-800',
+          });
+        }
+      } else {
+        // Project registered - show project dashboard
+        actions.push({
+          title: 'View Project',
+          description: sem6Project.isContinuation 
+            ? 'View your continued Minor Project 3'
+            : 'View your Minor Project 3',
+          icon: '👁️',
+          link: `/projects/${sem6Project._id}`,
+          color: 'bg-purple-50 border-purple-200 hover:bg-purple-100',
+          textColor: 'text-purple-800',
+        });
+      }
+
+      // Show group dashboard if group exists
+      if (sem6Group) {
+        actions.push({
+          title: 'Group Dashboard',
+          description: 'Manage your project group',
+          icon: '👥',
+          link: `/student/groups/${sem6Group._id}/dashboard`,
+          color: 'bg-green-50 border-green-200 hover:bg-green-100',
+          textColor: 'text-green-800',
+        });
+      }
     }
 
     return actions;
@@ -241,6 +357,7 @@ const StudentDashboard = () => {
 
   const currentSemester = (roleData?.semester || user?.semester) || 4;
   const isSem5 = currentSemester === 5;
+  const isSem6 = currentSemester === 6;
 
 
   const quickActions = getQuickActions();
@@ -258,7 +375,9 @@ const StudentDashboard = () => {
           Welcome back, {roleData?.fullName || user?.fullName || user?.name || 'Student'}!
         </h1>
         <p className="text-gray-600 mt-2">
-          {isSem5 
+          {isSem6
+            ? "Manage your Minor Project 3 and track your progress"
+            : isSem5 
             ? "Manage your Minor Project 2, form groups, and track your progress"
             : "Manage your Minor Project 1 and track your progress"
           }
@@ -381,11 +500,102 @@ const StudentDashboard = () => {
         <div className="bg-white rounded-lg shadow">
           <div className="px-6 py-4 border-b border-gray-200">
             <h2 className="text-lg font-semibold text-gray-900">
-              {isSem5 ? "Minor Project 2 Status" : "Minor Project 1 Status"}
+              {isSem6 
+                ? "Minor Project 3 Status" 
+                : isSem5 
+                ? "Minor Project 2 Status" 
+                : "Minor Project 1 Status"}
             </h2>
           </div>
           <div className="p-6">
-            {isSem5 ? (
+            {isSem6 ? (
+              // Sem 6 Project Status
+              sem6ProjectLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                </div>
+              ) : sem6Project ? (
+                <div className="space-y-4">
+                  <Link 
+                    to={`/projects/${sem6Project._id}`} 
+                    className="block bg-white border border-gray-200 rounded-lg p-6 hover:shadow-md transition-shadow cursor-pointer"
+                  >
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center mb-2">
+                          <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center mr-3">
+                            <svg className="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                          </div>
+                          <div>
+                            <h3 className="text-lg font-semibold text-gray-900">
+                              {sem6Project.isContinuation 
+                                ? `Minor Project 3 (Continued)` 
+                                : 'Minor Project 3'}
+                            </h3>
+                            <p className="text-sm text-gray-500">
+                              {sem6Project.isContinuation 
+                                ? 'Continued from Sem 5' 
+                                : 'Project Dashboard'}
+                            </p>
+                          </div>
+                        </div>
+                        
+                        <div className="mt-4 space-y-2">
+                          <div className="flex items-center text-sm text-gray-600">
+                            <span className="font-medium w-20">Project:</span>
+                            <span className="text-gray-900">{sem6Project.title}</span>
+                          </div>
+                          <div className="flex items-center text-sm text-gray-600">
+                            <span className="font-medium w-20">Faculty:</span>
+                            <span className="text-gray-900">
+                              {sem6Project.faculty?.fullName || sem6Project.group?.allocatedFaculty?.fullName || 'N/A'}
+                            </span>
+                          </div>
+                          {sem6Project.isContinuation && (
+                            <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded">
+                              <p className="text-xs text-blue-800">
+                                <span className="font-medium">🔄 Continuation:</span> This project continues from your Semester 5 Minor Project 2
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      
+                      <div className="flex items-center text-gray-400">
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                        </svg>
+                      </div>
+                    </div>
+                  </Link>
+                </div>
+              ) : (
+                <div className="text-center py-8">
+                  <div className="text-gray-400 mb-4">
+                    <svg className="mx-auto h-12 w-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                  </div>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                    No Project Registered Yet
+                  </h3>
+                  <p className="text-gray-600 mb-4">
+                    Register your Minor Project 3 to continue with your group from Semester 5
+                  </p>
+                  <Link
+                    to="/student/sem6/register"
+                    className="inline-flex items-center px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
+                  >
+                    <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                    </svg>
+                    Register Minor Project 3
+                  </Link>
+                </div>
+              )
+            ) : isSem5 ? (
               // Sem 5 Project Status
               sem5ProjectLoading ? (
                 <div className="flex items-center justify-center py-8">
@@ -618,15 +828,140 @@ const StudentDashboard = () => {
           </div>
         </div>
 
-        {/* Second Card - Group Status (Sem 5) or Evaluation Schedule (Sem 4) */}
-        {isSem5 ? (
-          /* Sem 5 Group Status Card */
+        {/* Second Card - Group Status (Sem 5/6) or Evaluation Schedule (Sem 4) */}
+        {isSem6 || isSem5 ? (
+          /* Sem 5/6 Group Status Card */
           <div className="bg-white rounded-lg shadow">
             <div className="px-6 py-4 border-b border-gray-200">
               <h2 className="text-lg font-semibold text-gray-900">Group Status</h2>
             </div>
             <div className="p-6">
-              {sem5Group ? (
+              {isSem6 ? (
+                // Sem 6 Group
+                sem6ProjectLoading ? (
+                  <div className="text-center py-6">
+                    <div className="flex items-center justify-center space-x-2">
+                      <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div>
+                      <p className="text-gray-500">Loading group information...</p>
+                    </div>
+                  </div>
+                ) : sem6Group ? (
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <h3 className="font-medium text-gray-900">{sem6Group.name}</h3>
+                      <StatusBadge status={sem6Group.status} />
+                    </div>
+                    
+                    {!sem6Project && (
+                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-3">
+                        <p className="text-sm text-blue-800">
+                          <span className="font-medium">📋 Your Sem 5 Group</span> - This group will continue in Semester 6 after registration.
+                        </p>
+                      </div>
+                    )}
+                    
+                    {sem6Project && (
+                      <div className="bg-green-50 border border-green-200 rounded-lg p-3 mb-4">
+                        <p className="text-sm text-green-800">
+                          <strong>✓ Same Group:</strong> Your group from Semester 5 continues in Semester 6
+                        </p>
+                      </div>
+                    )}
+
+                    <div className="grid grid-cols-2 gap-4 text-sm">
+                      <div>
+                        <span className="text-gray-600">Members:</span>
+                        <span className="ml-2 font-medium">
+                          {sem6Group.members?.filter(m => m.isActive).length || 0}/{sem6Group.maxMembers || 5}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-gray-600">Faculty:</span>
+                        <span className="ml-2 font-medium">
+                          {sem6Group.allocatedFaculty?.fullName || 'N/A'}
+                        </span>
+                      </div>
+                    </div>
+
+                    {sem6Group.members && sem6Group.members.length > 0 && (
+                      <div className="mt-4">
+                        <h4 className="text-sm font-medium text-gray-700 mb-3">Group Members</h4>
+                        <div className="space-y-2">
+                          {sem6Group.members
+                            .filter(member => member.isActive)
+                            .map((member, index) => (
+                              <div key={member.student?._id || index} className="flex items-center space-x-3 p-2 bg-gray-50 rounded-lg">
+                                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
+                                  member.role === 'leader' 
+                                    ? 'bg-purple-100 text-purple-800' 
+                                    : 'bg-blue-100 text-blue-800'
+                                }`}>
+                                  {member.student?.fullName?.charAt(0) || '?'}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center space-x-2">
+                                    <p className="text-sm font-medium text-gray-900 truncate">
+                                      {member.student?.fullName || 'Unknown Member'}
+                                    </p>
+                                    {member.role === 'leader' && (
+                                      <span className="text-xs bg-purple-100 text-purple-800 px-1.5 py-0.5 rounded-full font-medium">
+                                        👑 Leader
+                                      </span>
+                                    )}
+                                  </div>
+                                  <p className="text-xs text-gray-500 truncate">
+                                    {member.student?.misNumber || 'MIS# -'} 
+                                    {member.student?.branch && ` • ${member.student.branch}`}
+                                  </p>
+                                </div>
+                              </div>
+                            ))}
+                        </div>
+
+                        <Link
+                          to={`/student/groups/${sem6Group._id}/dashboard`}
+                          className="mt-4 inline-flex items-center justify-center w-full px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 transition-colors"
+                        >
+                          View Group Dashboard
+                        </Link>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  // No group found - Show warning message
+                  <div className="text-center py-8">
+                    <div className="mb-4">
+                      <svg className="mx-auto h-16 w-16 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                      </svg>
+                    </div>
+                    
+                    <div className="bg-orange-50 border-2 border-orange-200 rounded-lg p-6 max-w-2xl mx-auto">
+                      <h3 className="text-lg font-semibold text-orange-900 mb-2">
+                        ⚠️ No Group Found
+                      </h3>
+                      <p className="text-sm text-orange-800 mb-4">
+                        You are currently not part of any group for Semester 6. Group creation was available in Semester 5, and groups are carried forward to Semester 6.
+                      </p>
+                      <div className="bg-white border border-orange-200 rounded-md p-4 text-left">
+                        <p className="text-sm font-medium text-gray-900 mb-2">What to do:</p>
+                        <ul className="text-sm text-gray-700 space-y-2 list-disc list-inside">
+                          <li>Contact your admin to be added to a group</li>
+                          <li>Check if you missed group formation in Semester 5</li>
+                          <li>Admin can manually assign you to an existing group</li>
+                        </ul>
+                      </div>
+                      <div className="mt-4 pt-4 border-t border-orange-200">
+                        <p className="text-xs text-gray-600">
+                          <strong>Note:</strong> You cannot register for Semester 6 project without being part of a group. Please contact your admin for assistance.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )
+              ) : (
+                // Sem 5 Group (existing code)
+                sem5Group ? (
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
                     <h3 className="font-medium text-gray-900">{sem5Group.name}</h3>
@@ -766,6 +1101,7 @@ const StudentDashboard = () => {
                   <p className="text-gray-700 mb-2">No Group Yet</p>
                   <p className="text-gray-500 text-sm">Use the Quick Actions above to create your group</p>
                 </div>
+              )
               )}
             </div>
           </div>
@@ -822,6 +1158,9 @@ const StudentDashboard = () => {
         <div className="mt-8 bg-white rounded-lg shadow">
           <div className="px-6 py-4 border-b border-gray-200">
             <h2 className="text-lg font-semibold text-gray-900">Previous Semester Projects</h2>
+            <p className="text-sm text-gray-500 mt-1">
+              Completed projects from previous semesters (chat and actions disabled)
+            </p>
           </div>
           <div className="p-6">
             {previousProjectsLoading ? (
@@ -831,27 +1170,53 @@ const StudentDashboard = () => {
               </div>
             ) : previousProjects.length > 0 ? (
               <div className="space-y-4">
-                {previousProjects.map((project, index) => (
-                  <div key={project._id || index} className="bg-gray-50 rounded-lg p-4 border border-gray-200">
-                    <div className="flex items-center justify-between mb-2">
-                      <h3 className="font-medium text-gray-900">{project.title}</h3>
-                      <StatusBadge status={project.status} />
-                    </div>
-                    <p className="text-sm text-gray-600 mb-2">{project.description}</p>
-                    <div className="flex items-center justify-between text-xs text-gray-500">
-                      <span>Semester {project.semester}</span>
-                      <span>{new Date(project.createdAt).toLocaleDateString()}</span>
-                    </div>
-                    {project.faculty && (
-                      <div className="mt-2 text-xs text-gray-500">
-                        <span className="font-medium">Faculty:</span> {project.faculty?.fullName || 'N/A'}
+                {previousProjects
+                  .filter(p => p.status === 'completed' || p.semester < currentSemester)
+                  .map((project, index) => (
+                    <div key={project._id || index} className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex-1">
+                          <h3 className="font-medium text-gray-900 flex items-center">
+                            {project.title}
+                            {project.isContinuation && (
+                              <span className="ml-2 text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full">
+                                Continued
+                              </span>
+                            )}
+                          </h3>
+                          <p className="text-xs text-gray-500 mt-1">
+                            Semester {project.semester} • {project.projectType === 'minor1' ? 'Minor Project 1' : 
+                                                            project.projectType === 'minor2' ? 'Minor Project 2' :
+                                                            project.projectType === 'minor3' ? 'Minor Project 3' : project.projectType}
+                          </p>
+                        </div>
+                        <StatusBadge status={project.status} />
                       </div>
-                    )}
-                  </div>
-                ))}
+                      {project.description && (
+                        <p className="text-sm text-gray-600 mb-3 line-clamp-2">{project.description}</p>
+                      )}
+                      <div className="flex items-center justify-between text-xs text-gray-500">
+                        <div className="flex items-center space-x-4">
+                          <span>Registered: {new Date(project.createdAt).toLocaleDateString()}</span>
+                          {project.faculty && (
+                            <span>Faculty: {project.faculty?.fullName || 'N/A'}</span>
+                          )}
+                        </div>
+                        <div className="flex items-center space-x-2 text-gray-400">
+                          <span>🔒</span>
+                          <span>View Only</span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
               </div>
             ) : (
               <div className="text-center py-8">
+                <div className="text-gray-400 mb-4">
+                  <svg className="mx-auto h-12 w-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                </div>
                 <p className="text-gray-500">No previous semester projects found</p>
               </div>
             )}
@@ -863,10 +1228,22 @@ const StudentDashboard = () => {
       {/* Information Section */}
       <div className="mt-8 bg-blue-50 rounded-lg p-6">
         <h2 className="text-lg font-semibold text-blue-900 mb-4">
-          {isSem5 ? "About Minor Project 2" : "About Minor Project 1"}
+          {isSem6 
+            ? "About Minor Project 3" 
+            : isSem5 
+            ? "About Minor Project 2" 
+            : "About Minor Project 1"}
         </h2>
         <div className="text-blue-800 space-y-2">
-          {isSem5 ? (
+          {isSem6 ? (
+            <>
+              <p>• Group project continuation from Semester 5 (4-5 members)</p>
+              <p>• Continue your Sem 5 project OR start a new project</p>
+              <p>• Same group members and faculty supervisor from Sem 5</p>
+              <p>• Advanced features and project continuation</p>
+              <p>• Duration: 4-5 months</p>
+            </>
+          ) : isSem5 ? (
             <>
               <p>• Group project for B.Tech 5th semester students (4-5 members)</p>
               <p>• Focus on advanced programming concepts and team collaboration</p>

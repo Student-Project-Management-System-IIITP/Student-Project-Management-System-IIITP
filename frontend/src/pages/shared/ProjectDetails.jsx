@@ -62,7 +62,7 @@ const ImageWithAuth = ({ src, alt, className }) => {
 const ProjectDetails = () => {
   const { projectId } = useParams();
   const navigate = useNavigate();
-  const { user, userRole, token } = useAuth();
+  const { user, userRole, roleData, token } = useAuth();
   const messagesEndRef = useRef(null);
   const socketRef = useRef(null);
   
@@ -1130,8 +1130,8 @@ const ProjectDetails = () => {
                       </svg>
                     </div>
                     <div>
-                      <p className="font-semibold text-gray-900">{project.faculty.fullName}</p>
-                      <p className="text-sm text-gray-500">{project.faculty.department}</p>
+                      <p className="font-semibold text-gray-900">{project.faculty.fullName || roleData?.fullName || 'Faculty'}</p>
+                      <p className="text-sm text-gray-500">{project.faculty.department || roleData?.department || ''}</p>
                     </div>
                   </div>
                   
