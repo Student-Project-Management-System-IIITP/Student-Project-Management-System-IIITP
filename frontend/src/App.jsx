@@ -23,6 +23,7 @@ import Sem4RegistrationsTable from './pages/admin/Sem4RegistrationsTable';
 import Sem4UnregisteredStudents from './pages/admin/Sem4UnregisteredStudents';
 import Sem5RegistrationsTable from './pages/admin/Sem5RegistrationsTable';
 import Sem5AllocatedFaculty from './pages/admin/Sem5AllocatedFaculty';
+import Sem6RegistrationsTable from './pages/admin/Sem6RegistrationsTable';
 import SystemConfiguration from './pages/admin/SystemConfiguration';
 import NotFound from './pages/NotFound';
 import AdminProfile from './pages/admin/Profile';
@@ -268,6 +269,13 @@ function AppContent() {
             <ProtectedRoute allowedRoles={['admin']}>
               <Layout>
                 <Sem5AllocatedFaculty />
+              </Layout>
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/sem6/registrations" element={
+            <ProtectedRoute allowedRoles={['admin']}>
+              <Layout>
+                <Sem6RegistrationsTable />
               </Layout>
             </ProtectedRoute>
           } />
