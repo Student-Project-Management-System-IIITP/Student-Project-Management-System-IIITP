@@ -803,14 +803,16 @@ const getSem5NonRegisteredStudents = async (req, res) => {
     } else if (batch || currentYear) {
       if (batch) {
         const startYear = batch.split('-')[0];
-        const acYear = `${startYear}-${parseInt(startYear) + 4}`;
+        // Academic year format should be "2024-25" not "2024-2028"
+        const acYear = `${startYear}-${(parseInt(startYear) + 1).toString().slice(-2)}`;
         query.academicYear = acYear;
       } else if (currentYear === 'true') {
         const currentDate = new Date();
         const currentYearNum = currentDate.getFullYear();
         const isPreMid = currentDate.getMonth() < 6;
         const academicStartYear = isPreMid ? currentYearNum - 1 : currentYearNum;
-        const acYear = `${academicStartYear}-${academicStartYear + 4}`;
+        // Academic year format should be "2024-25" not "2024-2028"
+        const acYear = `${academicStartYear}-${(academicStartYear + 1).toString().slice(-2)}`;
         query.academicYear = acYear;
       }
     }
@@ -821,17 +823,24 @@ const getSem5NonRegisteredStudents = async (req, res) => {
       .populate('groupId', 'name status allocatedFaculty')
       .sort({ fullName: 1 });
 
-    // Get all Sem 5 projects
-    const projects = await Project.find({
+    // Get all Sem 5 projects (only from groups still in Sem 5)
+    const projectQuery = {
       projectType: 'minor2',
       semester: 5,
       ...(query.academicYear && { academicYear: query.academicYear })
-    }).select('student');
+    };
+    
+    const projects = await Project.find(projectQuery)
+      .populate('group', 'semester')
+      .select('student group');
+    
+    // Filter to only include projects where group is still in Sem 5
+    const sem5OnlyProjects = projects.filter(p => !p.group || p.group.semester === 5);
 
     // Create a set of students who have registered
-    const registeredStudentIds = new Set(projects.map(p => p.student.toString()));
+    const registeredStudentIds = new Set(sem5OnlyProjects.map(p => p.student.toString()));
 
-    // Get all groups with allocated faculty for Sem 5
+    // Get all groups with allocated faculty for Sem 5 (only groups still in Sem 5)
     const allocatedGroups = await Group.find({
       semester: 5,
       allocatedFaculty: { $exists: true, $ne: null },
@@ -1009,23 +1018,26 @@ const getSem5AllocatedFaculty = async (req, res) => {
     } else if (batch || currentYear) {
       if (batch) {
         const startYear = batch.split('-')[0];
-        const acYear = `${startYear}-${parseInt(startYear) + 4}`;
+        // Academic year format should be "2024-25" not "2024-2028"
+        const acYear = `${startYear}-${(parseInt(startYear) + 1).toString().slice(-2)}`;
         query.academicYear = acYear;
       } else if (currentYear === 'true') {
         const currentDate = new Date();
         const currentYearNum = currentDate.getFullYear();
         const isPreMid = currentDate.getMonth() < 6;
         const academicStartYear = isPreMid ? currentYearNum - 1 : currentYearNum;
-        const acYear = `${academicStartYear}-${academicStartYear + 4}`;
+        // Academic year format should be "2024-25" not "2024-2028"
+        const acYear = `${academicStartYear}-${(academicStartYear + 1).toString().slice(-2)}`;
         query.academicYear = acYear;
       }
     }
 
     // Get all groups with populated data
+    // This will only get groups that are CURRENTLY in semester 5 (not migrated to sem 6)
     const groups = await Group.find(query)
       .populate({
         path: 'members.student',
-        select: 'fullName misNumber contactNumber branch user',
+        select: 'fullName misNumber contactNumber branch user semester',
         populate: {
           path: 'user',
           select: 'email'
@@ -1037,7 +1049,7 @@ const getSem5AllocatedFaculty = async (req, res) => {
       })
       .populate({
         path: 'project',
-        select: 'title status'
+        select: 'title status semester'
       })
       .sort({ allocatedFaculty: 1, createdAt: -1 }); // Sort by faculty first, then by creation date
 
@@ -1152,9 +1164,10 @@ const getSem5MinorProject2Registrations = async (req, res) => {
     const projects = await Project.find(query)
       .populate({
         path: 'group',
+        select: 'name semester academicYear members',
         populate: {
           path: 'members.student',
-          select: 'fullName misNumber contactNumber branch user',
+          select: 'fullName misNumber contactNumber branch user semester',
           populate: {
             path: 'user',
             select: 'email'
@@ -1167,8 +1180,15 @@ const getSem5MinorProject2Registrations = async (req, res) => {
       })
       .sort({ createdAt: -1 });
 
+    // Filter out projects where the group has been migrated to Sem 6
+    // (group.semester will be 6 if it was migrated for continuation)
+    const sem5OnlyProjects = projects.filter(project => {
+      if (!project.group) return true; // Keep if no group data
+      return project.group.semester === 5; // Only keep if group is still in Sem 5
+    });
+
     // Format the response with all group members and faculty preferences
-    const formattedRegistrations = projects.map(project => {
+    const formattedRegistrations = sem5OnlyProjects.map(project => {
       const group = project.group;
       const members = group?.members?.filter(m => m.isActive) || [];
       
@@ -1223,6 +1243,334 @@ const getSem5MinorProject2Registrations = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error fetching registrations',
+      error: error.message
+    });
+  }
+};
+
+// Get Sem 6 Major Project registrations
+const getSem6MajorProjectRegistrations = async (req, res) => {
+  try {
+    const { batch, currentYear } = req.query;
+    
+    let query = {
+      projectType: 'minor3', // Sem 6 uses 'minor3' not 'major'
+      semester: 6
+    };
+
+    // Add academic year filter based on batch
+    if (batch || currentYear) {
+      if (batch) {
+        const startYear = batch.split('-')[0];
+        // Academic year format should be "2024-25" not "2024-2028"
+        const academicYear = `${startYear}-${(parseInt(startYear) + 1).toString().slice(-2)}`;
+        query.academicYear = academicYear;
+      } else if (currentYear === 'true') {
+        const currentDate = new Date();
+        const currentYearNum = currentDate.getFullYear();
+        const isPreMid = currentDate.getMonth() < 6;
+        const academicStartYear = isPreMid ? currentYearNum - 1 : currentYearNum;
+        // Academic year format should be "2024-25" not "2024-2028"
+        const academicYear = `${academicStartYear}-${(academicStartYear + 1).toString().slice(-2)}`;
+        query.academicYear = academicYear;
+      }
+    }
+
+    // Get projects with populated data
+    const projects = await Project.find(query)
+      .populate({
+        path: 'group',
+        select: 'name semester academicYear members allocatedFaculty',
+        populate: [
+          {
+            path: 'members.student',
+            select: 'fullName misNumber contactNumber branch user semester',
+            populate: {
+              path: 'user',
+              select: 'email'
+            }
+          },
+          {
+            path: 'allocatedFaculty',
+            select: 'fullName department designation'
+          }
+        ]
+      })
+      .populate({
+        path: 'faculty',
+        select: 'fullName department designation'
+      })
+      .sort({ createdAt: -1 });
+
+    // Filter to only include projects where group is actually in Sem 6 (or no group for new projects)
+    const validProjects = projects.filter(project => {
+      if (!project.group) return true; // Include if no group (edge case)
+      return project.group.semester === 6; // Only include if group is in Sem 6
+    });
+
+    const formattedRegistrations = validProjects.map(project => {
+      const group = project.group;
+      const members = group?.members?.filter(m => m.isActive) || [];
+      
+      // Create a flat structure with all member details
+      const registration = {
+        _id: project._id,
+        timestamp: project.createdAt,
+        email: members[0]?.student?.user?.email || 'N/A',
+        projectTitle: project.title,
+        academicYear: project.academicYear,
+        status: project.status,
+        groupId: group?._id,
+        groupName: group?.name || 'N/A',
+        isContinuation: project.isContinuation || false,
+        // Add allocated faculty information
+        allocatedFaculty: group?.allocatedFaculty?.fullName || project.faculty?.fullName || 'Not Allocated',
+        facultyDepartment: group?.allocatedFaculty?.department || project.faculty?.department || 'N/A',
+        facultyDesignation: group?.allocatedFaculty?.designation || project.faculty?.designation || 'N/A'
+      };
+
+      // Add all group members (up to 5)
+      for (let i = 0; i < 5; i++) {
+        const member = members[i];
+        const memberNum = i + 1;
+        
+        if (member && member.student) {
+          registration[`member${memberNum}Name`] = member.student.fullName || 'N/A';
+          registration[`member${memberNum}MIS`] = member.student.misNumber || 'N/A';
+          registration[`member${memberNum}Contact`] = member.student.contactNumber || 'N/A';
+          registration[`member${memberNum}Branch`] = member.student.branch || 'N/A';
+        } else {
+          registration[`member${memberNum}Name`] = '';
+          registration[`member${memberNum}MIS`] = '';
+          registration[`member${memberNum}Contact`] = '';
+          registration[`member${memberNum}Branch`] = '';
+        }
+      }
+
+      return registration;
+    });
+
+    res.json({
+      success: true,
+      data: formattedRegistrations,
+      total: formattedRegistrations.length
+    });
+
+  } catch (error) {
+    console.error('Error getting Sem 6 Major Project registrations:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching registrations',
+      error: error.message
+    });
+  }
+};
+
+// Get Sem 6 Non-Registered Groups
+const getSem6NonRegisteredGroups = async (req, res) => {
+  try {
+    const { batch, currentYear, academicYear } = req.query;
+    
+    let query = {
+      semester: 5, // Looking at Sem 5 groups that should continue to Sem 6
+      isActive: true
+    };
+
+    // Add academic year filter
+    if (academicYear) {
+      query.academicYear = academicYear;
+    } else if (batch || currentYear) {
+      if (batch) {
+        const startYear = batch.split('-')[0];
+        // For Sem 5 groups, academic year is in format "2024-25" not "2024-2028"
+        const acYear = `${startYear}-${(parseInt(startYear) + 1).toString().slice(-2)}`;
+        query.academicYear = acYear;
+      } else if (currentYear === 'true') {
+        const currentDate = new Date();
+        const currentYearNum = currentDate.getFullYear();
+        const isPreMid = currentDate.getMonth() < 6;
+        const academicStartYear = isPreMid ? currentYearNum - 1 : currentYearNum;
+        // For Sem 5 groups, academic year is in format "2024-25" not "2024-2028"
+        const acYear = `${academicStartYear}-${(academicStartYear + 1).toString().slice(-2)}`;
+        query.academicYear = acYear;
+      }
+    }
+
+    // Get all Sem 5 groups that are still in semester 5 (not migrated)
+    const sem5Groups = await Group.find(query)
+      .populate({
+        path: 'members.student',
+        select: 'fullName misNumber contactNumber branch user semester',
+        populate: {
+          path: 'user',
+          select: 'email'
+        }
+      })
+      .populate('leader', 'fullName misNumber')
+      .populate('allocatedFaculty', 'fullName department')
+      .sort({ createdAt: -1 });
+
+    // Get all Sem 6 projects
+    const sem6Projects = await Project.find({
+      projectType: 'minor3', // Sem 6 uses 'minor3' not 'major'
+      semester: 6
+    })
+    .populate('student', 'semester')
+    .select('group student');
+
+    // Create a set of group IDs that have registered for Sem 6 (and group is actually in Sem 6)
+    const registeredGroupIds = new Set();
+    sem6Projects.forEach(project => {
+      // Only count if the student is CURRENTLY in semester 6
+      if (project.group && project.student && project.student.semester === 6) {
+        registeredGroupIds.add(project.group.toString());
+      }
+    });
+
+    // Get student IDs who are CURRENTLY in Sem 6 and have projects
+    const sem6StudentIds = new Set();
+    sem6Projects.forEach(project => {
+      if (project.student && project.student.semester === 6) {
+        sem6StudentIds.add(project.student._id.toString());
+      }
+    });
+
+    // Filter out groups where at least one member has registered for Sem 6 AND is currently in Sem 6
+    const nonRegisteredGroups = sem5Groups.filter(group => {
+      const groupId = group._id.toString();
+      
+      // Check if group itself is registered (by a student currently in Sem 6)
+      if (registeredGroupIds.has(groupId)) {
+        return false;
+      }
+      
+      // Check if any member of this group is CURRENTLY in Sem 6
+      const hasCurrentSem6Member = group.members.some(member => {
+        if (!member.student || !member.student._id) return false;
+        // Check both: has Sem 6 project AND currently in semester 6
+        const hasProject = sem6StudentIds.has(member.student._id.toString());
+        const isCurrentlySem6 = member.student.semester === 6;
+        return hasProject && isCurrentlySem6;
+      });
+      
+      return !hasCurrentSem6Member;
+    });
+
+    // Format the response
+    const formattedGroups = nonRegisteredGroups.map(group => {
+      const members = group.members.filter(m => m.isActive) || [];
+      
+      const groupData = {
+        _id: group._id,
+        groupName: group.name || 'N/A',
+        leaderName: group.leader?.fullName || 'N/A',
+        leaderMIS: group.leader?.misNumber || 'N/A',
+        allocatedFaculty: group.allocatedFaculty?.fullName || 'Not Allocated',
+        facultyDepartment: group.allocatedFaculty?.department || 'N/A',
+        memberCount: members.length,
+        createdAt: group.createdAt,
+        academicYear: group.academicYear
+      };
+
+      // Add all group members (up to 5)
+      for (let i = 0; i < 5; i++) {
+        const member = members[i];
+        const memberNum = i + 1;
+        
+        if (member && member.student) {
+          groupData[`member${memberNum}Name`] = member.student.fullName || 'N/A';
+          groupData[`member${memberNum}MIS`] = member.student.misNumber || 'N/A';
+          groupData[`member${memberNum}Contact`] = member.student.contactNumber || 'N/A';
+          groupData[`member${memberNum}Branch`] = member.student.branch || 'N/A';
+          groupData[`member${memberNum}Email`] = member.student.user?.email || 'N/A';
+        } else {
+          groupData[`member${memberNum}Name`] = '';
+          groupData[`member${memberNum}MIS`] = '';
+          groupData[`member${memberNum}Contact`] = '';
+          groupData[`member${memberNum}Branch`] = '';
+          groupData[`member${memberNum}Email`] = '';
+        }
+      }
+
+      return groupData;
+    });
+
+    res.json({
+      success: true,
+      data: formattedGroups,
+      total: formattedGroups.length,
+      stats: {
+        totalSem5Groups: sem5Groups.length,
+        registeredForSem6: sem5Groups.length - nonRegisteredGroups.length,
+        notRegisteredForSem6: nonRegisteredGroups.length
+      }
+    });
+
+  } catch (error) {
+    console.error('Error getting Sem 6 non-registered groups:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching non-registered groups',
+      error: error.message
+    });
+  }
+};
+
+// Get Sem 6 Statistics for Admin Dashboard
+const getSem6Statistics = async (req, res) => {
+  try {
+    const { academicYear } = req.query;
+    
+    const query = {
+      semester: 6
+    };
+
+    if (academicYear) {
+      query.academicYear = academicYear;
+    } else {
+      // Default to current academic year
+      const currentDate = new Date();
+      const currentYearNum = currentDate.getFullYear();
+      const isPreMid = currentDate.getMonth() < 6;
+      const academicStartYear = isPreMid ? currentYearNum - 1 : currentYearNum;
+      query.academicYear = `${academicStartYear}-${(academicStartYear + 1).toString().slice(-2)}`;
+    }
+
+    // Get Sem 5 groups (potential Sem 6 groups)
+    const sem5Query = {
+      semester: 5,
+      isActive: true,
+      academicYear: query.academicYear
+    };
+    const totalSem5Groups = await Group.countDocuments(sem5Query);
+
+    // Get project statistics
+    const totalProjects = await Project.countDocuments({ ...query, projectType: 'minor3' });
+    const registeredProjects = await Project.countDocuments({ ...query, projectType: 'minor3', status: 'registered' });
+    const activeProjects = await Project.countDocuments({ ...query, projectType: 'minor3', status: 'active' });
+    
+    // Get continuation vs new projects
+    const continuationProjects = await Project.countDocuments({ ...query, projectType: 'minor3', isContinuation: true });
+    const newProjects = totalProjects - continuationProjects;
+
+    res.json({
+      success: true,
+      data: {
+        totalSem5Groups,
+        totalProjects,
+        registeredProjects,
+        activeProjects,
+        notRegistered: totalSem5Groups - totalProjects,
+        continuationProjects,
+        newProjects,
+        registrationRate: totalSem5Groups > 0 ? ((totalProjects / totalSem5Groups) * 100).toFixed(2) : 0
+      }
+    });
+  } catch (error) {
+    console.error('Error getting Sem 6 statistics:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching Sem 6 statistics',
       error: error.message
     });
   }
@@ -1647,6 +1995,10 @@ module.exports = {
   getSem5AllocatedFaculty,
   getSem5NonRegisteredStudents,
   getSem5Groups,
+  // Sem 6 specific functions
+  getSem6MajorProjectRegistrations,
+  getSem6NonRegisteredGroups,
+  getSem6Statistics,
   getSem5Statistics,
   // Sem 4 specific functions
   getSem4MinorProject1Registrations,

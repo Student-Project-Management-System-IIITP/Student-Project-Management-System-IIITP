@@ -44,6 +44,11 @@ router.get('/statistics/sem5', adminController.getSem5Statistics);
 router.get('/sem4/registrations', adminController.getSem4MinorProject1Registrations);
 router.get('/sem4/unregistered-students', adminController.getUnregisteredSem4Students);
 
+// Sem 6 specific routes
+router.get('/sem6/registrations', adminController.getSem6MajorProjectRegistrations);
+router.get('/sem6/non-registered-groups', adminController.getSem6NonRegisteredGroups);
+router.get('/statistics/sem6', adminController.getSem6Statistics);
+
 // System Configuration routes
 router.get('/system-config', adminController.getSystemConfigurations);
 router.get('/system-config/:key', adminController.getSystemConfig);

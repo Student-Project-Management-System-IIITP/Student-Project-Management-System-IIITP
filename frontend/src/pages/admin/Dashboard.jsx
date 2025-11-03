@@ -56,6 +56,17 @@ const AdminDashboard = () => {
     totalStudents: 0,
     registeredProjects: 0
   });
+
+  // Sem 6 specific state
+  const [sem6Stats, setSem6Stats] = useState({
+    totalSem5Groups: 0,
+    totalProjects: 0,
+    registeredProjects: 0,
+    notRegistered: 0,
+    continuationProjects: 0,
+    newProjects: 0,
+    registrationRate: 0
+  });
   
   const [loading, setLoading] = useState(true);
 
@@ -115,6 +126,36 @@ const AdminDashboard = () => {
             unallocatedGroups: 0,
             totalStudents: 0,
             registeredProjects: 0
+          });
+        }
+
+        // Load Sem 6 statistics
+        try {
+          const sem6StatsResponse = await adminAPI.getSem6Statistics();
+          
+          // Calculate Sem 6 stats
+          const sem6Stats = {
+            totalSem5Groups: sem6StatsResponse.data?.totalSem5Groups || 0,
+            totalProjects: sem6StatsResponse.data?.totalProjects || 0,
+            registeredProjects: sem6StatsResponse.data?.registeredProjects || 0,
+            notRegistered: sem6StatsResponse.data?.notRegistered || 0,
+            continuationProjects: sem6StatsResponse.data?.continuationProjects || 0,
+            newProjects: sem6StatsResponse.data?.newProjects || 0,
+            registrationRate: sem6StatsResponse.data?.registrationRate || 0
+          };
+          
+          setSem6Stats(sem6Stats);
+        } catch (sem6Error) {
+          console.warn('Sem 6 data not available:', sem6Error);
+          // Set default Sem 6 stats if not available
+          setSem6Stats({
+            totalSem5Groups: 0,
+            totalProjects: 0,
+            registeredProjects: 0,
+            notRegistered: 0,
+            continuationProjects: 0,
+            newProjects: 0,
+            registrationRate: 0
           });
         }
       } catch (error) {
@@ -345,6 +386,52 @@ const AdminDashboard = () => {
               <div className="bg-white bg-opacity-20 rounded-lg p-4">
                 <div className="text-2xl font-bold">{sem5Stats.unallocatedGroups}</div>
                 <div className="text-blue-200 text-sm">Groups Pending Allocation</div>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Sem 6 Statistics */}
+      <div className="mb-8">
+        <div className="bg-gradient-to-r from-green-600 to-green-800 text-white p-6 rounded-lg shadow-md">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-2xl font-bold mb-4">B.Tech Semester 6 - Major Project</h2>
+              <p className="text-green-200 mb-6">Major project registration and continuation tracking</p>
+            </div>
+            <div className="flex space-x-4">
+              <Link
+                to="/admin/sem6/registrations"
+                className="bg-white bg-opacity-20 hover:bg-opacity-30 px-4 py-2 rounded-md text-white font-medium transition-all duration-200 flex items-center space-x-2"
+              >
+                <span>📊</span>
+                <span>View Registrations</span>
+              </Link>
+            </div>
+          </div>
+          
+          {loading ? (
+            <div className="flex items-center justify-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="bg-white bg-opacity-20 rounded-lg p-4 hover:bg-opacity-30 transition-all cursor-pointer">
+                <div className="text-2xl font-bold">{sem6Stats.totalProjects}</div>
+                <div className="text-green-200 text-sm">Registered Projects</div>
+              </div>
+              <div className="bg-white bg-opacity-20 rounded-lg p-4 hover:bg-opacity-30 transition-all cursor-pointer">
+                <div className="text-2xl font-bold">{sem6Stats.notRegistered}</div>
+                <div className="text-green-200 text-sm">Not Registered</div>
+              </div>
+              <div className="bg-white bg-opacity-20 rounded-lg p-4 hover:bg-opacity-30 transition-all cursor-pointer">
+                <div className="text-2xl font-bold">{sem6Stats.continuationProjects}</div>
+                <div className="text-green-200 text-sm">Continuation Projects</div>
+              </div>
+              <div className="bg-white bg-opacity-20 rounded-lg p-4 hover:bg-opacity-30 transition-all cursor-pointer">
+                <div className="text-2xl font-bold">{sem6Stats.registrationRate}%</div>
+                <div className="text-green-200 text-sm">Registration Rate</div>
               </div>
             </div>
           )}

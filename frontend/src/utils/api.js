@@ -270,6 +270,25 @@ export const adminAPI = {
     return apiRequest(url.href.replace(API_BASE_URL, ''));
   },
 
+  // Sem 6 Management
+  getSem6Registrations: (params) => {
+    const url = new URL('/admin/sem6/registrations', API_BASE_URL);
+    if (params) {
+      Object.keys(params).forEach(key => url.searchParams.append(key, params[key]));
+    }
+    return apiRequest(url.href.replace(API_BASE_URL, ''));
+  },
+
+  getSem6NonRegisteredGroups: (params) => {
+    const url = new URL('/admin/sem6/non-registered-groups', API_BASE_URL);
+    if (params) {
+      Object.keys(params).forEach(key => url.searchParams.append(key, params[key]));
+    }
+    return apiRequest(url.href.replace(API_BASE_URL, ''));
+  },
+
+  getSem6Statistics: () => api.get('/admin/statistics/sem6'),
+
   getSem5NonRegisteredStudents: (params) => {
     const url = new URL('/admin/sem5/non-registered-students', API_BASE_URL);
     if (params) {
