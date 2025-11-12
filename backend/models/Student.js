@@ -422,12 +422,18 @@ studentSchema.methods.leaveGroupAtomic = async function(groupId, session = null)
     }
 
     // Verify not trying to leave in a locked semester state
-    const currentSemesterStatus = this.semesterStatus.find(s => s.semester === this.semester);
+    let currentSemesterStatus = null;
+    if (Array.isArray(this.semesterStatus)) {
+      currentSemesterStatus = this.semesterStatus.find(s => s.semester === this.semester);
+    } else if (this.semesterStatus && typeof this.semesterStatus === 'object') {
+      currentSemesterStatus = this.semesterStatus; // flat object schema
+    }
     if (currentSemesterStatus && currentSemesterStatus.phases?.inProgress?.includes('projectSubmission')) {
       throw new Error('Cannot leave group during project submission phase');
     }
 
-    membership.isActive = false;
+    // Completely remove the membership to allow re-joining or new group invitations
+    this.groupMemberships.pull({ _id: membership._id });
     this.groupId = null;
 
     await this.save({ session });

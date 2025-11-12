@@ -973,12 +973,20 @@ const StudentDashboard = () => {
                     <div>
                       <span className="text-gray-600">Members:</span>
                       <span className="ml-2 font-medium">
-                        {getGroupStats().memberCount}/{getGroupStats().maxMembers}
+                        {(
+                          sem5Group?.activeMemberCount ?? (sem5Group.members?.filter?.(m => m.isActive).length || 0)
+                        )}/{sem5Group?.maxMembers || getGroupStats().maxMembers}
                       </span>
                     </div>
                     <div>
                       <span className="text-gray-600">Available Slots:</span>
-                      <span className="ml-2 font-medium">{getGroupStats().availableSlots}</span>
+                      <span className="ml-2 font-medium">{
+                        (() => {
+                          const current = sem5Group?.activeMemberCount ?? (sem5Group.members?.filter?.(m => m.isActive).length || 0);
+                          const max = sem5Group?.maxMembers || getGroupStats().maxMembers;
+                          return Math.max(0, (max || 0) - (current || 0));
+                        })()
+                      }</span>
                     </div>
                   </div>
 
@@ -1040,17 +1048,19 @@ const StudentDashboard = () => {
                   )}
 
                   {/* Warning for incomplete groups */}
-                  {getGroupStats().memberCount < 2 && (
+                  {(
+                    sem5Group?.activeMemberCount ?? (sem5Group.members?.filter?.(m => m.isActive).length || 0)
+                  ) < (sem5Group?.minMembers || 4) && (
                     <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
                       <div className="flex items-center">
                         <div className="text-yellow-400 mr-3">
                           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16c-.77.833.192 2.5 1.732 2.5z" />
                           </svg>
                         </div>
                         <div>
                           <p className="text-sm font-medium text-yellow-800">Group Not Complete</p>
-                          <p className="text-xs text-yellow-700">You need at least 2 members to register your project</p>
+                          <p className="text-xs text-yellow-700">You need at least {sem5Group?.minMembers || 4} members to register your project</p>
                         </div>
                       </div>
                     </div>
@@ -1061,19 +1071,26 @@ const StudentDashboard = () => {
                     <div className="mt-4">
                       <div className="flex justify-between text-sm text-gray-600 mb-1">
                         <span>Group Formation Progress</span>
-                        <span>{`${Math.round(getGroupStats().memberCount / getGroupStats().maxMembers * 100)}%`}</span>
+                        <span>{(() => {
+                          const current = sem5Group?.activeMemberCount ?? (sem5Group.members?.filter?.(m => m.isActive).length || 0);
+                          const max = sem5Group?.maxMembers || getGroupStats().maxMembers || 5;
+                          return `${Math.round((current / max) * 100)}%`;
+                        })()}</span>
                       </div>
                       <div className="w-full bg-gray-200 rounded-full h-2">
                         <div 
                           className="h-2 rounded-full transition-all duration-300 bg-blue-600"
                           style={{ 
-                            width: `${Math.round(getGroupStats().memberCount / getGroupStats().maxMembers * 100)}%` 
+                            width: (() => {
+                              const current = sem5Group?.activeMemberCount ?? (sem5Group.members?.filter?.(m => m.isActive).length || 0);
+                              const max = sem5Group?.maxMembers || getGroupStats().maxMembers || 5;
+                              return `${Math.round((current / max) * 100)}%`;
+                            })()
                           }}
                         ></div>
                       </div>
                     </div>
                   )}
-
                   {/* Actions */}
                   <div className="mt-4 space-y-2">
                     <Link
