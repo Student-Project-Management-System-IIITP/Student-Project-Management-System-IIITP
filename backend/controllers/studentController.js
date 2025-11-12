@@ -1646,7 +1646,7 @@ const getGroupById = async (req, res) => {
       minMembers: group.minMembers,
       memberCount: group.members.filter(m => m.isActive).length,
       leader: group.leader,
-      members: group.members.filter(m => m.isActive),
+      members: group.members ? group.members.filter(m => m.isActive) : [],
       invites: group.invites,
       createdBy: group.createdBy,
       project: group.project,
@@ -1761,14 +1761,18 @@ const getAvailableStudents = async (req, res) => {
       .sort(sortQuery);
 
 
-
     // Check students' group status and invites
     const studentsWithStatus = await Promise.all(
       students.map(async (s) => {
         const currentGroup = await Group.findOne({
-          'members.student': s._id,
           semester: student.semester,
-          isActive: true
+          isActive: true,
+          members: {
+            $elemMatch: {
+              student: s._id,
+              isActive: true
+            }
+          }
         });
 
         // Check if student has pending invitation from the current group
@@ -3781,11 +3785,16 @@ const getSem5Dashboard = async (req, res) => {
       });
     }
 
-    // Get current group first
+    // Get current group first - using $elemMatch to ensure the student is an *active* member
     const group = await Group.findOne({
-      'members.student': student._id,
       semester: 5,
-      isActive: true
+      isActive: true,
+      members: {
+        $elemMatch: {
+          student: student._id,
+          isActive: true
+        }
+      }
     }).populate('members.student allocatedFaculty project');
 
     // Get student's current semester projects
@@ -4424,13 +4433,10 @@ const leaveGroupEnhanced = async (req, res) => {
         console.error('Socket notification error:', socketError);
       }
 
-      const updatedGroup = await Group.findById(groupId)
-        .populate('members.student', 'fullName misNumber collegeEmail branch')
-        .populate('leader', 'fullName misNumber collegeEmail branch');
-
+      // Don't return group data since the student is no longer part of it
       res.json({
         success: true,
-        data: { group: updatedGroup },
+        data: null,
         message: 'Left group successfully'
       });
     } catch (error) {

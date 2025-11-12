@@ -27,6 +27,7 @@ const MinorProject2Registration = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedDepartment, setSelectedDepartment] = useState('all');
   const [isRestoredFromStorage, setIsRestoredFromStorage] = useState(false);
+  const toastShownRef = React.useRef(false);
   const [customDomain, setCustomDomain] = useState(() => {
     const saved = localStorage.getItem('minorProject2Registration_customDomain');
     return saved || '';
@@ -34,28 +35,52 @@ const MinorProject2Registration = () => {
   const [facultyPreferenceLimit, setFacultyPreferenceLimit] = useState(7); // Default to 7
   // Simple access validation - only redirect if we have group data and conditions are not met
   useEffect(() => {
-    // Only validate if we have group data loaded
-    if (!groupLoading && sem5Group) {
-      // Check if group is finalized
-      if (sem5Group.status !== 'finalized') {
-        toast.error('Your group must be finalized before registering your project');
+    try {
+      // Only validate if we have group data loaded
+      if (!groupLoading) {
+        if (!sem5Group) {
+          if (!toastShownRef.current) {
+            toast.error('You are not in a group. Please join or create a group first.');
+            toastShownRef.current = true;
+          }
+          navigate('/student/dashboard');
+          return;
+        }
+        // Check if group is finalized
+        if (sem5Group.status !== 'finalized') {
+          if (!toastShownRef.current) {
+            toast.error('Your group must be finalized before registering your project');
+            toastShownRef.current = true;
+          }
+          navigate('/dashboard/student');
+          return;
+        }
+
+        // Check if user is group leader
+        if (!isGroupLeader) {
+          toast.error('Only the group leader can register the project');
+          navigate('/dashboard/student');
+          return;
+        }
+        
+        const groupStats = sem5Group ? getGroupStats() : { memberCount: 0 };
+        if (groupStats.memberCount < 2) {
+          toast.error('Your group must have at least 2 members before registering your project');
+          navigate('/dashboard/student');
+          return;
+        }
+      }
+      
+      const groupStats = sem5Group ? getGroupStats() : { memberCount: 0 };
+      if (groupStats.memberCount < 2) {
+        toast.error('Your group must have at least 2 members before registering your project');
         navigate('/dashboard/student');
         return;
       }
-
-      // Check if user is group leader
-      if (!isGroupLeader) {
-        toast.error('Only the group leader can register the project');
-      navigate('/dashboard/student');
-      return;
-    }
-    
-    const groupStats = getGroupStats();
-    if (groupStats.memberCount < 2) {
-      toast.error('Your group must have at least 2 members before registering your project');
-      navigate('/dashboard/student');
-      return;
-    }
+    } catch (error) {
+      console.error('Error in access validation:', error);
+      toast.error('An error occurred while loading your group information');
+      navigate('/student/dashboard');
     }
   }, [groupLoading, sem5Group, isGroupLeader, getGroupStats, navigate]);
 
@@ -504,7 +529,7 @@ const MinorProject2Registration = () => {
             <p className="text-gray-600">Loading faculty list...</p>
           </div>
           <div className="flex items-center justify-center py-8">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
             <span className="ml-2 text-gray-600">Loading faculty members...</span>
           </div>
         </div>
@@ -709,7 +734,7 @@ const MinorProject2Registration = () => {
               >
                 {isSubmitting ? (
                   <>
-                    <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                    <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                     </svg>
