@@ -142,9 +142,12 @@ const supportsGroupsAndFaculty = (projectType, semester, degree = 'B.Tech') => {
   // Specific to semester constraints (for later semester projects that can be repeated)
   const multipleAllowedProjects = ['major1', 'major2', 'minor3'];
   
+  // Special case: M.Tech Sem 1 Minor1 is solo but requires faculty preferences
+  const isMtechSem1SoloWithPrefs = degree === 'M.Tech' && semester === 1 && projectType === 'minor1';
+
   return {
     supportsGroups: !soloProjects.includes(projectType) && (groupProjects.includes(projectType) || semester > 5),
-    supportsFacultyPreferences: !soloProjects.includes(projectType) && (groupProjects.includes(projectType) || semester > 5),
+    supportsFacultyPreferences: isMtechSem1SoloWithPrefs || (!soloProjects.includes(projectType) && (groupProjects.includes(projectType) || semester > 5)),
     allowsMultipleProjects: multipleAllowedProjects.includes(projectType),
     isSoloProject: soloProjects.includes(projectType)
   };
@@ -472,7 +475,7 @@ const getStudentInternships = async (req, res) => {
 const registerProject = async (req, res) => {
   try {
     const studentId = req.user.id;
-    const { title, description, projectType, isContinuation, previousProjectId } = req.body;
+    const { title, description, projectType, isContinuation, previousProjectId, facultyPreferences } = req.body;
     
     // Get student
     const student = await Student.findOne({ user: studentId });
@@ -545,6 +548,43 @@ const registerProject = async (req, res) => {
     // Add project to student's current projects
     await student.addCurrentProject(project._id, 'solo', student.semester);
 
+    // If M.Tech Sem 1 Minor1 with preferences provided, create FacultyPreference (project-level)
+    if (student.degree === 'M.Tech' && student.semester === 1 && projectType === 'minor1') {
+      // Optional limit from SystemConfig; fallback to 5
+      const maxPrefs = await SystemConfig.getConfigValue?.('mtech.sem1.facultyPreferenceLimit', 5).catch(() => 5) || 5;
+      if (!facultyPreferences || !Array.isArray(facultyPreferences) || facultyPreferences.length === 0) {
+        // Allow registration but indicate prefs required? We'll enforce presence as per option 2
+        return res.status(400).json({ success: false, message: 'Faculty preferences are required for M.Tech Semester 1 registration' });
+      }
+      if (facultyPreferences.length > maxPrefs) {
+        return res.status(400).json({ success: false, message: `You can select at most ${maxPrefs} faculty preferences` });
+      }
+
+      // Map into project and preference doc
+      const normalized = facultyPreferences.map((pref, index) => ({
+        faculty: pref.faculty?._id || pref.faculty,
+        priority: pref.priority || (index + 1)
+      }));
+
+      // Save to project for quick reads
+      project.facultyPreferences = normalized;
+      await project.save();
+
+      // Create FacultyPreference record (no group)
+      const fpData = {
+        student: student._id,
+        project: project._id,
+        group: null,
+        preferences: normalized,
+        semester: student.semester,
+        academicYear: project.academicYear,
+        status: 'pending',
+        currentFacultyIndex: 0
+      };
+      const fpDoc = new FacultyPreference(fpData);
+      await fpDoc.save();
+    }
+
     res.status(201).json({
       success: true,
       data: project,
@@ -557,6 +597,78 @@ const registerProject = async (req, res) => {
       message: 'Error registering project',
       error: error.message
     });
+  }
+};
+
+// Submit or update faculty preferences for a project (M.Tech Sem 1 solo flow)
+const submitProjectFacultyPreferences = async (req, res) => {
+  try {
+    const studentId = req.user.id;
+    const { projectId } = req.params;
+    const { preferences } = req.body;
+
+    if (!preferences || !Array.isArray(preferences) || preferences.length === 0) {
+      return res.status(400).json({ success: false, message: 'Faculty preferences are required' });
+    }
+
+    const student = await Student.findOne({ user: studentId });
+    if (!student) {
+      return res.status(404).json({ success: false, message: 'Student not found' });
+    }
+
+    const project = await Project.findById(projectId);
+    if (!project) {
+      return res.status(404).json({ success: false, message: 'Project not found' });
+    }
+
+    // Ownership check
+    if (project.student.toString() !== student._id.toString()) {
+      return res.status(403).json({ success: false, message: 'Not allowed to modify this project' });
+    }
+
+    // Only for M.Tech Sem 1 minor1
+    if (!(student.degree === 'M.Tech' && project.semester === 1 && project.projectType === 'minor1')) {
+      return res.status(400).json({ success: false, message: 'Preferences not applicable for this project' });
+    }
+
+    const maxPrefs = await SystemConfig.getConfigValue?.('mtech.sem1.facultyPreferenceLimit', 5).catch(() => 5) || 5;
+    if (preferences.length > maxPrefs) {
+      return res.status(400).json({ success: false, message: `You can select at most ${maxPrefs} faculty preferences` });
+    }
+
+    const normalized = preferences.map((pref, index) => ({
+      faculty: pref.faculty?._id || pref.faculty,
+      priority: pref.priority || (index + 1)
+    }));
+
+    project.facultyPreferences = normalized;
+    await project.save();
+
+    // Upsert FacultyPreference doc
+    let fpDoc = await FacultyPreference.findOne({ project: project._id, student: student._id, semester: project.semester, academicYear: project.academicYear });
+    if (!fpDoc) {
+      fpDoc = new FacultyPreference({
+        student: student._id,
+        project: project._id,
+        group: null,
+        preferences: normalized,
+        semester: project.semester,
+        academicYear: project.academicYear,
+        status: 'pending',
+        currentFacultyIndex: 0
+      });
+    } else {
+      fpDoc.preferences = normalized;
+      fpDoc.status = 'pending';
+      fpDoc.currentFacultyIndex = 0;
+      fpDoc.allocatedFaculty = null;
+    }
+    await fpDoc.save();
+
+    res.json({ success: true, message: 'Faculty preferences saved', data: { projectId: project._id } });
+  } catch (error) {
+    console.error('Error submitting project faculty preferences:', error);
+    res.status(500).json({ success: false, message: 'Failed to submit preferences', error: error.message });
   }
 };
 
@@ -4939,6 +5051,7 @@ module.exports = {
   getStudentGroups,
   getStudentInternships,
   registerProject,
+  submitProjectFacultyPreferences,
   registerMinorProject2,
   getFacultyAllocationStatus,
   getStudentGroupStatus,

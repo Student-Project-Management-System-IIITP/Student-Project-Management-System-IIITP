@@ -42,14 +42,20 @@ const getProjectDetails = async (req, res) => {
     let userType = '';
 
     if (userRole === 'student') {
-      // Check if student is in the group
       const student = await Student.findOne({ user: userId });
-      if (student && project.group) {
-        const isMember = project.group.members.some(member => 
-          member.student && member.student._id.toString() === student._id.toString()
-        );
-        hasAccess = isMember;
-        userType = 'student';
+      if (student) {
+        // Allow if student owns the project (solo projects like M.Tech Sem 1)
+        if (project.student && project.student._id?.toString?.() === student._id.toString()) {
+          hasAccess = true;
+          userType = 'student';
+        } else if (project.group) {
+          // Or if student is in the project group
+          const isMember = project.group.members.some(member => 
+            member.student && member.student._id.toString() === student._id.toString()
+          );
+          hasAccess = isMember;
+          userType = 'student';
+        }
       }
     } else if (userRole === 'faculty') {
       // Check if faculty is allocated to this project
@@ -113,12 +119,16 @@ const getProjectMessages = async (req, res) => {
 
     if (userRole === 'student') {
       const student = await Student.findOne({ user: userId });
-      if (student && project.group) {
-        const group = await Group.findById(project.group);
-        const isMember = group.members.some(member => 
-          member.student.toString() === student._id.toString()
-        );
-        hasAccess = isMember;
+      if (student) {
+        if (project.student && project.student.toString() === student._id.toString()) {
+          hasAccess = true;
+        } else if (project.group) {
+          const group = await Group.findById(project.group);
+          const isMember = group.members.some(member => 
+            member.student.toString() === student._id.toString()
+          );
+          hasAccess = isMember;
+        }
       }
     } else if (userRole === 'faculty') {
       const faculty = await Faculty.findOne({ user: userId });
@@ -203,14 +213,20 @@ const sendMessage = async (req, res) => {
 
     if (userRole === 'student') {
       const student = await Student.findOne({ user: userId }).populate('user', 'fullName');
-      if (student && project.group) {
-        const group = await Group.findById(project.group);
-        const isMember = group.members.some(member => 
-          member.student.toString() === student._id.toString()
-        );
-        hasAccess = isMember;
-        senderModel = 'Student';
-        senderName = student.user?.fullName || student.fullName || 'Unknown Student';
+      if (student) {
+        if (project.student && project.student.toString() === student._id.toString()) {
+          hasAccess = true;
+          senderModel = 'Student';
+          senderName = student.user?.fullName || student.fullName || 'Unknown Student';
+        } else if (project.group) {
+          const group = await Group.findById(project.group);
+          const isMember = group.members.some(member => 
+            member.student.toString() === student._id.toString()
+          );
+          hasAccess = isMember;
+          senderModel = 'Student';
+          senderName = student.user?.fullName || student.fullName || 'Unknown Student';
+        }
       }
     } else if (userRole === 'faculty') {
       const faculty = await Faculty.findOne({ user: userId }).populate('user', 'fullName');
@@ -595,12 +611,16 @@ const searchMessages = async (req, res) => {
 
     if (userRole === 'student') {
       const student = await Student.findOne({ user: userId });
-      if (student && project.group) {
-        const group = await Group.findById(project.group);
-        const isMember = group.members.some(member => 
-          member.student.toString() === student._id.toString()
-        );
-        hasAccess = isMember;
+      if (student) {
+        if (project.student && project.student.toString() === student._id.toString()) {
+          hasAccess = true;
+        } else if (project.group) {
+          const group = await Group.findById(project.group);
+          const isMember = group.members.some(member => 
+            member.student.toString() === student._id.toString()
+          );
+          hasAccess = isMember;
+        }
       }
     } else if (userRole === 'faculty') {
       const faculty = await Faculty.findOne({ user: userId });
@@ -784,12 +804,16 @@ const downloadChatFile = async (req, res) => {
 
     if (userRole === 'student') {
       const student = await Student.findOne({ user: userId });
-      if (student && project.group) {
-        const group = await Group.findById(project.group);
-        const isMember = group.members.some(member => 
-          member.student.toString() === student._id.toString()
-        );
-        hasAccess = isMember;
+      if (student) {
+        if (project.student && project.student.toString() === student._id.toString()) {
+          hasAccess = true;
+        } else if (project.group) {
+          const group = await Group.findById(project.group);
+          const isMember = group.members.some(member => 
+            member.student.toString() === student._id.toString()
+          );
+          hasAccess = isMember;
+        }
       }
     } else if (userRole === 'faculty') {
       const faculty = await Faculty.findOne({ user: userId });
