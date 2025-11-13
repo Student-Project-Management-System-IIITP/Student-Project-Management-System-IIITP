@@ -34,6 +34,7 @@ import FacultyProfile from './pages/faculty/Profile';
 import StudentProfile from './pages/student/Profile';
 import Sem4ProjectDashboard from './pages/student/Sem4ProjectDashboard';
 import Sem6Registration from './pages/student/Sem6Registration';
+import MTechSem1Registration from './pages/student/MTechSem1Registration';
 import SemesterManagement from './pages/admin/SemesterManagement';
 
 function App() {
@@ -155,6 +156,12 @@ function AppContent() {
           <Route path="/student/projects/register" element={
             <ProtectedRoute allowedRoles={['student']}>
               <ProjectRegistration />
+            </ProtectedRoute>
+          } />
+          {/* M.Tech Sem 1 Registration */}
+          <Route path="/student/mtech/sem1/register" element={
+            <ProtectedRoute allowedRoles={['student']}>
+              <MTechSem1Registration />
             </ProtectedRoute>
           } />
           {/* Old PPTUpload route removed - functionality merged into Sem4ProjectDashboard */}

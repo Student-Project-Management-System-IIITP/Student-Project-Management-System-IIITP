@@ -33,6 +33,19 @@ const ProjectRegistrationForm = () => {
     setValue('academicYear', academicYear);
   }, [setValue]);
 
+  // Guard: Only B.Tech Sem 4 students can access this form
+  React.useEffect(() => {
+    const degree = roleData?.degree || user?.degree;
+    const semester = roleData?.semester || user?.semester;
+    if (degree && degree !== 'B.Tech') {
+      toast.error('This registration is only for B.Tech Semester 4.');
+      navigate('/dashboard/student', { replace: true });
+    } else if (semester && Number(semester) !== 4) {
+      toast.error('This registration is available in Semester 4 only.');
+      navigate('/dashboard/student', { replace: true });
+    }
+  }, [roleData, user, navigate]);
+
   const onSubmit = async (data) => {
     setIsSubmitting(true);
     try {

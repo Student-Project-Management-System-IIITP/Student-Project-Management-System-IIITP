@@ -165,29 +165,29 @@ const AdminProfile = () => {
   const { admin, user: userData } = profileData || {};
 
   return (
-    <div className="pro-page py-8">
+    <div className="pro-page py-6">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">Admin Profile</h1>
-          <p className="mt-2 text-gray-600">Manage your administrative account and profile information</p>
+        <div className="mb-6">
+          <h1 className="pro-h1">Admin Profile</h1>
+          <p className="mt-1 pro-muted">Manage your administrative account and profile information</p>
         </div>
 
         {/* Two Column Layout */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Personal Information Card */}
-          <div className="pro-card">
-            <div className="pro-section flex items-center justify-between mb-6 border-b border-gray-100 pb-4">
+          <div className="pro-card p-6">
+            <div className="pro-section flex items-center justify-between mb-4 border-b border-gray-100 pb-3">
               <div className="flex items-center">
-                <div className="pro-section-icon bg-green-100">
-                  <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div className="pro-section-icon bg-blue-100">
+                  <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                   </svg>
                 </div>
-                <h2 className="pro-section-title ml-2 text-xl font-semibold">Personal Information</h2>
+                <h2 className="pro-section-title ml-2 pro-h2">Personal Information</h2>
               </div>
               {!isEditMode && (
-                <button onClick={() => setIsEditMode(true)} className="pro-btn-primary px-4 py-2 text-base shadow-sm">
+                <button onClick={() => setIsEditMode(true)} className="pro-btn-primary px-4 py-2 text-sm shadow-sm">
                   <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                   </svg>
@@ -236,7 +236,7 @@ const AdminProfile = () => {
                     <input type="email" value={editForm.email} onChange={(e) => setEditForm({ ...editForm, email: e.target.value })} className="pro-input" required />
                   </div>
                 </div>
-                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 pt-4">
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 pt-2">
                   <button
                     onClick={updateProfile}
                     disabled={editSubmitting}
@@ -293,15 +293,15 @@ const AdminProfile = () => {
           </div>
 
           {/* Account Information Card */}
-          <div className="pro-card">
-            <div className="pro-section flex items-center justify-between mb-6 border-b border-gray-100 pb-4">
+          <div className="pro-card p-6">
+            <div className="pro-section flex items-center justify-between mb-4 border-b border-gray-100 pb-3">
               <div className="flex items-center">
-                <div className="pro-section-icon bg-yellow-100">
-                  <svg className="w-5 h-5 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div className="pro-section-icon bg-indigo-100">
+                  <svg className="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 4.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                   </svg>
                 </div>
-                <h2 className="pro-section-title ml-2 text-xl font-semibold">Account Information</h2>
+                <h2 className="pro-section-title ml-2 pro-h2">Account Information</h2>
               </div>
               <div className="flex items-center ml-4">
                 <span className={`flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold shadow-sm ${userData?.isActive ? 'bg-green-100 text-green-800 border border-green-200' : 'bg-red-100 text-red-700 border border-red-200'}`} style={{minWidth:'80px'}}>

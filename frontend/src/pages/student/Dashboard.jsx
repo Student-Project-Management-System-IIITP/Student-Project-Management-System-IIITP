@@ -13,6 +13,8 @@ import StatusBadge from '../../components/common/StatusBadge';
 
 const StudentDashboard = () => {
   const { user, roleData, isLoading: authLoading } = useAuth();
+  const [mtechProject, setMtechProject] = useState(null);
+  const [mtechLoading, setMtechLoading] = useState(false);
   
   // Sem 4 hooks
   const { project: sem4Project, loading: sem4ProjectLoading, canRegisterProject: canRegisterSem4, canUploadPPT, getProjectTimeline } = useSem4Project();
@@ -119,6 +121,30 @@ const StudentDashboard = () => {
     }
   }, [roleData, user]);
 
+  // M.Tech Sem 1: Load current project
+  useEffect(() => {
+    const degree = roleData?.degree || user?.degree;
+    const semester = roleData?.semester || user?.semester;
+    if (degree === 'M.Tech' && semester === 1) {
+      const loadMtechProject = async () => {
+        try {
+          setMtechLoading(true);
+          const resp = await studentAPI.getProjects();
+          const projects = resp?.data || [];
+          const p = projects.find(pr => pr.semester === 1 && pr.projectType === 'minor1');
+          setMtechProject(p || null);
+        } catch (e) {
+          setMtechProject(null);
+        } finally {
+          setMtechLoading(false);
+        }
+      };
+      loadMtechProject();
+    } else {
+      setMtechProject(null);
+    }
+  }, [roleData, user]);
+
   // Load Sem 6 project
   useEffect(() => {
     const currentSemester = (roleData?.semester || user?.semester) || 4;
@@ -200,10 +226,39 @@ const StudentDashboard = () => {
   };
   
 
-  // Get quick actions based on semester  
+  // Get quick actions based on semester (B.Tech only currently)
   const getQuickActions = () => {
       const actions = [];
+      const degree = (roleData?.degree || user?.degree) || 'B.Tech';
       const currentSemester = (roleData?.semester || user?.semester) || 4;
+
+    // B.Tech flows
+    if (degree === 'B.Tech') {
+      if (currentSemester === 4) {
+        if (!sem4Project && canRegisterSem4()) {
+          actions.push({
+            title: 'Register for Minor Project 1',
+            description: 'Register your Minor Project 1',
+            icon: '📝',
+            link: '/student/projects/register',
+            color: 'bg-blue-50 border-blue-200 hover:bg-blue-100',
+            textColor: 'text-blue-800',
+          });
+        }
+      }
+    }
+
+    // M.Tech Sem 1 registration
+    if (degree === 'M.Tech' && currentSemester === 1) {
+      actions.push({
+        title: 'Register for Minor Project 1',
+        description: 'Register your Minor Project 1',
+        icon: '📝',
+        link: '/student/mtech/sem1/register',
+        color: 'bg-blue-50 border-blue-200 hover:bg-blue-100',
+        textColor: 'text-blue-800',
+      });
+    }
 
     if (currentSemester === 4) {
       // Sem 4 actions
@@ -356,6 +411,7 @@ const StudentDashboard = () => {
   };
 
   const currentSemester = (roleData?.semester || user?.semester) || 4;
+  const degree = (roleData?.degree || user?.degree) || 'B.Tech';
   const isSem5 = currentSemester === 5;
   const isSem6 = currentSemester === 6;
 
@@ -384,8 +440,42 @@ const StudentDashboard = () => {
         </p>
       </div>
 
-      {/* Quick Actions */}
-      {quickActions.length > 0 && (
+      {/* M.Tech Sem 1 Project Section */}
+      {((roleData?.degree || user?.degree) === 'M.Tech') && ((roleData?.semester || user?.semester) === 1) && (
+        <div className="mb-8">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">Minor Project 1</h2>
+          <div className="bg-white rounded-lg shadow p-6">
+            {mtechLoading ? (
+              <div className="flex items-center justify-center py-6">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+              </div>
+            ) : mtechProject ? (
+              mtechProject.faculty ? (
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="font-medium text-gray-900">{mtechProject.title || 'Your Project'}</h3>
+                    <p className="text-sm text-gray-600">Faculty Allocated: {mtechProject.faculty?.fullName || 'Assigned Faculty'}</p>
+                  </div>
+                  <Link to={`/projects/${mtechProject._id}`} className="inline-flex items-center px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700">Open Project Dashboard</Link>
+                </div>
+              ) : (
+                <div className="text-center py-4">
+                  <p className="text-gray-700 font-medium mb-1">Project Registered</p>
+                  <p className="text-gray-500">Please wait while a faculty is allocated to your project.</p>
+                </div>
+              )
+            ) : (
+              <div className="text-center py-4">
+                <p className="text-gray-600 mb-3">No project registered yet</p>
+                <Link to="/student/mtech/sem1/register" className="inline-flex items-center px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700">Register for Minor Project 1</Link>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Quick Actions (hide when M.Tech Sem 1 has registered project) */}
+      {!(degree === 'M.Tech' && currentSemester === 1 && mtechProject) && quickActions.length > 0 && (
         <div className="mb-8">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -748,82 +838,63 @@ const StudentDashboard = () => {
                 )
               )
             ) : (
-              // Sem 4 Project Status
-              sem4ProjectLoading ? (
-                <div className="flex items-center justify-center py-8">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-                </div>
-              ) : sem4Project ? (
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <h3 className="font-medium text-gray-900">{sem4Project.title}</h3>
-                    <StatusBadge status={sem4Project.status} />
+              // Sem 4 Project Status (only for B.Tech Sem 4)
+              (degree === 'B.Tech' && currentSemester === 4) ? (
+                sem4ProjectLoading ? (
+                  <div className="flex items-center justify-center py-8">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
                   </div>
-                  <div className="text-xs text-gray-500">
-                    Registered: {new Date(sem4Project.createdAt).toLocaleDateString()}
-                  </div>
-                  
-                  {/* PPT Status */}
-                  <div className="mt-4 border-t pt-4">
-                    <h4 className="text-sm font-medium text-gray-700 mb-2">PPT Status</h4>
-                    {statusLoading ? (
-                      <div className="flex items-center space-x-2">
-                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
-                        <span className="text-sm text-gray-500">Loading...</span>
-                      </div>
-                    ) : projectStatus?.pptSubmitted ? (
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center space-x-2">
-                            <span className="text-green-500">✓</span>
-                            <span className="text-sm text-gray-600">
-                              PPT Uploaded ({projectStatus.pptOriginalName || 'Presentation'})
-                            </span>
-                          </div>
-                          <Link
-                            to={`/student/projects/sem4/${sem4Project._id}`}
-                            className="inline-flex items-center px-3 py-1.5 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700"
-                          >
-                            View/Replace
-                          </Link>
+                ) : sem4Project ? (
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <h3 className="font-medium text-gray-900">{sem4Project.title}</h3>
+                      <StatusBadge status={sem4Project.status} />
+                    </div>
+                    <div className="text-xs text-gray-500">
+                      Registered: {new Date(sem4Project.createdAt).toLocaleDateString()}
+                    </div>
+                    <div className="mt-4 border-t pt-4">
+                      <h4 className="text-sm font-medium text-gray-700 mb-2">PPT Status</h4>
+                      {statusLoading ? (
+                        <div className="flex items-center space-x-2">
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                          <span className="text-sm text-gray-500">Loading...</span>
                         </div>
-                        {projectStatus.pptSubmittedAt && (
-                          <div className="text-xs text-gray-500">
-                            {new Date(projectStatus.pptSubmittedAt).toLocaleString()}
+                      ) : projectStatus?.pptSubmitted ? (
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center space-x-2">
+                              <span className="text-green-500">✓</span>
+                              <span className="text-sm text-gray-600">
+                                PPT Uploaded ({projectStatus.pptOriginalName || 'Presentation'})
+                              </span>
+                            </div>
+                            <Link to={`/student/projects/sem4/${sem4Project._id}`} className="inline-flex items-center px-3 py-1.5 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700">View/Replace</Link>
                           </div>
-                        )}
-                      </div>
-                    ) : canUploadPPT() ? (
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm text-gray-600">PPT Upload Available</span>
-                        <Link
-                          to={`/student/projects/sem4/${sem4Project._id}`}
-                          className="inline-flex items-center px-3 py-1.5 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700"
-                        >
-                          Upload PPT
-                        </Link>
-                      </div>
-                    ) : (
-                      <div className="flex items-center space-x-2">
-                        <svg className="h-4 w-4 text-yellow-500" fill="currentColor" viewBox="0 0 20 20">
-                          <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                        </svg>
-                        <span className="text-sm text-gray-500">Evaluation schedule required for upload</span>
-                      </div>
-                    )}
+                          {projectStatus.pptSubmittedAt && (
+                            <div className="text-xs text-gray-500">{new Date(projectStatus.pptSubmittedAt).toLocaleString()}</div>
+                          )}
+                        </div>
+                      ) : canUploadPPT() ? (
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm text-gray-600">PPT Upload Available</span>
+                          <Link to={`/student/projects/sem4/${sem4Project._id}`} className="inline-flex items-center px-3 py-1.5 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700">Upload PPT</Link>
+                        </div>
+                      ) : (
+                        <div className="flex items-center space-x-2">
+                          <svg className="h-4 w-4 text-yellow-500" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" /></svg>
+                          <span className="text-sm text-gray-500">Evaluation schedule required for upload</span>
+                        </div>
+                      )}
+                    </div>
                   </div>
-                </div>
-              ) : (
-                <div className="text-center py-8">
-                  <p className="text-gray-500 mb-4">No project registered yet</p>
-                  <Link
-                    to="/student/projects/register"
-                    className="inline-flex items-center px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700"
-                  >
-                    Register for Minor Project 1
-                  </Link>
-                </div>
-              )
+                ) : (
+                  <div className="text-center py-8">
+                    <p className="text-gray-500 mb-4">No project registered yet</p>
+                    <Link to={'/student/projects/register'} className="inline-flex items-center px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700">Register for Minor Project 1</Link>
+                  </div>
+                )
+              ) : null
             )}
           </div>
         </div>
@@ -1252,13 +1323,23 @@ const StudentDashboard = () => {
               <p>• Evaluation: Group presentation and individual contribution assessment</p>
             </>
           ) : (
-            <>
-              <p>• Individual project for B.Tech 4th semester students</p>
-              <p>• Focus on basic programming concepts and problem-solving</p>
-              <p>• Includes PPT presentation and evaluation by faculty panel</p>
-              <p>• Duration: 3-4 months</p>
-              <p>• Evaluation: 100% internal assessment</p>
-            </>
+            degree === 'M.Tech' && currentSemester === 1 ? (
+              <>
+                <p>• Individual project for MTech 1th semester students</p>
+                <p>• Focus on problem-solving</p>
+                <p>• Includes PPT presentation and evaluation by faculty panel</p>
+                <p>• Duration: 3-4 months</p>
+                <p>• Evaluation: 100% internal assessment</p>
+              </>
+            ) : (
+              <>
+                <p>• Individual project for B.Tech 4th semester students</p>
+                <p>• Focus on basic programming concepts and problem-solving</p>
+                <p>• Includes PPT presentation and evaluation by faculty panel</p>
+                <p>• Duration: 3-4 months</p>
+                <p>• Evaluation: 100% internal assessment</p>
+              </>
+            )
           )}
         </div>
       </div>
