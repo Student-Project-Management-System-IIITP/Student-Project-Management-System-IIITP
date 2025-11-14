@@ -36,4 +36,8 @@ router.get('/statistics/sem5', facultyController.getSem5Statistics);
 router.get('/profile', facultyController.getFacultyProfile);
 router.put('/profile', facultyController.updateFacultyProfile);
 
+// Notification routes
+router.get('/notifications', facultyController.getNotifications);
+router.patch('/notifications/:notificationId/dismiss', facultyController.dismissNotification);
+
 module.exports = router;

@@ -222,6 +222,77 @@ const studentSchema = new mongoose.Schema({
     }
   },
   
+  // Per-semester selection and admin finalization (e.g., Sem 7 track)
+  semesterSelections: [{
+    semester: {
+      type: Number,
+      required: true,
+      min: 1,
+      max: 8
+    },
+    academicYear: {
+      type: String,
+      required: true,
+      trim: true,
+      match: [/^\d{4}-\d{2}$/, 'Academic year must be in format YYYY-YY (e.g., 2024-25)']
+    },
+    chosenTrack: {
+      type: String,
+      enum: ['internship', 'coursework'],
+      required: true
+    },
+    verificationStatus: {
+      type: String,
+      enum: ['pending', 'needs_info', 'approved', 'rejected'],
+      default: 'pending'
+    },
+    finalizedTrack: {
+      type: String, // 'internship' | 'coursework' or null when not finalized
+      default: null
+    },
+    adminRemarks: {
+      type: String,
+      maxlength: 500
+    },
+    reviewedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Admin'
+    },
+    reviewedAt: Date,
+    // Track if admin changed the track (different from student's original choice)
+    trackChangedByAdminAt: {
+      type: Date,
+      default: null
+    },
+    previousTrack: {
+      type: String, // Store the previous track when admin changes it
+      enum: ['internship', 'coursework'],
+      default: null
+    },
+    // Sem 7 internship outcome recorded alongside selection for reporting
+    internshipOutcome: {
+      type: String,
+      enum: ['provisional', 'verified_pass', 'verified_fail', 'absent', 'carried_to_next_sem_verification'],
+      default: 'provisional'
+    },
+    choiceSubmittedAt: {
+      type: Date,
+      default: Date.now
+    },
+    updatedAt: {
+      type: Date,
+      default: Date.now
+    }
+  }],
+
+  // Global flags impacting next semester planning
+  flags: {
+    requireSem8Coursework: { type: Boolean, default: false },
+    backlog: {
+      major1: { type: Boolean, default: false }
+    }
+  },
+  
   // Student Status
   isGraduated: {
     type: Boolean,
@@ -253,6 +324,7 @@ studentSchema.index({ 'groupMemberships.group': 1 });
 studentSchema.index({ 'groupMemberships.semester': 1 });
 studentSchema.index({ 'internshipHistory.semester': 1 });
 studentSchema.index({ 'semesterStatus.isDoingInternship': 1 });
+studentSchema.index({ 'semesterSelections.semester': 1, 'semesterSelections.academicYear': 1 });
 // misNumber index is already created by unique: true
 
 // Virtual for auto-detecting year from semester
@@ -386,21 +458,60 @@ studentSchema.methods.addGroupMembershipAtomic = async function(groupId, role = 
 };
 
 // Enhanced method: Atomic cleanup when joining new group
+// IMPORTANT: Only auto-rejects invitations from the same semester as the accepted group
 studentSchema.methods.cleanupInvitesAtomic = async function(acceptedGroupId, session = null) {
   try {
+    // Import Group model to check semester
+    const Group = require('./Group');
+    
+    // Get the accepted group to check its semester
+    // Use session if provided to ensure transaction consistency
+    const acceptedGroup = session 
+      ? await Group.findById(acceptedGroupId).session(session)
+      : await Group.findById(acceptedGroupId);
+    
+    if (!acceptedGroup) {
+      throw new Error('Accepted group not found');
+    }
+    
+    const acceptedGroupSemester = acceptedGroup.semester;
+    
     // Convert all pending invites to auto-rejected
+    // BUT ONLY for invitations from groups in the same semester
     const invitesToUpdate = this.invites.filter(invite => 
-      invite.status === 'pending' || invite.status === 'pending'
+      invite.status === 'pending' && 
+      invite.group.toString() !== acceptedGroupId.toString()
     );
 
+    // Check each invite's group semester before auto-rejecting
+    let autoRejectedCount = 0;
+
     for (const invite of invitesToUpdate) {
-      if (invite.group.toString() !== acceptedGroupId.toString()) {
+      try {
+        // Get the group for this invitation to check its semester
+        // Use session if provided to ensure transaction consistency
+        const inviteGroup = session
+          ? await Group.findById(invite.group).session(session)
+          : await Group.findById(invite.group);
+        
+        if (inviteGroup && inviteGroup.semester === acceptedGroupSemester) {
+          // Only auto-reject if it's from the same semester
         invite.status = 'auto-rejected';
+          invite.rejectionReason = `Student joined another group in semester ${acceptedGroupSemester}`;
+          autoRejectedCount++;
+        }
+        // If semester doesn't match, leave the invitation as pending (different semester groups are independent)
+      } catch (groupError) {
+        console.error(`Error checking group ${invite.group} for cleanup:`, groupError.message);
+        // If we can't find the group, skip it (might be deleted)
       }
     }
 
+    if (autoRejectedCount > 0) {
     await this.save({ session });
-    return invitesToUpdate.length;
+    }
+    
+    return autoRejectedCount;
   } catch (error) {
     console.error('Cleanup invites atomic error:', error.message);
     throw error;
@@ -580,6 +691,59 @@ studentSchema.methods.canChooseInternship = function() {
   return this.semester === 7 && 
          this.semesterStatus.canApplyInternships && 
          !this.semesterStatus.isDoingInternship;
+};
+
+// Helper: get semester selection record
+studentSchema.methods.getSemesterSelection = function(semester) {
+  return (this.semesterSelections || []).find(sel => sel.semester === semester);
+};
+
+// Helper: upsert semester selection
+// By default, tracks are automatically finalized when chosen
+studentSchema.methods.setSemesterSelection = function(semester, academicYear, chosenTrack) {
+  const existing = this.getSemesterSelection(semester);
+  if (existing) {
+    existing.chosenTrack = chosenTrack;
+    // Auto-finalize: if not already finalized, set finalizedTrack to chosenTrack
+    if (!existing.finalizedTrack) {
+      existing.finalizedTrack = chosenTrack;
+      existing.verificationStatus = 'approved';
+    }
+    existing.updatedAt = new Date();
+  } else {
+    this.semesterSelections = this.semesterSelections || [];
+    this.semesterSelections.push({
+      semester,
+      academicYear,
+      chosenTrack,
+      verificationStatus: 'approved', // Auto-approved when finalized by default
+      finalizedTrack: chosenTrack, // Auto-finalize by default
+      choiceSubmittedAt: new Date(),
+      updatedAt: new Date()
+    });
+  }
+  return this.save();
+};
+
+// Helper: finalize track (admin-only usage at controller level)
+studentSchema.methods.finalizeSemesterTrack = function(semester, finalizedTrack, adminId, remarks = '') {
+  const selection = this.getSemesterSelection(semester);
+  if (!selection) {
+    throw new Error('Semester selection not found');
+  }
+  selection.finalizedTrack = finalizedTrack;
+  selection.verificationStatus = finalizedTrack ? 'approved' : selection.verificationStatus;
+  selection.adminRemarks = remarks || selection.adminRemarks;
+  selection.reviewedBy = adminId || selection.reviewedBy;
+  selection.reviewedAt = new Date();
+  selection.updatedAt = new Date();
+  return this.save();
+};
+
+// Helper: get finalized track for a semester
+studentSchema.methods.getFinalizedTrack = function(semester) {
+  const selection = this.getSemesterSelection(semester);
+  return selection ? selection.finalizedTrack : null;
 };
 
 // Sem 7 specific method: Check if student can choose major project

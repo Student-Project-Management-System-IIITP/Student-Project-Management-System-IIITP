@@ -13,6 +13,11 @@ const projectSchema = new mongoose.Schema({
     required: true,
     trim: true
   },
+  domain: {
+    type: String,
+    trim: true,
+    maxlength: 100
+  },
   projectType: {
     type: String,
     required: true,
@@ -197,7 +202,7 @@ const projectSchema = new mongoose.Schema({
       validator: function(value) {
         // Only validate for Sem 5+ projects that support faculty allocation
         const supportsFacultyAllocation = this.semester >= 5 && 
-          ['minor2', 'minor3', 'major1', 'major2'].includes(this.projectType);
+          ['minor2', 'minor3', 'major1', 'major2', 'internship1'].includes(this.projectType);
         return !supportsFacultyAllocation || (value >= 0 && value <= 9);
       },
       message: 'Current faculty index must be between 0 and 9 for Sem 5+ projects'
@@ -839,7 +844,7 @@ projectSchema.methods.getProjectAchievements = function() {
 // Check if project supports faculty allocation
 projectSchema.methods.supportsFacultyAllocation = function() {
   return this.semester >= 5 && 
-         ['minor2', 'minor3', 'major1', 'major2'].includes(this.projectType);
+         ['minor2', 'minor3', 'major1', 'major2', 'internship1'].includes(this.projectType);
 };
 
 // Get current faculty being presented to

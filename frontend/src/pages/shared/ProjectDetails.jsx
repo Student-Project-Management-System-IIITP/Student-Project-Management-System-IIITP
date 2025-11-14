@@ -101,10 +101,10 @@ const ProjectDetails = () => {
   // Load project details
   useEffect(() => {
     const loadProjectDetails = async () => {
+      let projectData = null; // Declare outside try block so it's accessible in catch
+      
       try {
         setIsLoading(true);
-        
-        let projectData;
         
         // If projectId is provided in URL, use it
         if (projectId) {
@@ -174,10 +174,26 @@ const ProjectDetails = () => {
           }
         }
         
+        // Only set project if we have valid project data
+        if (projectData) {
         setProject(projectData);
+          // No need to show notification - UI already displays pending status banner
+        } else {
+          // If no project data, show appropriate message
+          toast.error('Project data not available');
+          navigate('/dashboard');
+        }
       } catch (error) {
         console.error('Error loading project details:', error);
         
+        // Check if we already have project data (partial success)
+        if (projectData) {
+          // Project loaded but there was an error (maybe socket connection, etc.)
+          // Don't show error, just set the project silently
+          // UI will show the pending status banner if faculty is not allocated
+          setProject(projectData);
+        } else {
+          // Actual error loading project
         if (error.response?.status === 403) {
           toast.error('You do not have access to this project');
           navigate('/dashboard');
@@ -185,7 +201,11 @@ const ProjectDetails = () => {
           toast.error('Project not found');
           navigate('/dashboard');
         } else {
-          toast.error('Failed to load project details');
+            // More specific error message
+            const errorMessage = error.response?.data?.message || error.message || 'Unknown error occurred';
+            toast.error(`Unable to load project: ${errorMessage}`);
+            console.error('Full error details:', error);
+          }
         }
       } finally {
         setIsLoading(false);
@@ -702,6 +722,25 @@ const ProjectDetails = () => {
             </div>
           </div>
 
+          {/* Faculty Allocation Pending Banner */}
+          {!project.faculty && project.status === 'registered' && (
+            <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-6">
+              <div className="flex">
+                <div className="flex-shrink-0">
+                  <svg className="h-5 w-5 text-yellow-400" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                  </svg>
+                </div>
+                <div className="ml-3">
+                  <h3 className="text-sm font-medium text-yellow-800">Faculty Allocation Pending</h3>
+                  <div className="mt-2 text-sm text-yellow-700">
+                    <p>Your project has been registered successfully. Faculty allocation is in progress. Once a faculty member is assigned, you'll be able to communicate with them through the chat feature.</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Chat Section */}
             <div className="lg:col-span-2">
@@ -715,7 +754,9 @@ const ProjectDetails = () => {
                     <p className="text-sm text-gray-500">
                       {isFaculty 
                         ? `Communicate with ${project.group?.name || 'your group'}`
-                        : `Communicate with ${project.faculty?.fullName || 'your supervisor'}`
+                        : project.faculty 
+                          ? `Communicate with ${project.faculty.fullName}`
+                          : 'Chat will be available once faculty is allocated'
                       }
                     </p>
                   </div>
@@ -1016,6 +1057,15 @@ const ProjectDetails = () => {
 
                 {/* Message Input */}
                 <div className="border-t border-gray-200 p-4">
+                  {/* Faculty Not Allocated Message */}
+                  {!project.faculty && project.status === 'registered' && !isFaculty && (
+                    <div className="mb-3 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                      <p className="text-sm text-yellow-800">
+                        <strong>Note:</strong> Chat will be enabled once a faculty supervisor is allocated to your project.
+                      </p>
+                    </div>
+                  )}
+                  
                   {/* Typing Indicator */}
                   {isTyping && typingUser && (
                     <div className="mb-2 text-xs text-gray-500 italic">
@@ -1058,9 +1108,9 @@ const ProjectDetails = () => {
                     <button
                       type="button"
                       onClick={() => fileInputRef.current?.click()}
-                      className="p-2 text-gray-600 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                      className="p-2 text-gray-600 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                       title="Attach files (max 3 files, 10MB each)"
-                      disabled={isSending}
+                      disabled={isSending || (!project.faculty && project.status === 'registered' && !isFaculty)}
                     >
                       <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
@@ -1072,15 +1122,15 @@ const ProjectDetails = () => {
                       type="text"
                       value={newMessage}
                       onChange={handleTyping}
-                      placeholder="Type your message..."
-                      className="flex-1 border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                      disabled={isSending}
+                      placeholder={!project.faculty && project.status === 'registered' && !isFaculty ? "Waiting for faculty allocation..." : "Type your message..."}
+                      className="flex-1 border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
+                      disabled={isSending || (!project.faculty && project.status === 'registered' && !isFaculty)}
                     />
                     
                     {/* Send Button */}
                     <button
                       type="submit"
-                      disabled={isSending || (!newMessage.trim() && selectedFiles.length === 0)}
+                      disabled={isSending || (!newMessage.trim() && selectedFiles.length === 0) || (!project.faculty && project.status === 'registered' && !isFaculty)}
                       className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                     >
                       {isSending ? 'Sending...' : 'Send'}

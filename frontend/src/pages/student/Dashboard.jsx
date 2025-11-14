@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useSem4Project } from '../../hooks/useSem4Project';
 import { useSem5Project } from '../../hooks/useSem5Project';
+import { useSem7Project } from '../../hooks/useSem7Project';
 import { useGroupManagement } from '../../hooks/useGroupManagement';
 import { useEvaluation } from '../../hooks/useEvaluation';
 import { studentAPI } from '../../utils/api';
@@ -36,7 +37,38 @@ const StudentDashboard = () => {
   
   // Sem 5 hooks
   const { sem5Project, loading: sem5ProjectLoading, canRegisterProject: canRegisterSem5, getProgressSteps, hasFacultyAllocated } = useSem5Project();
-  const { sem5Group, canCreateGroup, isInGroup, isGroupLeader, getGroupStats, getPendingInvitationsCount, groupInvitations, acceptGroupInvitation, rejectGroupInvitation } = useGroupManagement();
+  const { sem5Group, canCreateGroup, isInGroup, isGroupLeader, getGroupStats, getPendingInvitationsCount, groupInvitations, acceptGroupInvitation, rejectGroupInvitation, fetchSem5Data } = useGroupManagement();
+  
+  // Sem 7 hooks
+  const { 
+    trackChoice, 
+    finalizedTrack, 
+    trackChoiceStatus,
+    canChooseTrack,
+    canRegisterMajorProject1,
+    canRegisterInternship1,
+    hasApprovedSixMonthInternship,
+    hasApprovedSummerInternship,
+    majorProject1,
+    majorProject1Group,
+    internship1Project,
+    getInternshipApplication,
+    getNextStep,
+    getProgressSteps: getSem7ProgressSteps,
+    loading: sem7Loading,
+    fetchSem7Data
+  } = useSem7Project();
+
+  // Determine selected track (finalized takes precedence, else chosen)
+  const selectedTrack = finalizedTrack || (trackChoice?.chosenTrack);
+
+  // Refresh Sem7 data when dashboard mounts (useful after form submissions)
+  useEffect(() => {
+    const currentSemester = roleData?.semester || user?.semester;
+    if (currentSemester === 7 && fetchSem7Data) {
+      fetchSem7Data();
+    }
+  }, [user, roleData, fetchSem7Data]);
 
   // Show loading screen if authentication is loading or no user data yet
   if (authLoading || !user) {
@@ -179,17 +211,31 @@ const StudentDashboard = () => {
     }
   };
 
-  // Handle invitation response
+  // Handle invitation response (works for both Sem 5 and Sem 7)
   const handleInvitationResponse = async (invitationId, accept = true) => {
     try {
       setInvitationLoading(prev => ({ ...prev, [invitationId]: true }));
       
+      const currentSemester = (roleData?.semester || user?.semester) || 4;
+      
       if (accept) {
         await acceptGroupInvitation(invitationId);
         toast.success('Invitation accepted successfully!');
+        // Refresh group data after accepting invitation
+        // This ensures isInGroup updates correctly and invitations are refreshed
+        if (currentSemester === 5 || currentSemester === 7) {
+          // fetchSem5Data from useGroupManagement works for both Sem 5 and Sem 7
+          // It internally calls the correct context's fetch function
+          await fetchSem5Data();
+        }
       } else {
         await rejectGroupInvitation(invitationId);
         toast.success('Invitation rejected');
+        // Refresh invitations after rejecting
+        // fetchSem5Data will refresh invitations for both Sem 5 and Sem 7
+        if (currentSemester === 5 || currentSemester === 7) {
+          await fetchSem5Data();
+        }
       }
     } catch (error) {
       console.error('Error responding to invitation:', error);
@@ -350,6 +396,251 @@ const StudentDashboard = () => {
           textColor: 'text-green-800',
         });
       }
+    } else if (currentSemester === 7) {
+      // Sem 7 actions
+      const nextStep = getNextStep();
+      
+      // Track selection - only show if no choice submitted or needs_info
+      if (!finalizedTrack) {
+        if (!trackChoice || !trackChoice.chosenTrack) {
+          // No choice submitted yet
+          if ((typeof canChooseTrack === 'function' ? canChooseTrack() : canChooseTrack)) {
+            actions.push({
+              title: 'Choose Track',
+              description: 'Select internship or coursework track',
+              icon: '🎯',
+              link: '/student/sem7/track-selection',
+              color: 'bg-blue-50 border-blue-200 hover:bg-blue-100',
+              textColor: 'text-blue-800',
+            });
+          }
+        } else if (trackChoice.verificationStatus === 'needs_info') {
+          // Choice submitted but needs info
+          actions.push({
+            title: 'Update Track Choice',
+            description: 'Provide additional information',
+            icon: '📝',
+            link: '/student/sem7/track-selection',
+            color: 'bg-yellow-50 border-yellow-200 hover:bg-yellow-100',
+            textColor: 'text-yellow-800',
+          });
+        }
+        // If choice is submitted and pending, don't show any track selection action
+      }
+      
+      // Determine selected track (finalized takes precedence, else chosen)
+      const selectedTrack = finalizedTrack || (trackChoice && trackChoice.chosenTrack);
+
+      // Internship track actions
+      if (selectedTrack === 'internship') {
+        const sixMonthApp = getInternshipApplication('6month');
+        if (!sixMonthApp) {
+          actions.push({
+            title: 'Submit 6-Month Internship Application',
+            description: 'Submit company details and offer letter',
+            icon: '📄',
+            link: '/student/sem7/internship/apply/6month',
+            color: 'bg-purple-50 border-purple-200 hover:bg-purple-100',
+            textColor: 'text-purple-800',
+          });
+        } else if (sixMonthApp.status === 'needs_info') {
+          actions.push({
+            title: 'Update Internship Application',
+            description: 'Provide additional information',
+            icon: '📝',
+            link: `/student/sem7/internship/apply/6month/${sixMonthApp._id}/edit`,
+            color: 'bg-yellow-50 border-yellow-200 hover:bg-yellow-100',
+            textColor: 'text-yellow-800',
+          });
+        } else if (sixMonthApp.status === 'pending') {
+          actions.push({
+            title: 'View Application Status',
+            description: 'Application submitted, awaiting admin review',
+            icon: '⏳',
+            link: `/student/sem7/internship/apply/6month/${sixMonthApp._id}/edit`,
+            color: 'bg-blue-50 border-blue-200 hover:bg-blue-100',
+            textColor: 'text-blue-800',
+          });
+        } else if (sixMonthApp.status === 'approved') {
+          actions.push({
+            title: 'Application Approved',
+            description: 'Your internship application has been approved',
+            icon: '✅',
+            link: `/student/sem7/internship/apply/6month/${sixMonthApp._id}/edit`,
+            color: 'bg-green-50 border-green-200 hover:bg-green-100',
+            textColor: 'text-green-800',
+          });
+        }
+      }
+      
+      // Coursework track actions - dynamic action buttons based on status
+      if (selectedTrack === 'coursework') {
+        // Major Project 1 Actions
+        if (majorProject1) {
+          actions.push({
+            title: 'View Major Project 1',
+            description: 'View your registered project details',
+            icon: '📋',
+            link: '/student/sem7/major1/dashboard',
+            color: 'bg-blue-50 border-blue-200 hover:bg-blue-100',
+            textColor: 'text-blue-800',
+          });
+        } else if (majorProject1Group?.status === 'finalized') {
+          actions.push({
+            title: 'Register Major Project 1',
+            description: 'Group finalized - register your project now',
+            icon: '✅',
+            link: '/student/sem7/major1/dashboard',
+            color: 'bg-yellow-50 border-yellow-200 hover:bg-yellow-100',
+            textColor: 'text-yellow-800',
+          });
+        } else if (majorProject1Group) {
+          actions.push({
+            title: 'Finalize Group',
+            description: 'Finalize your group to register Major Project 1',
+            icon: '👥',
+            link: '/student/sem7/major1/dashboard',
+            color: 'bg-blue-50 border-blue-200 hover:bg-blue-100',
+            textColor: 'text-blue-800',
+          });
+        } else {
+          actions.push({
+            title: 'Create Group',
+            description: 'Create a group for Major Project 1',
+            icon: '➕',
+            link: '/student/sem7/major1/dashboard',
+            color: 'bg-blue-50 border-blue-200 hover:bg-blue-100',
+            textColor: 'text-blue-800',
+          });
+        }
+
+        // Internship 1 Actions
+        const summerApp = getInternshipApplication('summer');
+        if (hasApprovedSummerInternship) {
+          actions.push({
+            title: 'Internship 1 Approved',
+            description: 'View your approved internship status',
+            icon: '✅',
+            link: '/student/sem7/internship1/dashboard',
+            color: 'bg-green-50 border-green-200 hover:bg-green-100',
+            textColor: 'text-green-800',
+          });
+        } else if (summerApp && summerApp.status === 'submitted') {
+          // Check if application has placeholder values
+          // Only show urgent notification if:
+          // 1. Application was assigned/changed by admin (has adminRemarks indicating assignment OR track change)
+          // 2. AND still has placeholder/incomplete values
+          // Once student fills in required fields, this should become false
+          const wasAssignedOrChangedByAdmin = summerApp.adminRemarks === 'Assigned by admin' || 
+            (summerApp.adminRemarks && (
+              summerApp.adminRemarks.includes('Assigned by admin') ||
+              summerApp.adminRemarks.includes('Switched from Internship-I under Institute Faculty')
+            )) ||
+            summerApp.internship1TrackChangedByAdminAt; // Track change indicator
+          
+          const hasPlaceholderValues = wasAssignedOrChangedByAdmin && (
+            // Check for placeholder company name
+            !summerApp.details?.companyName || 
+            summerApp.details?.companyName === 'To be provided by student' ||
+            summerApp.details?.companyName === 'N/A - Assigned to Internship 1 Project' ||
+            // Check for placeholder dates (same start and end date)
+            (summerApp.details?.startDate && summerApp.details?.endDate && 
+             new Date(summerApp.details.startDate).getTime() === new Date(summerApp.details.endDate).getTime()) ||
+            // Check for missing required fields
+            !summerApp.details?.completionCertificateLink ||
+            !summerApp.details?.roleOrNatureOfWork
+          );
+          
+          if (hasPlaceholderValues) {
+            // URGENT: Application has placeholder values - needs immediate attention
+            actions.push({
+              title: '⚠️ URGENT: Complete Application',
+              description: 'Application has placeholder values - fill in all details immediately',
+              icon: '🚨',
+              link: `/student/sem7/internship/apply/summer/${summerApp._id}/edit`,
+              color: 'bg-red-50 border-red-300 hover:bg-red-100',
+              textColor: 'text-red-800',
+            });
+          } else if (summerApp.adminRemarks === 'Assigned by admin') {
+            // Fresh assignment by admin to summer internship application track
+            actions.push({
+              title: 'Submit Summer Internship Application',
+              description: 'Assigned by admin - submit your summer internship details',
+              icon: '📝',
+              link: `/student/sem7/internship/apply/summer/${summerApp._id}/edit`,
+              color: 'bg-blue-50 border-blue-200 hover:bg-blue-100',
+              textColor: 'text-blue-800',
+            });
+          } else {
+            // Regular submitted application
+            actions.push({
+              title: 'View/Update Application',
+              description: 'View or update your summer internship application',
+              icon: '📋',
+              link: `/student/sem7/internship/apply/summer/${summerApp._id}/edit`,
+              color: 'bg-blue-50 border-blue-200 hover:bg-blue-100',
+              textColor: 'text-blue-800',
+            });
+          }
+        } else if (summerApp && (summerApp.status === 'verified_fail' || summerApp.status === 'absent')) {
+          // Application rejected - show registration link
+          if (internship1Project) {
+            actions.push({
+              title: 'View Internship 1 Project',
+              description: 'View your registered solo project',
+              icon: '📋',
+              link: '/student/sem7/internship1/dashboard',
+              color: 'bg-orange-50 border-orange-200 hover:bg-orange-100',
+              textColor: 'text-orange-800',
+            });
+          } else {
+            actions.push({
+              title: 'Register Internship 1',
+              description: 'Application rejected - register for solo project',
+              icon: '⚠️',
+              link: '/student/sem7/internship1/register',
+              color: 'bg-red-50 border-red-200 hover:bg-red-100',
+              textColor: 'text-red-800',
+            });
+          }
+        } else if (summerApp?.status === 'needs_info') {
+          actions.push({
+            title: 'Update Application',
+            description: 'Update required - fix your summer internship application',
+            icon: '⚠️',
+            link: `/student/sem7/internship/apply/summer/${summerApp._id}/edit`,
+            color: 'bg-yellow-50 border-yellow-200 hover:bg-yellow-100',
+            textColor: 'text-yellow-800',
+          });
+        } else if (summerApp) {
+          actions.push({
+            title: 'View Application',
+            description: 'View your summer internship application status',
+            icon: '📝',
+            link: '/student/sem7/internship1/dashboard',
+            color: 'bg-orange-50 border-orange-200 hover:bg-orange-100',
+            textColor: 'text-orange-800',
+          });
+        } else if (internship1Project) {
+          actions.push({
+            title: 'View Internship 1',
+            description: 'View your registered solo project',
+            icon: '📋',
+            link: '/student/sem7/internship1/dashboard',
+            color: 'bg-orange-50 border-orange-200 hover:bg-orange-100',
+            textColor: 'text-orange-800',
+          });
+        } else {
+          actions.push({
+            title: 'Start Internship 1',
+            description: 'Submit evidence or register solo project',
+            icon: '🚀',
+            link: '/student/sem7/internship1/dashboard',
+            color: 'bg-orange-50 border-orange-200 hover:bg-orange-100',
+            textColor: 'text-orange-800',
+          });
+        }
+      }
     }
 
     return actions;
@@ -358,12 +649,14 @@ const StudentDashboard = () => {
   const currentSemester = (roleData?.semester || user?.semester) || 4;
   const isSem5 = currentSemester === 5;
   const isSem6 = currentSemester === 6;
+  const isSem7 = currentSemester === 7;
 
 
   const quickActions = getQuickActions();
 
   // Check if we have critical sources loading
   const criticalDataLoading = !user && !roleData && authLoading;
+
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -375,7 +668,9 @@ const StudentDashboard = () => {
           Welcome back, {roleData?.fullName || user?.fullName || user?.name || 'Student'}!
         </h1>
         <p className="text-gray-600 mt-2">
-          {isSem6
+          {isSem7
+            ? "Manage your Semester 7 track, projects, and internships"
+            : isSem6
             ? "Manage your Minor Project 3 and track your progress"
             : isSem5 
             ? "Manage your Minor Project 2, form groups, and track your progress"
@@ -408,8 +703,8 @@ const StudentDashboard = () => {
         </div>
       )}
 
-      {/* Group Invitations Section - Only for Sem 5 students with pending invitations */}
-      {isSem5 && !isInGroup && groupInvitations && groupInvitations.length > 0 && (
+      {/* Group Invitations Section - For Sem 5 and Sem 7 students with pending invitations */}
+      {(isSem5 || isSem7) && !isInGroup && groupInvitations && groupInvitations.length > 0 && (
         <div className="mb-8">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">Group Invitations</h2>
           <div className="space-y-4">
@@ -454,10 +749,19 @@ const StudentDashboard = () => {
                           <StatusBadge status={invitation.group?.status} />
                         </span>
                       </div>
+                      {invitation.group?.semester && (
+                        <div>
+                          <span className="font-medium">Semester:</span>
+                          <span className="ml-2">Sem {invitation.group.semester}</span>
+                          {invitation.group.semester === 7 && (
+                            <span className="ml-2 text-xs text-blue-600">(Major Project 1)</span>
+                          )}
+                        </div>
+                      )}
                     </div>
                     
                     <div className="text-xs text-gray-500">
-                      Invited on: {new Date(invitation.createdAt).toLocaleString()}
+                      Invited on: {new Date(invitation.invitedAt || invitation.createdAt).toLocaleString()}
                     </div>
                   </div>
                   
@@ -500,7 +804,9 @@ const StudentDashboard = () => {
         <div className="bg-white rounded-lg shadow">
           <div className="px-6 py-4 border-b border-gray-200">
             <h2 className="text-lg font-semibold text-gray-900">
-              {isSem6 
+              {isSem7
+                ? "Semester 7 Status"
+                : isSem6 
                 ? "Minor Project 3 Status" 
                 : isSem5 
                 ? "Minor Project 2 Status" 
@@ -508,7 +814,259 @@ const StudentDashboard = () => {
             </h2>
           </div>
           <div className="p-6">
-            {isSem6 ? (
+            {isSem7 ? (
+              // Sem 7 Project Status
+              sem7Loading ? (
+                <div className="flex items-center justify-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                </div>
+              ) : (
+                <div className="space-y-6">
+                  
+                  {/* Track Choice Status */}
+                  <div className="border-b pb-4">
+                    <h3 className="text-sm font-medium text-gray-700 mb-2">Track Choice</h3>
+                    {finalizedTrack ? (
+                      <div className="space-y-2">
+                        <div className="flex items-center space-x-2">
+                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                            finalizedTrack === 'internship' 
+                              ? 'bg-purple-100 text-purple-800' 
+                              : 'bg-blue-100 text-blue-800'
+                          }`}>
+                            {finalizedTrack === 'internship' ? '6-Month Internship' : 'Coursework'}
+                          </span>
+                          {trackChoiceStatus && (
+                            <StatusBadge status={trackChoiceStatus === 'approved' ? 'success' : trackChoiceStatus === 'needs_info' ? 'error' : 'warning'} text={trackChoiceStatus} />
+                          )}
+                        </div>
+                        {trackChoiceStatus === 'needs_info' && (
+                          <div className="mt-2 p-3 bg-yellow-50 border border-yellow-200 rounded-md">
+                            <p className="text-sm text-yellow-800 font-medium mb-1">Action Required</p>
+                            <p className="text-xs text-yellow-700">Please update your track choice with the additional information requested by the admin.</p>
+                          </div>
+                        )}
+                      </div>
+                    ) : trackChoice && trackChoice.chosenTrack ? (
+                      <div className="space-y-3">
+                        <div className="flex items-center space-x-2">
+                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                            trackChoice.chosenTrack === 'internship' 
+                              ? 'bg-purple-100 text-purple-800' 
+                              : 'bg-blue-100 text-blue-800'
+                          }`}>
+                            {trackChoice.chosenTrack === 'internship' ? '6-Month Internship' : 'Coursework'}
+                          </span>
+                          {(() => {
+                            // For internship track, check application status
+                            if (trackChoice.chosenTrack === 'internship') {
+                              const sixMonthApp = getInternshipApplication('6month');
+                              if (sixMonthApp) {
+                                if (sixMonthApp.status === 'verified_pass') {
+                                  return <StatusBadge status="success" text="Verified (Pass)" />;
+                                } else if (sixMonthApp.status === 'needs_info') {
+                                  return <StatusBadge status="error" text="Update Required" />;
+                                } else if (sixMonthApp.status === 'pending_verification') {
+                                  return <StatusBadge status="info" text="Pending Verification" />;
+                                } else if (sixMonthApp.status === 'submitted') {
+                                  return <StatusBadge status="info" text="Application Submitted" />;
+                                } else if (sixMonthApp.status === 'verified_fail') {
+                                  return <StatusBadge status="error" text="Verified (Fail)" />;
+                                } else if (sixMonthApp.status === 'absent') {
+                                  return <StatusBadge status="error" text="Absent" />;
+                                }
+                              }
+                              return <StatusBadge status="info" text="Proceed to Application" />;
+                            }
+                            // For coursework track
+                            if (trackChoiceStatus === 'needs_info') {
+                              return <StatusBadge status="error" text="Needs Info" />;
+                            }
+                            return <StatusBadge status="info" text="Pending Review" />;
+                          })()}
+                        </div>
+                        <div className="p-3 bg-blue-50 border border-blue-200 rounded-md">
+                          {(() => {
+                            // For internship track, show application status
+                            if (trackChoice.chosenTrack === 'internship') {
+                              const sixMonthApp = getInternshipApplication('6month');
+                              if (sixMonthApp) {
+                                if (sixMonthApp.status === 'verified_pass') {
+                                  return (
+                                    <>
+                                      <p className="text-sm text-green-800 font-medium mb-1">Internship Verified (Pass)</p>
+                                      <p className="text-xs text-green-700 mb-2">
+                                        Your 6-month internship has been verified. Sem 8 coursework is required.
+                                      </p>
+                                    </>
+                                  );
+                                } else if (sixMonthApp.status === 'needs_info') {
+                                  return (
+                                    <>
+                                      <p className="text-sm text-yellow-800 font-medium mb-1">Update Required</p>
+                                      <p className="text-xs text-yellow-700 mb-2">
+                                        The admin has requested additional information. Please update your internship application with the required details.
+                                      </p>
+                                    </>
+                                  );
+                                } else if (sixMonthApp.status === 'submitted') {
+                                  return (
+                                    <>
+                                      <p className="text-sm text-blue-800 font-medium mb-1">Application Submitted</p>
+                                      <p className="text-xs text-blue-700 mb-2">
+                                        Your 6-month internship application has been submitted and is awaiting review.
+                                      </p>
+                                    </>
+                                  );
+                                } else if (sixMonthApp.status === 'pending_verification') {
+                                  return (
+                                    <>
+                                      <p className="text-sm text-blue-800 font-medium mb-1">Pending Verification</p>
+                                      <p className="text-xs text-blue-700 mb-2">
+                                        Your internship will be verified by the admin/panel. You will be notified once it is decided.
+                                      </p>
+                                    </>
+                                  );
+                                } else if (sixMonthApp.status === 'verified_fail' || sixMonthApp.status === 'absent') {
+                                  return (
+                                    <>
+                                      <p className="text-sm text-red-800 font-medium mb-1">Verification Failed / Absent</p>
+                                      <p className="text-xs text-red-700 mb-2">
+                                        You must complete Major Project 1 as backlog next semester. Sem 8 coursework is required.
+                                      </p>
+                                      {sixMonthApp.adminRemarks && (
+                                        <div className="mt-2 p-3 bg-red-50 border border-red-200 rounded">
+                                          <p className="text-xs text-red-800"><strong>Admin Remarks:</strong> {sixMonthApp.adminRemarks}</p>
+                                        </div>
+                                      )}
+                                    </>
+                                  );
+                                }
+                              }
+                              return (
+                                <>
+                                  <p className="text-sm text-blue-800 font-medium mb-1">Next Step</p>
+                                  <p className="text-xs text-blue-700 mb-2">
+                                    You selected Internship. Please submit your 6-month internship application with company details now.
+                                  </p>
+                                </>
+                              );
+                            }
+                            // For coursework track
+                            if (trackChoiceStatus === 'needs_info') {
+                              return (
+                                <>
+                                  <p className="text-sm text-yellow-800 font-medium mb-1">Update Required</p>
+                                  <p className="text-xs text-yellow-700 mb-2">
+                                    The admin has requested additional information. Please update your track choice with the required details.
+                                  </p>
+                                </>
+                              );
+                            }
+                            return (
+                              <>
+                                <p className="text-sm text-blue-800 font-medium mb-1">Awaiting Admin Review</p>
+                                <p className="text-xs text-blue-700 mb-2">
+                                  You selected Coursework. You can proceed with Major Project 1 group formation and Internship 1 registration as per windows.
+                                </p>
+                              </>
+                            );
+                          })()}
+                          {/* Admin remarks for internship when present */}
+                          {(() => {
+                            if (trackChoice?.chosenTrack === 'internship') {
+                              const app = getInternshipApplication('6month');
+                              if (app?.adminRemarks && (app.status === 'needs_info' || app.status === 'verified_fail' || app.status === 'absent')) {
+                                return (
+                                  <div className="mt-2 p-3 bg-white border border-gray-200 rounded">
+                                    <p className="text-xs text-gray-700"><strong>Admin Remarks:</strong> {app.adminRemarks}</p>
+                                  </div>
+                                );
+                              }
+                            }
+                            return null;
+                          })()}
+                          <p className="text-xs text-blue-600 mt-2">
+                            <strong>Need help?</strong> Contact the admin if you have any questions or concerns.
+                          </p>
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="text-sm text-gray-500">No track choice submitted yet</p>
+                    )}
+
+                    {/* Coursework track - Quick redirect links (only show for coursework track, not internship) */}
+                    {selectedTrack === 'coursework' && (
+                      <div className="mt-4 pt-4 border-t border-gray-200">
+                        <h3 className="text-sm font-medium text-gray-700 mb-3">Quick Access</h3>
+                        <div className="grid grid-cols-2 gap-3">
+                          <Link
+                            to="/student/sem7/major1/dashboard"
+                            className="text-center px-4 py-3 bg-indigo-50 border-2 border-indigo-300 rounded-lg hover:bg-indigo-100 hover:border-indigo-400 transition-colors shadow-sm"
+                          >
+                            <p className="text-sm font-semibold text-indigo-900">Major Project 1</p>
+                            <p className="text-xs text-indigo-700 mt-1">View Dashboard</p>
+                          </Link>
+                          {(() => {
+                            const summerApp = getInternshipApplication('summer');
+                            // If fresh assignment to application track, show application submission link
+                            if (summerApp && summerApp.status === 'submitted' && summerApp.adminRemarks === 'Assigned by admin') {
+                              return (
+                                <Link
+                                  to={`/student/sem7/internship/apply/summer/${summerApp._id}/edit`}
+                                  className="text-center px-4 py-3 bg-blue-50 border-2 border-blue-300 rounded-lg hover:bg-blue-100 hover:border-blue-400 transition-colors shadow-sm"
+                                >
+                                  <p className="text-sm font-semibold text-blue-900">Internship 1</p>
+                                  <p className="text-xs text-blue-700 mt-1">Submit Application</p>
+                                </Link>
+                              );
+                            }
+                            // If fresh assignment to project track (verified_fail with 'Assigned by admin'), show blue registration link
+                            const isFreshProjectAssignment = summerApp && (summerApp.status === 'verified_fail' || summerApp.status === 'absent') && 
+                              (summerApp.adminRemarks === 'Assigned by admin' || 
+                               (summerApp.adminRemarks && summerApp.adminRemarks.includes('Assigned by admin')));
+                            if (isFreshProjectAssignment && !internship1Project) {
+                              return (
+                                <Link
+                                  to="/student/sem7/internship1/register"
+                                  className="text-center px-4 py-3 bg-blue-50 border-2 border-blue-300 rounded-lg hover:bg-blue-100 hover:border-blue-400 transition-colors shadow-sm"
+                                >
+                                  <p className="text-sm font-semibold text-blue-900">Internship 1</p>
+                                  <p className="text-xs text-blue-700 mt-1">Register Project</p>
+                                </Link>
+                              );
+                            }
+                            // If application is rejected and no project registered, show red registration link
+                            if (summerApp && (summerApp.status === 'verified_fail' || summerApp.status === 'absent') && !internship1Project) {
+                              return (
+                                <Link
+                                  to="/student/sem7/internship1/register"
+                                  className="text-center px-4 py-3 bg-red-50 border-2 border-red-300 rounded-lg hover:bg-red-100 hover:border-red-400 transition-colors shadow-sm"
+                                >
+                                  <p className="text-sm font-semibold text-red-900">Internship 1</p>
+                                  <p className="text-xs text-red-700 mt-1">Register Project</p>
+                                </Link>
+                              );
+                            }
+                            // Otherwise show dashboard link
+                            return (
+                              <Link
+                                to="/student/sem7/internship1/dashboard"
+                                className="text-center px-4 py-3 bg-teal-50 border-2 border-teal-300 rounded-lg hover:bg-teal-100 hover:border-teal-400 transition-colors shadow-sm"
+                              >
+                                <p className="text-sm font-semibold text-teal-900">Internship 1</p>
+                                <p className="text-xs text-teal-700 mt-1">View Dashboard</p>
+                              </Link>
+                            );
+                          })()}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                </div>
+              )
+            ) : isSem6 ? (
               // Sem 6 Project Status
               sem6ProjectLoading ? (
                 <div className="flex items-center justify-center py-8">
@@ -828,8 +1386,572 @@ const StudentDashboard = () => {
           </div>
         </div>
 
-        {/* Second Card - Group Status (Sem 5/6) or Evaluation Schedule (Sem 4) */}
-        {isSem6 || isSem5 ? (
+        {/* Second Card - Group Status (Sem 5/6), Evaluation Schedule (Sem 4), or Sem 7 Overview */}
+        {isSem7 ? (
+          /* Sem 7 Status Overview Card */
+          <div className="bg-white rounded-lg shadow">
+            <div className="px-6 py-4 border-b border-gray-200">
+              <h2 className="text-lg font-semibold text-gray-900">
+                {selectedTrack === 'coursework' ? 'Coursework Overview' : selectedTrack === 'internship' ? '6-Month Internship Overview' : 'Semester 7 Overview'}
+              </h2>
+            </div>
+            <div className="p-6">
+              {/* Track Change Notification - Main Track (Coursework <-> 6-Month Internship) */}
+              {trackChoice?.trackChangedByAdminAt && trackChoice?.previousTrack && (
+                <div className="mb-6 p-4 bg-amber-50 border-l-4 border-amber-400 rounded-md">
+                  <div className="flex items-start">
+                    <div className="flex-shrink-0">
+                      <svg className="h-5 w-5 text-amber-400" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                      </svg>
+                    </div>
+                    <div className="ml-3 flex-1">
+                      <h3 className="text-sm font-medium text-amber-800">
+                        Your track has been changed by admin
+                      </h3>
+                      <div className="mt-2 text-sm text-amber-700">
+                        <p>
+                          Your track has been changed from <strong>{trackChoice.previousTrack === 'internship' ? '6-Month Internship' : 'Coursework'}</strong> to <strong>{selectedTrack === 'internship' ? '6-Month Internship' : 'Coursework'}</strong>.
+                        </p>
+                        {trackChoice.adminRemarks && (
+                          <p className="mt-2">
+                            <strong>Admin Remarks:</strong> {trackChoice.adminRemarks}
+                          </p>
+                        )}
+                        <p className="mt-2 text-xs text-amber-600">
+                          Changed on: {new Date(trackChoice.trackChangedByAdminAt).toLocaleString()}
+                        </p>
+                        <p className="mt-2 text-sm font-medium">
+                          Please note: Your workflow flags have been reset, and any active projects may have been cancelled. Please proceed with the new track requirements.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+              
+              {/* Track Change Notification - Internship 1 Track (Project <-> Summer Internship Application) */}
+              {(() => {
+                const summerApp = getInternshipApplication('summer');
+                if (summerApp?.internship1TrackChangedByAdminAt && summerApp?.previousInternship1Track) {
+                  const previousTrack = summerApp.previousInternship1Track === 'project' 
+                    ? 'Internship 1 Project (Institute Faculty)' 
+                    : 'Summer Internship Application';
+                  const currentTrack = summerApp.previousInternship1Track === 'project'
+                    ? 'Summer Internship Application'
+                    : 'Internship 1 Project (Institute Faculty)';
+                  
+                  return (
+                    <div className="mb-6 p-4 bg-amber-50 border-l-4 border-amber-400 rounded-md">
+                      <div className="flex items-start">
+                        <div className="flex-shrink-0">
+                          <svg className="h-5 w-5 text-amber-400" viewBox="0 0 20 20" fill="currentColor">
+                            <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                          </svg>
+                        </div>
+                        <div className="ml-3 flex-1">
+                          <h3 className="text-sm font-medium text-amber-800">
+                            Your Internship 1 track has been changed by admin
+                          </h3>
+                          <div className="mt-2 text-sm text-amber-700">
+                            <p>
+                              Your Internship 1 track has been changed from <strong>{previousTrack}</strong> to <strong>{currentTrack}</strong>.
+                            </p>
+                            {summerApp.adminRemarks && (
+                              <p className="mt-2">
+                                <strong>Admin Remarks:</strong> {summerApp.adminRemarks}
+                              </p>
+                            )}
+                            <p className="mt-2 text-xs text-amber-600">
+                              Changed on: {new Date(summerApp.internship1TrackChangedByAdminAt).toLocaleString()}
+                            </p>
+                            <p className="mt-2 text-sm font-medium">
+                              {summerApp.previousInternship1Track === 'project'
+                                ? 'Please note: Your Internship 1 project has been cancelled and all progress has been reset. Please proceed with the summer internship application.'
+                                : 'Please note: Your summer internship application status has been updated. Please follow the instructions for your new Internship 1 track.'}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                }
+                return null;
+              })()}
+              {sem7Loading ? (
+                <div className="flex items-center justify-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                </div>
+              ) : selectedTrack === 'coursework' ? (
+                <div className="space-y-6">
+                  {/* Major Project 1 Status */}
+                  <div className="border-l-4 border-blue-500 pl-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <h3 className="text-base font-semibold text-gray-900">Major Project 1</h3>
+                      {(() => {
+                        if (majorProject1) {
+                          return (
+                            <StatusBadge 
+                              status={
+                                majorProject1.faculty || majorProject1Group?.allocatedFaculty ? 'success' : 'info'
+                              }
+                              text={
+                                majorProject1.faculty || majorProject1Group?.allocatedFaculty ? 'Active' : 'Pending Faculty'
+                              }
+                            />
+                          );
+                        } else if (majorProject1Group?.status === 'finalized') {
+                          return (
+                            <span className="text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full font-medium">
+                              Ready to Register
+                            </span>
+                          );
+                        } else if (majorProject1Group) {
+                          return (
+                            <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full font-medium">
+                              Group Formed
+                            </span>
+                          );
+                        } else {
+                          return (
+                            <span className="text-xs bg-gray-100 text-gray-800 px-2 py-1 rounded-full font-medium">
+                              Not Started
+                            </span>
+                          );
+                        }
+                      })()}
+                    </div>
+                    <div className="space-y-2 text-sm text-gray-600">
+                      {majorProject1 ? (
+                        <>
+                          <div className="space-y-1">
+                            <p className="font-medium text-gray-900">{majorProject1.title}</p>
+                            {majorProject1.faculty || majorProject1Group?.allocatedFaculty ? (
+                              <p>Faculty: {majorProject1.faculty?.fullName || majorProject1Group?.allocatedFaculty?.fullName}</p>
+                            ) : (
+                              <p className="text-gray-500">Waiting for faculty allocation</p>
+                            )}
+                          </div>
+                        </>
+                      ) : majorProject1Group ? (
+                        <>
+                          <p className="font-medium text-gray-900">Group: {majorProject1Group.name}</p>
+                          {majorProject1Group.status === 'finalized' ? (
+                            <p className="text-gray-500">Group is finalized. You can now register your project.</p>
+                          ) : (
+                            <p className="text-gray-500">Finalize your group to register the project.</p>
+                          )}
+                        </>
+                      ) : (
+                        <p>Create a group to get started with Major Project 1</p>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Internship 1 Status */}
+                  <div className="border-l-4 border-orange-500 pl-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <h3 className="text-base font-semibold text-gray-900">Internship 1</h3>
+                      {(() => {
+                        const summerApp = getInternshipApplication('summer');
+                        // Prioritize project status over application status
+                        // If project is registered and not cancelled, show project status
+                        if (internship1Project && internship1Project.status !== 'cancelled') {
+                          return (
+                            <StatusBadge 
+                              status={
+                                internship1Project.faculty ? 'success' : 'info'
+                              }
+                              text={
+                                internship1Project.faculty ? 'Registered' : 'Pending Faculty'
+                              }
+                            />
+                          );
+                        } else if (hasApprovedSummerInternship) {
+                          return (
+                            <StatusBadge status="success" text="Approved" />
+                          );
+                        } else if (summerApp) {
+                          // Check if it's a fresh assignment by admin to application track
+                          // status = 'submitted' with 'Assigned by admin' remarks = application track assignment
+                          // status = 'verified_fail' with 'Assigned by admin' remarks = project track assignment (marker)
+                          const isFreshApplicationAssignment = summerApp.status === 'submitted' && 
+                            (summerApp.adminRemarks === 'Assigned by admin' || 
+                             (summerApp.adminRemarks && summerApp.adminRemarks.includes('Assigned by admin')));
+                          
+                          // Handle fresh application assignment
+                          if (isFreshApplicationAssignment) {
+                            return (
+                              <StatusBadge 
+                                status="info"
+                                text="Assigned to Application"
+                              />
+                            );
+                          }
+                          
+                          return (
+                            <StatusBadge 
+                              status={
+                                summerApp.status === 'approved' || summerApp.status === 'verified_pass' ? 'success' :
+                                summerApp.status === 'needs_info' ? 'error' :
+                                summerApp.status === 'verified_fail' || summerApp.status === 'absent' ? 'error' :
+                                'info'
+                              }
+                              text={
+                                summerApp.status === 'approved' || summerApp.status === 'verified_pass' ? 'Approved' :
+                                summerApp.status === 'needs_info' ? 'Update Required' :
+                                summerApp.status === 'verified_fail' ? 'Rejected' :
+                                summerApp.status === 'absent' ? 'Absent' :
+                                summerApp.status === 'submitted' ? 'Submitted' :
+                                summerApp.status === 'pending_verification' ? 'Pending Review' :
+                                summerApp.status
+                              }
+                            />
+                          );
+                        } else {
+                          return (
+                            <span className="text-xs bg-gray-100 text-gray-800 px-2 py-1 rounded-full font-medium">
+                              Not Started
+                            </span>
+                          );
+                        }
+                      })()}
+                    </div>
+                    <div className="space-y-2 text-sm text-gray-600">
+                      {(() => {
+                        const summerApp = getInternshipApplication('summer');
+                        
+                        // Check if application has placeholder values that need to be filled
+                        // Only show urgent notification if:
+                        // 1. Application was assigned/changed by admin (has adminRemarks indicating assignment OR track change)
+                        // 2. Status is 'submitted' (not yet reviewed)
+                        // 3. AND still has placeholder/incomplete values
+                        // Once student fills in required fields, this should become false
+                        const wasAssignedOrChangedByAdmin = summerApp?.adminRemarks === 'Assigned by admin' || 
+                          (summerApp?.adminRemarks && (
+                            summerApp.adminRemarks.includes('Assigned by admin') ||
+                            summerApp.adminRemarks.includes('Switched from Internship-I under Institute Faculty')
+                          )) ||
+                          summerApp?.internship1TrackChangedByAdminAt; // Track change indicator
+                        
+                        const hasPlaceholderValues = summerApp && 
+                          summerApp.status === 'submitted' && 
+                          wasAssignedOrChangedByAdmin && (
+                            // Check for placeholder company name
+                            !summerApp.details?.companyName || 
+                            summerApp.details?.companyName === 'To be provided by student' ||
+                            summerApp.details?.companyName === 'N/A - Assigned to Internship 1 Project' ||
+                            // Check for placeholder dates (same start and end date)
+                            (summerApp.details?.startDate && summerApp.details?.endDate && 
+                             new Date(summerApp.details.startDate).getTime() === new Date(summerApp.details.endDate).getTime()) ||
+                            // Check for missing required fields
+                            !summerApp.details?.completionCertificateLink ||
+                            !summerApp.details?.roleOrNatureOfWork
+                          );
+                        
+                        // URGENT: Show placeholder warning first if application has placeholder values
+                        if (hasPlaceholderValues) {
+                          return (
+                            <div className="p-4 bg-red-50 rounded-md">
+                              <div className="flex items-start">
+                                <svg className="h-5 w-5 text-red-600 mt-0.5 mr-3 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
+                                  <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                                </svg>
+                                <div className="flex-1">
+                                  <h4 className="font-bold text-red-900 mb-1">⚠️ URGENT: Complete Application</h4>
+                                  <p className="text-sm text-red-800 mb-2">
+                                    Your application contains placeholder information. <strong>This is your TOP PRIORITY.</strong> Please fill in all required details immediately.
+                                  </p>
+                                  <Link
+                                    to={`/student/sem7/internship/apply/summer/${summerApp._id}/edit`}
+                                    className="inline-flex items-center px-4 py-2 bg-red-600 text-white text-sm font-semibold rounded-md hover:bg-red-700 transition-colors"
+                                  >
+                                    Fill Application Now →
+                                  </Link>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        }
+                        
+                        // Prioritize project status over application status
+                        // If project is registered and not cancelled, show project details instead of application status
+                        if (internship1Project && internship1Project.status !== 'cancelled') {
+                          return (
+                            <>
+                              <p className="font-medium text-gray-900">{internship1Project.title}</p>
+                              {internship1Project.faculty ? (
+                                <p>Faculty: {internship1Project.faculty.fullName}</p>
+                              ) : (
+                                <p className="text-gray-500">Waiting for faculty allocation</p>
+                              )}
+                            </>
+                          );
+                        } else if (hasApprovedSummerInternship) {
+                          return (
+                            <>
+                              <p className="text-green-700 font-medium">✓ Summer internship approved</p>
+                              {summerApp?.details?.companyName && (
+                                <p>Company: {summerApp.details.companyName}</p>
+                              )}
+                            </>
+                          );
+                        } else if (summerApp && summerApp.status === 'submitted' && summerApp.adminRemarks === 'Assigned by admin') {
+                          // Fresh assignment by admin to summer internship application track
+                          // When admin assigns to application track, creates app with 'submitted' status
+                          return (
+                            <>
+                              <p className="text-blue-700 font-medium">ℹ️ Assigned to Summer Internship Application</p>
+                              {summerApp.adminRemarks && (
+                                <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded-lg">
+                                  <p className="text-xs font-medium text-blue-900 mb-1">Admin Remarks:</p>
+                                  <p className="text-xs text-blue-800">{summerApp.adminRemarks}</p>
+                                </div>
+                              )}
+                              <p className="text-blue-600 mt-2">
+                                Please submit your summer internship application with company details and completion certificate.
+                              </p>
+                            </>
+                          );
+                        } else if (summerApp && (summerApp.status === 'verified_fail' || summerApp.status === 'absent')) {
+                          // Check if this is a fresh assignment to project track or actual rejection
+                          const isFreshProjectAssignment = summerApp.adminRemarks === 'Assigned by admin' || 
+                            (summerApp.adminRemarks && summerApp.adminRemarks.includes('Assigned by admin'));
+                          
+                          if (isFreshProjectAssignment) {
+                            // Fresh assignment by admin to project track (not a rejection)
+                            return (
+                              <>
+                                <p className="text-blue-700 font-medium">ℹ️ Assigned to Internship 1 Project</p>
+                                {summerApp.adminRemarks && (
+                                  <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded-lg">
+                                    <p className="text-xs font-medium text-blue-900 mb-1">Admin Remarks:</p>
+                                    <p className="text-xs text-blue-800">{summerApp.adminRemarks}</p>
+                                  </div>
+                                )}
+                                {!internship1Project && (
+                                  <p className="text-blue-600 mt-2">Please register for your Internship 1 project</p>
+                                )}
+                              </>
+                            );
+                          } else {
+                            // Actual application rejection
+                          return (
+                            <>
+                              <p className="text-red-700 font-medium">✗ Application rejected</p>
+                              {summerApp.adminRemarks && (
+                                <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded-lg">
+                                  <p className="text-xs font-medium text-red-900 mb-1">Admin Remarks:</p>
+                                  <p className="text-xs text-red-800">{summerApp.adminRemarks}</p>
+                                </div>
+                              )}
+                              {!internship1Project && (
+                                <p className="text-red-600 mt-2">Register for Internship 1 project required</p>
+                              )}
+                            </>
+                          );
+                          }
+                        } else if (summerApp) {
+                          return (
+                            <>
+                              <div className="space-y-1">
+                                {summerApp.details?.companyName && (
+                                  <p className="font-medium text-gray-900">Company: {summerApp.details.companyName}</p>
+                                )}
+                                {summerApp.details?.startDate && summerApp.details?.endDate && (
+                                  <p className="text-gray-600">
+                                    Duration: {new Date(summerApp.details.startDate).toLocaleDateString()} - {new Date(summerApp.details.endDate).toLocaleDateString()}
+                                  </p>
+                                )}
+                              </div>
+                              {summerApp.status === 'needs_info' && summerApp.adminRemarks && (
+                                <div className="mt-3 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                                  <p className="text-xs font-medium text-yellow-900 mb-1">Admin Remarks:</p>
+                                  <p className="text-xs text-yellow-800">{summerApp.adminRemarks}</p>
+                                </div>
+                              )}
+                            </>
+                          );
+                        } else {
+                          return (
+                            <p>Submit summer internship evidence or register for solo project</p>
+                          );
+                        }
+                      })()}
+                    </div>
+                  </div>
+                </div>
+              ) : selectedTrack === 'internship' ? (
+                <div className="space-y-6">
+                  {/* 6-Month Internship Application Status */}
+                  <div className="border-l-4 border-purple-500 pl-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <h3 className="text-base font-semibold text-gray-900">6-Month Internship Application</h3>
+                      {(() => {
+                        const sixMonthApp = getInternshipApplication('6month');
+                        if (!sixMonthApp) {
+                          return (
+                            <span className="text-xs bg-gray-100 text-gray-800 px-2 py-1 rounded-full font-medium">
+                              Not Submitted
+                            </span>
+                          );
+                        }
+                        return (
+                          <StatusBadge 
+                            status={
+                              sixMonthApp.status === 'verified_pass' ? 'success' :
+                              sixMonthApp.status === 'verified_fail' ? 'error' :
+                              sixMonthApp.status === 'absent' ? 'error' :
+                              sixMonthApp.status === 'needs_info' ? 'error' :
+                              sixMonthApp.status === 'pending_verification' ? 'info' :
+                              sixMonthApp.status === 'submitted' ? 'info' :
+                              'warning'
+                            }
+                            text={
+                              sixMonthApp.status === 'verified_pass' ? 'Verified (Pass)' :
+                              sixMonthApp.status === 'verified_fail' ? 'Verified (Fail)' :
+                              sixMonthApp.status === 'absent' ? 'Absent' :
+                              sixMonthApp.status === 'needs_info' ? 'Update Required' :
+                              sixMonthApp.status === 'pending_verification' ? 'Pending Verification' :
+                              sixMonthApp.status === 'submitted' ? 'Submitted' :
+                              sixMonthApp.status
+                            }
+                          />
+                        );
+                      })()}
+                    </div>
+                    <div className="space-y-2 text-sm text-gray-600">
+                      {(() => {
+                        const sixMonthApp = getInternshipApplication('6month');
+                        if (!sixMonthApp) {
+                          return (
+                            <>
+                              <p>Submit your 6-month internship application with company details</p>
+                              <Link
+                                to="/student/sem7/internship/apply/6month"
+                                className="inline-flex items-center mt-2 px-3 py-1.5 bg-purple-600 text-white text-sm rounded-lg hover:bg-purple-700 transition-colors"
+                              >
+                                Submit Application
+                              </Link>
+                            </>
+                          );
+                        }
+                        return (
+                          <>
+                            <div className="space-y-1">
+                              <p className="font-medium text-gray-900">Company: {sixMonthApp.details?.companyName || 'N/A'}</p>
+                              {sixMonthApp.details?.startDate && sixMonthApp.details?.endDate && (
+                                <p className="text-gray-600">
+                                  Duration: {new Date(sixMonthApp.details.startDate).toLocaleDateString()} - {new Date(sixMonthApp.details.endDate).toLocaleDateString()}
+                                </p>
+                              )}
+                              {sixMonthApp.details?.offerLetterLink && (
+                                <p className="text-gray-600">
+                                  <a href={sixMonthApp.details.offerLetterLink} target="_blank" rel="noopener noreferrer" className="text-purple-600 hover:text-purple-800 underline">
+                                    View Offer Letter
+                                  </a>
+                                </p>
+                              )}
+                            </div>
+                            {(sixMonthApp.status === 'needs_info' || sixMonthApp.status === 'verified_fail' || sixMonthApp.status === 'absent') && sixMonthApp.adminRemarks && (
+                              <div className="mt-3 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                                <p className="text-xs font-medium text-yellow-900 mb-1">Admin Remarks:</p>
+                                <p className="text-xs text-yellow-800">{sixMonthApp.adminRemarks}</p>
+                              </div>
+                            )}
+                            {sixMonthApp.status === 'needs_info' && (
+                              <Link
+                                to={`/student/sem7/internship/apply/6month/${sixMonthApp._id}/edit`}
+                                className="inline-flex items-center mt-2 px-3 py-1.5 bg-yellow-600 text-white text-sm rounded-lg hover:bg-yellow-700 transition-colors"
+                              >
+                                Update Application
+                              </Link>
+                            )}
+                          </>
+                        );
+                      })()}
+                    </div>
+                  </div>
+
+                  {/* Sem 8 Coursework Requirement */}
+                  <div className="border-l-4 border-blue-500 pl-4">
+                    <h3 className="text-base font-semibold text-gray-900 mb-2">Semester 8 Requirements</h3>
+                    <div className="space-y-2 text-sm">
+                      <div className="flex items-center justify-between">
+                        <span className="text-gray-600">Coursework Required:</span>
+                        <span className="font-medium text-blue-900">Yes</span>
+                      </div>
+                      {(() => {
+                        const sixMonthApp = getInternshipApplication('6month');
+                        const isBacklog = sixMonthApp && (sixMonthApp.status === 'verified_fail' || sixMonthApp.status === 'absent');
+                        return (
+                          <div className="flex items-center justify-between">
+                            <span className="text-gray-600">Backlog (Major Project 1):</span>
+                            <span className={`font-medium ${isBacklog ? 'text-red-900' : 'text-green-900'}`}>
+                              {isBacklog ? 'Yes' : 'No'}
+                            </span>
+                          </div>
+                        );
+                      })()}
+                      <p className="text-xs text-gray-500 mt-2">
+                        {(() => {
+                          const sixMonthApp = getInternshipApplication('6month');
+                          if (sixMonthApp && (sixMonthApp.status === 'verified_fail' || sixMonthApp.status === 'absent')) {
+                            return 'You must complete Major Project 1 as backlog in Semester 8 due to internship verification failure/absence.';
+                          }
+                          return 'Semester 8 coursework is mandatory for all students who completed 6-month internship in Semester 7.';
+                        })()}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Quick Actions */}
+                  <div className="pt-4 border-t border-gray-200">
+                    {(() => {
+                      const sixMonthApp = getInternshipApplication('6month');
+                      if (!sixMonthApp) {
+                        return (
+                          <Link
+                            to="/student/sem7/internship/apply/6month"
+                            className="inline-flex items-center justify-center w-full px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
+                          >
+                            <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                            </svg>
+                            Submit Internship Application
+                          </Link>
+                        );
+                      }
+                      if (sixMonthApp.status === 'needs_info') {
+                        return (
+                          <Link
+                            to={`/student/sem7/internship/apply/6month/${sixMonthApp._id}/edit`}
+                            className="inline-flex items-center justify-center w-full px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition-colors"
+                          >
+                            <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                            </svg>
+                            Update Application
+                          </Link>
+                        );
+                      }
+                      return (
+                        <Link
+                          to={`/student/sem7/internship/apply/6month/${sixMonthApp._id}/edit`}
+                          className="inline-flex items-center justify-center w-full px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
+                        >
+                          View Application Details
+                        </Link>
+                      );
+                    })()}
+                  </div>
+                </div>
+              ) : (
+                <p className="text-sm text-gray-500 text-center py-4">Select your track to see status</p>
+              )}
+            </div>
+          </div>
+        ) : isSem6 || isSem5 ? (
           /* Sem 5/6 Group Status Card */
           <div className="bg-white rounded-lg shadow">
             <div className="px-6 py-4 border-b border-gray-200">
@@ -1153,8 +2275,8 @@ const StudentDashboard = () => {
         )}
       </div>
 
-      {/* Previous Projects Section - Only for Sem 5+ students with projects from previous semesters */}
-      {((roleData?.semester || user?.semester) || 4) > 4 && (
+      {/* Previous Projects Section - Only for Sem 5+ students with projects from previous semesters (but not Sem 7) */}
+      {((roleData?.semester || user?.semester) || 4) > 4 && !isSem7 && (
         <div className="mt-8 bg-white rounded-lg shadow">
           <div className="px-6 py-4 border-b border-gray-200">
             <h2 className="text-lg font-semibold text-gray-900">Previous Semester Projects</h2>
@@ -1225,7 +2347,8 @@ const StudentDashboard = () => {
       )}
 
 
-      {/* Information Section */}
+      {/* Information Section - Hide for Sem 7 */}
+      {!isSem7 && (
       <div className="mt-8 bg-blue-50 rounded-lg p-6">
         <h2 className="text-lg font-semibold text-blue-900 mb-4">
           {isSem6 
@@ -1262,6 +2385,7 @@ const StudentDashboard = () => {
           )}
         </div>
       </div>
+      )}
     </div>
   );
 };

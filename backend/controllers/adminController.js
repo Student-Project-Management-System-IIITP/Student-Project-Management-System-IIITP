@@ -285,8 +285,11 @@ const getProjects = async (req, res) => {
     // Build query
     const query = {};
     
-    if (semester) {
-      query.semester = parseInt(semester);
+    if (semester !== undefined && semester !== null && semester !== '') {
+      const semesterNumber = parseInt(semester, 10);
+      if (!Number.isNaN(semesterNumber)) {
+        query.semester = semesterNumber;
+      }
     }
     
     if (status) {
@@ -303,9 +306,26 @@ const getProjects = async (req, res) => {
 
     // Get projects with populated data
     const projects = await Project.find(query)
-      .populate('student', 'fullName misNumber collegeEmail semester degree branch')
+      .populate('student', 'fullName misNumber collegeEmail semester degree branch contactNumber')
       .populate('faculty', 'fullName department designation')
-      .populate('group', 'name members')
+      .populate({
+        path: 'facultyPreferences.faculty',
+        select: 'fullName department designation'
+      })
+      .populate({
+        path: 'group',
+        select: 'name members allocatedFaculty',
+        populate: [
+          {
+            path: 'members.student',
+            select: 'fullName misNumber collegeEmail semester degree branch contactNumber'
+          },
+          {
+            path: 'allocatedFaculty',
+            select: 'fullName department designation'
+          }
+        ]
+      })
       .sort({ createdAt: -1 });
 
     // Get project statistics
@@ -1926,7 +1946,7 @@ const getStudentsBySemester = async (req, res) => {
 
     const students = await Student.find(query)
       .populate('user', 'email')
-      .select('fullName misNumber semester degree branch')
+      .select('fullName misNumber semester degree branch collegeEmail contactNumber')
       .sort({ misNumber: 1 })
       .lean();
 

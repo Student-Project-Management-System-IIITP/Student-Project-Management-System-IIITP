@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { useSem5Project } from '../../hooks/useSem5Project';
 import { useGroupManagement } from '../../hooks/useGroupManagement';
+import { useSem7 } from '../../context/Sem7Context';
 import { useWebSocket } from '../../hooks/useWebSocket';
 import { useAuth } from '../../context/AuthContext';
 import { studentAPI } from '../../utils/api';
@@ -21,13 +22,25 @@ const GroupFormation = () => {
   // Groups are created independently, then linked to projects during registration
   const { 
     sem5Group, 
+    majorProject1Group,
+    group, // Generic group reference (works for both Sem 5 and Sem 7)
     canCreateGroup, 
     isInGroup, 
     isGroupLeader, 
     getGroupStats,
     createGroup,
-    loading: groupLoading 
+    loading: groupLoading,
+    fetchSem5Data // This handles both Sem 5 and Sem 7 data refresh
   } = useGroupManagement();
+  
+  // Determine current semester for group creation
+  const currentSemester = roleData?.semester || user?.semester || 5;
+  
+  // Get Sem 7 context for track checking (only used for error messages)
+  const sem7Context = useSem7();
+  
+  // Use the appropriate group based on semester
+  const currentGroup = currentSemester === 7 ? majorProject1Group : sem5Group;
 
   // WebSocket for real-time updates
   const { isConnected } = useWebSocket();
@@ -125,7 +138,8 @@ const GroupFormation = () => {
       const response = await studentAPI.getAvailableStudents({ 
         search,
         page: page,
-        limit: 20 // Load 20 students at a time
+        limit: 20, // Load 20 students at a time
+        semester: currentSemester // Pass current semester for proper filtering
       });
       
       if (response.success) {
@@ -146,6 +160,7 @@ const GroupFormation = () => {
           setHasSearched(true);
         }
       } else {
+        console.error(`[GroupFormation] API Error:`, response.message || 'Unknown error');
         toast.error(response.message || 'Failed to load available students');
         setAvailableStudents([]);
       }
@@ -183,11 +198,27 @@ const GroupFormation = () => {
     return () => clearTimeout(timeoutId);
   }, [searchTerm, currentStep]);
 
-  // Get invite status for a student (similar to Group Dashboard)
-  const getInviteStatus = (student) => {
+  // Calculate invite status for a student (internal function)
+  const calculateInviteStatus = useCallback((student) => {
     // Check if student is already selected
     if (selectedStudents.some(s => s._id === student._id)) {
       return { status: 'selected', message: 'Selected' };
+    }
+    
+    // For Sem 7: Check if student is eligible for coursework
+    if (currentSemester === 7 && student.semester === 7) {
+      // Check if student is not eligible for coursework
+      if (student.isCourseworkEligible === false || student.isCourseworkEligible === undefined) {
+        const trackInfo = student.trackInfo;
+        
+        if (!trackInfo?.hasSelectedTrack) {
+          return { status: 'no_track_selected', message: 'Track not selected', disabled: true };
+        } else if (trackInfo?.selectedTrack === 'internship') {
+          return { status: 'internship_track', message: '6-month internship track', disabled: true };
+        } else {
+          return { status: 'not_coursework', message: 'Not in coursework track', disabled: true };
+        }
+      }
     }
     
     // Check if student is already in a group
@@ -218,7 +249,22 @@ const GroupFormation = () => {
     
     // Student is available
     return { status: 'available', message: 'Available' };
-  };
+  }, [selectedStudents, currentSemester]);
+
+  // Memoize invite status to avoid excessive recalculations
+  const inviteStatusCache = useMemo(() => {
+    const cache = new Map();
+    availableStudents.forEach(student => {
+      const status = calculateInviteStatus(student);
+      cache.set(student._id, status);
+    });
+    return cache;
+  }, [availableStudents, selectedStudents, currentSemester, calculateInviteStatus]);
+
+  // Get invite status (uses cache)
+  const getInviteStatus = useCallback((student) => {
+    return inviteStatusCache.get(student._id) || calculateInviteStatus(student);
+  }, [inviteStatusCache, calculateInviteStatus]);
 
   // Filter students based on search term (for immediate client-side filter)
   const filteredStudents = availableStudents.filter(student =>
@@ -229,7 +275,8 @@ const GroupFormation = () => {
   );
 
   // Sort students by main status categories for better UX
-  const sortedStudents = filteredStudents.sort((a, b) => {
+  const sortedStudents = useMemo(() => {
+    const sorted = [...filteredStudents].sort((a, b) => {
     const statusA = getInviteStatus(a);
     const statusB = getInviteStatus(b);
     
@@ -237,7 +284,10 @@ const GroupFormation = () => {
     const statusPriority = {
       'selected': 1,      // Selected students first
       'available': 2,     // Available students second
-      'in_group': 3       // In group students last
+        'in_group': 3,      // In group students
+        'no_track_selected': 4,  // Disabled: Track not selected (Sem 7)
+        'internship_track': 5,   // Disabled: Internship track (Sem 7)
+        'not_coursework': 6      // Disabled: Not coursework (Sem 7)
     };
     
     // Get priority for each status, defaulting to 999 for other statuses
@@ -252,6 +302,11 @@ const GroupFormation = () => {
     // If same status, sort by name alphabetically
     return (a.fullName || '').localeCompare(b.fullName || '');
   });
+    
+    return sorted;
+  }, [filteredStudents, inviteStatusCache, currentSemester, hasSearched, getInviteStatus]);
+  
+  // Removed excessive debug logging
 
   // Enhanced multi-step group creation workflow
   const onSubmit = async (data) => {
@@ -260,7 +315,7 @@ const GroupFormation = () => {
       
       const groupData = {
         ...data,
-        semester: 5,
+        semester: currentSemester, // Use dynamic semester (5 for Sem 5, 7 for Sem 7)
         academicYear: user.academicYear || '2024-25',
         // Removed leaderId - creator is always the leader
         memberIds: selectedStudents.map(student => student._id) // Include selected members for invitation
@@ -286,14 +341,18 @@ const GroupFormation = () => {
         return;
       }
       
-      // Check if any selected students are unavailable
+      // Check if any selected students are unavailable or disabled
       const unavailableStudents = selectedStudents.filter(student => {
         const status = getInviteStatus(student);
+        // Check if student is disabled (for Sem 7 track restrictions)
+        if (status.disabled) {
+          return true;
+        }
         return status.status !== 'available' && status.status !== 'selected' && status.status !== 'rejected_from_current_group';
       });
       
       if (unavailableStudents.length > 0) {
-        toast.error(`Cannot proceed: Some selected students are unavailable (${unavailableStudents.map(s => s.fullName).join(', ')})`);
+        toast.error(`Cannot proceed: Some selected students are unavailable or not eligible (${unavailableStudents.map(s => s.fullName).join(', ')})`);
         return;
       }
       
@@ -322,6 +381,12 @@ const GroupFormation = () => {
 
   const handleStudentSelection = (student) => {
   const inviteStatus = getInviteStatus(student);
+  
+  // Check if student is disabled (for Sem 7 track restrictions)
+  if (inviteStatus.disabled) {
+    toast.error(`Cannot select ${student.fullName}: ${inviteStatus.message}`);
+    return;
+  }
   
   // Only allow selection of students who can be invited
   const canSelect = inviteStatus.status === 'available' || 
@@ -458,7 +523,7 @@ const GroupFormation = () => {
       const groupData = {
         name: watch('name'),
         description: watch('description'),
-        semester: 5,
+        semester: currentSemester, // Use dynamic semester (5 for Sem 5, 7 for Sem 7)
         academicYear: user.academicYear || '2024-25',
         memberIds: selectedStudents.map(student => student._id)
       };
@@ -483,7 +548,12 @@ const GroupFormation = () => {
         return;
       }
 
-      // Now send invitations
+      // Refresh context data after creating group
+      // This ensures the UI reflects the new group immediately
+      await fetchSem5Data();
+
+      // Now send invitations (if any)
+      if (selectedStudents.length > 0) {
       const memberIds = selectedStudents.map(student => student._id);
       
       const inviteResponse = await studentAPI.sendGroupInvitations(groupId, { memberIds });
@@ -491,6 +561,13 @@ const GroupFormation = () => {
       if (inviteResponse.success) {
         toast.success('Group created and invitations sent successfully!');
         setInvitationResults(inviteResponse.data);
+        } else {
+          toast.error(inviteResponse.message || 'Failed to send invitations');
+          // Still proceed to navigate even if invitations failed
+        }
+      } else {
+        toast.success('Group created successfully!');
+      }
         
         // Clear localStorage on successful completion
         setTimeout(() => {
@@ -500,14 +577,14 @@ const GroupFormation = () => {
           localStorage.removeItem('groupFormation_name');
           localStorage.removeItem('groupFormation_description');
         }, 3000);
+      
+      // Refresh context data again after sending invitations (if any)
+      await fetchSem5Data();
         
         // Navigate to group dashboard
         setTimeout(() => {
           navigate(`/student/groups/${groupId}/dashboard`);
         }, 2000);
-      } else {
-        toast.error(inviteResponse.message || 'Failed to send invitations');
-      }
     } catch (error) {
       console.error('Error in group creation or invitation sending:', error);
       toast.error(`Failed to create group or send invitations: ${error.message}`);
@@ -517,7 +594,8 @@ const GroupFormation = () => {
   };
 
   // If student is already in a group, show group management
-  if (isInGroup && sem5Group) {
+  if (isInGroup && currentGroup) {
+    const projectType = currentSemester === 7 ? 'Major Project 1' : 'Minor Project 2';
     return (
       <Layout>
         <div className="py-8">
@@ -530,7 +608,7 @@ const GroupFormation = () => {
                   Manage Your Group
                 </h1>
                 <p className="mt-2 text-gray-600">
-                  Manage your Minor Project 2 group members and settings
+                  Manage your {projectType} group members and settings
                 </p>
               </div>
               <button
@@ -553,7 +631,7 @@ const GroupFormation = () => {
                 </div>
                 <div className="p-6">
                   <GroupCard 
-                    group={sem5Group} 
+                    group={currentGroup} 
                     showActions={false}
                     userRole="student"
                   />
@@ -567,7 +645,7 @@ const GroupFormation = () => {
                 </div>
                 <div className="p-6">
                   <GroupMemberList 
-                    members={sem5Group.members || []}
+                    members={currentGroup.members || []}
                     showRoles={true}
                     showContact={true}
                     currentUserId={user._id}
@@ -616,17 +694,26 @@ const GroupFormation = () => {
                       </button>
                     )}
                     
-                    {getGroupStats().isComplete && (
+                    {getGroupStats().isComplete && currentSemester === 5 && (
                       <button
                         onClick={() => navigate('/student/sem5/register')}
                         className="w-full px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
                       >
-                        Register Project
+                        Register Minor Project 2
+                      </button>
+                    )}
+                    
+                    {currentSemester === 7 && currentGroup.status === 'finalized' && (
+                    <button
+                        onClick={() => navigate('/student/major-project-1/register')}
+                        className="w-full px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                      >
+                        Register Major Project 1
                       </button>
                     )}
                     
                     <button
-                      onClick={() => navigate(`/student/groups/${sem5Group._id}/dashboard`)}
+                      onClick={() => navigate(`/student/groups/${currentGroup._id}/dashboard`)}
                       className="w-full px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
                     >
                       Group Dashboard
@@ -656,7 +743,10 @@ const GroupFormation = () => {
                   Create Your Group
                 </h1>
                 <p className="mt-2 text-gray-600">
-                  Form a group for your Minor Project 2 (4-5 members)
+                  {currentSemester === 7 
+                    ? 'Form a new group for your Major Project 1 (coursework students only)'
+                    : 'Form a group for your Minor Project 2 (4-5 members)'
+                  }
                 </p>
                 {/* Real-time status indicator */}
                 <div className="mt-2 flex items-center space-x-2">
@@ -892,7 +982,10 @@ const GroupFormation = () => {
                   <div className="mb-4">
                     <input
                       type="text"
-                      placeholder="Search CSE & ECE students by name, email, phone, or MIS number..."
+                      placeholder={currentSemester === 7 
+                        ? "Search Semester 7 coursework students by name, email, phone, or MIS number..."
+                        : "Search CSE & ECE students by name, email, phone, or MIS number..."
+                      }
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
                       maxLength={50}
@@ -903,7 +996,10 @@ const GroupFormation = () => {
                         <div className="text-sm text-gray-500">
                           <p className="mb-1">💡 Start typing to search for students. This helps load results faster.</p>
                           <p className="text-xs text-gray-400">
-                            Search 5th semester <strong>CSE & ECE</strong> students by: <strong>name</strong>, <strong>email</strong>, <strong>phone number</strong>, or <strong>MIS number</strong>
+                            {currentSemester === 7 
+                              ? <>Search <strong>Semester 7 coursework</strong> students by: <strong>name</strong>, <strong>email</strong>, <strong>phone number</strong>, or <strong>MIS number</strong>. Students on internship track or without a track selection will be shown but disabled.</>
+                              : <>Search {currentSemester}th semester <strong>CSE & ECE</strong> students by: <strong>name</strong>, <strong>email</strong>, <strong>phone number</strong>, or <strong>MIS number</strong></>
+                            }
                           </p>
                         </div>
                       ) : (
@@ -926,7 +1022,7 @@ const GroupFormation = () => {
                       </div>
                       
                       {/* Quick Stats */}
-                      <div className="mb-3 grid grid-cols-3 gap-2 text-xs">
+                      <div className={`mb-3 grid gap-2 text-xs ${currentSemester === 7 ? 'grid-cols-4' : 'grid-cols-3'}`}>
                         {(() => {
                           const stats = sortedStudents.reduce((acc, student) => {
                             const status = getInviteStatus(student);
@@ -934,11 +1030,19 @@ const GroupFormation = () => {
                             return acc;
                           }, {});
                           
-                          return [
+                          const statItems = [
                             { key: 'selected', label: 'Selected', color: 'blue', count: stats.selected || 0 },
                             { key: 'available', label: 'Available', color: 'green', count: stats.available || 0 },
                             { key: 'in_group', label: 'In Group', color: 'red', count: stats.in_group || 0 }
-                          ].map(({ key, label, color, count }) => (
+                          ];
+                          
+                          // Add disabled stats for Sem 7
+                          if (currentSemester === 7) {
+                            const disabledCount = (stats.no_track_selected || 0) + (stats.internship_track || 0) + (stats.not_coursework || 0);
+                            statItems.push({ key: 'disabled', label: 'Not Eligible', color: 'gray', count: disabledCount });
+                          }
+                          
+                          return statItems.map(({ key, label, color, count }) => (
                             <div key={key} className="flex items-center justify-between p-2 bg-white rounded border">
                               <span className={`text-${color}-700 font-medium`}>{label}</span>
                               <span className={`text-${color}-600 font-bold`}>{count}</span>
@@ -961,6 +1065,18 @@ const GroupFormation = () => {
                           <div className="w-3 h-3 bg-red-100 rounded-full border border-red-300"></div>
                           <span className="text-red-700">In Group</span>
                         </span>
+                        {currentSemester === 7 && (
+                          <>
+                            <span className="flex items-center space-x-1">
+                              <div className="w-3 h-3 bg-gray-200 rounded-full border border-gray-300"></div>
+                              <span className="text-gray-600">Track not selected</span>
+                            </span>
+                            <span className="flex items-center space-x-1">
+                              <div className="w-3 h-3 bg-gray-200 rounded-full border border-gray-300"></div>
+                              <span className="text-gray-600">6-month internship track</span>
+                            </span>
+                          </>
+                        )}
                       </div>
                     </div>
                   )}
@@ -997,9 +1113,13 @@ const GroupFormation = () => {
                       {sortedStudents.map((student, index) => {
                         const isSelected = selectedStudents.some(s => s._id === student._id);
                         const inviteStatus = getInviteStatus(student);
-                        const canSelect = inviteStatus.status === 'available' || 
+                        // Check if student is disabled (for Sem 7 track restrictions)
+                        const isDisabled = inviteStatus.disabled === true;
+                        const canSelect = !isDisabled && (
+                          inviteStatus.status === 'available' || 
                                          inviteStatus.status === 'selected' || 
-                                         inviteStatus.status === 'rejected_from_current_group';
+                          inviteStatus.status === 'rejected_from_current_group'
+                        );
                         
                         // Check if we need to add a separator
                         const prevStudent = index > 0 ? sortedStudents[index - 1] : null;
@@ -1028,14 +1148,16 @@ const GroupFormation = () => {
                             
                             {/* Student Card */}
                             <div
-                              onClick={() => canSelect && handleStudentSelection(student)}
+                              onClick={() => canSelect && !isDisabled && handleStudentSelection(student)}
                               className={`p-3 mx-4 my-2 rounded-lg border transition-all duration-200 ${
-                                canSelect ? 'cursor-pointer' : 'cursor-not-allowed'
+                                canSelect && !isDisabled ? 'cursor-pointer' : 'cursor-not-allowed'
                               } ${
                             isSelected 
                                   ? 'bg-gradient-to-r from-blue-50 to-purple-50 border-blue-200 shadow-sm'
-                                  : canSelect
+                                  : canSelect && !isDisabled
                                   ? 'bg-white border-gray-200 hover:border-blue-300 hover:shadow-sm'
+                                  : isDisabled
+                                  ? 'bg-gray-100 border-gray-300 opacity-50'
                                   : 'bg-gray-50 border-gray-200 opacity-60'
                               }`}
                             >
@@ -1082,6 +1204,8 @@ const GroupFormation = () => {
                                   ? 'bg-yellow-100 text-yellow-700'
                                   : inviteStatus.status === 'group_full'
                                   ? 'bg-purple-100 text-purple-700'
+                                  : inviteStatus.status === 'no_track_selected' || inviteStatus.status === 'internship_track' || inviteStatus.status === 'not_coursework'
+                                  ? 'bg-gray-200 text-gray-600'
                                   : 'bg-red-100 text-red-700'
                               }`}>
                                 {inviteStatus.message}
@@ -1331,6 +1455,36 @@ const GroupFormation = () => {
   }
 
   // If student cannot create a group, show message
+  // Determine the reason why they can't create a group
+  let errorMessage = '';
+  let errorAction = null;
+  let errorButtonText = 'Go Back';
+  
+  if (currentSemester === 7) {
+    // Check if track is not selected or not coursework
+    const selectedTrack = sem7Context.trackChoice?.finalizedTrack || sem7Context.trackChoice?.chosenTrack;
+    
+    if (!selectedTrack) {
+      errorMessage = 'You need to select your track (coursework or internship) before creating a group for Major Project 1.';
+      errorAction = () => navigate('/student/sem7/track-selection');
+      errorButtonText = 'Select Track First';
+    } else if (selectedTrack !== 'coursework') {
+      errorMessage = 'Only students in the coursework track can create groups for Major Project 1. You have selected the internship track.';
+      errorAction = () => navigate('/student/sem7/track-selection');
+      errorButtonText = 'Change Track';
+    } else {
+      errorMessage = 'You cannot create a group at this time. Please contact the administrator if you believe this is an error.';
+    }
+  } else if (currentSemester === 5) {
+    // For Sem 5, students should be able to create groups without registering first
+    // This error should rarely show, but if it does, it means they're not eligible
+    errorMessage = 'You are not eligible to create a group for Minor Project 2 at this time. Please contact the administrator if you believe this is an error.';
+    errorAction = () => navigate('/dashboard/student');
+    errorButtonText = 'Go to Dashboard';
+  } else {
+    errorMessage = `Group creation is not available for your current semester (${currentSemester}).`;
+  }
+  
   return (
     <Layout>
       <div className="py-8">
@@ -1343,14 +1497,16 @@ const GroupFormation = () => {
           </div>
           <h3 className="text-lg font-medium text-gray-900 mb-2">Cannot Create Group</h3>
           <p className="text-gray-600 mb-4">
-            You need to register for Minor Project 2 before creating a group.
+            {errorMessage}
           </p>
+          {errorAction && (
           <button
-            onClick={() => navigate('/student/sem5/register')}
+              onClick={errorAction}
             className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
           >
-            Register Project First
+              {errorButtonText}
           </button>
+          )}
         </div>
         </div>
       </div>

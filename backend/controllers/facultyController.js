@@ -3,6 +3,7 @@ const Student = require('../models/Student');
 const Project = require('../models/Project');
 const Group = require('../models/Group');
 const FacultyPreference = require('../models/FacultyPreference');
+const FacultyNotification = require('../models/FacultyNotification');
 
 // Get faculty dashboard data
 const getDashboardData = async (req, res) => {
@@ -569,22 +570,37 @@ const getUnallocatedGroups = async (req, res) => {
     }
 
     // Format the response
-    const groups = activePreferences.map(pref => ({
+    const groups = activePreferences.map(pref => {
+      // Handle solo projects (internship1) - no group
+      const isSoloProject = pref.project?.projectType === 'internship1' || !pref.group;
+      const student = pref.student;
+      
+      return {
       id: pref._id,
-      groupName: pref.group?.name || 'Unnamed Group',
+        groupName: isSoloProject 
+          ? (student?.fullName ? `${student.fullName}'s Project` : 'Solo Project')
+          : (pref.group?.name || 'Unnamed Group'),
       projectTitle: pref.project?.title || 'No Project',
-      members: pref.group?.members?.map(member => ({
+      projectType: pref.project?.projectType || (pref.semester === 7 ? 'major1' : pref.semester === 5 ? 'minor2' : pref.semester === 4 ? 'minor1' : pref.semester === 6 ? 'minor3' : 'unknown'),
+        members: isSoloProject 
+          ? (student ? [{
+              name: student.fullName || 'Unknown',
+              misNumber: student.misNumber || 'N/A',
+              role: 'leader'
+            }] : [])
+          : (pref.group?.members?.map(member => ({
         name: member.student?.fullName || 'Unknown',
         misNumber: member.student?.misNumber || 'N/A',
         role: member.role || 'member'
-      })) || [],
+            })) || []),
       preferences: pref.preferences?.map(p => p.faculty?.fullName || 'Unknown Faculty') || [],
-      currentPreference: pref.currentFacultyIndex + 1,
+        currentPreference: (pref.project?.currentFacultyIndex || 0) + 1,
       semester: pref.semester,
       academicYear: pref.academicYear,
       projectId: pref.project?._id,
       groupId: pref.group?._id
-    }));
+      };
+    });
 
     res.json({
       success: true,
@@ -645,7 +661,7 @@ const getAllocatedGroups = async (req, res) => {
     
     const directlyAllocatedGroups = await Group.find(groupQuery)
       .populate('members.student', 'fullName misNumber collegeEmail branch')
-      .populate('project', 'title description status _id')
+      .populate('project', 'title description projectType status _id')
       .lean();
 
     // Filter out groups with completed projects
@@ -654,26 +670,42 @@ const getAllocatedGroups = async (req, res) => {
     });
 
     // Combine both methods and format the response
-    const groupsFromPreferences = activePreferences.map(pref => ({
+    const groupsFromPreferences = activePreferences.map(pref => {
+      // Handle solo projects (internship1) - no group
+      const isSoloProject = pref.project?.projectType === 'internship1' || !pref.group;
+      const student = pref.student;
+      
+      return {
       id: pref._id,
-      groupName: pref.group?.name || 'Unnamed Group',
+        groupName: isSoloProject 
+          ? (student?.fullName ? `${student.fullName}'s Project` : 'Solo Project')
+          : (pref.group?.name || 'Unnamed Group'),
       projectTitle: pref.project?.title || 'No Project',
-      members: pref.group?.members?.map(member => ({
+      projectType: pref.project?.projectType || (pref.semester === 7 ? 'major1' : pref.semester === 5 ? 'minor2' : pref.semester === 4 ? 'minor1' : pref.semester === 6 ? 'minor3' : 'unknown'),
+        members: isSoloProject 
+          ? (student ? [{
+              name: student.fullName || 'Unknown',
+              misNumber: student.misNumber || 'N/A',
+              role: 'leader'
+            }] : [])
+          : (pref.group?.members?.map(member => ({
         name: member.student?.fullName || 'Unknown',
         misNumber: member.student?.misNumber || 'N/A',
         role: member.role || 'member'
-      })) || [],
+            })) || []),
       allocatedDate: pref.allocatedAt,
       semester: pref.semester,
       academicYear: pref.academicYear,
       projectId: pref.project?._id,
       groupId: pref.group?._id
-    }));
+      };
+    });
 
     const groupsFromDirect = activeDirectGroups.map(group => ({
       id: group._id,
       groupName: group.name || 'Unnamed Group',
       projectTitle: group.project?.title || 'No Project',
+      projectType: group.project?.projectType || (group.semester === 7 ? 'major1' : group.semester === 5 ? 'minor2' : group.semester === 4 ? 'minor1' : group.semester === 6 ? 'minor3' : 'unknown'),
       members: group.members?.map(member => ({
         name: member.student?.fullName || 'Unknown',
         misNumber: member.student?.misNumber || 'N/A',
@@ -732,9 +764,26 @@ const chooseGroup = async (req, res) => {
     }
 
     // Check if this faculty is the current one being presented to
-    const currentFaculty = preference.getCurrentFaculty();
-    if (!currentFaculty || currentFaculty.faculty.toString() !== faculty._id.toString()) {
-      return res.status(400).json({ success: false, message: 'This group is not currently presented to you' });
+    // For solo projects (internship1), check the Project's currentFacultyIndex
+    // For group projects, check the FacultyPreference's currentFacultyIndex
+    let currentFaculty = preference.getCurrentFaculty();
+    let isValidCurrentFaculty = currentFaculty && currentFaculty.faculty.toString() === faculty._id.toString();
+    
+    // Also verify against Project's currentFacultyIndex for solo projects
+    if (preference.project && !preference.group) {
+      const project = await Project.findById(preference.project);
+      if (project && project.supportsFacultyAllocation()) {
+        const projectCurrentFaculty = project.getCurrentFaculty();
+        if (projectCurrentFaculty) {
+          // Use Project's current faculty as source of truth for solo projects
+          isValidCurrentFaculty = projectCurrentFaculty.faculty.toString() === faculty._id.toString();
+          currentFaculty = projectCurrentFaculty;
+        }
+      }
+    }
+    
+    if (!isValidCurrentFaculty) {
+      return res.status(400).json({ success: false, message: 'This group/project is not currently presented to you' });
     }
 
     // Allocate the group to this faculty
@@ -758,12 +807,27 @@ const chooseGroup = async (req, res) => {
     if (preference.project) {
       const project = await Project.findById(preference.project);
       if (project) {
+        // For solo projects (internship1), use the Project's facultyChoose method
+        // This ensures allocation history is properly recorded
+        if (project.supportsFacultyAllocation() && !preference.group) {
+          try {
+            await project.facultyChoose(faculty._id, '');
+          } catch (chooseError) {
+            // If facultyChoose fails, manually set the faculty
         project.faculty = faculty._id;
         project.status = 'faculty_allocated';
         project.allocatedBy = 'faculty_choice';
         await project.save();
+          }
+        } else {
+          // For group projects, manually set the faculty
+          project.faculty = faculty._id;
+          project.status = 'faculty_allocated';
+          project.allocatedBy = 'faculty_choice';
+          await project.save();
+        }
         
-        // Update all group members' currentProjects status
+        // Update all group members' currentProjects status (for group projects)
         if (group && group.members) {
           const activeMembers = group.members.filter(m => m.isActive);
           for (const member of activeMembers) {
@@ -777,6 +841,18 @@ const chooseGroup = async (req, res) => {
               }
               await memberStudent.save();
             }
+          }
+        } else if (project.projectType === 'internship1' && preference.student) {
+          // Handle solo projects (internship1) - update student's currentProjects directly
+          const student = await Student.findById(preference.student);
+          if (student) {
+            const currentProject = student.currentProjects.find(cp => 
+              cp.project.toString() === project._id.toString()
+            );
+            if (currentProject) {
+              currentProject.status = 'active'; // Update status when faculty is allocated
+            }
+            await student.save();
           }
         }
       }
@@ -823,17 +899,84 @@ const passGroup = async (req, res) => {
     }
 
     // Check if this faculty is the current one being presented to
-    const currentFaculty = preference.getCurrentFaculty();
-    if (!currentFaculty || currentFaculty.faculty.toString() !== faculty._id.toString()) {
-      return res.status(400).json({ success: false, message: 'This group is not currently presented to you' });
+    // For solo projects (internship1), check the Project's currentFacultyIndex
+    // For group projects, check the FacultyPreference's currentFacultyIndex
+    let currentFaculty = preference.getCurrentFaculty();
+    let isValidCurrentFaculty = currentFaculty && currentFaculty.faculty.toString() === faculty._id.toString();
+    
+    // Also verify against Project's currentFacultyIndex for solo projects
+    if (preference.project && !preference.group) {
+      const project = await Project.findById(preference.project);
+      if (project && project.supportsFacultyAllocation()) {
+        const projectCurrentFaculty = project.getCurrentFaculty();
+        if (projectCurrentFaculty) {
+          // Use Project's current faculty as source of truth for solo projects
+          isValidCurrentFaculty = projectCurrentFaculty.faculty.toString() === faculty._id.toString();
+          currentFaculty = projectCurrentFaculty;
+        }
+      }
+    }
+    
+    if (!isValidCurrentFaculty) {
+      return res.status(400).json({ success: false, message: 'This group/project is not currently presented to you' });
     }
 
     // Record the faculty response
     await preference.recordFacultyResponse(faculty._id, 'rejected', comments);
 
-    // Move to next faculty
+    // Update the Project's currentFacultyIndex first (for solo projects like internship1)
+    // For solo projects, Project's currentFacultyIndex is the source of truth
+    // For group projects, FacultyPreference's currentFacultyIndex is the source of truth
+    let projectUpdated = false;
+    if (preference.project) {
+      const project = await Project.findById(preference.project);
+      if (project && project.supportsFacultyAllocation()) {
+        try {
+          // Use the Project's facultyPass method which updates the Project's currentFacultyIndex
+          await project.facultyPass(faculty._id, comments);
+          projectUpdated = true;
+        } catch (projectPassError) {
+          // If project.facultyPass fails, manually update the project's currentFacultyIndex
+          // This can happen if the project's currentFacultyIndex is out of sync
+          const currentIndex = project.currentFacultyIndex || 0;
+          if (currentIndex < (project.facultyPreferences?.length || 0)) {
+            project.currentFacultyIndex = currentIndex + 1;
+            await project.save();
+            projectUpdated = true;
+          }
+        }
+      }
+    }
+
+    // Move to next faculty in FacultyPreference
+    // For solo projects, sync FacultyPreference's index with Project's index
     try {
+      if (preference.project && !preference.group && projectUpdated) {
+        // For solo projects, sync FacultyPreference's currentFacultyIndex with Project's
+        const project = await Project.findById(preference.project);
+        if (project) {
+          preference.currentFacultyIndex = project.currentFacultyIndex || 0;
+          await preference.save();
+        } else {
+          // Fallback: use moveToNextFaculty
       await preference.moveToNextFaculty();
+        }
+      } else {
+        // For group projects, use FacultyPreference's index as source of truth
+        await preference.moveToNextFaculty();
+      }
+      
+      // Get the updated project to check current faculty
+      let nextFaculty = preference.getCurrentFaculty();
+      if (preference.project) {
+        const updatedProject = await Project.findById(preference.project);
+        if (updatedProject && updatedProject.supportsFacultyAllocation()) {
+          const projectCurrentFaculty = updatedProject.getCurrentFaculty();
+          if (projectCurrentFaculty) {
+            nextFaculty = projectCurrentFaculty;
+          }
+        }
+      }
       
       res.json({
         success: true,
@@ -841,7 +984,7 @@ const passGroup = async (req, res) => {
         data: {
           groupId: preference.group,
           projectId: preference.project,
-          nextFaculty: preference.getCurrentFaculty(),
+          nextFaculty: nextFaculty,
           isReadyForAdmin: preference.isReadyForAdminAllocation()
         }
       });
@@ -951,6 +1094,90 @@ const getFacultyProfile = async (req, res) => {
   }
 };
 
+// Get faculty notifications (only non-dismissed)
+const getNotifications = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const faculty = await Faculty.findOne({ user: userId });
+    if (!faculty) {
+      return res.status(404).json({
+        success: false,
+        message: 'Faculty not found'
+      });
+    }
+
+    // Get only non-dismissed notifications, sorted by newest first
+    const notifications = await FacultyNotification.find({
+      faculty: faculty._id,
+      dismissed: false
+    })
+      .populate('project', 'title projectType semester')
+      .populate('student', 'fullName misNumber')
+      .sort({ createdAt: -1 })
+      .limit(50); // Limit to latest 50 notifications
+
+    res.json({
+      success: true,
+      data: notifications,
+      count: notifications.length
+    });
+  } catch (error) {
+    console.error('Error getting faculty notifications:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching notifications',
+      error: error.message
+    });
+  }
+};
+
+// Dismiss a notification
+const dismissNotification = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { notificationId } = req.params;
+
+    const faculty = await Faculty.findOne({ user: userId });
+    if (!faculty) {
+      return res.status(404).json({
+        success: false,
+        message: 'Faculty not found'
+      });
+    }
+
+    // Find and update the notification
+    const notification = await FacultyNotification.findOne({
+      _id: notificationId,
+      faculty: faculty._id
+    });
+
+    if (!notification) {
+      return res.status(404).json({
+        success: false,
+        message: 'Notification not found'
+      });
+    }
+
+    // Mark as dismissed
+    notification.dismissed = true;
+    notification.dismissedAt = new Date();
+    await notification.save();
+
+    res.json({
+      success: true,
+      message: 'Notification dismissed',
+      data: notification
+    });
+  } catch (error) {
+    console.error('Error dismissing notification:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error dismissing notification',
+      error: error.message
+    });
+  }
+};
+
 // Update faculty profile
 const updateFacultyProfile = async (req, res) => {
   try {
@@ -1008,5 +1235,8 @@ module.exports = {
   passGroup,
   getSem5Statistics,
   getFacultyProfile,
-  updateFacultyProfile
+  updateFacultyProfile,
+  // Notification functions
+  getNotifications,
+  dismissNotification
 };
