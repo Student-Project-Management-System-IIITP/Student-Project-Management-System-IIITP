@@ -1,17 +1,20 @@
-import React, { useState, useEffect } from 'react';
-import { adminAPI } from '../../utils/api';
+import React, { useState, useEffect, useMemo } from 'react';
+import { studentAPI } from '../../utils/api';
 
 const FacultySelector = ({ 
   selectedFaculties = [], 
   onSelectionChange, 
-  facultyTypes = ['Regular', 'Adjunct', 'On Lien'],
+  facultyTypes = null,
   maxSelections = 7,
   disabled = false,
-  placeholder = "Select faculty members..."
+  placeholder = "Select faculty members...",
+  twoColumnSelected = false,
+  autoCloseOnMax = false
 }) => {
   const [faculties, setFaculties] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [isOpen, setIsOpen] = useState(false);
 
   // Load faculties based on allowed types
@@ -19,15 +22,13 @@ const FacultySelector = ({
     const loadFaculties = async () => {
       try {
         setLoading(true);
-        const response = await adminAPI.getFaculty();
+        const response = await studentAPI.getFacultyList();
         const allFaculties = response.data || [];
-        
-        // Filter faculties based on allowed types
-        const filteredFaculties = allFaculties.filter(faculty => 
-          facultyTypes.includes(faculty.mode)
-        );
-        
-        setFaculties(filteredFaculties);
+        // If specific types provided, filter; otherwise include all
+        const filteredByType = Array.isArray(facultyTypes) && facultyTypes.length > 0
+          ? allFaculties.filter(faculty => facultyTypes.includes(faculty.mode))
+          : allFaculties;
+        setFaculties(filteredByType);
       } catch (error) {
         console.error('Failed to load faculties:', error);
       } finally {
@@ -38,12 +39,24 @@ const FacultySelector = ({
     loadFaculties();
   }, [facultyTypes]);
 
-  // Filter faculties based on search term
-  const filteredFaculties = faculties.filter(faculty =>
-    faculty.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    faculty.facultyId.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    faculty.department.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  // Debounce search for smoother typing
+  useEffect(() => {
+    const id = setTimeout(() => setDebouncedSearch(searchTerm.trim().toLowerCase()), 200);
+    return () => clearTimeout(id);
+  }, [searchTerm]);
+
+  // Filter faculties based on debounced search term (memoized)
+  const filteredFaculties = useMemo(() => {
+    if (!debouncedSearch) return faculties;
+    return faculties.filter(faculty =>
+      (faculty.fullName || '').toLowerCase().includes(debouncedSearch) ||
+      (faculty.facultyId || '').toLowerCase().includes(debouncedSearch) ||
+      (faculty.department || '').toLowerCase().includes(debouncedSearch)
+    );
+  }, [faculties, debouncedSearch]);
+
+  // Cap visible items to avoid rendering huge lists at once
+  const visibleFaculties = useMemo(() => filteredFaculties.slice(0, 100), [filteredFaculties]);
 
   const handleFacultyToggle = (faculty) => {
     if (disabled) return;
@@ -69,6 +82,10 @@ const FacultySelector = ({
           }
         ];
         onSelectionChange(newSelection);
+        // Auto-close dropdown when reaching max selections
+        if (autoCloseOnMax && newSelection.length >= maxSelections) {
+          setIsOpen(false);
+        }
       }
     }
   };
@@ -135,7 +152,8 @@ const FacultySelector = ({
           <h4 className="text-sm font-medium text-gray-700">
             Selected Faculty ({selectedFaculties.length}/{maxSelections})
           </h4>
-          <div className="space-y-2">
+          {/* Selected items layout: two-column only when enabled */}
+          <div className={twoColumnSelected ? "grid grid-cols-1 md:grid-cols-2 gap-2" : "space-y-2"}>
             {selectedFaculties
               .sort((a, b) => a.priority - b.priority)
               .map((item) => (
@@ -196,6 +214,7 @@ const FacultySelector = ({
             onFocus={() => setIsOpen(true)}
             className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             disabled={disabled}
+            readOnly={autoCloseOnMax && selectedFaculties.length >= maxSelections}
           />
           <button
             onClick={() => setIsOpen(!isOpen)}
@@ -211,12 +230,12 @@ const FacultySelector = ({
         {/* Dropdown Menu */}
         {isOpen && (
           <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
-            {filteredFaculties.length === 0 ? (
+            {visibleFaculties.length === 0 ? (
               <div className="p-4 text-center text-gray-500">
                 No faculties found
               </div>
             ) : (
-              filteredFaculties.map((faculty) => {
+              visibleFaculties.map((faculty) => {
                 const isSelected = selectedFaculties.some(selected => 
                   selected.faculty._id === faculty._id
                 );

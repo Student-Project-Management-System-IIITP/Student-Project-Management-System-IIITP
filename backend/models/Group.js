@@ -121,7 +121,7 @@ const groupSchema = new mongoose.Schema({
   // Group Status
   status: {
     type: String,
-    enum: ['invitations_sent', 'open', 'locked', 'finalized', 'disbanded'],
+    enum: ['invitations_sent', 'open', 'forming', 'complete', 'locked', 'finalized', 'disbanded'],
     default: 'invitations_sent',
     index: true
   },
@@ -804,12 +804,18 @@ groupSchema.methods.allowMemberLeave = async function(studentId, session = null)
     await this.transferLeadership(newLeader.student, studentId, session);
   }
 
-  // Remove member
-  member.isActive = false;
+  // Completely remove member from the members array
+  this.members.pull({ _id: member._id });
+
+  // Find and remove the original invitation for this member to allow re-invites
+  const inviteIndex = this.invites.findIndex(inv => inv.student.toString() === studentId.toString());
+  if (inviteIndex > -1) {
+    this.invites.splice(inviteIndex, 1);
+  }
 
   // Update group status if dropping below minimum
-  const remainingActiveMembers = this.members.filter(member => member.isActive);
-  if (remainingActiveMembers.length < this.minMembers && this.status !== 'complete') {
+  // Since we're removing members entirely, just check members.length
+  if (this.members.length < this.minMembers && this.status !== 'complete') {
     this.status = 'forming';
   }
 
@@ -836,4 +842,22 @@ groupSchema.methods.disbandGroup = async function(adminId, session = null) {
   return true;
 };
 
-module.exports = mongoose.model('Group', groupSchema);
+// Add the new methods here, right before the model is created
+
+// Add active member count helper
+groupSchema.methods.getActiveMemberCount = function() {
+  return this.members.filter(member => member.isActive).length;
+};
+
+// Add toJSON transform to include activeMemberCount
+groupSchema.set('toJSON', {
+  transform: function(doc, ret) {
+    ret.activeMemberCount = doc.getActiveMemberCount();
+    return ret;
+  }
+});
+
+// The model is created here
+const Group = mongoose.model('Group', groupSchema);
+module.exports = Group;
+

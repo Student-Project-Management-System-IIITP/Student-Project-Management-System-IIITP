@@ -3,6 +3,7 @@ const router = express.Router();
 const projectController = require('../controllers/projectController');
 const { authenticateToken } = require('../middleware/auth');
 const { uploadChatFiles, handleChatUploadError } = require('../middleware/chatUpload');
+const { submitProjectFacultyPreferences } = require('../controllers/studentController');
 
 // Apply authentication to all routes
 router.use(authenticateToken);
@@ -39,6 +40,9 @@ router.delete('/:projectId/messages/:messageId/reactions/:emoji', projectControl
 
 // Download/serve chat file
 router.get('/:projectId/files/:filename', projectController.downloadChatFile);
+
+// Student: submit/update faculty preferences for a project (M.Tech Sem 1 solo flow)
+router.post('/:projectId/faculty-preferences', submitProjectFacultyPreferences);
 
 module.exports = router;
 
