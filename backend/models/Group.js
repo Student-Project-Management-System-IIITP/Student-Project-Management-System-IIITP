@@ -621,14 +621,17 @@ groupSchema.methods.acceptInviteAtomic = async function(inviteId, studentId, ses
 };
 
 // Helper method to auto-reject pending invites for a student
+// IMPORTANT: Only rejects invitations from the same semester as this group
 groupSchema.methods.autoRejectStudentInvites = async function(studentId, session = null) {
   try {
     // Auto-reject all pending invites for this student in other groups
+    // BUT ONLY from the same semester (to prevent cross-semester conflicts)
     const otherGroups = await this.constructor.find({
       '_id': { $ne: this._id },
+      'semester': this.semester, // CRITICAL: Only same semester groups
       'invites.student': studentId,
       'invites.status': 'pending'
-    });
+    }).session(session || null);
 
     for (const group of otherGroups) {
       const invitesToUpdate = group.invites.filter(invite => 
@@ -639,9 +642,12 @@ groupSchema.methods.autoRejectStudentInvites = async function(studentId, session
       for (const invite of invitesToUpdate) {
         invite.status = 'auto-rejected';
         invite.respondedAt = new Date();
+        invite.rejectionReason = `Student joined another group in semester ${this.semester}`;
       }
 
-      await group.save({ session });
+      if (invitesToUpdate.length > 0) {
+        await group.save({ session });
+      }
     }
 
     return otherGroups.length;

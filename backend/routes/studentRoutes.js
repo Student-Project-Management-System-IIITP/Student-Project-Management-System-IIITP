@@ -112,6 +112,11 @@ router.post('/projects/:id/submit', studentController.submitDeliverables);
 
 // Minor Project 2 specific registration
 router.post('/projects/minor2/register', studentController.registerMinorProject2);
+// Major Project 1 specific registration (Sem 7)
+router.post('/projects/major1/register', studentController.registerMajorProject1);
+// Internship 1 specific registration (Sem 7 - solo project)
+router.get('/projects/internship1/status', studentController.checkInternship1Status);
+router.post('/projects/internship1/register', studentController.registerInternship1);
 router.get('/projects/:projectId/allocation-status', studentController.getFacultyAllocationStatus);
 router.get('/group-status', studentController.getStudentGroupStatus);
 
@@ -151,6 +156,7 @@ router.get('/projects/:id/uploads', studentController.getProjectUploads);
 router.get('/projects/:id/uploads/type', studentController.getProjectUploadsByType);
 
 // Sem 5 specific routes - Group Management
+// Note: Group creation for Sem 7 will check window in controller
 router.post('/groups', studentController.createGroup);
 router.post('/groups/:groupId/send-invitations', studentController.sendGroupInvitations);
 router.get('/groups/available', studentController.getAvailableGroups);

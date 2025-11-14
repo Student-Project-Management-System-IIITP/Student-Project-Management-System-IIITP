@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { Toaster } from 'react-hot-toast';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { Sem5Provider } from './context/Sem5Context';
+import { Sem7Provider } from './context/Sem7Context';
 import Layout from './components/common/Layout';
 import Home from './pages/Home';
 import Login from './pages/auth/Login';
@@ -24,6 +25,8 @@ import Sem4UnregisteredStudents from './pages/admin/Sem4UnregisteredStudents';
 import Sem5RegistrationsTable from './pages/admin/Sem5RegistrationsTable';
 import Sem5AllocatedFaculty from './pages/admin/Sem5AllocatedFaculty';
 import Sem6RegistrationsTable from './pages/admin/Sem6RegistrationsTable';
+import Sem7Review from './pages/admin/Sem7Review';
+import Sem7TrackFinalization from './pages/admin/Sem7TrackFinalization';
 import SystemConfiguration from './pages/admin/SystemConfiguration';
 import NotFound from './pages/NotFound';
 import AdminProfile from './pages/admin/Profile';
@@ -35,6 +38,12 @@ import StudentProfile from './pages/student/Profile';
 import Sem4ProjectDashboard from './pages/student/Sem4ProjectDashboard';
 import Sem6Registration from './pages/student/Sem6Registration';
 import MTechSem1Registration from './pages/student/MTechSem1Registration';
+import Sem7TrackSelection from './pages/student/Sem7TrackSelection';
+import InternshipApplicationForm from './pages/student/InternshipApplicationForm';
+import MajorProject1Registration from './pages/student/MajorProject1Registration';
+import MajorProject1Dashboard from './pages/student/MajorProject1Dashboard';
+import Internship1Registration from './pages/student/Internship1Registration';
+import Internship1Dashboard from './pages/student/Internship1Dashboard';
 import SemesterManagement from './pages/admin/SemesterManagement';
 
 function App() {
@@ -42,7 +51,9 @@ function App() {
     <Router>
       <AuthProvider>
         <Sem5Provider>
-          <AppContent />
+          <Sem7Provider>
+            <AppContent />
+          </Sem7Provider>
         </Sem5Provider>
       </AuthProvider>
     </Router>
@@ -178,6 +189,44 @@ function AppContent() {
               <Sem6Registration />
             </ProtectedRoute>
           } />
+          
+          {/* Sem 7 Routes */}
+          <Route path="/student/sem7/track-selection" element={
+            <ProtectedRoute allowedRoles={['student']}>
+              <Sem7TrackSelection />
+            </ProtectedRoute>
+          } />
+          <Route path="/student/sem7/internship/apply/:type" element={
+            <ProtectedRoute allowedRoles={['student']}>
+              <InternshipApplicationForm />
+            </ProtectedRoute>
+          } />
+          <Route path="/student/sem7/internship/apply/:type/:id/edit" element={
+            <ProtectedRoute allowedRoles={['student']}>
+              <InternshipApplicationForm />
+            </ProtectedRoute>
+          } />
+          <Route path="/student/sem7/major1/dashboard" element={
+            <ProtectedRoute allowedRoles={['student']}>
+              <MajorProject1Dashboard />
+            </ProtectedRoute>
+          } />
+          <Route path="/student/sem7/major1/register" element={
+            <ProtectedRoute allowedRoles={['student']}>
+              <MajorProject1Registration />
+            </ProtectedRoute>
+          } />
+          <Route path="/student/sem7/internship1/dashboard" element={
+            <ProtectedRoute allowedRoles={['student']}>
+              <Internship1Dashboard />
+            </ProtectedRoute>
+          } />
+          <Route path="/student/sem7/internship1/register" element={
+            <ProtectedRoute allowedRoles={['student']}>
+              <Internship1Registration />
+            </ProtectedRoute>
+          } />
+          
           <Route path="/student/groups/create" element={
             <ProtectedRoute allowedRoles={['student']}>
               <GroupFormation />
@@ -284,6 +333,16 @@ function AppContent() {
               <Layout>
                 <Sem6RegistrationsTable />
               </Layout>
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/sem7/review" element={
+            <ProtectedRoute allowedRoles={['admin']}>
+              <Sem7Review />
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/sem7/track-choices" element={
+            <ProtectedRoute allowedRoles={['admin']}>
+              <Sem7TrackFinalization />
             </ProtectedRoute>
           } />
           <Route path="/admin/profile" element={

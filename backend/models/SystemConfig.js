@@ -145,6 +145,71 @@ systemConfigSchema.statics.initializeDefaults = async function() {
       description: 'Current academic year',
       category: 'academic'
     }
+    ,
+    // Sem 7 windows (B.Tech)
+    {
+      configKey: 'sem7.choiceWindow',
+      configValue: { start: null, end: null },
+      configType: 'object',
+      description: 'Window for students to choose Internship or Coursework in Sem 7',
+      category: 'sem7'
+    },
+    {
+      configKey: 'sem7.sixMonthSubmissionWindow',
+      configValue: { start: null, end: null },
+      configType: 'object',
+      description: 'Window to submit 6-month internship company details',
+      category: 'sem7'
+    },
+    {
+      configKey: 'sem7.sixMonthVerificationWindow',
+      configValue: { start: null, end: null },
+      configType: 'object',
+      description: 'Window for admin verification of 6-month internship details',
+      category: 'sem7'
+    },
+    {
+      configKey: 'sem7.major1.groupFormationWindow',
+      configValue: { start: null, end: null },
+      configType: 'object',
+      description: 'Window for Major Project 1 group formation',
+      category: 'sem7'
+    },
+    {
+      configKey: 'sem7.major1.preferenceWindow',
+      configValue: { start: null, end: null },
+      configType: 'object',
+      description: 'Window for Major Project 1 faculty preferences',
+      category: 'sem7'
+    },
+    {
+      configKey: 'sem7.internship2.evidenceWindow',
+      configValue: { start: null, end: null },
+      configType: 'object',
+      description: 'Window to submit 2-month internship evidence (summer)',
+      category: 'sem7'
+    },
+    {
+      configKey: 'sem7.internship1.registrationWindow',
+      configValue: { start: null, end: null },
+      configType: 'object',
+      description: 'Window for Internship 1 (solo project) registration and preferences',
+      category: 'sem7'
+    },
+    {
+      configKey: 'sem7.major1.facultyPreferenceLimit',
+      configValue: 5,
+      configType: 'number',
+      description: 'Number of faculty preferences required for Sem 7 Major Project 1 registration',
+      category: 'sem7'
+    },
+    {
+      configKey: 'sem7.internship1.facultyPreferenceLimit',
+      configValue: 5,
+      configType: 'number',
+      description: 'Number of faculty preferences required for Sem 7 Internship 1 registration',
+      category: 'sem7'
+    }
   ];
 
   for (const config of defaults) {

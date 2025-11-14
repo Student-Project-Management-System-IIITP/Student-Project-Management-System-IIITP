@@ -40,4 +40,8 @@ router.post('/projects/:requestId/pass', facultyController.rejectAllocation);
 router.get('/profile', facultyController.getFacultyProfile);
 router.put('/profile', facultyController.updateFacultyProfile);
 
+// Notification routes
+router.get('/notifications', facultyController.getNotifications);
+router.patch('/notifications/:notificationId/dismiss', facultyController.dismissNotification);
+
 module.exports = router;

@@ -691,7 +691,8 @@ const GroupDashboard = () => {
           query: searchTerm,
           limit: 20,
           page: page,
-          groupId: groupId
+          groupId: groupId,
+          semester: groupDetails?.semester // Pass group semester for proper filtering
         });
         
         if (response.success && response.data) {
@@ -727,12 +728,18 @@ const GroupDashboard = () => {
     const handleStudentSelect = (student) => {
       const inviteStatus = getInviteStatus(student);
       
-      // Only allow selection of students who can be invited
-      const canSelect = inviteStatus.status === 'available' || 
+      // Only allow selection of students who can be invited (exclude disabled Sem 7 students)
+      const canSelect = !inviteStatus.disabled && (
+        inviteStatus.status === 'available' || 
                        inviteStatus.status === 'selected' || 
-                       inviteStatus.status === 'rejected_from_current_group';
+        inviteStatus.status === 'rejected_from_current_group'
+      );
       
       if (!canSelect) {
+        // Show error toast for disabled students
+        if (inviteStatus.disabled) {
+          toast.error(inviteStatus.message || 'This student cannot be invited');
+        }
         return; // Don't allow selection
       }
       
@@ -749,13 +756,30 @@ const GroupDashboard = () => {
     };
 
     const getInviteStatus = (student) => {
+      // Get group semester to check if Sem 7 eligibility checks are needed
+      const groupSemester = groupDetails?.semester || 5;
+      
       // Check if student is already selected
       if (selectedStudents.some(s => s._id === student._id)) {
         return { status: 'selected', message: 'Selected' };
       }
       
+      // For Sem 7: Check coursework eligibility before other checks
+      if (groupSemester === 7 && student.semester === 7) {
+        if (student.isCourseworkEligible === false || student.isCourseworkEligible === undefined) {
+          const trackInfo = student.trackInfo;
+          if (!trackInfo?.hasSelectedTrack) {
+            return { status: 'no_track_selected', message: 'Track not selected', disabled: true };
+          } else if (trackInfo?.selectedTrack === 'internship') {
+            return { status: 'internship_track', message: '6-month internship track', disabled: true };
+          } else {
+            return { status: 'not_coursework', message: 'Not in coursework track', disabled: true };
+          }
+        }
+      }
+      
       // Check if student is already in a group
-      if (student.isInGroup) {
+      if (student.isInGroup || student.status === 'in_group') {
         return { status: 'in_group', message: 'Already in a group' };
       }
       
@@ -816,7 +840,10 @@ const GroupDashboard = () => {
       );
     });
 
-    // Sort students by status priority (Selected → Available → Others)
+    // Get group semester for Sem 7 checks
+    const groupSemester = groupDetails?.semester || 5;
+    
+    // Sort students by status priority (Selected → Available → Others → Disabled Sem 7)
     const sortedStudents = filteredStudents.sort((a, b) => {
       const statusA = getInviteStatus(a);
       const statusB = getInviteStatus(b);
@@ -829,7 +856,11 @@ const GroupDashboard = () => {
           'rejected_from_current_group': 5,   // Previously rejected fifth
           'pending_invites': 6,               // Has pending invites sixth
           'group_full': 7,                    // Group full seventh
-          'group_finalized': 8                // Group finalized last
+          'group_finalized': 8,               // Group finalized
+          // Sem 7 disabled statuses (shown but not selectable)
+          'no_track_selected': 9,             // No track selected (Sem 7)
+          'internship_track': 10,             // Internship track (Sem 7)
+          'not_coursework': 11                // Not coursework (Sem 7)
         };
       
       const priorityA = statusPriority[statusA.status] || 999;
@@ -906,7 +937,7 @@ const GroupDashboard = () => {
           </div>
           
           {/* Quick Stats */}
-          <div className="mb-3 grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
+          <div className={`mb-3 grid gap-2 text-xs ${groupSemester === 7 ? 'grid-cols-2 md:grid-cols-5' : 'grid-cols-2 md:grid-cols-4'}`}>
             {(() => {
               const stats = sortedStudents.reduce((acc, student) => {
                 const status = getInviteStatus(student);
@@ -914,12 +945,24 @@ const GroupDashboard = () => {
                 return acc;
               }, {});
               
-              return [
+              // Calculate not eligible count for Sem 7
+              const notEligibleCount = groupSemester === 7 
+                ? (stats.no_track_selected || 0) + (stats.internship_track || 0) + (stats.not_coursework || 0)
+                : 0;
+              
+              const baseStats = [
                 { key: 'selected', label: 'Selected', color: 'blue', count: stats.selected || 0 },
                 { key: 'available', label: 'Available', color: 'green', count: stats.available || 0 },
                 { key: 'pending_from_current_group', label: 'Invitation Pending', color: 'orange', count: stats.pending_from_current_group || 0 },
                 { key: 'in_group', label: 'In Group', color: 'red', count: stats.in_group || 0 }
-              ].map(({ key, label, color, count }) => (
+              ];
+              
+              // Add "Not Eligible" stat for Sem 7
+              if (groupSemester === 7 && notEligibleCount > 0) {
+                baseStats.push({ key: 'not_eligible', label: 'Not Eligible', color: 'gray', count: notEligibleCount });
+              }
+              
+              return baseStats.map(({ key, label, color, count }) => (
                 <div key={key} className="flex items-center justify-between p-2 bg-white rounded border">
                   <span className={`text-${color}-700 font-medium`}>{label}</span>
                   <span className={`text-${color}-600 font-bold`}>{count}</span>
@@ -946,6 +989,12 @@ const GroupDashboard = () => {
               <div className="w-3 h-3 bg-red-100 rounded-full border border-red-300"></div>
               <span className="text-red-700">In Group</span>
             </span>
+            {groupSemester === 7 && (
+              <span className="flex items-center space-x-1">
+                <div className="w-3 h-3 bg-gray-100 rounded-full border border-gray-300 opacity-50"></div>
+                <span className="text-gray-600">Not Eligible (Sem 7)</span>
+              </span>
+            )}
           </div>
         </div>
 
@@ -954,9 +1003,11 @@ const GroupDashboard = () => {
           {sortedStudents.map((student, index) => {
               const isSelected = selectedStudents.some(s => s._id === student._id);
             const inviteStatus = getInviteStatus(student);
-              const canSelect = inviteStatus.status === 'available' || 
+              const canSelect = !inviteStatus.disabled && (
+                inviteStatus.status === 'available' || 
                                inviteStatus.status === 'selected' || 
-                               inviteStatus.status === 'rejected_from_current_group';
+                inviteStatus.status === 'rejected_from_current_group'
+              );
               
             // Check if we need to add a separator
             const prevStudent = index > 0 ? sortedStudents[index - 1] : null;
@@ -973,13 +1024,15 @@ const GroupDashboard = () => {
                         inviteStatus.status === 'available' ? 'bg-green-400' :
                         inviteStatus.status === 'selected' ? 'bg-blue-400' :
                         inviteStatus.status === 'pending_from_current_group' ? 'bg-orange-400' :
-                        inviteStatus.status === 'in_group' ? 'bg-red-400' : 'bg-gray-400'
+                        inviteStatus.status === 'in_group' ? 'bg-red-400' :
+                        inviteStatus.disabled ? 'bg-gray-400' : 'bg-gray-400'
                       }`}></div>
                       <span className="text-xs font-medium text-gray-600 uppercase tracking-wide">
                         {inviteStatus.status === 'available' ? 'Available Students' :
                          inviteStatus.status === 'selected' ? 'Selected Students' :
                          inviteStatus.status === 'pending_from_current_group' ? 'Invitation Pending' :
-                         inviteStatus.status === 'in_group' ? 'Students in Groups' : 'Other Status'}
+                         inviteStatus.status === 'in_group' ? 'Students in Groups' :
+                         inviteStatus.disabled ? 'Not Eligible Students (Sem 7)' : 'Other Status'}
                       </span>
                     </div>
                   </div>
@@ -987,11 +1040,13 @@ const GroupDashboard = () => {
                 
                 <div
                   onClick={() => canSelect && handleStudentSelect(student)}
-                  className={`p-4 hover:bg-gray-100 transition-all duration-200 ${
-                    canSelect ? 'cursor-pointer' : 'cursor-not-allowed'
+                  className={`p-4 transition-all duration-200 ${
+                    canSelect ? 'cursor-pointer hover:bg-gray-100' : 'cursor-not-allowed'
                   } ${
                     isSelected
                       ? 'bg-gradient-to-r from-blue-50 to-purple-50 border-blue-200 shadow-sm'
+                      : inviteStatus.disabled
+                      ? 'bg-gray-100 border-gray-200 opacity-50'
                       : canSelect
                       ? 'bg-white border-gray-200 hover:border-blue-300 hover:shadow-sm'
                       : 'bg-gray-50 border-gray-200 opacity-60'
@@ -1003,15 +1058,23 @@ const GroupDashboard = () => {
                       <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-sm font-medium ${
                       isSelected
                           ? 'bg-green-200 text-green-800' 
+                          : inviteStatus.disabled
+                          ? 'bg-gray-200 text-gray-400 opacity-50'
                           : inviteStatus.status === 'available'
                           ? 'bg-gray-200 text-gray-700'
                           : 'bg-red-200 text-red-800'
                       }`}>
                         <span className="text-lg">
-                          {isSelected ? '✓' : 
-                           inviteStatus.status === 'available' ? '👤' : 
-                           inviteStatus.status === 'in_group' ? '👥' : '📋'}
-                      </span>
+                          {isSelected
+                            ? '✓'
+                            : inviteStatus.disabled
+                            ? '🚫'
+                            : inviteStatus.status === 'available'
+                            ? '👤'
+                            : inviteStatus.status === 'in_group'
+                            ? '👥'
+                            : '📋'}
+                        </span>
                       </div>
                     </div>
                     
@@ -1021,13 +1084,21 @@ const GroupDashboard = () => {
                         <div>
                           <div className={`font-medium text-lg ${
                             isSelected ? 'text-green-700' : 
+                            inviteStatus.disabled ? 'text-gray-500' :
                             inviteStatus.status === 'available' ? 'text-gray-900' : 'text-gray-600'
                           }`}>
                             {student.fullName}
                             {isSelected && <span className="ml-2 text-xs text-green-600 bg-green-100 px-2 py-1 rounded">Selected</span>}
+                            {inviteStatus.disabled && (
+                              <span className="ml-2 text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
+                                {inviteStatus.message}
+                              </span>
+                            )}
                       </div>
                           
-                          <div className="text-sm text-gray-600 mt-1 space-y-1">
+                          <div className={`text-sm mt-1 space-y-1 ${
+                            inviteStatus.disabled ? 'text-gray-400' : 'text-gray-600'
+                          }`}>
                             <div className="flex items-center space-x-4">
                               <span className="font-medium">{student.rollNumber || student.misNumber}</span>
                               {student.semester && <span>Sem {student.semester}</span>}
@@ -1041,25 +1112,29 @@ const GroupDashboard = () => {
                         
                         {/* Status Badge */}
                         <div className="flex flex-col items-end space-y-2">
-                          <span className={`text-xs px-2 py-1 rounded-full font-medium ${
-                            inviteStatus.status === 'available'
-                              ? 'bg-green-100 text-green-700'
-                              : inviteStatus.status === 'selected'
-                              ? 'bg-blue-100 text-blue-700'
-                              : inviteStatus.status === 'in_group'
-                              ? 'bg-red-100 text-red-700'
-                              : inviteStatus.status === 'pending_from_current_group'
-                              ? 'bg-orange-100 text-orange-700'
-                              : inviteStatus.status === 'rejected_from_current_group'
-                              ? 'bg-pink-100 text-pink-700'
-                              : inviteStatus.status === 'pending_invites'
-                              ? 'bg-yellow-100 text-yellow-700'
-                              : inviteStatus.status === 'group_full'
-                              ? 'bg-purple-100 text-purple-700'
-                              : inviteStatus.status === 'group_finalized'
-                              ? 'bg-gray-100 text-gray-700'
-                              : 'bg-red-100 text-red-700'
-                          }`}>
+                          <span
+                            className={`text-xs px-2 py-1 rounded-full font-medium ${
+                              inviteStatus.disabled
+                                ? 'bg-gray-100 text-gray-500'
+                                : inviteStatus.status === 'available'
+                                ? 'bg-green-100 text-green-700'
+                                : inviteStatus.status === 'selected'
+                                ? 'bg-blue-100 text-blue-700'
+                                : inviteStatus.status === 'in_group'
+                                ? 'bg-red-100 text-red-700'
+                                : inviteStatus.status === 'pending_from_current_group'
+                                ? 'bg-orange-100 text-orange-700'
+                                : inviteStatus.status === 'rejected_from_current_group'
+                                ? 'bg-pink-100 text-pink-700'
+                                : inviteStatus.status === 'pending_invites'
+                                ? 'bg-yellow-100 text-yellow-700'
+                                : inviteStatus.status === 'group_full'
+                                ? 'bg-purple-100 text-purple-700'
+                                : inviteStatus.status === 'group_finalized'
+                                ? 'bg-gray-100 text-gray-700'
+                                : 'bg-red-100 text-red-700'
+                            }`}
+                          >
                             {inviteStatus.message}
                           </span>
                         </div>
@@ -1277,16 +1352,64 @@ const GroupDashboard = () => {
                 </div>
                 <div className="p-6">
                   <div className="space-y-3">
-        {populatedInvites && populatedInvites.length > 0 ? populatedInvites.map((invite, index) => {
-                      
-                      // Skip leader from invited members list
+        {populatedInvites && populatedInvites.length > 0 ? (() => {
+          // Filter out leader from invites
+          const leaderId = groupDetails.leader?._id || groupDetails.leader;
+          const filteredInvites = populatedInvites.filter(invite => {
+            const studentId = invite.student?._id || invite.student;
+            return !(leaderId && studentId && studentId === leaderId);
+          });
+          
+          // Group invitations by student and keep only the most recent one for each student
+          // Priority: pending > accepted > rejected > auto-rejected
+          const statusPriority = {
+            'pending': 4,
+            'accepted': 3,
+            'rejected': 2,
+            'auto-rejected': 1
+          };
+          
+          const studentInvitesMap = new Map();
+          filteredInvites.forEach(invite => {
                       const studentId = invite.student?._id || invite.student;
-                      const leaderId = groupDetails.leader?._id || groupDetails.leader;
-                      
-                      if (leaderId && studentId && studentId === leaderId) {
-                        return null;
-                      }
-                      
+            if (!studentId) return;
+            
+            const existingInvite = studentInvitesMap.get(studentId);
+            if (!existingInvite) {
+              studentInvitesMap.set(studentId, invite);
+            } else {
+              // Compare by status priority, then by date (most recent)
+              const existingPriority = statusPriority[existingInvite.status] || 0;
+              const currentPriority = statusPriority[invite.status] || 0;
+              
+              if (currentPriority > existingPriority) {
+                // Current invite has higher priority (e.g., pending > rejected)
+                studentInvitesMap.set(studentId, invite);
+              } else if (currentPriority === existingPriority) {
+                // Same priority - keep the most recent one
+                const existingDate = new Date(existingInvite.invitedAt || 0);
+                const currentDate = new Date(invite.invitedAt || 0);
+                if (currentDate > existingDate) {
+                  studentInvitesMap.set(studentId, invite);
+                }
+              }
+            }
+          });
+          
+          // Convert map to array and sort by status priority (pending first), then by name
+          const uniqueInvites = Array.from(studentInvitesMap.values()).sort((a, b) => {
+            const aPriority = statusPriority[a.status] || 0;
+            const bPriority = statusPriority[b.status] || 0;
+            if (bPriority !== aPriority) {
+              return bPriority - aPriority; // Higher priority first
+            }
+            // Same priority - sort by student name
+            const aName = a.student?.fullName || '';
+            const bName = b.student?.fullName || '';
+            return aName.localeCompare(bName);
+          });
+          
+          return uniqueInvites.map((invite, index) => {
                       return (
                       <div key={index} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
                         <div className="flex items-center space-x-3">
@@ -1343,7 +1466,8 @@ const GroupDashboard = () => {
                         </div>
                       </div>
                       );
-                    }) : (
+          });
+        })() : (
                       <div className="text-center py-8 text-gray-500">
                         <p>No invitations have been sent yet.</p>
                       </div>

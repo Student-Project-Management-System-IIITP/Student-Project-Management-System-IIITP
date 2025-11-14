@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { useSem7 } from '../../context/Sem7Context';
 
 const Navbar = ({ userRole: propUserRole = null, user: propUser = null, roleData: propRoleData = null }) => {
   // Use props if provided, otherwise get from AuthContext
@@ -8,6 +9,19 @@ const Navbar = ({ userRole: propUserRole = null, user: propUser = null, roleData
   const userRole = propUserRole || auth.userRole;
   const user = propUser || auth.user;
   const roleData = propRoleData || auth.roleData;
+  
+  // Get Sem 7 data for students (always call hook, but conditionally use)
+  let sem7Data = null;
+  try {
+    const sem7Context = useSem7();
+    // Only use Sem 7 data if student is in semester 7
+    if (userRole === 'student' && (roleData?.semester || user?.semester) === 7) {
+      sem7Data = sem7Context;
+    }
+  } catch (error) {
+    // Sem7Context might not be available, ignore silently
+    console.warn('Sem7Context not available:', error);
+  }
   
   // Get user's actual name based on role
   const getUserName = () => {
@@ -162,17 +176,48 @@ const Navbar = ({ userRole: propUserRole = null, user: propUser = null, roleData
     }
 
     // Semester 7: Major Project 1 or Internship
-    const sem7Project = getProjectBySemester(7);
-    if (sem7Project || currentSemester === 7) {
-      const projectId = sem7Project?.project;
-      items.push({
-        name: 'Major Project 1',
-        path: projectId ? `/projects/${projectId}` : '/student/sem7/register',
-        semester: 7,
-        type: 'major1',
-        hasProject: !!sem7Project,
-        projectId: projectId
-      });
+    if (currentSemester === 7) {
+      const sem7Project = getProjectBySemester(7);
+      const finalizedTrack = sem7Data?.trackChoice?.finalizedTrack;
+      
+      // Show Major Project 1 for coursework track
+      if (finalizedTrack === 'coursework') {
+        // Use Sem7Context data which has full project object with faculty info
+        const major1Project = sem7Data?.majorProject1;
+        const projectId = major1Project?._id;
+        
+        // Only show in Project Dashboard if project exists AND faculty is allocated
+        if (major1Project && major1Project.faculty) {
+          items.push({
+            name: 'Major Project 1',
+            path: `/projects/${projectId}`,
+            semester: 7,
+            type: 'major1',
+            hasProject: true,
+            projectId: projectId
+          });
+        }
+        
+        // Show Internship 1 if eligible and has faculty allocated
+        const internship1Project = sem7Data?.internship1Project;
+        if (internship1Project) {
+          const internship1Id = internship1Project._id;
+          // Only show in Project Dashboard if faculty is allocated
+          if (internship1Project.faculty) {
+            items.push({
+              name: 'Internship 1',
+              path: `/projects/${internship1Id}`,
+              semester: 7,
+              type: 'internship1',
+              hasProject: true,
+              projectId: internship1Id
+            });
+          }
+        }
+      }
+      
+      // Don't show 6-month internship in Project Dashboard (it's not a project, it's an application)
+      // It should be shown in navigation items instead
     }
 
     // Semester 8: Major Project 2
@@ -204,15 +249,63 @@ const Navbar = ({ userRole: propUserRole = null, user: propUser = null, roleData
     if (userRole === 'student') {
       items.push({ name: 'Dashboard', path: '/dashboard/student' });
 
-      // Only show Groups if student is in a group
-      const studentData = roleData;
-      if (studentData?.groupId) {
-        const groupId = studentData.groupId;
-        items.push({ 
-          name: 'Groups', 
-          path: `/student/groups/${groupId}/dashboard` 
-        });
+      // Sem 7 specific navigation
+      const currentSemester = roleData?.semester || user?.semester;
+      if (currentSemester === 7) {
+        const finalizedTrack = sem7Data?.trackChoice?.finalizedTrack;
+        const trackChoice = sem7Data?.trackChoice;
+        const selectedTrack = finalizedTrack || trackChoice?.chosenTrack;
+        
+        // Show track selection only if:
+        // 1. Not finalized AND
+        // 2. No choice submitted yet OR needs_info status
+        if (!finalizedTrack) {
+          if (!trackChoice || !trackChoice.chosenTrack) {
+            // No choice submitted yet - show track selection
+            items.push({ 
+              name: 'Sem 7 Track Selection', 
+              path: '/student/sem7/track-selection' 
+            });
+          } else if (trackChoice.verificationStatus === 'needs_info') {
+            // Choice submitted but needs info - show update option
+            items.push({ 
+              name: 'Update Track Choice', 
+              path: '/student/sem7/track-selection' 
+            });
+          }
+          // If choice is submitted and pending, don't show track selection in navbar
+        }
+        
+        // Show internship applications when internship is chosen or finalized
+        if (selectedTrack === 'internship') {
+          const sixMonthApp = sem7Data?.internshipApplications?.find(app => app.type === '6month');
+          // Only show link if no application exists or needs_info status
+          if (!sixMonthApp || sixMonthApp.status === 'needs_info') {
+            items.push({
+              name: sixMonthApp?.status === 'needs_info' ? 'Update Internship Application' : 'Internship Application',
+              path: sixMonthApp ? `/student/sem7/internship/apply/6month/${sixMonthApp._id}/edit` : '/student/sem7/internship/apply/6month'
+            });
+          }
+        }
+        
+        // Show Major Project 1 Dashboard and Internship 1 Dashboard for coursework track
+        if (selectedTrack === 'coursework') {
+          // Major Project 1 Dashboard - always show for coursework students
+          items.push({
+            name: 'Major Project 1',
+            path: '/student/sem7/major1/dashboard'
+          });
+          
+          // Internship 1 Dashboard - always show for coursework students
+          // This dashboard provides access to summer internship application functionality
+          items.push({
+            name: 'Internship 1',
+            path: '/student/sem7/internship1/dashboard'
+          });
+        }
       }
+
+      // Groups link removed - students can access group dashboard through Major Project 1 dashboard
     }
 
     // Faculty Navigation

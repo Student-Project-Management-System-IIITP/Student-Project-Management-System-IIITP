@@ -420,15 +420,38 @@ facultyPreferenceSchema.statics.getGroupsForFaculty = function(facultyId, semest
     semester: semester,
     academicYear: academicYear
   })
-    .populate('student project group preferences.faculty')
+    .populate('student')
+    .populate({
+      path: 'project',
+      select: 'title description projectType status currentFacultyIndex facultyPreferences',
+      populate: {
+        path: 'facultyPreferences.faculty',
+        select: 'fullName department designation'
+      }
+    })
+    .populate('group')
+    .populate('preferences.faculty', 'fullName department designation')
     .sort({ createdAt: 1 })
     .then(preferences => {
       // Filter to only include preferences where the current faculty is at currentFacultyIndex
       return preferences.filter(pref => {
-        const currentIndex = pref.currentFacultyIndex || 0;
+        // For solo projects (no group), use Project's currentFacultyIndex and facultyPreferences
+        // For group projects, use FacultyPreference's currentFacultyIndex and preferences
+        if (pref.project && !pref.group && pref.project.facultyPreferences) {
+          // Solo project - check Project's facultyPreferences
+          const currentIndex = (pref.project?.currentFacultyIndex || 0);
+          const currentFacultyPref = pref.project.facultyPreferences && pref.project.facultyPreferences[currentIndex];
+          if (currentFacultyPref && currentFacultyPref.faculty) {
+            return currentFacultyPref.faculty._id.toString() === facultyId.toString();
+          }
+          return false;
+        } else {
+          // Group project - check FacultyPreference's preferences
+          const currentIndex = (pref.project?.currentFacultyIndex || pref.currentFacultyIndex || 0);
         const currentFaculty = pref.preferences && pref.preferences[currentIndex];
         return currentFaculty && currentFaculty.faculty && 
                currentFaculty.faculty._id.toString() === facultyId.toString();
+        }
       });
     });
 };
@@ -441,7 +464,9 @@ facultyPreferenceSchema.statics.getAllocatedGroupsForFaculty = function(facultyI
     semester: semester,
     academicYear: academicYear
   })
-    .populate('student project group')
+    .populate('student')
+    .populate('project', 'title description projectType status currentFacultyIndex')
+    .populate('group')
     .sort({ allocatedAt: -1 });
 };
 

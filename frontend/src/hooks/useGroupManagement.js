@@ -1,57 +1,72 @@
 import { useSem5 } from '../context/Sem5Context';
+import { useSem7 } from '../context/Sem7Context';
 import { useAuth } from '../context/AuthContext';
 
 export const useGroupManagement = () => {
   const { user, userRole, roleData } = useAuth();
-  const {
-    sem5Group,
-    groupInvitations,
-    loading,
-    error,
-    createGroup,
-    inviteToGroup,
-    acceptGroupInvitation,
-    rejectGroupInvitation,
-    fetchSem5Data,
-  } = useSem5();
+  const currentSemester = roleData?.semester || user?.semester || 5;
+  
+  // Use appropriate context based on semester
+  const sem5Context = useSem5();
+  const sem7Context = useSem7();
+  
+  // Select context and group data based on semester
+  const context = currentSemester === 7 ? sem7Context : sem5Context;
+  const group = currentSemester === 7 ? sem7Context.majorProject1Group : sem5Context.sem5Group;
+  const groupInvitations = currentSemester === 7 ? sem7Context.groupInvitations : sem5Context.groupInvitations; // Both Sem 5 and Sem 7 use invitations
+  const loading = context.loading;
+  const error = context.error;
 
   // Check if student can create a group
-  const canCreateGroup = 
-    userRole === 'student' &&
-    (user?.degree === 'B.Tech' || roleData?.degree === 'B.Tech') &&
-    ((roleData?.semester || user?.semester) === 5) &&
-    !sem5Group;
+  // For Sem 5: Basic eligibility check
+  // For Sem 7: Must be coursework track and no existing group
+  const canCreateGroup = (() => {
+    if (userRole !== 'student') return false;
+    if (user?.degree !== 'B.Tech' && roleData?.degree !== 'B.Tech') return false;
+    
+    if (currentSemester === 5) {
+      return !group;
+    } else if (currentSemester === 7) {
+      // Sem 7: Check if student is in coursework track
+      const selectedTrack = sem7Context.trackChoice?.finalizedTrack || sem7Context.trackChoice?.chosenTrack;
+      return selectedTrack === 'coursework' && !group;
+    }
+    
+    return false;
+  })();
 
   // Check if student is already in a group
-  const isInGroup = !!sem5Group;
+  const isInGroup = !!group;
 
   // Check if student is group leader
   const isGroupLeader = 
-    sem5Group && 
-    sem5Group.leader && 
-    ((typeof sem5Group.leader === 'object' && sem5Group.leader._id === roleData?._id) ||
-     (typeof sem5Group.leader === 'string' && sem5Group.leader === roleData?._id));
+    group && 
+    group.leader && 
+    ((typeof group.leader === 'object' && group.leader._id === roleData?._id) ||
+     (typeof group.leader === 'string' && group.leader === roleData?._id));
 
-  // Check if group is complete
-  const isGroupComplete = sem5Group?.status === 'complete';
+  // Check if group is complete (for Sem 5) or finalized (for Sem 7)
+  const isGroupComplete = currentSemester === 7 
+    ? group?.status === 'finalized' 
+    : group?.status === 'complete';
 
   // Check if group is ready for faculty allocation
   const isReadyForAllocation = 
     isGroupComplete && 
-    sem5Group?.members && 
-    sem5Group.members.length >= (sem5Group?.minMembers || 2);
+    group?.members && 
+    group.members.length >= (group?.minMembers || 2);
 
   // Get available slots in current group
   const getAvailableSlots = () => {
-    if (!sem5Group) return 0;
-    const currentMembers = sem5Group.members?.length || 0;
-    const maxMembers = sem5Group.maxMembers || 5;
+    if (!group) return 0;
+    const currentMembers = group.members?.length || 0;
+    const maxMembers = group.maxMembers || 5;
     return Math.max(0, maxMembers - currentMembers);
   };
 
   // Get group member count
   const getMemberCount = () => {
-    return sem5Group?.members?.length || 0;
+    return group?.members?.length || 0;
   };
 
   // Get pending invitations count
@@ -75,13 +90,13 @@ export const useGroupManagement = () => {
 
   // Get group status
   const getGroupStatus = () => {
-    if (!sem5Group) return 'no_group';
-    return sem5Group.status || 'forming';
+    if (!group) return 'no_group';
+    return group.status || 'forming';
   };
 
   // Get group statistics
   const getGroupStats = () => {
-    if (!sem5Group) {
+    if (!group) {
       return {
         memberCount: 0,
         maxMembers: 5,
@@ -93,10 +108,10 @@ export const useGroupManagement = () => {
       };
     }
 
-    const members = sem5Group.members || [];
+    const members = group.members || [];
     const leadersCount = members.filter(m => m.role === 'leader').length;
     const membersCount = members.filter(m => m.role === 'member').length;
-    const maxMembers = sem5Group.maxMembers || 5;
+    const maxMembers = group.maxMembers || 5;
 
     return {
       memberCount: members.length,
@@ -111,10 +126,10 @@ export const useGroupManagement = () => {
 
   // Get group formation progress
   const getGroupProgress = () => {
-    if (!sem5Group) return 0;
+    if (!group) return 0;
     
     const stats = getGroupStats();
-    const minMembers = sem5Group.minMembers || 2;
+    const minMembers = group.minMembers || 2;
     
     if (stats.memberCount === 0) return 0;
     if (stats.memberCount < minMembers) return Math.round((stats.memberCount / minMembers) * 50);
@@ -124,7 +139,7 @@ export const useGroupManagement = () => {
 
   // Get next action for group management
   const getNextGroupAction = () => {
-    if (!sem5Group) return 'create_group';
+    if (!group) return 'create_group';
     if (!isGroupComplete && getAvailableSlots() > 0) return 'invite_members';
     if (!isGroupComplete && getAvailableSlots() === 0) return 'mark_complete';
     if (isGroupComplete && !isReadyForAllocation) return 'wait_for_approval';
@@ -135,20 +150,21 @@ export const useGroupManagement = () => {
   // Get group formation steps
   const getGroupFormationSteps = () => {
     const currentAction = getNextGroupAction();
+    const projectType = currentSemester === 7 ? 'Major Project 1' : 'Minor Project 2';
     
     return [
       {
         id: 'create_group',
         title: 'Create Group',
-        description: 'Create a new group for Minor Project 2',
-        status: sem5Group ? 'completed' : (currentAction === 'create_group' ? 'current' : 'upcoming'),
-        completed: !!sem5Group
+        description: `Create a new group for ${projectType}`,
+        status: group ? 'completed' : (currentAction === 'create_group' ? 'current' : 'upcoming'),
+        completed: !!group
       },
       {
         id: 'invite_members',
         title: 'Invite Members',
         description: 'Invite other students to join your group',
-        status: sem5Group && getAvailableSlots() > 0 ? (currentAction === 'invite_members' ? 'current' : 'completed') : (currentAction === 'invite_members' ? 'current' : 'upcoming'),
+        status: group && getAvailableSlots() > 0 ? (currentAction === 'invite_members' ? 'current' : 'completed') : (currentAction === 'invite_members' ? 'current' : 'upcoming'),
         completed: isGroupComplete
       },
       {
@@ -168,19 +184,6 @@ export const useGroupManagement = () => {
     ];
   };
 
-  // Handle group invitation response
-  const handleInvitationResponse = async (invitationId, accept = true) => {
-    try {
-      if (accept) {
-        await acceptGroupInvitation(invitationId);
-      } else {
-        await rejectGroupInvitation(invitationId);
-      }
-    } catch (error) {
-      throw error;
-    }
-  };
-
   // Handle group creation with validation
   const handleCreateGroup = async (groupData) => {
     try {
@@ -188,7 +191,21 @@ export const useGroupManagement = () => {
         throw new Error('You cannot create a group at this time');
       }
       
-      await createGroup(groupData);
+      // Use appropriate createGroup function based on semester
+      if (currentSemester === 7) {
+        // For Sem 7, use studentAPI directly since Sem7Context doesn't have createGroup
+        const { studentAPI } = await import('../utils/api');
+        const response = await studentAPI.createGroup(groupData);
+        if (!response.success) {
+          throw new Error(response.message || 'Failed to create group');
+        }
+        // Refresh Sem 7 data
+        await sem7Context.fetchSem7Data();
+        return response.data;
+      } else {
+        // For Sem 5, use context method
+        await sem5Context.createGroup(groupData);
+      }
     } catch (error) {
       throw error;
     }
@@ -205,7 +222,21 @@ export const useGroupManagement = () => {
         throw new Error('Group ID is required');
       }
       
-      await inviteToGroup(groupId, studentIds, roles);
+      // Use appropriate invite function based on semester
+      if (currentSemester === 7) {
+        // For Sem 7, use studentAPI directly
+        const { studentAPI } = await import('../utils/api');
+        const response = await studentAPI.sendGroupInvitations(groupId, { memberIds: studentIds });
+        if (!response.success) {
+          throw new Error(response.message || 'Failed to send invitations');
+        }
+        // Refresh Sem 7 data
+        await sem7Context.fetchSem7Data();
+        return response.data;
+      } else {
+        // For Sem 5, use context method
+        await sem5Context.inviteToGroup(groupId, studentIds, roles);
+      }
     } catch (error) {
       throw error;
     }
@@ -232,7 +263,11 @@ export const useGroupManagement = () => {
       
       // Immediately refresh data after successful finalization
       // This ensures the UI updates right away, not just via WebSocket
-      await fetchSem5Data();
+      if (currentSemester === 7) {
+        await sem7Context.fetchSem7Data();
+      } else {
+        await sem5Context.fetchSem5Data();
+      }
       
       return response;
     } catch (error) {
@@ -240,9 +275,34 @@ export const useGroupManagement = () => {
     }
   };
 
+  // Handle invitation responses (works for both Sem 5 and Sem 7)
+  const handleInvitationResponse = async (invitationId, accept = true) => {
+    try {
+      if (currentSemester === 5) {
+        if (accept) {
+          await sem5Context.acceptGroupInvitation(invitationId);
+        } else {
+          await sem5Context.rejectGroupInvitation(invitationId);
+        }
+      } else if (currentSemester === 7) {
+        if (accept) {
+          await sem7Context.acceptGroupInvitation(invitationId);
+        } else {
+          await sem7Context.rejectGroupInvitation(invitationId);
+        }
+      } else {
+        throw new Error('Invitation responses are only available for Semester 5 and 7');
+      }
+    } catch (error) {
+      throw error;
+    }
+  };
+
   return {
     // State
-    sem5Group,
+    sem5Group: currentSemester === 5 ? group : null, // Keep for backward compatibility
+    majorProject1Group: currentSemester === 7 ? group : null, // For Sem 7
+    group, // Generic group reference
     groupInvitations,
     loading,
     error,
@@ -269,10 +329,10 @@ export const useGroupManagement = () => {
     // Actions
     createGroup: handleCreateGroup,
     inviteToGroup: handleInviteMembers,
-    acceptGroupInvitation,
-    rejectGroupInvitation,
+    acceptGroupInvitation: currentSemester === 5 ? sem5Context.acceptGroupInvitation : sem7Context.acceptGroupInvitation,
+    rejectGroupInvitation: currentSemester === 5 ? sem5Context.rejectGroupInvitation : sem7Context.rejectGroupInvitation,
     handleInvitationResponse,
     finalizeGroup: handleFinalizeGroup,
-    fetchSem5Data,
+    fetchSem5Data: currentSemester === 5 ? sem5Context.fetchSem5Data : sem7Context.fetchSem7Data,
   };
 };
