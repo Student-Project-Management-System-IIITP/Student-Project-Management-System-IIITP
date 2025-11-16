@@ -5037,6 +5037,236 @@ const registerSem6Project = async (req, res) => {
   }
 };
 
+// M.Tech Sem 2: Get Sem 1 project details for Sem 2 registration
+const getMTechSem1ProjectForSem2 = async (req, res) => {
+  try {
+    const studentId = req.user.id;
+    const student = await Student.findOne({ user: studentId });
+
+    if (!student) {
+      return res.status(404).json({
+        success: false,
+        message: 'Student not found'
+      });
+    }
+
+    if (student.degree !== 'M.Tech') {
+      return res.status(400).json({
+        success: false,
+        message: 'This registration flow is only available for M.Tech students'
+      });
+    }
+
+    if (student.semester !== 2) {
+      return res.status(400).json({
+        success: false,
+        message: 'Student must be in Semester 2 to register for Minor Project 2'
+      });
+    }
+
+    const existingSem2Project = await Project.findOne({
+      student: student._id,
+      semester: 2,
+      projectType: 'minor2'
+    }).populate('faculty', 'fullName department designation email phone');
+
+    if (existingSem2Project) {
+      return res.status(400).json({
+        success: false,
+        message: 'Minor Project 2 has already been registered',
+        alreadyRegistered: true,
+        data: {
+          project: existingSem2Project
+        }
+      });
+    }
+
+    const previousProject = await Project.findOne({
+      student: student._id,
+      semester: 1,
+      projectType: 'minor1'
+    })
+      .populate('faculty', 'fullName department designation email phone')
+      .lean();
+
+    const responseData = {
+      previousProject: previousProject || null,
+      faculty: previousProject?.faculty || null,
+      canContinue: !!previousProject,
+      hasFaculty: !!previousProject?.faculty
+    };
+
+    res.json({
+      success: true,
+      data: responseData
+    });
+  } catch (error) {
+    console.error('Error getting Sem 1 project for M.Tech Sem 2:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching M.Tech Sem 1 project details',
+      error: error.message
+    });
+  }
+};
+
+// M.Tech Sem 2: Register project (continuation or new)
+const registerMTechSem2Project = async (req, res) => {
+  const session = await mongoose.startSession();
+
+  try {
+    await session.withTransaction(async () => {
+      const studentId = req.user.id;
+      const { isContinuing, previousProjectId, title, description } = req.body;
+
+      const student = await Student.findOne({ user: studentId }).session(session);
+
+      if (!student) {
+        throw new Error('Student not found');
+      }
+
+      if (student.degree !== 'M.Tech') {
+        throw new Error('This registration flow is only available for M.Tech students');
+      }
+
+      if (student.semester !== 2) {
+        throw new Error('Student must be in Semester 2 to register for Minor Project 2');
+      }
+
+      const existingSem2Project = await Project.findOne({
+        student: student._id,
+        semester: 2,
+        projectType: 'minor2'
+      }).session(session);
+
+      if (existingSem2Project) {
+        throw new Error('Minor Project 2 has already been registered');
+      }
+
+      let previousProject = null;
+
+      if (previousProjectId) {
+        previousProject = await Project.findOne({
+          _id: previousProjectId,
+          student: student._id
+        }).session(session);
+      }
+
+      if (!previousProject) {
+        previousProject = await Project.findOne({
+          student: student._id,
+          semester: 1,
+          projectType: 'minor1'
+        }).session(session);
+      }
+
+      if (!previousProject) {
+        throw new Error('Previous semester project not found');
+      }
+
+      if (!isContinuing && (!title || !description)) {
+        throw new Error('Title and description are required for a new project');
+      }
+
+      const academicYear = generateAcademicYear();
+      const now = new Date();
+
+      const baseProjectData = {
+        projectType: 'minor2',
+        semester: 2,
+        academicYear,
+        student: student._id,
+        faculty: previousProject.faculty || null,
+        facultyPreferences: previousProject.facultyPreferences || [],
+        status: 'registered',
+        startDate: now,
+        isInternship: false
+      };
+
+      let sem2Project;
+
+      if (isContinuing) {
+        sem2Project = new Project({
+          ...baseProjectData,
+          title: previousProject.title,
+          description: previousProject.description,
+          isContinuation: true,
+          previousProject: previousProject._id
+        });
+      } else {
+        sem2Project = new Project({
+          ...baseProjectData,
+          title: title.trim(),
+          description: description.trim(),
+          isContinuation: false,
+          previousProject: null
+        });
+      }
+
+      await sem2Project.save({ session });
+
+      // Mark previous project as completed
+      previousProject.status = 'completed';
+      previousProject.endDate = now;
+      await previousProject.save({ session });
+
+      // Update student's current projects
+      if (!student.currentProjects) {
+        student.currentProjects = [];
+      }
+
+      const previousEntry = student.currentProjects.find(cp =>
+        cp.project.toString() === previousProject._id.toString()
+      );
+
+      if (previousEntry) {
+        previousEntry.status = 'completed';
+      }
+
+      const existingEntry = student.currentProjects.find(cp =>
+        cp.project.toString() === sem2Project._id.toString()
+      );
+
+      if (!existingEntry) {
+        student.currentProjects.push({
+          project: sem2Project._id,
+          role: 'solo',
+          semester: 2,
+          status: 'active',
+          joinedAt: now
+        });
+      }
+
+      if (student.semesterStatus) {
+        student.semesterStatus.hasCompletedPreviousProject = true;
+        student.semesterStatus.lastUpdated = now;
+      }
+
+      await student.save({ session });
+
+      await sem2Project.populate('faculty', 'fullName department designation email phone');
+
+      res.json({
+        success: true,
+        data: {
+          project: sem2Project
+        },
+        message: isContinuing
+          ? 'Minor Project 2 registered successfully as a continuation of Semester 1 project'
+          : 'Minor Project 2 registered successfully'
+      });
+    });
+  } catch (error) {
+    console.error('Error registering M.Tech Sem 2 project:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Error registering M.Tech Sem 2 project'
+    });
+  } finally {
+    session.endSession();
+  }
+};
+
 module.exports = {
   getDashboardData,
   getSemesterFeatures,
@@ -5084,6 +5314,8 @@ module.exports = {
   getProjectProgress,
   getSem5GroupForSem6,
   registerSem6Project,
+  getMTechSem1ProjectForSem2,
+  registerMTechSem2Project,
   // Sem 7 specific functions
   getSem7Options,
   applyForInternship,

@@ -36,6 +36,9 @@ import Sem4ProjectDashboard from './pages/student/Sem4ProjectDashboard';
 import Sem6Registration from './pages/student/Sem6Registration';
 import MTechSem1Registration from './pages/student/MTechSem1Registration';
 import SemesterManagement from './pages/admin/SemesterManagement';
+import MTechSem1Registrations from './pages/admin/MTechSem1Registrations';
+import MTechSem1UnregisteredStudents from './pages/admin/MTechSem1UnregisteredStudents';
+import MTechSem2Registration from './pages/student/MTechSem2Registration';
 
 function App() {
   return (
@@ -164,6 +167,12 @@ function AppContent() {
               <MTechSem1Registration />
             </ProtectedRoute>
           } />
+          {/* M.Tech Sem 2 Registration */}
+          <Route path="/student/mtech/sem2/register" element={
+            <ProtectedRoute allowedRoles={['student']}>
+              <MTechSem2Registration />
+            </ProtectedRoute>
+          } />
           {/* Old PPTUpload route removed - functionality merged into Sem4ProjectDashboard */}
           {/* Sem 5 Routes */}
           <Route path="/student/sem5/register" element={
@@ -266,6 +275,20 @@ function AppContent() {
           <Route path="/admin/sem4/unregistered" element={
             <ProtectedRoute allowedRoles={['admin']}>
               <Sem4UnregisteredStudents />
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/mtech/sem1/registrations" element={
+            <ProtectedRoute allowedRoles={['admin']}>
+              <Layout>
+                <MTechSem1Registrations />
+              </Layout>
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/mtech/sem1/unregistered" element={
+            <ProtectedRoute allowedRoles={['admin']}>
+              <Layout>
+                <MTechSem1UnregisteredStudents />
+              </Layout>
             </ProtectedRoute>
           } />
           {/* Redirects to allocated-faculty page - registrations is now a tab there */}

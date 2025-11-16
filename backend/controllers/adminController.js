@@ -748,6 +748,75 @@ const getSem4MinorProject1Registrations = async (req, res) => {
   }
 };
 
+// Get M.Tech Sem 1 Minor Project registrations
+const getMTechSem1Registrations = async (req, res) => {
+  try {
+    const { academicYear, batch, currentYear } = req.query;
+
+    const query = {
+      projectType: 'minor1',
+      semester: 1
+    };
+
+    if (academicYear) {
+      query.academicYear = academicYear;
+    } else if (batch) {
+      // Batch provided in format "2024-2026" (optional) -> derive first year
+      const startYear = batch.split('-')[0];
+      if (startYear) {
+        query.academicYear = `${startYear}-${(parseInt(startYear, 10) + 1).toString().slice(-2)}`;
+      }
+    } else if (currentYear === 'true') {
+      const now = new Date();
+      const startYear = now.getMonth() < 6 ? now.getFullYear() - 1 : now.getFullYear();
+      query.academicYear = `${startYear}-${(startYear + 1).toString().slice(-2)}`;
+    }
+
+    const projects = await Project.find(query)
+      .populate({
+        path: 'student',
+        match: { degree: 'M.Tech' },
+        populate: { path: 'user', select: 'email' }
+      })
+      .populate({
+        path: 'faculty',
+        select: 'fullName department designation'
+      })
+      .sort({ createdAt: -1 });
+
+    const mtechProjects = projects.filter(project => project.student);
+
+    const formatted = mtechProjects.map(project => ({
+      _id: project._id,
+      timestamp: project.createdAt,
+      email: project.student?.user?.email || 'N/A',
+      name: project.student?.fullName || 'N/A',
+      misNumber: project.student?.misNumber || 'N/A',
+      contact: project.student?.contactNumber || 'N/A',
+      branch: project.student?.branch || 'N/A',
+      projectTitle: project.title,
+      status: project.status,
+      academicYear: project.academicYear,
+      projectType: project.projectType,
+      semester: project.semester,
+      facultyAllocated: project.faculty ? project.faculty.fullName : 'Not Allocated'
+    }));
+
+    res.json({
+      success: true,
+      data: formatted,
+      total: formatted.length
+    });
+  } catch (error) {
+    console.error('Error getting M.Tech Sem 1 registrations:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching M.Tech Sem 1 registrations',
+      error: error.message
+    });
+  }
+};
+
 // Get Unregistered Sem 4 Students
 const getUnregisteredSem4Students = async (req, res) => {
   try {
@@ -783,6 +852,63 @@ const getUnregisteredSem4Students = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error fetching unregistered students',
+      error: error.message
+    });
+  }
+};
+
+// Get Unregistered M.Tech Sem 1 Students
+const getUnregisteredMTechSem1Students = async (req, res) => {
+  try {
+    const { academicYear } = req.query;
+
+    const studentQuery = {
+      degree: 'M.Tech',
+      semester: 1
+    };
+
+    if (academicYear) {
+      studentQuery.academicYear = academicYear;
+    }
+
+    const students = await Student.find(studentQuery)
+      .populate('user', 'email')
+      .lean();
+
+    const projectQuery = {
+      projectType: 'minor1',
+      semester: 1
+    };
+
+    if (academicYear) {
+      projectQuery.academicYear = academicYear;
+    }
+
+    const projects = await Project.find(projectQuery)
+      .populate('student', 'degree')
+      .select('student');
+
+    const registeredStudentIds = new Set(
+      projects
+        .filter(project => project.student && project.student.degree === 'M.Tech')
+        .map(project => project.student._id.toString())
+    );
+
+    const unregisteredStudents = students.filter(
+      student => !registeredStudentIds.has(student._id.toString())
+    );
+
+    res.json({
+      success: true,
+      data: unregisteredStudents,
+      count: unregisteredStudents.length,
+      message: 'Unregistered M.Tech Sem 1 students retrieved successfully'
+    });
+  } catch (error) {
+    console.error('Error getting unregistered M.Tech Sem 1 students:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching unregistered M.Tech Sem 1 students',
       error: error.message
     });
   }
@@ -1576,6 +1702,70 @@ const getSem6Statistics = async (req, res) => {
   }
 };
 
+// Get M.Tech Sem 1 statistics for Admin Dashboard
+const getMTechSem1Statistics = async (req, res) => {
+  try {
+    const { academicYear } = req.query;
+
+    const studentQuery = {
+      degree: 'M.Tech',
+      semester: 1
+    };
+    if (academicYear) {
+      studentQuery.academicYear = academicYear;
+    }
+
+    const totalStudents = await Student.countDocuments(studentQuery);
+
+    const projectQuery = {
+      projectType: 'minor1',
+      semester: 1
+    };
+    if (academicYear) {
+      projectQuery.academicYear = academicYear;
+    }
+
+    const projects = await Project.find(projectQuery)
+      .populate('student', 'degree semester')
+      .populate('faculty', 'fullName')
+      .lean();
+
+    const mtechProjects = projects.filter(project => project.student && project.student.degree === 'M.Tech');
+
+    const registeredProjects = mtechProjects.length;
+    const facultyAllocated = mtechProjects.filter(project => project.faculty).length;
+    const pendingAllocations = Math.max(registeredProjects - facultyAllocated, 0);
+
+    const uniqueStudentIds = new Set(
+      mtechProjects
+        .map(project => project.student?._id?.toString())
+        .filter(Boolean)
+    );
+
+    const unregisteredStudents = Math.max(totalStudents - uniqueStudentIds.size, 0);
+    const registrationRate = totalStudents > 0 ? Number(((registeredProjects / totalStudents) * 100).toFixed(2)) : 0;
+
+    res.json({
+      success: true,
+      data: {
+        totalStudents,
+        registeredProjects,
+        facultyAllocated,
+        pendingAllocations,
+        unregisteredStudents,
+        registrationRate
+      }
+    });
+  } catch (error) {
+    console.error('Error getting M.Tech Sem 1 statistics:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching M.Tech Sem 1 statistics',
+      error: error.message
+    });
+  }
+};
+
 // Get all system configurations
 const getSystemConfigurations = async (req, res) => {
   try {
@@ -1945,14 +2135,14 @@ const getStudentsBySemester = async (req, res) => {
           { student: student._id },
           { group: group?._id }
         ]
-      }).select('title status projectType');
+      }).select('title status projectType faculty').populate('faculty', 'fullName');
 
       return {
         ...student,
         hasGroup: !!group,
         groupStatus: group?.status,
-        hasFaculty: !!group?.allocatedFaculty,
-        facultyName: group?.allocatedFaculty?.fullName,
+        hasFaculty: !!group?.allocatedFaculty || !!project?.faculty,
+        facultyName: group?.allocatedFaculty?.fullName || project?.faculty?.fullName,
         hasProject: !!project,
         projectTitle: project?.title,
         projectStatus: project?.status
@@ -2003,6 +2193,10 @@ module.exports = {
   // Sem 4 specific functions
   getSem4MinorProject1Registrations,
   getUnregisteredSem4Students,
+  // M.Tech Sem 1 specific functions
+  getMTechSem1Registrations,
+  getUnregisteredMTechSem1Students,
+  getMTechSem1Statistics,
   // System Configuration functions
   getSystemConfigurations,
   getSystemConfig,

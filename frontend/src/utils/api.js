@@ -183,6 +183,10 @@ export const studentAPI = {
   getSem5Status: (projectId) => api.get(`/student/projects/${projectId}/sem5-status`),
   getSem5Dashboard: () => api.get('/student/dashboard/sem5'),
   getGroupInvitations: () => api.get('/student/groups/invitations'),
+
+  // M.Tech Sem 2 Registration
+  getMTechSem2PreRegistration: () => api.get('/student/mtech/sem2/pre-registration'),
+  registerMTechSem2Project: (data) => api.post('/student/mtech/sem2/register', data),
   
   // Sem 6 specific methods
   getSem5GroupForSem6: () => api.get('/student/sem6/pre-registration'),
@@ -254,6 +258,14 @@ export const adminAPI = {
     return apiRequest(url.href.replace(API_BASE_URL, ''));
   },
 
+  getMTechSem1Registrations: (params) => {
+    const url = new URL('/admin/mtech/sem1/registrations', API_BASE_URL);
+    if (params) {
+      Object.keys(params).forEach(key => url.searchParams.append(key, params[key]));
+    }
+    return apiRequest(url.href.replace(API_BASE_URL, ''));
+  },
+
   getSem5Registrations: (params) => {
     const url = new URL('/admin/sem5/registrations', API_BASE_URL);
     if (params) {
@@ -289,6 +301,14 @@ export const adminAPI = {
 
   getSem6Statistics: () => api.get('/admin/statistics/sem6'),
 
+  getMTechSem1Statistics: (params) => {
+    const url = new URL('/admin/statistics/mtech/sem1', API_BASE_URL);
+    if (params) {
+      Object.keys(params).forEach(key => url.searchParams.append(key, params[key]));
+    }
+    return apiRequest(url.href.replace(API_BASE_URL, ''));
+  },
+
   getSem5NonRegisteredStudents: (params) => {
     const url = new URL('/admin/sem5/non-registered-students', API_BASE_URL);
     if (params) {
@@ -323,6 +343,14 @@ export const adminAPI = {
     if (semester) params.append('semester', semester);
     if (degree) params.append('degree', degree);
     return api.get(`/admin/students/by-semester?${params.toString()}`);
+  },
+
+  getMTechSem1UnregisteredStudents: (params) => {
+    const url = new URL('/admin/mtech/sem1/unregistered-students', API_BASE_URL);
+    if (params) {
+      Object.keys(params).forEach(key => url.searchParams.append(key, params[key]));
+    }
+    return apiRequest(url.href.replace(API_BASE_URL, ''));
   },
 };
 
