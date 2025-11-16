@@ -416,16 +416,16 @@ const Navbar = ({ userRole: propUserRole = null, user: propUser = null, roleData
               </div>
               <div className="flex flex-col">
                 <div className="flex items-baseline">
-                  <h1 className="text-base lg:text-lg font-bold text-white" style={{ fontFamily: "'Montserrat', sans-serif", letterSpacing: '0.05em' }}>
+                  <h1 className="text-base lg:text-lg font-bold text-white" style={{ letterSpacing: '0.05em' }}>
                     SPMS
                   </h1>
-                  <span className="mx-0.5 text-sm font-normal text-gray-300" style={{ fontFamily: "'Montserrat', sans-serif" }}>@</span>
-                  <h2 className="text-base lg:text-lg font-semibold text-white" style={{ fontFamily: "'Montserrat', sans-serif", letterSpacing: '0.02em' }}>
+                  <span className="mx-0.5 text-sm font-normal text-gray-300">@</span>
+                  <h2 className="text-base lg:text-lg font-semibold text-white" style={{ letterSpacing: '0.02em' }}>
                     IIIT-Pune
                   </h2>
                 </div>
                 <div className="flex items-center mt-0.5">
-                  <p className="text-[10px] text-slate-300" style={{ fontFamily: "'Lora', serif", letterSpacing: '0.04em', fontWeight: 500 }}>
+                  <p className="text-[10px] text-slate-300" style={{ letterSpacing: '0.04em', fontWeight: 500 }}>
                     STUDENT PROJECT MANAGEMENT SYSTEM
                   </p>
                 </div>

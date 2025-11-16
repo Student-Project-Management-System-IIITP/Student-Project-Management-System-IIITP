@@ -2,6 +2,12 @@
 @tailwind components;
 @tailwind utilities;
 
+@layer base {
+  body {
+    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  }
+}
+
 /* Professional design system for profile pages */
 @layer components {
   .pro-page { @apply min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50; }

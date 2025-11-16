@@ -45,6 +45,11 @@ import MajorProject1Dashboard from './pages/student/MajorProject1Dashboard';
 import Internship1Registration from './pages/student/Internship1Registration';
 import Internship1Dashboard from './pages/student/Internship1Dashboard';
 import SemesterManagement from './pages/admin/SemesterManagement';
+import MTechSem1Registrations from './pages/admin/MTechSem1Registrations';
+import MTechSem1UnregisteredStudents from './pages/admin/MTechSem1UnregisteredStudents';
+import MTechSem2Registration from './pages/student/MTechSem2Registration';
+import MTechSem2Registrations from './pages/admin/MTechSem2Registrations';
+import MTechSem2UnregisteredStudents from './pages/admin/MTechSem2UnregisteredStudents';
 
 function App() {
   return (
@@ -173,6 +178,12 @@ function AppContent() {
           <Route path="/student/mtech/sem1/register" element={
             <ProtectedRoute allowedRoles={['student']}>
               <MTechSem1Registration />
+            </ProtectedRoute>
+          } />
+          {/* M.Tech Sem 2 Registration */}
+          <Route path="/student/mtech/sem2/register" element={
+            <ProtectedRoute allowedRoles={['student']}>
+              <MTechSem2Registration />
             </ProtectedRoute>
           } />
           {/* Old PPTUpload route removed - functionality merged into Sem4ProjectDashboard */}
@@ -315,6 +326,34 @@ function AppContent() {
           <Route path="/admin/sem4/unregistered" element={
             <ProtectedRoute allowedRoles={['admin']}>
               <Sem4UnregisteredStudents />
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/mtech/sem1/registrations" element={
+            <ProtectedRoute allowedRoles={['admin']}>
+              <Layout>
+                <MTechSem1Registrations />
+              </Layout>
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/mtech/sem1/unregistered" element={
+            <ProtectedRoute allowedRoles={['admin']}>
+              <Layout>
+                <MTechSem1UnregisteredStudents />
+              </Layout>
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/mtech/sem2/registrations" element={
+            <ProtectedRoute allowedRoles={['admin']}>
+              <Layout>
+                <MTechSem2Registrations />
+              </Layout>
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/mtech/sem2/unregistered" element={
+            <ProtectedRoute allowedRoles={['admin']}>
+              <Layout>
+                <MTechSem2UnregisteredStudents />
+              </Layout>
             </ProtectedRoute>
           } />
           {/* Redirects to allocated-faculty page - registrations is now a tab there */}

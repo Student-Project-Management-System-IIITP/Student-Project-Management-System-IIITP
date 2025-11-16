@@ -44,6 +44,14 @@ router.get('/statistics/sem5', adminController.getSem5Statistics);
 router.get('/sem4/registrations', adminController.getSem4MinorProject1Registrations);
 router.get('/sem4/unregistered-students', adminController.getUnregisteredSem4Students);
 
+// M.Tech specific routes
+router.get('/mtech/sem1/registrations', adminController.getMTechSem1Registrations);
+router.get('/mtech/sem1/unregistered-students', adminController.getUnregisteredMTechSem1Students);
+router.get('/statistics/mtech/sem1', adminController.getMTechSem1Statistics);
+router.get('/mtech/sem2/registrations', adminController.getMTechSem2Registrations);
+router.get('/mtech/sem2/unregistered-students', adminController.getUnregisteredMTechSem2Students);
+router.get('/statistics/mtech/sem2', adminController.getMTechSem2Statistics);
+
 // Sem 6 specific routes
 router.get('/sem6/registrations', adminController.getSem6MajorProjectRegistrations);
 router.get('/sem6/non-registered-groups', adminController.getSem6NonRegisteredGroups);

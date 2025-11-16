@@ -16,6 +16,7 @@ const StudentDashboard = () => {
   const { user, roleData, isLoading: authLoading } = useAuth();
   const [mtechProject, setMtechProject] = useState(null);
   const [mtechLoading, setMtechLoading] = useState(false);
+  const [mtechSem2Project, setMtechSem2Project] = useState(null);
   
   // Sem 4 hooks
   const { project: sem4Project, loading: sem4ProjectLoading, canRegisterProject: canRegisterSem4, canUploadPPT, getProjectTimeline } = useSem4Project();
@@ -156,24 +157,27 @@ const StudentDashboard = () => {
   // M.Tech Sem 1: Load current project
   useEffect(() => {
     const degree = roleData?.degree || user?.degree;
-    const semester = roleData?.semester || user?.semester;
-    if (degree === 'M.Tech' && semester === 1) {
-      const loadMtechProject = async () => {
+    if (degree === 'M.Tech') {
+      const loadMtechProjects = async () => {
         try {
           setMtechLoading(true);
-          const resp = await studentAPI.getProjects();
+          const resp = await studentAPI.getProjects({ allSemesters: true });
           const projects = resp?.data || [];
-          const p = projects.find(pr => pr.semester === 1 && pr.projectType === 'minor1');
-          setMtechProject(p || null);
+          const sem1 = projects.find(pr => pr.semester === 1 && pr.projectType === 'minor1');
+          const sem2 = projects.find(pr => pr.semester === 2 && pr.projectType === 'minor2');
+          setMtechProject(sem1 || null);
+          setMtechSem2Project(sem2 || null);
         } catch (e) {
           setMtechProject(null);
+          setMtechSem2Project(null);
         } finally {
           setMtechLoading(false);
         }
       };
-      loadMtechProject();
+      loadMtechProjects();
     } else {
       setMtechProject(null);
+      setMtechSem2Project(null);
     }
   }, [roleData, user]);
 
@@ -304,6 +308,30 @@ const StudentDashboard = () => {
         color: 'bg-blue-50 border-blue-200 hover:bg-blue-100',
         textColor: 'text-blue-800',
       });
+    }
+
+    if (degree === 'M.Tech' && currentSemester === 2) {
+      if (!mtechSem2Project) {
+        actions.push({
+          title: 'Register for Minor Project 2',
+          description: 'Continue or start a new project for Semester 2',
+          icon: '📝',
+          link: '/student/mtech/sem2/register',
+          color: 'bg-blue-50 border-blue-200 hover:bg-blue-100',
+          textColor: 'text-blue-800',
+        });
+      } else {
+        actions.push({
+          title: 'View Minor Project 2',
+          description: mtechSem2Project.isContinuation
+            ? 'View your continued Semester 2 project'
+            : 'View your Semester 2 project details',
+          icon: '👁️',
+          link: `/projects/${mtechSem2Project._id}`,
+          color: 'bg-purple-50 border-purple-200 hover:bg-purple-100',
+          textColor: 'text-purple-800',
+        });
+      }
     }
 
     if (currentSemester === 4) {
