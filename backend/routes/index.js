@@ -26,4 +26,12 @@ router.use('/faculty', facultyRoutes);
 const projectRoutes = require('./projectRoutes');
 router.use('/projects', projectRoutes);
 
+// Sem7 routes
+const sem7Routes = require('./sem7Routes');
+router.use('/sem7', sem7Routes);
+
+// Internship routes
+const internshipRoutes = require('./internshipRoutes');
+router.use('/internships', internshipRoutes);
+
 module.exports = router;

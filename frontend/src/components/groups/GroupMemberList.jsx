@@ -99,7 +99,12 @@ const GroupMemberList = ({
     );
   };
 
-  if (!members || members.length === 0) {
+  // Only use active members for display and counts
+  const activeMembers = Array.isArray(members)
+    ? members.filter(m => m?.isActive && m?.student)
+    : [];
+
+  if (activeMembers.length === 0) {
     return (
       <div className="text-center py-8">
         <div className="text-gray-400 mb-2">
@@ -116,7 +121,7 @@ const GroupMemberList = ({
     <div className="space-y-3">
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-lg font-medium text-gray-900">
-          Group Members ({members.length})
+          Group Members ({activeMembers.length})
         </h3>
         {showRoles && (
           <div className="flex items-center space-x-2 text-sm">
@@ -133,7 +138,7 @@ const GroupMemberList = ({
       </div>
 
       <div className="space-y-2">
-        {members.map((member, index) => renderMember(member, index))}
+        {activeMembers.map((member, index) => renderMember(member, index))}
       </div>
 
       {/* Group Stats */}
@@ -141,13 +146,13 @@ const GroupMemberList = ({
         <div className="grid grid-cols-2 gap-4 text-sm">
           <div className="text-center">
             <div className="font-medium text-gray-900">
-              {members.filter(m => m.role === 'leader').length}
+              {activeMembers.filter(m => m.role === 'leader').length}
             </div>
             <div className="text-gray-600">Leaders</div>
           </div>
           <div className="text-center">
             <div className="font-medium text-gray-900">
-              {members.filter(m => m.role === 'member').length}
+              {activeMembers.filter(m => m.role === 'member').length}
             </div>
             <div className="text-gray-600">Members</div>
           </div>

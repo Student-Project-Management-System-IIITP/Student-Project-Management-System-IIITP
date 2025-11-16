@@ -1,6 +1,6 @@
 import React from 'react';
 
-const StatusBadge = ({ status, size = 'md', className = '' }) => {
+const StatusBadge = ({ status, text, size = 'md', className = '' }) => {
   const getStatusConfig = (status) => {
     const statusMap = {
       // Project Status
@@ -42,6 +42,8 @@ const StatusBadge = ({ status, size = 'md', className = '' }) => {
 
   const config = getStatusConfig(status);
   const sizeClasses = getSizeClasses(size);
+  // Use custom text if provided, otherwise use the default from statusMap
+  const displayText = text || config.text;
 
   return (
     <span 
@@ -50,7 +52,7 @@ const StatusBadge = ({ status, size = 'md', className = '' }) => {
         ${config.color} ${sizeClasses} ${className}
       `}
     >
-      {config.text}
+      {displayText}
     </span>
   );
 };

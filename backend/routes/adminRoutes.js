@@ -57,6 +57,13 @@ router.get('/sem6/registrations', adminController.getSem6MajorProjectRegistratio
 router.get('/sem6/non-registered-groups', adminController.getSem6NonRegisteredGroups);
 router.get('/statistics/sem6', adminController.getSem6Statistics);
 
+// Sem 7 specific routes
+const sem7Controller = require('../controllers/sem7Controller');
+router.get('/sem7/track-choices', sem7Controller.listSem7TrackChoices);
+router.patch('/sem7/finalize/:studentId', sem7Controller.finalizeSem7Track);
+router.get('/sem7/internship1-track-choices', sem7Controller.listInternship1TrackChoices);
+router.patch('/sem7/internship1-track/:studentId', sem7Controller.changeInternship1Track);
+
 // System Configuration routes
 router.get('/system-config', adminController.getSystemConfigurations);
 router.get('/system-config/:key', adminController.getSystemConfig);

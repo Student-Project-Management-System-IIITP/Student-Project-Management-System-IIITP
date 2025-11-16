@@ -88,6 +88,20 @@ const AdminDashboard = () => {
     registrationRate: 0
   });
   
+  // Sem 7 specific state
+  const [sem7Stats, setSem7Stats] = useState({
+    totalTrackChoices: 0,
+    pendingTrackChoices: 0,
+    approvedTrackChoices: 0,
+    internshipTrackChoices: 0,
+    courseworkTrackChoices: 0,
+    totalInternshipApplications: 0,
+    pendingApplications: 0,
+    approvedApplications: 0,
+    sixMonthApplications: 0,
+    summerApplications: 0
+  });
+  
   const [loading, setLoading] = useState(true);
 
   const defaultPassword = useMemo(() => computeDefaultPassword(form.name), [form.name]);
@@ -226,6 +240,47 @@ const AdminDashboard = () => {
             continuationProjects: 0,
             newProjects: 0,
             registrationRate: 0
+          });
+        }
+
+        // Load Sem 7 statistics
+        try {
+          const [trackChoicesResponse, internshipAppsResponse] = await Promise.all([
+            adminAPI.listSem7TrackChoices(),
+            adminAPI.listInternshipApplications()
+          ]);
+
+          const trackChoices = trackChoicesResponse.data || [];
+          const applications = internshipAppsResponse.data || [];
+
+          const sem7Stats = {
+            totalTrackChoices: trackChoices.length,
+            pendingTrackChoices: trackChoices.filter(tc => !tc.finalizedTrack || tc.verificationStatus === 'pending').length,
+            approvedTrackChoices: trackChoices.filter(tc => tc.verificationStatus === 'approved').length,
+            internshipTrackChoices: trackChoices.filter(tc => tc.finalizedTrack === 'internship' || tc.chosenTrack === 'internship').length,
+            courseworkTrackChoices: trackChoices.filter(tc => tc.finalizedTrack === 'coursework' || tc.chosenTrack === 'coursework').length,
+            totalInternshipApplications: applications.length,
+            pendingApplications: applications.filter(app => app.status === 'pending').length,
+            approvedApplications: applications.filter(app => app.status === 'approved').length,
+            sixMonthApplications: applications.filter(app => app.type === '6month').length,
+            summerApplications: applications.filter(app => app.type === 'summer').length
+          };
+
+          setSem7Stats(sem7Stats);
+        } catch (sem7Error) {
+          console.warn('Sem 7 data not available:', sem7Error);
+          // Set default Sem 7 stats if not available
+          setSem7Stats({
+            totalTrackChoices: 0,
+            pendingTrackChoices: 0,
+            approvedTrackChoices: 0,
+            internshipTrackChoices: 0,
+            courseworkTrackChoices: 0,
+            totalInternshipApplications: 0,
+            pendingApplications: 0,
+            approvedApplications: 0,
+            sixMonthApplications: 0,
+            summerApplications: 0
           });
         }
       } catch (error) {
@@ -618,6 +673,96 @@ const AdminDashboard = () => {
               <div className="bg-white bg-opacity-20 rounded-lg p-4 hover:bg-opacity-30 transition-all cursor-pointer">
                 <div className="text-2xl font-bold">{sem6Stats.registrationRate}%</div>
                 <div className="text-green-200 text-sm">Registration Rate</div>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Sem 7 Statistics */}
+      <div className="mb-8">
+        <div className="bg-gradient-to-r from-orange-600 to-orange-800 text-white p-6 rounded-lg shadow-md">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-2xl font-bold mb-4">B.Tech Semester 7 - Track & Internship Management</h2>
+              <p className="text-orange-200 mb-6">Track selection, internship applications, and coursework management</p>
+            </div>
+            <div className="flex space-x-4 flex-wrap gap-2">
+              <Link
+                to="/admin/sem7/review"
+                className="bg-white bg-opacity-20 hover:bg-opacity-30 px-4 py-2 rounded-md text-white font-medium transition-all duration-200 flex items-center space-x-2"
+              >
+                <span>📋</span>
+                <span>Review & Manage</span>
+              </Link>
+              <Link
+                to="/admin/sem7/track-choices"
+                className="bg-white bg-opacity-20 hover:bg-opacity-30 px-4 py-2 rounded-md text-white font-medium transition-all duration-200 flex items-center space-x-2"
+              >
+                <span>🎯</span>
+                <span>Track Choices</span>
+              </Link>
+            </div>
+          </div>
+          
+          {loading ? (
+            <div className="flex items-center justify-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {/* Track Choices Section */}
+              <div>
+                <h3 className="text-lg font-semibold mb-3 text-orange-100">Track Choices</h3>
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                  <div className="bg-white bg-opacity-20 rounded-lg p-4 hover:bg-opacity-30 transition-all cursor-pointer">
+                    <div className="text-2xl font-bold">{sem7Stats.totalTrackChoices}</div>
+                    <div className="text-orange-200 text-sm">Total Choices</div>
+                  </div>
+                  <div className="bg-white bg-opacity-20 rounded-lg p-4 hover:bg-opacity-30 transition-all cursor-pointer">
+                    <div className="text-2xl font-bold">{sem7Stats.pendingTrackChoices}</div>
+                    <div className="text-orange-200 text-sm">Pending Review</div>
+                  </div>
+                  <div className="bg-white bg-opacity-20 rounded-lg p-4 hover:bg-opacity-30 transition-all cursor-pointer">
+                    <div className="text-2xl font-bold">{sem7Stats.approvedTrackChoices}</div>
+                    <div className="text-orange-200 text-sm">Approved</div>
+                  </div>
+                  <div className="bg-white bg-opacity-20 rounded-lg p-4 hover:bg-opacity-30 transition-all cursor-pointer">
+                    <div className="text-2xl font-bold">{sem7Stats.internshipTrackChoices}</div>
+                    <div className="text-orange-200 text-sm">Internship Track</div>
+                  </div>
+                  <div className="bg-white bg-opacity-20 rounded-lg p-4 hover:bg-opacity-30 transition-all cursor-pointer">
+                    <div className="text-2xl font-bold">{sem7Stats.courseworkTrackChoices}</div>
+                    <div className="text-orange-200 text-sm">Coursework Track</div>
+                  </div>
+                </div>
+              </div>
+              
+              {/* Internship Applications Section */}
+              <div>
+                <h3 className="text-lg font-semibold mb-3 text-orange-100">Internship Applications</h3>
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                  <div className="bg-white bg-opacity-20 rounded-lg p-4 hover:bg-opacity-30 transition-all cursor-pointer">
+                    <div className="text-2xl font-bold">{sem7Stats.totalInternshipApplications}</div>
+                    <div className="text-orange-200 text-sm">Total Applications</div>
+                  </div>
+                  <div className="bg-white bg-opacity-20 rounded-lg p-4 hover:bg-opacity-30 transition-all cursor-pointer">
+                    <div className="text-2xl font-bold">{sem7Stats.pendingApplications}</div>
+                    <div className="text-orange-200 text-sm">Pending Review</div>
+                  </div>
+                  <div className="bg-white bg-opacity-20 rounded-lg p-4 hover:bg-opacity-30 transition-all cursor-pointer">
+                    <div className="text-2xl font-bold">{sem7Stats.approvedApplications}</div>
+                    <div className="text-orange-200 text-sm">Approved</div>
+                  </div>
+                  <div className="bg-white bg-opacity-20 rounded-lg p-4 hover:bg-opacity-30 transition-all cursor-pointer">
+                    <div className="text-2xl font-bold">{sem7Stats.sixMonthApplications}</div>
+                    <div className="text-orange-200 text-sm">6-Month Internships</div>
+                  </div>
+                  <div className="bg-white bg-opacity-20 rounded-lg p-4 hover:bg-opacity-30 transition-all cursor-pointer">
+                    <div className="text-2xl font-bold">{sem7Stats.summerApplications}</div>
+                    <div className="text-orange-200 text-sm">Summer Internships</div>
+                  </div>
+                </div>
               </div>
             </div>
           )}

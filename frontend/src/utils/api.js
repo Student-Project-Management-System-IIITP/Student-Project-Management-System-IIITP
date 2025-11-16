@@ -156,7 +156,6 @@ export const studentAPI = {
     return api.post(`/student/groups/${groupId}/invite`, { studentIds: studentIds, roles: roles });
   },
   sendGroupInvitations: (groupId, data) => api.post(`/student/groups/${groupId}/send-invitations`, data),
-  getGroupInvitations: () => api.get('/student/groups/invitations'),
   acceptGroupInvitation: (groupId, inviteId) => api.post(`/student/groups/${groupId}/invite/${inviteId}/accept`),
   rejectGroupInvitation: (groupId, inviteId) => api.post(`/student/groups/${groupId}/invite/${inviteId}/reject`),
   
@@ -195,6 +194,77 @@ export const studentAPI = {
   // Project continuation (Sem 6)
   getContinuationProjects: () => api.get('/student/projects/continuation'),
   createContinuationProject: (data) => api.post('/student/projects/continuation', data),
+  
+  // Sem 7 specific methods
+  // Track selection
+  setSem7Choice: (choice) => api.post('/sem7/choice', { chosenTrack: choice }),
+  getSem7Choice: () => api.get('/sem7/choice'),
+  
+  // Major Project 1 registration
+  registerMajorProject1: (projectData) => api.post('/student/projects/major1/register', projectData),
+  
+  // Internship 1 status and registration
+  checkInternship1Status: () => api.get('/student/projects/internship1/status'),
+  registerInternship1: (projectData) => api.post('/student/projects/internship1/register', projectData),
+};
+
+// Sem 7 API - Track selection and internship applications
+export const sem7API = {
+  setChoice: (choice) => api.post('/sem7/choice', { chosenTrack: choice }),
+  getChoice: () => api.get('/sem7/choice'),
+};
+
+// Internship API - Application management
+export const internshipAPI = {
+  // Create application (multipart/form-data for backward compatibility, but summer internships now use JSON)
+  createApplication: async (type, details, files) => {
+    // Summer internships now use Google Drive links (no file uploads needed)
+    // Use FormData for backward compatibility, but details contain links instead of files
+    const formData = new FormData();
+    formData.append('type', type);
+    formData.append('details', JSON.stringify(details));
+    
+    // No files needed anymore - summer internships use Google Drive links
+    // Files parameter is kept for backward compatibility but not used
+    
+    const token = localStorage.getItem('token');
+    const response = await fetch(`${API_BASE_URL}/internships/applications`, {
+      method: 'POST',
+      headers: {
+        ...(token && { Authorization: `Bearer ${token}` }),
+      },
+      body: formData
+    });
+    
+    return handleApiResponse(response);
+  },
+  
+  // Get my applications
+  getMyApplications: () => api.get('/internships/applications/my'),
+  
+  // Update application (JSON - no file uploads needed anymore)
+  updateApplication: async (applicationId, details, files) => {
+    // Send as JSON since we're not uploading files anymore
+    // All data (including Google Drive links) is sent in the request body
+    
+    const token = localStorage.getItem('token');
+    const response = await fetch(`${API_BASE_URL}/internships/applications/${applicationId}`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token && { Authorization: `Bearer ${token}` }),
+      },
+      body: JSON.stringify({ details })
+    });
+    
+    return handleApiResponse(response);
+  },
+  
+  // Download file
+  downloadFile: (applicationId, fileType) => {
+    const token = localStorage.getItem('token');
+    return `${API_BASE_URL}/internships/applications/${applicationId}/files/${fileType}?token=${token}`;
+  },
 };
 
 export const facultyAPI = {
@@ -230,7 +300,10 @@ export const adminAPI = {
   getUsers: () => api.get('/admin/users'),
   getStudents: () => api.get('/admin/students'),
   getFaculty: () => api.get('/admin/faculty'),
-  getProjects: () => api.get('/admin/projects'),
+  getProjects: (params = {}) => {
+    const queryString = new URLSearchParams(params).toString();
+    return api.get(`/admin/projects${queryString ? '?' + queryString : ''}`);
+  },
   getGroups: () => api.get('/admin/groups'),
   getStats: () => api.get('/admin/stats'),
   
@@ -354,11 +427,30 @@ export const adminAPI = {
   
   // Semester Management
   updateStudentSemesters: (data) => api.post('/admin/students/update-semesters', data),
-  getStudentsBySemester: (semester, degree) => {
-    const params = new URLSearchParams();
-    if (semester) params.append('semester', semester);
-    if (degree) params.append('degree', degree);
-    return api.get(`/admin/students/by-semester?${params.toString()}`);
+  getStudentsBySemester: (params = {}) => {
+    const searchParams = new URLSearchParams();
+    if (params.semester !== undefined && params.semester !== null) {
+      searchParams.append('semester', params.semester);
+    }
+    if (params.degree) {
+      searchParams.append('degree', params.degree);
+    }
+    const queryString = searchParams.toString();
+    return api.get(`/admin/students/by-semester${queryString ? `?${queryString}` : ''}`);
+  },
+  
+  // Sem 7 Management
+  listSem7TrackChoices: (params = {}) => {
+    const queryString = new URLSearchParams(params).toString();
+    return api.get(`/admin/sem7/track-choices${queryString ? '?' + queryString : ''}`);
+  },
+  finalizeSem7Track: (studentId, data) => api.patch(`/admin/sem7/finalize/${studentId}`, data),
+  listInternship1TrackChoices: () => api.get('/admin/sem7/internship1-track-choices'),
+  changeInternship1Track: (studentId, data) => api.patch(`/admin/sem7/internship1-track/${studentId}`, data),
+  listInternshipApplications: (params = {}) => {
+    const queryString = new URLSearchParams(params).toString();
+    // Backend route is under /internships/applications (admin protected)
+    return api.get(`/internships/applications${queryString ? '?' + queryString : ''}`);
   },
 
   getMTechSem1UnregisteredStudents: (params) => {
@@ -376,6 +468,7 @@ export const adminAPI = {
     }
     return apiRequest(url.href.replace(API_BASE_URL, ''));
   },
+  reviewInternshipApplication: (applicationId, data) => api.patch(`/internships/applications/${applicationId}/review`, data),
 };
 
 // Project APIs (shared)

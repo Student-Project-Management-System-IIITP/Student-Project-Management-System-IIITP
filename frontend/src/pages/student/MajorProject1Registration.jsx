@@ -1,97 +1,134 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
-import { useSem5Project } from '../../hooks/useSem5Project';
-import { useGroupManagement } from '../../hooks/useGroupManagement';
+import { useSem7Project } from '../../hooks/useSem7Project';
 import { useAuth } from '../../context/AuthContext';
 import { studentAPI } from '../../utils/api';
 import { toast } from 'react-hot-toast';
+import Layout from '../../components/common/Layout';
 
-const MinorProject2Registration = () => {
+const MajorProject1Registration = () => {
   const navigate = useNavigate();
-  const { user } = useAuth();
-  const { registerMinorProject2, loading } = useSem5Project();
-  const { isInGroup, sem5Group, isGroupLeader, getGroupStats, loading: groupLoading } = useGroupManagement();
+  const { user, roleData } = useAuth();
+  const { 
+    majorProject1Group, 
+    registerMajorProject1, 
+    loading: sem7Loading,
+    finalizedTrack 
+  } = useSem7Project();
   
   // Initialize state from localStorage or defaults
   const [currentStep, setCurrentStep] = useState(() => {
-    const saved = localStorage.getItem('minorProject2Registration_currentStep');
+    const saved = localStorage.getItem('majorProject1Registration_currentStep');
     return saved ? parseInt(saved) : 3;
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [facultyList, setFacultyList] = useState([]);
   const [facultyPreferences, setFacultyPreferences] = useState(() => {
-    const saved = localStorage.getItem('minorProject2Registration_facultyPreferences');
+    const saved = localStorage.getItem('majorProject1Registration_facultyPreferences');
     return saved ? JSON.parse(saved) : [];
   });
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedDepartment, setSelectedDepartment] = useState('all');
   const [isRestoredFromStorage, setIsRestoredFromStorage] = useState(false);
-  const toastShownRef = React.useRef(false);
   const [customDomain, setCustomDomain] = useState(() => {
-    const saved = localStorage.getItem('minorProject2Registration_customDomain');
+    const saved = localStorage.getItem('majorProject1Registration_customDomain');
     return saved || '';
   });
   const [facultyPreferenceLimit, setFacultyPreferenceLimit] = useState(7); // Default to 7
-  // Simple access validation - only redirect if we have group data and conditions are not met
-  useEffect(() => {
-    try {
-      // Only validate if we have group data loaded
-      if (!groupLoading) {
-        if (!sem5Group) {
-          if (!toastShownRef.current) {
-            toast.error('You are not in a group. Please join or create a group first.');
-            toastShownRef.current = true;
-          }
-          navigate('/student/dashboard');
-          return;
-        }
-        // Check if group is finalized
-        if (sem5Group.status !== 'finalized') {
-          if (!toastShownRef.current) {
-            toast.error('Your group must be finalized before registering your project');
-            toastShownRef.current = true;
-          }
-          navigate('/dashboard/student');
-          return;
-        }
+  const [groupLoading, setGroupLoading] = useState(true);
 
-        // Check if user is group leader
-        if (!isGroupLeader) {
-          toast.error('Only the group leader can register the project');
+  // Validation: Check if student is in Sem 7 and finalized for coursework
+  useEffect(() => {
+    const currentSemester = roleData?.semester || user?.semester;
+    if (currentSemester !== 7) {
+      toast.error('Major Project 1 registration is only available for Semester 7 students');
+      navigate('/dashboard/student');
+      return;
+    }
+    
+    if (finalizedTrack !== 'coursework') {
+      toast.error('Major Project 1 is only available for students finalized for coursework track');
+      navigate('/dashboard/student');
+      return;
+    }
+  }, [roleData, user, finalizedTrack, navigate]);
+
+  // Load group data
+  useEffect(() => {
+    const loadGroup = async () => {
+      try {
+        setGroupLoading(true);
+        const response = await studentAPI.getGroups({ semester: 7 });
+        if (response.success && response.data && response.data.length > 0) {
+          // Group is already loaded in Sem7Context, but we validate here
+          if (response.data[0].status !== 'finalized') {
+            toast.error('Your group must be finalized before registering Major Project 1');
+            navigate('/dashboard/student');
+            return;
+          }
+        } else {
+          toast.error('You must be in a finalized group to register Major Project 1');
           navigate('/dashboard/student');
           return;
         }
-        
-        const groupStats = sem5Group ? getGroupStats() : { memberCount: 0 };
-        if (groupStats.memberCount < 2) {
-          toast.error('Your group must have at least 2 members before registering your project');
-          navigate('/dashboard/student');
-          return;
-        }
+      } catch (error) {
+        console.error('Failed to load group:', error);
+        toast.error('Failed to load group information');
+        navigate('/dashboard/student');
+      } finally {
+        setGroupLoading(false);
+      }
+    };
+    
+    if (finalizedTrack === 'coursework') {
+      loadGroup();
+    }
+  }, [finalizedTrack, navigate]);
+
+  // Validate group access
+  useEffect(() => {
+    if (!groupLoading && majorProject1Group) {
+      // Check if group is finalized
+      if (majorProject1Group.status !== 'finalized') {
+        toast.error('Your group must be finalized before registering your project');
+        navigate('/dashboard/student');
+        return;
+      }
+
+      // Check if user is group leader
+      const isLeader = majorProject1Group.leader?._id === roleData?._id || 
+                      majorProject1Group.leader === roleData?._id ||
+                      (typeof majorProject1Group.leader === 'object' && majorProject1Group.leader._id === roleData?._id);
+      
+      if (!isLeader) {
+        toast.error('Only the group leader can register the project');
+        navigate('/dashboard/student');
+        return;
       }
       
-      const groupStats = sem5Group ? getGroupStats() : { memberCount: 0 };
-      if (groupStats.memberCount < 2) {
+      const memberCount = majorProject1Group.members?.length || 0;
+      if (memberCount < 2) {
         toast.error('Your group must have at least 2 members before registering your project');
         navigate('/dashboard/student');
         return;
       }
-    } catch (error) {
-      console.error('Error in access validation:', error);
-      toast.error('An error occurred while loading your group information');
-      navigate('/student/dashboard');
     }
-  }, [groupLoading, sem5Group, isGroupLeader, getGroupStats, navigate]);
+  }, [groupLoading, majorProject1Group, roleData, navigate]);
 
   // Load faculty preference limit from system config
   useEffect(() => {
     const loadFacultyPreferenceLimit = async () => {
       try {
-        const response = await studentAPI.getSystemConfig('sem5.facultyPreferenceLimit');
+        const response = await studentAPI.getSystemConfig('sem7.major1.facultyPreferenceLimit');
         if (response.success && response.data) {
           setFacultyPreferenceLimit(response.data.value);
-          console.log('Loaded faculty preference limit:', response.data.value);
+        } else {
+          // Fallback to sem5 limit
+          const fallbackResponse = await studentAPI.getSystemConfig('sem5.facultyPreferenceLimit');
+          if (fallbackResponse.success && fallbackResponse.data) {
+            setFacultyPreferenceLimit(fallbackResponse.data.value);
+          }
         }
       } catch (error) {
         console.error('Failed to load faculty preference limit, using default:', error);
@@ -132,8 +169,8 @@ const MinorProject2Registration = () => {
     reset
   } = useForm({
     defaultValues: {
-      title: localStorage.getItem('minorProject2Registration_title') || '',
-      domain: localStorage.getItem('minorProject2Registration_domain') || ''
+      title: localStorage.getItem('majorProject1Registration_title') || '',
+      domain: localStorage.getItem('majorProject1Registration_domain') || ''
     }
   });
 
@@ -143,55 +180,41 @@ const MinorProject2Registration = () => {
 
   // Check if form was restored from localStorage
   useEffect(() => {
-    const hasStoredData = localStorage.getItem('minorProject2Registration_currentStep') ||
-                         localStorage.getItem('minorProject2Registration_title') ||
-                         localStorage.getItem('minorProject2Registration_domain') ||
-                         localStorage.getItem('minorProject2Registration_facultyPreferences');
+    const hasStoredData = localStorage.getItem('majorProject1Registration_currentStep') ||
+                         localStorage.getItem('majorProject1Registration_title') ||
+                         localStorage.getItem('majorProject1Registration_domain') ||
+                         localStorage.getItem('majorProject1Registration_facultyPreferences');
     
     if (hasStoredData) {
       setIsRestoredFromStorage(true);
-      // Hide the banner after 5 seconds
       setTimeout(() => setIsRestoredFromStorage(false), 5000);
     }
   }, []);
 
-  // Cleanup localStorage on unmount if form is not completed
-  useEffect(() => {
-    return () => {
-      // Only clear if form is not completed (no project registered)
-      // This prevents clearing data if user navigates away after successful registration
-      const isCompleted = localStorage.getItem('minorProject2Registration_completed');
-      if (!isCompleted) {
-        // Don't clear immediately, let the user's session persist
-        // localStorage will be cleared on successful completion or manual cancel
-      }
-    };
-  }, []);
-
   // Persist state changes to localStorage
   useEffect(() => {
-    localStorage.setItem('minorProject2Registration_currentStep', currentStep.toString());
+    localStorage.setItem('majorProject1Registration_currentStep', currentStep.toString());
   }, [currentStep]);
 
   useEffect(() => {
-    localStorage.setItem('minorProject2Registration_facultyPreferences', JSON.stringify(facultyPreferences));
+    localStorage.setItem('majorProject1Registration_facultyPreferences', JSON.stringify(facultyPreferences));
   }, [facultyPreferences]);
 
   // Persist form data
   useEffect(() => {
     if (watchedTitle !== undefined) {
-      localStorage.setItem('minorProject2Registration_title', watchedTitle || '');
+      localStorage.setItem('majorProject1Registration_title', watchedTitle || '');
     }
   }, [watchedTitle]);
 
   useEffect(() => {
     if (watchedDomain !== undefined) {
-      localStorage.setItem('minorProject2Registration_domain', watchedDomain || '');
+      localStorage.setItem('majorProject1Registration_domain', watchedDomain || '');
     }
   }, [watchedDomain]);
 
   useEffect(() => {
-    localStorage.setItem('minorProject2Registration_customDomain', customDomain);
+    localStorage.setItem('majorProject1Registration_customDomain', customDomain);
   }, [customDomain]);
 
   const onSubmit = async (data) => {
@@ -199,26 +222,22 @@ const MinorProject2Registration = () => {
       setIsSubmitting(true);
       
       const projectData = {
-        ...data,
+        title: data.title,
         domain: data.domain === 'Other' ? customDomain : data.domain,
-        semester: 5,
-        academicYear: user.academicYear || '2024-25',
-        projectType: 'minor2',
-        degree: 'B.Tech',
         facultyPreferences: facultyPreferences
       };
 
-      await registerMinorProject2(projectData);
+      await registerMajorProject1(projectData);
       
       // Clear localStorage on successful completion
-      localStorage.removeItem('minorProject2Registration_currentStep');
-      localStorage.removeItem('minorProject2Registration_facultyPreferences');
-      localStorage.removeItem('minorProject2Registration_title');
-      localStorage.removeItem('minorProject2Registration_domain');
-      localStorage.removeItem('minorProject2Registration_customDomain');
-      localStorage.removeItem('minorProject2Registration_completed');
+      localStorage.removeItem('majorProject1Registration_currentStep');
+      localStorage.removeItem('majorProject1Registration_facultyPreferences');
+      localStorage.removeItem('majorProject1Registration_title');
+      localStorage.removeItem('majorProject1Registration_domain');
+      localStorage.removeItem('majorProject1Registration_customDomain');
+      localStorage.removeItem('majorProject1Registration_completed');
       
-      toast.success('Minor Project 2 registered successfully!');
+      toast.success('Major Project 1 registered successfully!');
       navigate('/dashboard/student');
     } catch (error) {
       toast.error(`Registration failed: ${error.message}`);
@@ -230,12 +249,12 @@ const MinorProject2Registration = () => {
   const onCancel = () => {
     reset();
     // Clear localStorage persistence
-    localStorage.removeItem('minorProject2Registration_currentStep');
-    localStorage.removeItem('minorProject2Registration_facultyPreferences');
-    localStorage.removeItem('minorProject2Registration_title');
-    localStorage.removeItem('minorProject2Registration_domain');
-    localStorage.removeItem('minorProject2Registration_customDomain');
-    localStorage.removeItem('minorProject2Registration_completed');
+    localStorage.removeItem('majorProject1Registration_currentStep');
+    localStorage.removeItem('majorProject1Registration_facultyPreferences');
+    localStorage.removeItem('majorProject1Registration_title');
+    localStorage.removeItem('majorProject1Registration_domain');
+    localStorage.removeItem('majorProject1Registration_customDomain');
+    localStorage.removeItem('majorProject1Registration_completed');
     navigate('/dashboard/student');
   };
 
@@ -308,10 +327,10 @@ const MinorProject2Registration = () => {
   };
 
   const getGroupMembers = () => {
-    if (!sem5Group || !sem5Group.members) return [];
+    if (!majorProject1Group || !majorProject1Group.members) return [];
     
     // Sort members: leader first, then members
-    const sortedMembers = [...sem5Group.members].sort((a, b) => {
+    const sortedMembers = [...majorProject1Group.members].sort((a, b) => {
       if (a.role === 'leader') return -1;
       if (b.role === 'leader') return 1;
       return 0;
@@ -320,19 +339,33 @@ const MinorProject2Registration = () => {
     return sortedMembers;
   };
 
+  const getGroupStats = () => {
+    if (!majorProject1Group) return { memberCount: 0 };
+    return {
+      memberCount: majorProject1Group.members?.length || 0
+    };
+  };
+
+  const isGroupLeader = () => {
+    if (!majorProject1Group || !majorProject1Group.leader) return false;
+    return majorProject1Group.leader?._id === roleData?._id || 
+           majorProject1Group.leader === roleData?._id ||
+           (typeof majorProject1Group.leader === 'object' && majorProject1Group.leader._id === roleData?._id);
+  };
+
   const renderStep3 = () => (
     <div className="space-y-6">
       <div className="text-center mb-6">
         <h2 className="text-2xl font-bold text-gray-900 mb-2">Step 3: Group Member Verification</h2>
         <p className="text-gray-600">Please verify the details of all group members. These details will be forwarded to the admin.</p>
-            </div>
+      </div>
 
       <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
         <div className="flex items-start">
           <div className="flex-shrink-0">
             <svg className="h-5 w-5 text-blue-400" fill="currentColor" viewBox="0 0 20 20">
               <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-              </svg>
+            </svg>
           </div>
           <div className="ml-3">
             <h3 className="text-sm font-medium text-blue-800">Important Note</h3>
@@ -340,12 +373,12 @@ const MinorProject2Registration = () => {
               <p>If any changes are required in these details, students will need to make those changes from their profile page.</p>
             </div>
           </div>
-          </div>
         </div>
+      </div>
 
       <div className="space-y-4">
         {getGroupMembers().map((member, index) => (
-          <div key={member._id} className="bg-white border border-gray-200 rounded-lg p-4">
+          <div key={member._id || member.student?._id || index} className="bg-white border border-gray-200 rounded-lg p-4">
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-lg font-semibold text-gray-900">
                 Group Member {index + 1} {member.role === 'leader' && '(Leader)'}
@@ -361,34 +394,34 @@ const MinorProject2Registration = () => {
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
                 <div className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-md text-sm text-gray-900">
-                  {member.student?.fullName || 'N/A'}
+                  {member.student?.fullName || member.fullName || 'N/A'}
+                </div>
               </div>
-            </div>
               
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">MIS No.</label>
                 <div className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-md text-sm text-gray-900">
-                  {member.student?.misNumber || 'N/A'}
+                  {member.student?.misNumber || member.misNumber || 'N/A'}
+                </div>
               </div>
-            </div>
               
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Contact No.</label>
                 <div className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-md text-sm text-gray-900">
-                  {member.student?.contactNumber || 'N/A'}
-            </div>
+                  {member.student?.contactNumber || member.contactNumber || 'N/A'}
+                </div>
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Branch</label>
                 <div className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-md text-sm text-gray-900">
-                  {member.student?.branch || 'N/A'}
+                  {member.student?.branch || member.branch || 'N/A'}
+                </div>
+              </div>
             </div>
           </div>
-        </div>
-              </div>
         ))}
-              </div>
+      </div>
 
       <div className="flex justify-between">
         <button
@@ -405,8 +438,8 @@ const MinorProject2Registration = () => {
         >
           Continue to Project Details
         </button>
-            </div>
-          </div>
+      </div>
+    </div>
   );
 
   const renderStep4 = () => (
@@ -414,70 +447,70 @@ const MinorProject2Registration = () => {
       <div className="text-center mb-6">
         <h2 className="text-2xl font-bold text-gray-900 mb-2">Step 4: Project Details</h2>
         <p className="text-gray-600">Enter your project details. These can be changed later.</p>
-          </div>
+      </div>
 
       <form onSubmit={handleSubmit(nextStep)} className="space-y-6">
-            <div>
-              <label htmlFor="title" className="block text-sm font-medium text-gray-700 mb-2">
+        <div>
+          <label htmlFor="title" className="block text-sm font-medium text-gray-700 mb-2">
             Proposed Project Title *
-              </label>
-              <input
-                type="text"
-                id="title"
-                {...register('title', {
-                  required: 'Project title is required',
-                  minLength: {
+          </label>
+          <input
+            type="text"
+            id="title"
+            {...register('title', {
+              required: 'Project title is required',
+              minLength: {
                 value: 2,
                 message: 'Title must be at least 2 characters long'
-                  },
-                  maxLength: {
+              },
+              maxLength: {
                 value: 100,
                 message: 'Title cannot exceed 100 characters'
-                  }
-                })}
-                className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-                  errors.title ? 'border-red-500' : 'border-gray-300'
-                }`}
-                placeholder="Enter your project title"
-              />
-              {errors.title && (
-                <p className="mt-1 text-sm text-red-600">{errors.title.message}</p>
-              )}
-            </div>
+              }
+            })}
+            className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+              errors.title ? 'border-red-500' : 'border-gray-300'
+            }`}
+            placeholder="Enter your project title"
+          />
+          {errors.title && (
+            <p className="mt-1 text-sm text-red-600">{errors.title.message}</p>
+          )}
+        </div>
 
-            <div>
-              <label htmlFor="domain" className="block text-sm font-medium text-gray-700 mb-2">
-                Project Domain *
-              </label>
-              <select
-                id="domain"
-                {...register('domain', {
-                  required: 'Please select a project domain'
-                })}
-                className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-                  errors.domain ? 'border-red-500' : 'border-gray-300'
-                }`}
-              >
-                <option value="">Select a domain</option>
-                <option value="Web Development">Web Development</option>
-                <option value="Mobile App Development">Mobile App Development</option>
-                <option value="Data Science & Analytics">Data Science & Analytics</option>
-                <option value="Machine Learning & AI">Machine Learning & AI</option>
-                <option value="Cybersecurity">Cybersecurity</option>
-                <option value="Cloud Computing">Cloud Computing</option>
-                <option value="IoT & Embedded Systems">IoT & Embedded Systems</option>
-                <option value="Blockchain">Blockchain</option>
-                <option value="Game Development">Game Development</option>
-                <option value="Software Engineering">Software Engineering</option>
-                <option value="Database Systems">Database Systems</option>
-                <option value="Computer Networks">Computer Networks</option>
-                <option value="Operating Systems">Operating Systems</option>
-                <option value="Other">Other</option>
-              </select>
-              {errors.domain && (
-                <p className="mt-1 text-sm text-red-600">{errors.domain.message}</p>
-              )}
-          
+        <div>
+          <label htmlFor="domain" className="block text-sm font-medium text-gray-700 mb-2">
+            Project Domain *
+          </label>
+          <select
+            id="domain"
+            {...register('domain', {
+              required: 'Please select a project domain'
+            })}
+            className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+              errors.domain ? 'border-red-500' : 'border-gray-300'
+            }`}
+          >
+            <option value="">Select a domain</option>
+            <option value="Web Development">Web Development</option>
+            <option value="Mobile App Development">Mobile App Development</option>
+            <option value="Data Science & Analytics">Data Science & Analytics</option>
+            <option value="Machine Learning & AI">Machine Learning & AI</option>
+            <option value="Cybersecurity">Cybersecurity</option>
+            <option value="Cloud Computing">Cloud Computing</option>
+            <option value="IoT & Embedded Systems">IoT & Embedded Systems</option>
+            <option value="Blockchain">Blockchain</option>
+            <option value="Game Development">Game Development</option>
+            <option value="Software Engineering">Software Engineering</option>
+            <option value="Database Systems">Database Systems</option>
+            <option value="Computer Networks">Computer Networks</option>
+            <option value="Operating Systems">Operating Systems</option>
+            <option value="Other">Other</option>
+          </select>
+          {errors.domain && (
+            <p className="mt-1 text-sm text-red-600">{errors.domain.message}</p>
+          )}
+      
           {/* Custom domain input - only show when "Other" is selected */}
           {watchedDomain === 'Other' && (
             <div className="mt-3">
@@ -495,10 +528,10 @@ const MinorProject2Registration = () => {
               />
               {watchedDomain === 'Other' && !customDomain.trim() && (
                 <p className="mt-1 text-sm text-red-600">Please specify the domain</p>
-                )}
-              </div>
-          )}
+              )}
             </div>
+          )}
+        </div>
 
         <div className="flex justify-between">
           <button
@@ -529,7 +562,7 @@ const MinorProject2Registration = () => {
             <p className="text-gray-600">Loading faculty list...</p>
           </div>
           <div className="flex items-center justify-center py-8">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
             <span className="ml-2 text-gray-600">Loading faculty members...</span>
           </div>
         </div>
@@ -538,9 +571,6 @@ const MinorProject2Registration = () => {
     
     return (
       <div className="space-y-6">
-        <div className="text-center mb-5">
-        </div>
-
         {/* Instructions */}
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
           <div className="flex items-start">
@@ -562,7 +592,6 @@ const MinorProject2Registration = () => {
             </div>
           </div>
         </div>
-
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Selected Preferences */}
@@ -639,8 +668,8 @@ const MinorProject2Registration = () => {
                           </svg>
                         </button>
                       </div>
-              </div>
-            </div>
+                    </div>
+                  </div>
                 ))}
               </div>
             )}
@@ -652,7 +681,7 @@ const MinorProject2Registration = () => {
             
             {/* Search and Filter */}
             <div className="space-y-3">
-            <div>
+              <div>
                 <input
                   type="text"
                   placeholder="Search by faculty name..."
@@ -710,43 +739,43 @@ const MinorProject2Registration = () => {
                 ))
               )}
             </div>
-              </div>
-            </div>
+          </div>
+        </div>
 
         {/* Action Buttons */}
         <div className="flex justify-between pt-6 border-t border-gray-200">
-              <button
-                type="button"
+          <button
+            type="button"
             onClick={prevStep}
-                className="px-6 py-3 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-500 transition-colors"
-              >
+            className="px-6 py-3 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-500 transition-colors"
+          >
             Back
-              </button>
-              <button
+          </button>
+          <button
             type="button"
             onClick={handleSubmit(onSubmit)}
-            disabled={facultyPreferences.length !== facultyPreferenceLimit || isSubmitting || loading}
-                className={`px-6 py-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors flex items-center ${
-                  facultyPreferences.length === facultyPreferenceLimit
-                    ? 'bg-blue-600 text-white hover:bg-blue-700'
-                    : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                }`}
-              >
-                {isSubmitting ? (
-                  <>
-                    <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                    Registering...
-                  </>
-                ) : facultyPreferences.length === facultyPreferenceLimit ? (
-                  'Complete Registration'
-                ) : (
-                  `Select ${facultyPreferenceLimit - facultyPreferences.length} More Faculty`
-                )}
-              </button>
-            </div>
+            disabled={facultyPreferences.length !== facultyPreferenceLimit || isSubmitting || sem7Loading}
+            className={`px-6 py-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors flex items-center ${
+              facultyPreferences.length === facultyPreferenceLimit
+                ? 'bg-blue-600 text-white hover:bg-blue-700'
+                : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+            }`}
+          >
+            {isSubmitting ? (
+              <>
+                <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                Registering...
+              </>
+            ) : facultyPreferences.length === facultyPreferenceLimit ? (
+              'Complete Registration'
+            ) : (
+              `Select ${facultyPreferenceLimit - facultyPreferences.length} More Faculty`
+            )}
+          </button>
+        </div>
 
         {facultyPreferences.length !== facultyPreferenceLimit && (
           <div className="text-center text-sm text-gray-500">
@@ -761,34 +790,37 @@ const MinorProject2Registration = () => {
   };
 
   // Show loading screen while group data is loading
-  if (groupLoading) {
+  if (groupLoading || sem7Loading) {
     return (
-      <div className="min-h-screen bg-gray-50 py-8">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-center min-h-[400px]">
-            <div className="text-center">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-              <h2 className="text-xl font-semibold text-gray-900 mb-2">Loading Registration Form</h2>
-              <p className="text-gray-600">Please wait while we load your group information...</p>
+      <Layout>
+        <div className="min-h-screen bg-gray-50 py-8">
+          <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex items-center justify-center min-h-[400px]">
+              <div className="text-center">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                <h2 className="text-xl font-semibold text-gray-900 mb-2">Loading Registration Form</h2>
+                <p className="text-gray-600">Please wait while we load your group information...</p>
+              </div>
             </div>
           </div>
         </div>
-      </div>
+      </Layout>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+    <Layout>
+      <div className="min-h-screen bg-gray-50 py-8">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header */}
         <div className="mb-8">
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-3xl font-bold text-gray-900">
-                Minor Project 2 Registration
+                Major Project 1 Registration
               </h1>
               <p className="mt-2 text-gray-600">
-                Register for your B.Tech Semester 5 Minor Project 2
+                Register for your B.Tech Semester 7 Major Project 1
               </p>
             </div>
             <button
@@ -840,17 +872,17 @@ const MinorProject2Registration = () => {
                 Project Details
               </span>
             </div>
-             <div className="flex-1 h-0.5 bg-gray-200">
-               <div className={`h-full ${currentStep >= 5 ? 'bg-blue-600' : 'bg-gray-200'} w-1/3`}></div>
-             </div>
-             <div className="flex items-center">
-               <div className={`w-8 h-8 ${currentStep >= 5 ? 'bg-blue-600' : 'bg-gray-300'} text-white rounded-full flex items-center justify-center text-sm font-medium`}>
-                 5
-               </div>
-               <span className={`ml-2 text-sm ${currentStep >= 5 ? 'font-medium text-blue-600' : 'text-gray-500'}`}>
-                 Faculty Preferences
-               </span>
-             </div>
+            <div className="flex-1 h-0.5 bg-gray-200">
+              <div className={`h-full ${currentStep >= 5 ? 'bg-blue-600' : 'bg-gray-200'} w-1/3`}></div>
+            </div>
+            <div className="flex items-center">
+              <div className={`w-8 h-8 ${currentStep >= 5 ? 'bg-blue-600' : 'bg-gray-300'} text-white rounded-full flex items-center justify-center text-sm font-medium`}>
+                5
+              </div>
+              <span className={`ml-2 text-sm ${currentStep >= 5 ? 'font-medium text-blue-600' : 'text-gray-500'}`}>
+                Faculty Preferences
+              </span>
+            </div>
           </div>
         </div>
 
@@ -884,7 +916,7 @@ const MinorProject2Registration = () => {
         )}
 
         {/* Group Information */}
-        {sem5Group && (
+        {majorProject1Group && (
           <div className="mb-6 bg-green-50 rounded-lg p-4 border border-green-200">
             <div className="flex items-center">
               <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center mr-3">
@@ -894,7 +926,7 @@ const MinorProject2Registration = () => {
               </div>
               <div>
                 <h3 className="text-sm font-medium text-green-900">
-                  Group Finalized ({getGroupStats().memberCount} members) - {sem5Group.name || 'Unnamed Group'}
+                  Group Finalized ({getGroupStats().memberCount} members) - {majorProject1Group.name || 'Unnamed Group'}
                 </h3>
                 <p className="text-xs text-green-700">
                   Your group has been finalized and you can now register your project details
@@ -910,41 +942,42 @@ const MinorProject2Registration = () => {
         {/* Step Content */}
         <div className="bg-white rounded-lg shadow-lg">
           <div className="px-6 py-4 border-b border-gray-200">
-             <h2 className="text-xl font-semibold text-gray-900">
-               {currentStep === 3 && 'Step 3: Group Member Verification'}
-               {currentStep === 4 && 'Step 4: Project Details'}
-               {currentStep === 5 && 'Step 5: Faculty Preferences'}
-             </h2>
-             <p className="text-gray-600 mt-1">
-               {currentStep === 3 && 'Verify group member details before proceeding'}
-               {currentStep === 4 && 'Enter your project information'}
-               {currentStep === 5 && 'Select your preferred faculty members'}
-             </p>
+            <h2 className="text-xl font-semibold text-gray-900">
+              {currentStep === 3 && 'Step 3: Group Member Verification'}
+              {currentStep === 4 && 'Step 4: Project Details'}
+              {currentStep === 5 && 'Step 5: Faculty Preferences'}
+            </h2>
+            <p className="text-gray-600 mt-1">
+              {currentStep === 3 && 'Verify group member details before proceeding'}
+              {currentStep === 4 && 'Enter your project information'}
+              {currentStep === 5 && 'Select your preferred faculty members'}
+            </p>
           </div>
 
-           <div className="p-6">
-             {currentStep === 3 && renderStep3()}
-             {currentStep === 4 && renderStep4()}
-             {currentStep === 5 && renderStep5()}
-           </div>
+          <div className="p-6">
+            {currentStep === 3 && renderStep3()}
+            {currentStep === 4 && renderStep4()}
+            {currentStep === 5 && renderStep5()}
+          </div>
         </div>
 
         {/* Information Card */}
         <div className="mt-8 bg-blue-50 rounded-lg p-6">
-          <h3 className="text-lg font-semibold text-blue-900 mb-4">About Minor Project 2 Registration</h3>
+          <h3 className="text-lg font-semibold text-blue-900 mb-4">About Major Project 1 Registration</h3>
           <div className="text-blue-800 space-y-2">
             <p>• <strong>Progress:</strong> You have successfully completed group formation and finalization ✅</p>
             <p>• <strong>Current Step:</strong> {currentStep === 3 ? 'Verifying group member details' : currentStep === 4 ? 'Entering project details' : 'Selecting faculty preferences'}</p>
             <p>• <strong>Leader Only:</strong> Only the group leader can register the project details</p>
             <p>• <strong>Faculty Allocation:</strong> Faculty selection will be processed after registration</p>
-            <p>• <strong>Duration:</strong> 4-5 months of development and implementation</p>
-            <p>• <strong>Evaluation:</strong> Group presentation and individual contribution assessment</p>
+            <p>• <strong>New Group:</strong> Major Project 1 requires a completely new group formation (cannot use previous semester groups)</p>
             <p>• <strong>Next Steps:</strong> After registration, faculty allocation will be processed based on your preferences</p>
           </div>
         </div>
+        </div>
       </div>
-    </div>
+    </Layout>
   );
 };
 
-export default MinorProject2Registration;
+export default MajorProject1Registration;
+

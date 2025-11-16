@@ -154,7 +154,17 @@ const GroupDashboard = () => {
         }
       } catch (error) {
         console.error('Failed to load group details:', error);
-        toast.error('Failed to load group details');
+        
+        // Check if error is due to not being a member
+        if (error.response?.status === 403 || error.response?.status === 404) {
+          toast.error('You are not a member of this group or group not found');
+          // Redirect to dashboard after a brief delay
+          setTimeout(() => {
+            window.location.assign('/dashboard/student');
+          }, 1500);
+        } else {
+          toast.error('Failed to load group details');
+        }
       } finally {
         setLoading(false);
       }
@@ -251,6 +261,15 @@ const GroupDashboard = () => {
       }
     } catch (error) {
       console.error('Failed to refresh group details:', error);
+      
+      // Check if error is due to not being a member anymore
+      if (error.response?.status === 403 || error.response?.status === 404) {
+        toast.error('You are no longer a member of this group');
+        // Redirect to dashboard
+        setTimeout(() => {
+          window.location.assign('/dashboard/student');
+        }, 1500);
+      }
     }
   }, [groupId]);
 
@@ -536,6 +555,72 @@ const GroupDashboard = () => {
     }
   }, [groupDetails, finalizeGroup, fetchSem5Data]);
 
+  // Handle leave group
+  const [leaveLoading, setLeaveLoading] = useState(false);
+  
+  const handleLeaveGroup = useCallback(async () => {
+    if (!groupDetails) return;
+
+    const confirmMessage = `Are you sure you want to leave this group?\n\nThis action will:\n• Remove you from the group\n• Cancel your membership\n• Allow you to join other groups\n\nYou can only leave before the group is finalized.`;
+    
+    if (!window.confirm(confirmMessage)) {
+      return;
+    }
+
+    setLeaveLoading(true);
+    try {
+      const response = await studentAPI.leaveGroup(groupDetails._id);
+      
+      if (response && response.success) {
+        toast.success('You have successfully left the group.');
+        
+        // Use navigate with reload to ensure a clean state
+        window.location.assign('/dashboard/student');
+      }
+    } catch (error) {
+      console.error('Error leaving group:', error);
+      
+      let errorMessage = 'Failed to leave group';
+      if (error.message?.includes('Cannot leave a finalized group')) {
+        errorMessage = 'Cannot leave a finalized group';
+      } else if (error.message?.includes('Group leader cannot leave')) {
+        errorMessage = 'Group leader must transfer leadership before leaving';
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
+      toast.error(errorMessage);
+    } finally {
+      setLeaveLoading(false);
+    }
+  }, [groupDetails, fetchSem5Data]);
+
+  // Check if current user can leave the group
+  const canLeaveGroup = useCallback(() => {
+    if (!groupDetails || !roleData) return false;
+    
+    // Cannot leave if group is finalized
+    if (groupDetails.status === 'finalized' || groupDetails.status === 'locked') {
+      return false;
+    }
+    
+    // Check if user is a member (not just invited)
+    const currentMember = groupDetails.members?.find(member => 
+      member.student?._id === roleData._id || member.student === roleData._id
+    );
+    
+    if (!currentMember || !currentMember.isActive) {
+      return false;
+    }
+    
+    // Member must have accepted the invitation
+    if (currentMember.inviteStatus !== 'accepted') {
+      return false;
+    }
+    
+    return true;
+  }, [groupDetails, roleData]);
+
   // Prevent background scroll when modal is open
   useEffect(() => {
     if (showInviteModal) {
@@ -606,7 +691,8 @@ const GroupDashboard = () => {
           query: searchTerm,
           limit: 20,
           page: page,
-          groupId: groupId
+          groupId: groupId,
+          semester: groupDetails?.semester // Pass group semester for proper filtering
         });
         
         if (response.success && response.data) {
@@ -642,12 +728,18 @@ const GroupDashboard = () => {
     const handleStudentSelect = (student) => {
       const inviteStatus = getInviteStatus(student);
       
-      // Only allow selection of students who can be invited
-      const canSelect = inviteStatus.status === 'available' || 
+      // Only allow selection of students who can be invited (exclude disabled Sem 7 students)
+      const canSelect = !inviteStatus.disabled && (
+        inviteStatus.status === 'available' || 
                        inviteStatus.status === 'selected' || 
-                       inviteStatus.status === 'rejected_from_current_group';
+        inviteStatus.status === 'rejected_from_current_group'
+      );
       
       if (!canSelect) {
+        // Show error toast for disabled students
+        if (inviteStatus.disabled) {
+          toast.error(inviteStatus.message || 'This student cannot be invited');
+        }
         return; // Don't allow selection
       }
       
@@ -664,13 +756,30 @@ const GroupDashboard = () => {
     };
 
     const getInviteStatus = (student) => {
+      // Get group semester to check if Sem 7 eligibility checks are needed
+      const groupSemester = groupDetails?.semester || 5;
+      
       // Check if student is already selected
       if (selectedStudents.some(s => s._id === student._id)) {
         return { status: 'selected', message: 'Selected' };
       }
       
+      // For Sem 7: Check coursework eligibility before other checks
+      if (groupSemester === 7 && student.semester === 7) {
+        if (student.isCourseworkEligible === false || student.isCourseworkEligible === undefined) {
+          const trackInfo = student.trackInfo;
+          if (!trackInfo?.hasSelectedTrack) {
+            return { status: 'no_track_selected', message: 'Track not selected', disabled: true };
+          } else if (trackInfo?.selectedTrack === 'internship') {
+            return { status: 'internship_track', message: '6-month internship track', disabled: true };
+          } else {
+            return { status: 'not_coursework', message: 'Not in coursework track', disabled: true };
+          }
+        }
+      }
+      
       // Check if student is already in a group
-      if (student.isInGroup) {
+      if (student.isInGroup || student.status === 'in_group') {
         return { status: 'in_group', message: 'Already in a group' };
       }
       
@@ -703,6 +812,24 @@ const GroupDashboard = () => {
       return { status: 'available', message: 'Available' };
     };
 
+    // Handle select all available students
+    const handleSelectAll = () => {
+      const availableStudents = sortedStudents.filter(student => {
+        const status = getInviteStatus(student);
+        return status.status === 'available' && selectedStudents.length < maxSelections;
+      });
+      
+      if (availableStudents.length > 0) {
+        const newSelection = [...selectedStudents, ...availableStudents.slice(0, maxSelections - selectedStudents.length)];
+        onSelection(newSelection);
+      }
+    };
+
+    // Handle clear all selections
+    const handleClearAll = () => {
+      onSelection([]);
+    };
+
     // Filter and sort students
     const filteredStudents = students.filter(student => {
       return searchTerm.length < 2 || (
@@ -713,7 +840,10 @@ const GroupDashboard = () => {
       );
     });
 
-    // Sort students by status priority (Selected → Available → Others)
+    // Get group semester for Sem 7 checks
+    const groupSemester = groupDetails?.semester || 5;
+    
+    // Sort students by status priority (Selected → Available → Others → Disabled Sem 7)
     const sortedStudents = filteredStudents.sort((a, b) => {
       const statusA = getInviteStatus(a);
       const statusB = getInviteStatus(b);
@@ -726,7 +856,11 @@ const GroupDashboard = () => {
           'rejected_from_current_group': 5,   // Previously rejected fifth
           'pending_invites': 6,               // Has pending invites sixth
           'group_full': 7,                    // Group full seventh
-          'group_finalized': 8                // Group finalized last
+          'group_finalized': 8,               // Group finalized
+          // Sem 7 disabled statuses (shown but not selectable)
+          'no_track_selected': 9,             // No track selected (Sem 7)
+          'internship_track': 10,             // Internship track (Sem 7)
+          'not_coursework': 11                // Not coursework (Sem 7)
         };
       
       const priorityA = statusPriority[statusA.status] || 999;
@@ -803,7 +937,7 @@ const GroupDashboard = () => {
           </div>
           
           {/* Quick Stats */}
-          <div className="mb-3 grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
+          <div className={`mb-3 grid gap-2 text-xs ${groupSemester === 7 ? 'grid-cols-2 md:grid-cols-5' : 'grid-cols-2 md:grid-cols-4'}`}>
             {(() => {
               const stats = sortedStudents.reduce((acc, student) => {
                 const status = getInviteStatus(student);
@@ -811,12 +945,24 @@ const GroupDashboard = () => {
                 return acc;
               }, {});
               
-              return [
+              // Calculate not eligible count for Sem 7
+              const notEligibleCount = groupSemester === 7 
+                ? (stats.no_track_selected || 0) + (stats.internship_track || 0) + (stats.not_coursework || 0)
+                : 0;
+              
+              const baseStats = [
                 { key: 'selected', label: 'Selected', color: 'blue', count: stats.selected || 0 },
                 { key: 'available', label: 'Available', color: 'green', count: stats.available || 0 },
                 { key: 'pending_from_current_group', label: 'Invitation Pending', color: 'orange', count: stats.pending_from_current_group || 0 },
                 { key: 'in_group', label: 'In Group', color: 'red', count: stats.in_group || 0 }
-              ].map(({ key, label, color, count }) => (
+              ];
+              
+              // Add "Not Eligible" stat for Sem 7
+              if (groupSemester === 7 && notEligibleCount > 0) {
+                baseStats.push({ key: 'not_eligible', label: 'Not Eligible', color: 'gray', count: notEligibleCount });
+              }
+              
+              return baseStats.map(({ key, label, color, count }) => (
                 <div key={key} className="flex items-center justify-between p-2 bg-white rounded border">
                   <span className={`text-${color}-700 font-medium`}>{label}</span>
                   <span className={`text-${color}-600 font-bold`}>{count}</span>
@@ -843,6 +989,12 @@ const GroupDashboard = () => {
               <div className="w-3 h-3 bg-red-100 rounded-full border border-red-300"></div>
               <span className="text-red-700">In Group</span>
             </span>
+            {groupSemester === 7 && (
+              <span className="flex items-center space-x-1">
+                <div className="w-3 h-3 bg-gray-100 rounded-full border border-gray-300 opacity-50"></div>
+                <span className="text-gray-600">Not Eligible (Sem 7)</span>
+              </span>
+            )}
           </div>
         </div>
 
@@ -851,9 +1003,11 @@ const GroupDashboard = () => {
           {sortedStudents.map((student, index) => {
               const isSelected = selectedStudents.some(s => s._id === student._id);
             const inviteStatus = getInviteStatus(student);
-              const canSelect = inviteStatus.status === 'available' || 
+              const canSelect = !inviteStatus.disabled && (
+                inviteStatus.status === 'available' || 
                                inviteStatus.status === 'selected' || 
-                               inviteStatus.status === 'rejected_from_current_group';
+                inviteStatus.status === 'rejected_from_current_group'
+              );
               
             // Check if we need to add a separator
             const prevStudent = index > 0 ? sortedStudents[index - 1] : null;
@@ -870,13 +1024,15 @@ const GroupDashboard = () => {
                         inviteStatus.status === 'available' ? 'bg-green-400' :
                         inviteStatus.status === 'selected' ? 'bg-blue-400' :
                         inviteStatus.status === 'pending_from_current_group' ? 'bg-orange-400' :
-                        inviteStatus.status === 'in_group' ? 'bg-red-400' : 'bg-gray-400'
+                        inviteStatus.status === 'in_group' ? 'bg-red-400' :
+                        inviteStatus.disabled ? 'bg-gray-400' : 'bg-gray-400'
                       }`}></div>
                       <span className="text-xs font-medium text-gray-600 uppercase tracking-wide">
                         {inviteStatus.status === 'available' ? 'Available Students' :
                          inviteStatus.status === 'selected' ? 'Selected Students' :
                          inviteStatus.status === 'pending_from_current_group' ? 'Invitation Pending' :
-                         inviteStatus.status === 'in_group' ? 'Students in Groups' : 'Other Status'}
+                         inviteStatus.status === 'in_group' ? 'Students in Groups' :
+                         inviteStatus.disabled ? 'Not Eligible Students (Sem 7)' : 'Other Status'}
                       </span>
                     </div>
                   </div>
@@ -884,11 +1040,13 @@ const GroupDashboard = () => {
                 
                 <div
                   onClick={() => canSelect && handleStudentSelect(student)}
-                  className={`p-4 hover:bg-gray-100 transition-all duration-200 ${
-                    canSelect ? 'cursor-pointer' : 'cursor-not-allowed'
+                  className={`p-4 transition-all duration-200 ${
+                    canSelect ? 'cursor-pointer hover:bg-gray-100' : 'cursor-not-allowed'
                   } ${
                     isSelected
                       ? 'bg-gradient-to-r from-blue-50 to-purple-50 border-blue-200 shadow-sm'
+                      : inviteStatus.disabled
+                      ? 'bg-gray-100 border-gray-200 opacity-50'
                       : canSelect
                       ? 'bg-white border-gray-200 hover:border-blue-300 hover:shadow-sm'
                       : 'bg-gray-50 border-gray-200 opacity-60'
@@ -897,17 +1055,26 @@ const GroupDashboard = () => {
                   <div className="flex items-start space-x-4">
                     {/* Avatar with Status */}
                     <div className="relative flex-shrink-0">
-                      <div className={`w-12 h-12 rounded-xl flex items-center justify-center transition-colors ${
+                      <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-sm font-medium ${
                       isSelected
                           ? 'bg-green-200 text-green-800' 
+                          : inviteStatus.disabled
+                          ? 'bg-gray-200 text-gray-400 opacity-50'
                           : inviteStatus.status === 'available'
                           ? 'bg-gray-200 text-gray-700'
                           : 'bg-red-200 text-red-800'
                       }`}>
                         <span className="text-lg">
-                          {isSelected ? '✓' : 
-                           inviteStatus.status === 'available' ? '👤' : '👥'}
-                      </span>
+                          {isSelected
+                            ? '✓'
+                            : inviteStatus.disabled
+                            ? '🚫'
+                            : inviteStatus.status === 'available'
+                            ? '👤'
+                            : inviteStatus.status === 'in_group'
+                            ? '👥'
+                            : '📋'}
+                        </span>
                       </div>
                     </div>
                     
@@ -917,13 +1084,21 @@ const GroupDashboard = () => {
                         <div>
                           <div className={`font-medium text-lg ${
                             isSelected ? 'text-green-700' : 
+                            inviteStatus.disabled ? 'text-gray-500' :
                             inviteStatus.status === 'available' ? 'text-gray-900' : 'text-gray-600'
                           }`}>
                             {student.fullName}
                             {isSelected && <span className="ml-2 text-xs text-green-600 bg-green-100 px-2 py-1 rounded">Selected</span>}
+                            {inviteStatus.disabled && (
+                              <span className="ml-2 text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
+                                {inviteStatus.message}
+                              </span>
+                            )}
                       </div>
                           
-                          <div className="text-sm text-gray-600 mt-1 space-y-1">
+                          <div className={`text-sm mt-1 space-y-1 ${
+                            inviteStatus.disabled ? 'text-gray-400' : 'text-gray-600'
+                          }`}>
                             <div className="flex items-center space-x-4">
                               <span className="font-medium">{student.rollNumber || student.misNumber}</span>
                               {student.semester && <span>Sem {student.semester}</span>}
@@ -932,37 +1107,41 @@ const GroupDashboard = () => {
                             <div className="text-xs text-gray-500 truncate">
                               {student.collegeEmail}
                             </div>
-                    </div>
-                  </div>
-                  
+                          </div>
+                        </div>
+                        
                         {/* Status Badge */}
                         <div className="flex flex-col items-end space-y-2">
-                    <span className={`text-xs px-2 py-1 rounded-full font-medium ${
-                      inviteStatus.status === 'available'
-                        ? 'bg-green-100 text-green-700'
-                        : inviteStatus.status === 'selected'
-                        ? 'bg-blue-100 text-blue-700'
-                        : inviteStatus.status === 'in_group'
-                        ? 'bg-red-100 text-red-700'
-                        : inviteStatus.status === 'pending_from_current_group'
-                        ? 'bg-orange-100 text-orange-700'
-                        : inviteStatus.status === 'rejected_from_current_group'
-                        ? 'bg-pink-100 text-pink-700'
-                        : inviteStatus.status === 'pending_invites'
-                        ? 'bg-yellow-100 text-yellow-700'
-                        : inviteStatus.status === 'group_full'
-                        ? 'bg-purple-100 text-purple-700'
-                        : inviteStatus.status === 'group_finalized'
-                        ? 'bg-gray-100 text-gray-700'
-                        : 'bg-red-100 text-red-700'
-                    }`}>
-                      {inviteStatus.message}
-                    </span>
+                          <span
+                            className={`text-xs px-2 py-1 rounded-full font-medium ${
+                              inviteStatus.disabled
+                                ? 'bg-gray-100 text-gray-500'
+                                : inviteStatus.status === 'available'
+                                ? 'bg-green-100 text-green-700'
+                                : inviteStatus.status === 'selected'
+                                ? 'bg-blue-100 text-blue-700'
+                                : inviteStatus.status === 'in_group'
+                                ? 'bg-red-100 text-red-700'
+                                : inviteStatus.status === 'pending_from_current_group'
+                                ? 'bg-orange-100 text-orange-700'
+                                : inviteStatus.status === 'rejected_from_current_group'
+                                ? 'bg-pink-100 text-pink-700'
+                                : inviteStatus.status === 'pending_invites'
+                                ? 'bg-yellow-100 text-yellow-700'
+                                : inviteStatus.status === 'group_full'
+                                ? 'bg-purple-100 text-purple-700'
+                                : inviteStatus.status === 'group_finalized'
+                                ? 'bg-gray-100 text-gray-700'
+                                : 'bg-red-100 text-red-700'
+                            }`}
+                          >
+                            {inviteStatus.message}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
-          </div>
-              </div>
-            </div>
               </div>
             );
           })}
@@ -1008,31 +1187,47 @@ const GroupDashboard = () => {
   // If we have a groupId from URL, we're loading group details directly
   if (!groupDetails && !loading) {
     return (
-      <div className="min-h-screen bg-gray-50 py-8">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center py-12">
-            <div className="text-gray-400 mb-4">
-              <svg className="mx-auto h-12 w-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
-              </svg>
+      <Layout>
+        <div className="min-h-screen bg-gray-50 py-8">
+          <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="text-center py-12">
+              <div className="mb-6">
+                <div className="inline-flex items-center justify-center w-16 h-16 bg-blue-100 rounded-full mb-4">
+                  <svg className="h-8 w-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m0 0h6" />
+                  </svg>
+                </div>
+              </div>
+              <h3 className="text-2xl font-bold text-gray-900 mb-2">No Group Yet</h3>
+              <p className="text-gray-600 mb-8 max-w-md mx-auto">
+                You're not currently in a group. You can create a new group or wait for invitations from other students.
+              </p>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-2xl mx-auto">
+                <button
+                  onClick={() => navigate('/student/groups/create')}
+                  className="px-6 py-4 bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-lg hover:from-blue-600 hover:to-purple-700 transition-all duration-300 transform hover:scale-105 font-semibold flex items-center justify-center space-x-2 shadow-lg"
+                >
+                  <span className="text-xl">➕</span>
+                  <span>Create New Group</span>
+                </button>
+                
+                <button
+                  onClick={() => navigate('/dashboard/student')}
+                  className="px-6 py-4 bg-gray-200 text-gray-900 rounded-lg hover:bg-gray-300 transition-all duration-300 transform hover:scale-105 font-semibold flex items-center justify-center space-x-2"
+                >
+                  <span className="text-xl">📋</span>
+                  <span>View Invitations</span>
+                </button>
+              </div>
             </div>
-            <h3 className="text-lg font-medium text-gray-900 mb-2">No Group Found</h3>
-            <p className="text-gray-600 mb-4">
-              You are not a member of this group or the group doesn't exist.
-            </p>
-            <button
-              onClick={() => navigate('/dashboard/student')}
-              className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-            >
-              Back to Dashboard
-            </button>
           </div>
         </div>
-      </div>
+      </Layout>
     );
   }
 
-  const currentUserMember = groupDetails.members?.find(member => member.student._id === user._id);
+  const currentUserMember = groupDetails?.members?.find(member => member?.student?._id === user._id);
 
 
 
@@ -1157,16 +1352,64 @@ const GroupDashboard = () => {
                 </div>
                 <div className="p-6">
                   <div className="space-y-3">
-        {populatedInvites && populatedInvites.length > 0 ? populatedInvites.map((invite, index) => {
-                      
-                      // Skip leader from invited members list
+        {populatedInvites && populatedInvites.length > 0 ? (() => {
+          // Filter out leader from invites
+          const leaderId = groupDetails.leader?._id || groupDetails.leader;
+          const filteredInvites = populatedInvites.filter(invite => {
+            const studentId = invite.student?._id || invite.student;
+            return !(leaderId && studentId && studentId === leaderId);
+          });
+          
+          // Group invitations by student and keep only the most recent one for each student
+          // Priority: pending > accepted > rejected > auto-rejected
+          const statusPriority = {
+            'pending': 4,
+            'accepted': 3,
+            'rejected': 2,
+            'auto-rejected': 1
+          };
+          
+          const studentInvitesMap = new Map();
+          filteredInvites.forEach(invite => {
                       const studentId = invite.student?._id || invite.student;
-                      const leaderId = groupDetails.leader?._id || groupDetails.leader;
-                      
-                      if (leaderId && studentId && studentId === leaderId) {
-                        return null;
-                      }
-                      
+            if (!studentId) return;
+            
+            const existingInvite = studentInvitesMap.get(studentId);
+            if (!existingInvite) {
+              studentInvitesMap.set(studentId, invite);
+            } else {
+              // Compare by status priority, then by date (most recent)
+              const existingPriority = statusPriority[existingInvite.status] || 0;
+              const currentPriority = statusPriority[invite.status] || 0;
+              
+              if (currentPriority > existingPriority) {
+                // Current invite has higher priority (e.g., pending > rejected)
+                studentInvitesMap.set(studentId, invite);
+              } else if (currentPriority === existingPriority) {
+                // Same priority - keep the most recent one
+                const existingDate = new Date(existingInvite.invitedAt || 0);
+                const currentDate = new Date(invite.invitedAt || 0);
+                if (currentDate > existingDate) {
+                  studentInvitesMap.set(studentId, invite);
+                }
+              }
+            }
+          });
+          
+          // Convert map to array and sort by status priority (pending first), then by name
+          const uniqueInvites = Array.from(studentInvitesMap.values()).sort((a, b) => {
+            const aPriority = statusPriority[a.status] || 0;
+            const bPriority = statusPriority[b.status] || 0;
+            if (bPriority !== aPriority) {
+              return bPriority - aPriority; // Higher priority first
+            }
+            // Same priority - sort by student name
+            const aName = a.student?.fullName || '';
+            const bName = b.student?.fullName || '';
+            return aName.localeCompare(bName);
+          });
+          
+          return uniqueInvites.map((invite, index) => {
                       return (
                       <div key={index} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
                         <div className="flex items-center space-x-3">
@@ -1223,7 +1466,8 @@ const GroupDashboard = () => {
                         </div>
                       </div>
                       );
-                    }) : (
+          });
+        })() : (
                       <div className="text-center py-8 text-gray-500">
                         <p>No invitations have been sent yet.</p>
                       </div>
@@ -1396,6 +1640,41 @@ const GroupDashboard = () => {
               </div>
             </div>
 
+            {/* Leave Group Section - Only for non-leader members before finalization */}
+            {canLeaveGroup() && !isGroupLeader && (
+              <div className="bg-white rounded-lg shadow-lg p-6">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">Group Actions</h3>
+                <div className="space-y-3">
+                  <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                    <div className="flex items-start space-x-2 mb-2">
+                      <span className="text-yellow-600 text-sm">⚠️</span>
+                      <p className="text-xs text-yellow-700">
+                        You can leave this group before it's finalized by the leader.
+                      </p>
+                    </div>
+                  </div>
+                  
+                  <button
+                    onClick={handleLeaveGroup}
+                    disabled={leaveLoading || !canLeaveGroup()}
+                    className="w-full px-4 py-3 bg-red-500 hover:bg-red-600 text-white rounded-lg font-semibold transition-all duration-300 transform hover:scale-105 active:scale-95 shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2"
+                  >
+                    {leaveLoading ? (
+                      <>
+                        <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent"></div>
+                        <span>Leaving...</span>
+                      </>
+                    ) : (
+                      <>
+                        <span className="text-lg">🚪</span>
+                        <span>Leave Group</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            )}
+
              {/* Invite Members Section - Visible to all members */}
                 {(
                <div className="bg-gradient-to-br from-white via-blue-50 to-purple-50 rounded-2xl shadow-xl border border-blue-100 p-6 relative overflow-hidden">
@@ -1421,7 +1700,9 @@ const GroupDashboard = () => {
                        <div className="grid grid-cols-3 gap-4 mb-4">
                          <div className="text-center">
                            <p className="text-xs text-gray-500 mb-1">Current</p>
-                           <p className="text-2xl font-bold text-gray-900">{groupDetails.members?.length || 0}</p>
+                           <p className="text-2xl font-bold text-gray-900">
+                            {groupDetails?.activeMemberCount ?? (groupDetails.members?.filter?.(m => m.isActive).length || 0)}
+                          </p>
                          </div>
                          <div className="text-center">
                            <p className="text-xs text-gray-500 mb-1">Min Required</p>
@@ -1441,10 +1722,10 @@ const GroupDashboard = () => {
                            <div 
                              className="h-3 rounded-full transition-all duration-500 ease-out relative"
                            style={{ 
-                               width: `${Math.min(100, ((groupDetails.members?.length || 0) / (groupDetails.maxMembers || 5)) * 100)}%`,
+                               width: `${Math.min(100, (((groupDetails?.activeMemberCount ?? (groupDetails.members?.filter?.(m => m.isActive).length || 0)) / (groupDetails.maxMembers || 5)) * 100))}%`,
                                background: `linear-gradient(90deg, 
                                  ${(() => {
-                                   const current = groupDetails.members?.length || 0;
+                                   const current = groupDetails?.activeMemberCount ?? (groupDetails.members?.filter?.(m => m.isActive).length || 0);
                                    const min = groupDetails?.minMembers || 4;
                                    const max = groupDetails?.maxMembers || 5;
                                    const progress = (current / max) * 100;
@@ -1484,19 +1765,23 @@ const GroupDashboard = () => {
                          {/* Progress percentage and status */}
                          <div className="text-center">
                            <span className="text-lg font-bold text-gray-800">
-                             {Math.round(((groupDetails.members?.length || 0) / (groupDetails.maxMembers || 5)) * 100)}%
-                           </span>
-                           <span className="text-sm text-gray-600 ml-2">
-                             ({groupDetails.members?.length || 0} of {groupDetails?.maxMembers || 5} members)
-                           </span>
+                            {(() => {
+                              const current = groupDetails?.activeMemberCount ?? (groupDetails.members?.filter?.(m => m.isActive).length || 0);
+                              const max = groupDetails?.maxMembers || 5;
+                              return Math.round((current / max) * 100);
+                            })()}%
+                          </span>
+                          <span className="text-sm text-gray-600 ml-2">
+                            ({(groupDetails?.activeMemberCount ?? (groupDetails.members?.filter?.(m => m.isActive).length || 0))} of {groupDetails?.maxMembers || 5} members)
+                          </span>
                          </div>
                        </div>
                        
                        {/* Status message */}
                        <div className="mt-3 text-center">
                          {(() => {
-                           const current = groupDetails.members?.length || 0;
-                           const min = groupDetails?.minMembers || 4;
+                           const current = groupDetails?.activeMemberCount ?? (groupDetails.members?.filter?.(m => m.isActive).length || 0);
+                          const min = groupDetails?.minMembers || 4;
                            const max = groupDetails?.maxMembers || 5;
                            
                            if (current < min) {
@@ -1616,11 +1901,19 @@ const GroupDashboard = () => {
                              canFinalizeGroup() && isGroupLeader ? 'text-green-700' : 'text-gray-500'
                            }`}>
                              {canFinalizeGroup() && isGroupLeader
-                               ? `All ${groupDetails.members?.length || 0} members have joined`
-                               : isGroupLeader
-                                 ? `Need ${4 - (groupDetails.members?.length || 0)} more members to finalize`
-                                 : 'Group leader can finalize once minimum members join'
-                             }
+                              ? (() => {
+                                  const current = groupDetails?.activeMemberCount ?? (groupDetails.members?.filter?.(m => m.isActive).length || 0);
+                                  return `All ${current} members have joined`;
+                                })()
+                              : isGroupLeader
+                                ? (() => {
+                                    const current = groupDetails?.activeMemberCount ?? (groupDetails.members?.filter?.(m => m.isActive).length || 0);
+                                    const min = groupDetails?.minMembers || 4;
+                                    const needed = Math.max(0, min - current);
+                                    return `Need ${needed} more member${needed !== 1 ? 's' : ''} to finalize`;
+                                  })()
+                                : 'Group leader can finalize once minimum members join'
+                            }
                            </p>
                          </div>
                          
@@ -1723,7 +2016,7 @@ const GroupDashboard = () => {
          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-2 sm:p-4 animate-in fade-in duration-300">
            <div className="bg-white rounded-3xl shadow-2xl w-full max-w-6xl max-h-[95vh] overflow-hidden flex flex-col border border-gray-100 animate-in slide-in-from-bottom-4 duration-500">
              {/* Modal Header */}
-             <div className="bg-gradient-to-r from-blue-50 via-white to-purple-50 flex items-center justify-between p-6 border-b border-gray-100 flex-shrink-0 relative overflow-hidden">
+             <div className="bg-gradient-to-r from-gray-50 to-blue-50 flex items-center justify-between p-6 border-b border-gray-100 flex-shrink-0 relative overflow-hidden">
                {/* Background decoration */}
                <div className="absolute top-0 right-0 w-40 h-40 bg-gradient-to-bl from-blue-100/50 to-transparent rounded-full -translate-y-20 translate-x-20"></div>
                <div className="absolute bottom-0 left-0 w-32 h-32 bg-gradient-to-tr from-purple-100/50 to-transparent rounded-full translate-y-16 -translate-x-16"></div>
@@ -1816,7 +2109,7 @@ const GroupDashboard = () => {
               </div>
             </div>
           </div>
-        )}
+)}
 
                     {/* Search Section - Auto-expanding */}
                     <div className="px-6 pb-6">
@@ -1839,7 +2132,7 @@ const GroupDashboard = () => {
                               value={searchTerm}
                               onChange={(e) => setSearchTerm(e.target.value)}
                               maxLength={50}
-                              className="block w-full pl-10 pr-20 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                              className="block w-full pl-10 pr-20 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 focus:border-transparent text-sm"
                               placeholder="Search CSE & ECE students by name, email, phone, or MIS number..."
                             />
                             <div className="absolute inset-y-0 right-0 pr-3 flex items-center">
