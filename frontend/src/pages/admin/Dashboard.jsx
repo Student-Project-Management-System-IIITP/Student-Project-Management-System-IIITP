@@ -67,6 +67,16 @@ const AdminDashboard = () => {
     registrationRate: 0
   });
 
+  // M.Tech Sem 2 specific state
+  const [mtechSem2Stats, setMtechSem2Stats] = useState({
+    totalStudents: 0,
+    registeredProjects: 0,
+    facultyAllocated: 0,
+    pendingAllocations: 0,
+    unregisteredStudents: 0,
+    registrationRate: 0
+  });
+
   // Sem 6 specific state
   const [sem6Stats, setSem6Stats] = useState({
     totalSem5Groups: 0,
@@ -127,6 +137,31 @@ const AdminDashboard = () => {
         } catch (mtechError) {
           console.warn('M.Tech Sem 1 data not available:', mtechError);
           setMtechSem1Stats({
+            totalStudents: 0,
+            registeredProjects: 0,
+            facultyAllocated: 0,
+            pendingAllocations: 0,
+            unregisteredStudents: 0,
+            registrationRate: 0
+          });
+        }
+
+        // Load M.Tech Sem 2 statistics
+        try {
+          const mtechSem2StatsResponse = await adminAPI.getMTechSem2Statistics();
+          const statsData = mtechSem2StatsResponse.data || {};
+
+          setMtechSem2Stats({
+            totalStudents: statsData.totalStudents || 0,
+            registeredProjects: statsData.registeredProjects || 0,
+            facultyAllocated: statsData.facultyAllocated || 0,
+            pendingAllocations: statsData.pendingAllocations || 0,
+            unregisteredStudents: statsData.unregisteredStudents || 0,
+            registrationRate: statsData.registrationRate || 0
+          });
+        } catch (mtechSem2Error) {
+          console.warn('M.Tech Sem 2 data not available:', mtechSem2Error);
+          setMtechSem2Stats({
             totalStudents: 0,
             registeredProjects: 0,
             facultyAllocated: 0,
@@ -433,6 +468,64 @@ const AdminDashboard = () => {
               <div className="bg-white bg-opacity-20 rounded-lg p-4 hover:bg-opacity-30 transition-all cursor-pointer">
                 <div className="text-2xl font-bold">{mtechSem1Stats.pendingAllocations}</div>
                 <div className="text-rose-200 text-sm">Pending Allocation</div>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* M.Tech Sem 2 Statistics */}
+      <div className="mb-8">
+        <div className="bg-gradient-to-r from-purple-600 to-indigo-700 text-white p-6 rounded-lg shadow-md">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-2xl font-bold mb-4">M.Tech Semester 2 - Minor Project 2</h2>
+              <p className="text-purple-200 mb-4">Solo project registration and faculty allocation overview</p>
+              {!loading && (
+                <p className="text-sm text-purple-100">
+                  Registration Rate: {mtechSem2Stats.registrationRate}% • Unregistered Students: {mtechSem2Stats.unregisteredStudents}
+                </p>
+              )}
+            </div>
+            <div className="flex space-x-4">
+              <Link
+                to="/admin/mtech/sem2/registrations"
+                className="bg-white bg-opacity-20 hover:bg-opacity-30 px-4 py-2 rounded-md text-white font-medium transition-all duration-200 flex items-center space-x-2"
+              >
+                <span>📊</span>
+                <span>View Registrations</span>
+              </Link>
+              <Link
+                to="/admin/mtech/sem2/unregistered"
+                className="bg-white bg-opacity-20 hover:bg-opacity-30 px-4 py-2 rounded-md text-white font-medium transition-all duration-200 flex items-center space-x-2"
+              >
+                <span>📋</span>
+                <span>Unregistered Students</span>
+              </Link>
+            </div>
+          </div>
+
+          {loading ? (
+            <div className="flex items-center justify-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="bg-white bg-opacity-20 rounded-lg p-4 hover:bg-opacity-30 transition-all cursor-pointer">
+                <div className="text-2xl font-bold">{mtechSem2Stats.totalStudents}</div>
+                <div className="text-purple-200 text-sm">Total Students</div>
+              </div>
+              <div className="bg-white bg-opacity-20 rounded-lg p-4 hover:bg-opacity-30 transition-all cursor-pointer">
+                <div className="text-2xl font-bold">{mtechSem2Stats.registeredProjects}</div>
+                <div className="text-purple-200 text-sm">Registered Projects</div>
+              </div>
+              <div className="bg-white bg-opacity-20 rounded-lg p-4 hover:bg-opacity-30 transition-all cursor-pointer">
+                <div className="text-2xl font-bold">{mtechSem2Stats.facultyAllocated}</div>
+                <div className="text-purple-200 text-sm">Faculty Allocated</div>
+              </div>
+              <div className="bg-white bg-opacity-20 rounded-lg p-4 hover:bg-opacity-30 transition-all cursor-pointer">
+                <div className="text-2xl font-bold">{mtechSem2Stats.pendingAllocations}</div>
+                <div className="text-purple-200 text-sm">Pending Allocation</div>
               </div>
             </div>
           )}

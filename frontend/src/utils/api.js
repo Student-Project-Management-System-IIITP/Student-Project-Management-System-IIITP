@@ -266,6 +266,14 @@ export const adminAPI = {
     return apiRequest(url.href.replace(API_BASE_URL, ''));
   },
 
+  getMTechSem2Registrations: (params) => {
+    const url = new URL('/admin/mtech/sem2/registrations', API_BASE_URL);
+    if (params) {
+      Object.keys(params).forEach(key => url.searchParams.append(key, params[key]));
+    }
+    return apiRequest(url.href.replace(API_BASE_URL, ''));
+  },
+
   getSem5Registrations: (params) => {
     const url = new URL('/admin/sem5/registrations', API_BASE_URL);
     if (params) {
@@ -303,6 +311,14 @@ export const adminAPI = {
 
   getMTechSem1Statistics: (params) => {
     const url = new URL('/admin/statistics/mtech/sem1', API_BASE_URL);
+    if (params) {
+      Object.keys(params).forEach(key => url.searchParams.append(key, params[key]));
+    }
+    return apiRequest(url.href.replace(API_BASE_URL, ''));
+  },
+
+  getMTechSem2Statistics: (params) => {
+    const url = new URL('/admin/statistics/mtech/sem2', API_BASE_URL);
     if (params) {
       Object.keys(params).forEach(key => url.searchParams.append(key, params[key]));
     }
@@ -347,6 +363,14 @@ export const adminAPI = {
 
   getMTechSem1UnregisteredStudents: (params) => {
     const url = new URL('/admin/mtech/sem1/unregistered-students', API_BASE_URL);
+    if (params) {
+      Object.keys(params).forEach(key => url.searchParams.append(key, params[key]));
+    }
+    return apiRequest(url.href.replace(API_BASE_URL, ''));
+  },
+
+  getMTechSem2UnregisteredStudents: (params) => {
+    const url = new URL('/admin/mtech/sem2/unregistered-students', API_BASE_URL);
     if (params) {
       Object.keys(params).forEach(key => url.searchParams.append(key, params[key]));
     }

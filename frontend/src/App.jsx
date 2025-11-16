@@ -39,6 +39,8 @@ import SemesterManagement from './pages/admin/SemesterManagement';
 import MTechSem1Registrations from './pages/admin/MTechSem1Registrations';
 import MTechSem1UnregisteredStudents from './pages/admin/MTechSem1UnregisteredStudents';
 import MTechSem2Registration from './pages/student/MTechSem2Registration';
+import MTechSem2Registrations from './pages/admin/MTechSem2Registrations';
+import MTechSem2UnregisteredStudents from './pages/admin/MTechSem2UnregisteredStudents';
 
 function App() {
   return (
@@ -288,6 +290,20 @@ function AppContent() {
             <ProtectedRoute allowedRoles={['admin']}>
               <Layout>
                 <MTechSem1UnregisteredStudents />
+              </Layout>
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/mtech/sem2/registrations" element={
+            <ProtectedRoute allowedRoles={['admin']}>
+              <Layout>
+                <MTechSem2Registrations />
+              </Layout>
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/mtech/sem2/unregistered" element={
+            <ProtectedRoute allowedRoles={['admin']}>
+              <Layout>
+                <MTechSem2UnregisteredStudents />
               </Layout>
             </ProtectedRoute>
           } />
