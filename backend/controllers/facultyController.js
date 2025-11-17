@@ -5,6 +5,223 @@ const Group = require('../models/Group');
 const FacultyPreference = require('../models/FacultyPreference');
 const FacultyNotification = require('../models/FacultyNotification');
 
+const sortPreferences = (preferences = []) => {
+  return [...preferences].sort((a, b) => (a.priority || 0) - (b.priority || 0));
+};
+
+const getMTechSem3PendingProjects = async (req, res) => {
+  try {
+    const faculty = await Faculty.findOne({ user: req.user.id });
+    if (!faculty) {
+      return res.status(404).json({
+        success: false,
+        message: 'Faculty not found'
+      });
+    }
+
+    const projects = await Project.find({
+      projectType: 'major1',
+      semester: 3,
+      faculty: null,
+      status: { $in: ['registered', 'pending_admin_allocation'] },
+      'facultyPreferences.0': { $exists: true }
+    })
+      .populate('student', 'fullName misNumber collegeEmail degree branch')
+      .populate('facultyPreferences.faculty', 'fullName department designation');
+
+    const pending = projects
+      .map(project => {
+        if (!project.student || project.student.degree !== 'M.Tech') return null;
+        const sortedPrefs = sortPreferences(project.facultyPreferences || []);
+        const currentIndex = project.currentFacultyIndex || 0;
+        if (currentIndex >= sortedPrefs.length) return null;
+        const currentPref = sortedPrefs[currentIndex];
+        if (!currentPref || currentPref.faculty.toString() !== faculty._id.toString()) return null;
+        return {
+          _id: project._id,
+          title: project.title,
+          domain: project.domain,
+          summary: project.description,
+          student: project.student,
+          priority: currentPref.priority || currentIndex + 1,
+          totalPreferences: sortedPrefs.length,
+          submittedAt: project.createdAt,
+          academicYear: project.academicYear
+        };
+      })
+      .filter(Boolean);
+
+    res.json({
+      success: true,
+      data: pending
+    });
+  } catch (error) {
+    console.error('Error fetching Sem 3 pending projects:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to load pending projects'
+    });
+  }
+};
+
+const chooseMTechSem3Project = async (req, res) => {
+  try {
+    const faculty = await Faculty.findOne({ user: req.user.id });
+    if (!faculty) {
+      return res.status(404).json({
+        success: false,
+        message: 'Faculty not found'
+      });
+    }
+
+    const { projectId } = req.params;
+    const project = await Project.findById(projectId)
+      .populate('student', 'degree');
+
+    if (!project || project.projectType !== 'major1' || project.semester !== 3) {
+      return res.status(404).json({
+        success: false,
+        message: 'Project not found'
+      });
+    }
+
+    if (!project.student || project.student.degree !== 'M.Tech') {
+      return res.status(400).json({
+        success: false,
+        message: 'Only M.Tech Sem 3 projects can be allocated here'
+      });
+    }
+
+    const sortedPrefs = sortPreferences(project.facultyPreferences || []);
+    const currentIndex = project.currentFacultyIndex || 0;
+    if (currentIndex >= sortedPrefs.length) {
+      return res.status(400).json({
+        success: false,
+        message: 'No more faculty preferences available for this project'
+      });
+    }
+
+    const currentPref = sortedPrefs[currentIndex];
+    if (currentPref.faculty.toString() !== faculty._id.toString()) {
+      return res.status(403).json({
+        success: false,
+        message: 'This project is not currently assigned to you for allocation'
+      });
+    }
+
+    project.faculty = faculty._id;
+    project.status = 'faculty_allocated';
+    project.allocatedBy = 'faculty_choice';
+    project.currentFacultyIndex = currentIndex;
+    await project.save();
+
+    await FacultyPreference.findOneAndUpdate(
+      { project: project._id, semester: 3 },
+      {
+        status: 'allocated',
+        allocatedFaculty: faculty._id,
+        allocatedBy: 'faculty_choice',
+        allocatedAt: new Date(),
+        currentFacultyIndex: currentIndex
+      }
+    );
+
+    res.json({
+      success: true,
+      message: 'Project allocated successfully'
+    });
+  } catch (error) {
+    console.error('Error choosing Sem 3 project:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to allocate project'
+    });
+  }
+};
+
+const passMTechSem3Project = async (req, res) => {
+  try {
+    const faculty = await Faculty.findOne({ user: req.user.id });
+    if (!faculty) {
+      return res.status(404).json({
+        success: false,
+        message: 'Faculty not found'
+      });
+    }
+
+    const { projectId } = req.params;
+    const project = await Project.findById(projectId)
+      .populate('student', 'degree');
+
+    if (!project || project.projectType !== 'major1' || project.semester !== 3) {
+      return res.status(404).json({
+        success: false,
+        message: 'Project not found'
+      });
+    }
+
+    if (!project.student || project.student.degree !== 'M.Tech') {
+      return res.status(400).json({
+        success: false,
+        message: 'Only M.Tech Sem 3 projects can be processed here'
+      });
+    }
+
+    const sortedPrefs = sortPreferences(project.facultyPreferences || []);
+    const currentIndex = project.currentFacultyIndex || 0;
+    if (currentIndex >= sortedPrefs.length) {
+      return res.status(400).json({
+        success: false,
+        message: 'No more faculty preferences available for this project'
+      });
+    }
+
+    const currentPref = sortedPrefs[currentIndex];
+    if (currentPref.faculty.toString() !== faculty._id.toString()) {
+      return res.status(403).json({
+        success: false,
+        message: 'This project is not currently assigned to you for allocation'
+      });
+    }
+
+    const nextIndex = currentIndex + 1;
+    if (nextIndex >= sortedPrefs.length) {
+      project.currentFacultyIndex = nextIndex;
+      project.status = 'pending_admin_allocation';
+      await project.save();
+      await FacultyPreference.findOneAndUpdate(
+        { project: project._id, semester: 3 },
+        {
+          currentFacultyIndex: nextIndex,
+          status: 'pending'
+        }
+      );
+      return res.json({
+        success: true,
+        message: 'All preferences exhausted. Project sent to admin for allocation.'
+      });
+    }
+
+    project.currentFacultyIndex = nextIndex;
+    await project.save();
+    await FacultyPreference.findOneAndUpdate(
+      { project: project._id, semester: 3 },
+      { currentFacultyIndex: nextIndex }
+    );
+
+    res.json({
+      success: true,
+      message: 'Project passed to next faculty preference'
+    });
+  } catch (error) {
+    console.error('Error passing Sem 3 project:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to pass project'
+    });
+  }
+};
+
 // Get faculty dashboard data
 const getDashboardData = async (req, res) => {
   try {
@@ -1226,6 +1443,9 @@ module.exports = {
   getAllocationRequests,
   acceptAllocation,
   rejectAllocation,
+  getMTechSem3PendingProjects,
+  chooseMTechSem3Project,
+  passMTechSem3Project,
   updateProject,
   evaluateProject,
   // Sem 5 specific functions

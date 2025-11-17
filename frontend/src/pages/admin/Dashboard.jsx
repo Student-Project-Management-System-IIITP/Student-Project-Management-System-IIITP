@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { authAPI, adminAPI } from '../../utils/api';
 import { handleApiError } from '../../utils/errorHandler';
@@ -101,6 +101,15 @@ const AdminDashboard = () => {
     sixMonthApplications: 0,
     summerApplications: 0
   });
+  const [mtechSem3Stats, setMtechSem3Stats] = useState({
+    totalStudents: 0,
+    internshipTrack: 0,
+    majorProjectTrack: 0,
+    totalApplications: 0,
+    pendingApplications: 0,
+    approvedApplications: 0,
+    needsInfo: 0
+  });
   
   const [loading, setLoading] = useState(true);
 
@@ -108,190 +117,200 @@ const AdminDashboard = () => {
   
   const facultyDefaultPassword = useMemo(() => computeDefaultPassword(facultyForm.name), [facultyForm.name]);
 
-  // Load both Sem 4 and Sem 5 data
-  useEffect(() => {
-    const loadAdminData = async () => {
+  const loadAdminData = useCallback(async () => {
+    try {
+      setLoading(true);
+
+      const projectsResponse = await adminAPI.getSem4Projects();
+      const projects = projectsResponse.data || [];
+      const minorProject1Projects = projects.filter(p => p.projectType === 'minor1');
+
+      const unregisteredResponse = await adminAPI.getUnregisteredSem4Students();
+      const unregisteredStudents = unregisteredResponse.data?.length || 0;
+
+      setSem4Stats({
+        totalProjects: minorProject1Projects.length,
+        registeredProjects: minorProject1Projects.length,
+        unregisteredStudents,
+        registrationRate: minorProject1Projects.length > 0
+          ? (minorProject1Projects.length / (minorProject1Projects.length + unregisteredStudents) * 100).toFixed(1)
+          : 0
+      });
+
       try {
-        setLoading(true);
-        
-        // Load Sem 4 projects and statistics
-        const projectsResponse = await adminAPI.getSem4Projects();
-        
-        // Calculate Sem 4 stats for Minor Project 1 only
-        const projects = projectsResponse.data || [];
-        const minorProject1Projects = projects.filter(p => p.projectType === 'minor1');
-        
-        // Get unregistered students count
-        const unregisteredResponse = await adminAPI.getUnregisteredSem4Students();
-        const unregisteredStudents = unregisteredResponse.data?.length || 0;
-        
-        const sem4Stats = {
-          totalProjects: minorProject1Projects.length,
-          registeredProjects: minorProject1Projects.length,
-          unregisteredStudents: unregisteredStudents,
-          registrationRate: minorProject1Projects.length > 0 ? 
-            (minorProject1Projects.length / (minorProject1Projects.length + unregisteredStudents) * 100).toFixed(1) : 0
-        };
-        
-        setSem4Stats(sem4Stats);
-
-        // Load M.Tech Sem 1 statistics
-        try {
-          const mtechStatsResponse = await adminAPI.getMTechSem1Statistics();
-          const statsData = mtechStatsResponse.data || {};
-
-          setMtechSem1Stats({
-            totalStudents: statsData.totalStudents || 0,
-            registeredProjects: statsData.registeredProjects || 0,
-            facultyAllocated: statsData.facultyAllocated || 0,
-            pendingAllocations: statsData.pendingAllocations || 0,
-            unregisteredStudents: statsData.unregisteredStudents || 0,
-            registrationRate: statsData.registrationRate || 0
-          });
-        } catch (mtechError) {
-          console.warn('M.Tech Sem 1 data not available:', mtechError);
-          setMtechSem1Stats({
-            totalStudents: 0,
-            registeredProjects: 0,
-            facultyAllocated: 0,
-            pendingAllocations: 0,
-            unregisteredStudents: 0,
-            registrationRate: 0
-          });
-        }
-
-        // Load M.Tech Sem 2 statistics
-        try {
-          const mtechSem2StatsResponse = await adminAPI.getMTechSem2Statistics();
-          const statsData = mtechSem2StatsResponse.data || {};
-
-          setMtechSem2Stats({
-            totalStudents: statsData.totalStudents || 0,
-            registeredProjects: statsData.registeredProjects || 0,
-            facultyAllocated: statsData.facultyAllocated || 0,
-            pendingAllocations: statsData.pendingAllocations || 0,
-            unregisteredStudents: statsData.unregisteredStudents || 0,
-            registrationRate: statsData.registrationRate || 0
-          });
-        } catch (mtechSem2Error) {
-          console.warn('M.Tech Sem 2 data not available:', mtechSem2Error);
-          setMtechSem2Stats({
-            totalStudents: 0,
-            registeredProjects: 0,
-            facultyAllocated: 0,
-            pendingAllocations: 0,
-            unregisteredStudents: 0,
-            registrationRate: 0
-          });
-        }
-
-          // Load Sem 5 statistics
-        try {
-          const sem5StatsResponse = await adminAPI.getSem5Statistics();
-          
-          // Calculate Sem 5 stats
-          const sem5Stats = {
-            totalGroups: sem5StatsResponse.data?.totalGroups || 0,
-            formedGroups: sem5StatsResponse.data?.formedGroups || 0,
-            allocatedGroups: sem5StatsResponse.data?.allocatedGroups || 0,
-            unallocatedGroups: sem5StatsResponse.data?.unallocatedGroups || 0,
-            totalStudents: sem5StatsResponse.data?.totalStudents || 0,
-            registeredProjects: sem5StatsResponse.data?.registeredProjects || 0
-          };
-          
-          setSem5Stats(sem5Stats);
-        } catch (sem5Error) {
-          console.warn('Sem 5 data not available:', sem5Error);
-          // Set default Sem 5 stats if not available
-          setSem5Stats({
-            totalGroups: 0,
-            formedGroups: 0,
-            allocatedGroups: 0,
-            unallocatedGroups: 0,
-            totalStudents: 0,
-            registeredProjects: 0
-          });
-        }
-
-        // Load Sem 6 statistics
-        try {
-          const sem6StatsResponse = await adminAPI.getSem6Statistics();
-          
-          // Calculate Sem 6 stats
-          const sem6Stats = {
-            totalSem5Groups: sem6StatsResponse.data?.totalSem5Groups || 0,
-            totalProjects: sem6StatsResponse.data?.totalProjects || 0,
-            registeredProjects: sem6StatsResponse.data?.registeredProjects || 0,
-            notRegistered: sem6StatsResponse.data?.notRegistered || 0,
-            continuationProjects: sem6StatsResponse.data?.continuationProjects || 0,
-            newProjects: sem6StatsResponse.data?.newProjects || 0,
-            registrationRate: sem6StatsResponse.data?.registrationRate || 0
-          };
-          
-          setSem6Stats(sem6Stats);
-        } catch (sem6Error) {
-          console.warn('Sem 6 data not available:', sem6Error);
-          // Set default Sem 6 stats if not available
-          setSem6Stats({
-            totalSem5Groups: 0,
-            totalProjects: 0,
-            registeredProjects: 0,
-            notRegistered: 0,
-            continuationProjects: 0,
-            newProjects: 0,
-            registrationRate: 0
-          });
-        }
-
-        // Load Sem 7 statistics
-        try {
-          const [trackChoicesResponse, internshipAppsResponse] = await Promise.all([
-            adminAPI.listSem7TrackChoices(),
-            adminAPI.listInternshipApplications()
-          ]);
-
-          const trackChoices = trackChoicesResponse.data || [];
-          const applications = internshipAppsResponse.data || [];
-
-          const sem7Stats = {
-            totalTrackChoices: trackChoices.length,
-            pendingTrackChoices: trackChoices.filter(tc => !tc.finalizedTrack || tc.verificationStatus === 'pending').length,
-            approvedTrackChoices: trackChoices.filter(tc => tc.verificationStatus === 'approved').length,
-            internshipTrackChoices: trackChoices.filter(tc => tc.finalizedTrack === 'internship' || tc.chosenTrack === 'internship').length,
-            courseworkTrackChoices: trackChoices.filter(tc => tc.finalizedTrack === 'coursework' || tc.chosenTrack === 'coursework').length,
-            totalInternshipApplications: applications.length,
-            pendingApplications: applications.filter(app => app.status === 'pending').length,
-            approvedApplications: applications.filter(app => app.status === 'approved').length,
-            sixMonthApplications: applications.filter(app => app.type === '6month').length,
-            summerApplications: applications.filter(app => app.type === 'summer').length
-          };
-
-          setSem7Stats(sem7Stats);
-        } catch (sem7Error) {
-          console.warn('Sem 7 data not available:', sem7Error);
-          // Set default Sem 7 stats if not available
-          setSem7Stats({
-            totalTrackChoices: 0,
-            pendingTrackChoices: 0,
-            approvedTrackChoices: 0,
-            internshipTrackChoices: 0,
-            courseworkTrackChoices: 0,
-            totalInternshipApplications: 0,
-            pendingApplications: 0,
-            approvedApplications: 0,
-            sixMonthApplications: 0,
-            summerApplications: 0
-          });
-        }
-      } catch (error) {
-        console.error('Failed to load admin data:', error);
-      } finally {
-        setLoading(false);
+        const statsData = (await adminAPI.getMTechSem1Statistics()).data || {};
+        setMtechSem1Stats({
+          totalStudents: statsData.totalStudents || 0,
+          registeredProjects: statsData.registeredProjects || 0,
+          facultyAllocated: statsData.facultyAllocated || 0,
+          pendingAllocations: statsData.pendingAllocations || 0,
+          unregisteredStudents: statsData.unregisteredStudents || 0,
+          registrationRate: statsData.registrationRate || 0
+        });
+      } catch (mtechError) {
+        console.warn('M.Tech Sem 1 data not available:', mtechError);
+        setMtechSem1Stats({
+          totalStudents: 0,
+          registeredProjects: 0,
+          facultyAllocated: 0,
+          pendingAllocations: 0,
+          unregisteredStudents: 0,
+          registrationRate: 0
+        });
       }
-    };
 
-    loadAdminData();
+      try {
+        const statsData = (await adminAPI.getMTechSem2Statistics()).data || {};
+        setMtechSem2Stats({
+          totalStudents: statsData.totalStudents || 0,
+          registeredProjects: statsData.registeredProjects || 0,
+          facultyAllocated: statsData.facultyAllocated || 0,
+          pendingAllocations: statsData.pendingAllocations || 0,
+          unregisteredStudents: statsData.unregisteredStudents || 0,
+          registrationRate: statsData.registrationRate || 0
+        });
+      } catch (mtechSem2Error) {
+        console.warn('M.Tech Sem 2 data not available:', mtechSem2Error);
+        setMtechSem2Stats({
+          totalStudents: 0,
+          registeredProjects: 0,
+          facultyAllocated: 0,
+          pendingAllocations: 0,
+          unregisteredStudents: 0,
+          registrationRate: 0
+        });
+      }
+
+      try {
+        const sem5StatsResponse = await adminAPI.getSem5Statistics();
+        setSem5Stats({
+          totalGroups: sem5StatsResponse.data?.totalGroups || 0,
+          formedGroups: sem5StatsResponse.data?.formedGroups || 0,
+          allocatedGroups: sem5StatsResponse.data?.allocatedGroups || 0,
+          unallocatedGroups: sem5StatsResponse.data?.unallocatedGroups || 0,
+          totalStudents: sem5StatsResponse.data?.totalStudents || 0,
+          registeredProjects: sem5StatsResponse.data?.registeredProjects || 0
+        });
+      } catch (sem5Error) {
+        console.warn('Sem 5 data not available:', sem5Error);
+        setSem5Stats({
+          totalGroups: 0,
+          formedGroups: 0,
+          allocatedGroups: 0,
+          unallocatedGroups: 0,
+          totalStudents: 0,
+          registeredProjects: 0
+        });
+      }
+
+      try {
+        const sem6StatsResponse = await adminAPI.getSem6Statistics();
+        setSem6Stats({
+          totalSem5Groups: sem6StatsResponse.data?.totalSem5Groups || 0,
+          totalProjects: sem6StatsResponse.data?.totalProjects || 0,
+          registeredProjects: sem6StatsResponse.data?.registeredProjects || 0,
+          notRegistered: sem6StatsResponse.data?.notRegistered || 0,
+          continuationProjects: sem6StatsResponse.data?.continuationProjects || 0,
+          newProjects: sem6StatsResponse.data?.newProjects || 0,
+          registrationRate: sem6StatsResponse.data?.registrationRate || 0
+        });
+      } catch (sem6Error) {
+        console.warn('Sem 6 data not available:', sem6Error);
+        setSem6Stats({
+          totalSem5Groups: 0,
+          totalProjects: 0,
+          registeredProjects: 0,
+          notRegistered: 0,
+          continuationProjects: 0,
+          newProjects: 0,
+          registrationRate: 0
+        });
+      }
+
+      try {
+        const [trackChoicesResponse, internshipAppsResponse] = await Promise.all([
+          adminAPI.listSem7TrackChoices(),
+          adminAPI.listInternshipApplications()
+        ]);
+
+        const trackChoices = trackChoicesResponse.data || [];
+        const applications = internshipAppsResponse.data || [];
+
+        setSem7Stats({
+          totalTrackChoices: trackChoices.length,
+          pendingTrackChoices: trackChoices.filter(tc => !tc.finalizedTrack || tc.verificationStatus === 'pending').length,
+          approvedTrackChoices: trackChoices.filter(tc => tc.verificationStatus === 'approved').length,
+          internshipTrackChoices: trackChoices.filter(tc => tc.finalizedTrack === 'internship' || tc.chosenTrack === 'internship').length,
+          courseworkTrackChoices: trackChoices.filter(tc => tc.finalizedTrack === 'coursework' || tc.chosenTrack === 'coursework').length,
+          totalInternshipApplications: applications.length,
+          pendingApplications: applications.filter(app => app.status === 'pending').length,
+          approvedApplications: applications.filter(app => app.status === 'approved').length,
+          sixMonthApplications: applications.filter(app => app.type === '6month').length,
+          summerApplications: applications.filter(app => app.type === 'summer').length
+        });
+      } catch (sem7Error) {
+        console.warn('Sem 7 data not available:', sem7Error);
+        setSem7Stats({
+          totalTrackChoices: 0,
+          pendingTrackChoices: 0,
+          approvedTrackChoices: 0,
+          internshipTrackChoices: 0,
+          courseworkTrackChoices: 0,
+          totalInternshipApplications: 0,
+          pendingApplications: 0,
+          approvedApplications: 0,
+          sixMonthApplications: 0,
+          summerApplications: 0
+        });
+      }
+
+      try {
+        const [sem3TrackChoicesResponse, sem3ApplicationsResponse] = await Promise.all([
+          adminAPI.listMTechSem3TrackChoices(),
+          adminAPI.listInternshipApplications({ semester: 3 })
+        ]);
+
+        const sem3TrackChoices = sem3TrackChoicesResponse.data || [];
+        const sem3Apps = (sem3ApplicationsResponse.data || []).filter(app => app.type === '6month');
+
+        const internshipTrack = sem3TrackChoices.filter(choice =>
+          (choice.finalizedTrack || choice.chosenTrack) === 'internship'
+        ).length;
+        const majorProjectTrack = sem3TrackChoices.filter(choice =>
+          (choice.finalizedTrack || choice.chosenTrack) === 'coursework'
+        ).length;
+
+        setMtechSem3Stats({
+          totalStudents: sem3TrackChoices.length,
+          internshipTrack,
+          majorProjectTrack,
+          totalApplications: sem3Apps.length,
+          pendingApplications: sem3Apps.filter(app => ['submitted', 'pending_verification'].includes(app.status)).length,
+          approvedApplications: sem3Apps.filter(app => app.status === 'verified_pass').length,
+          needsInfo: sem3Apps.filter(app => app.status === 'needs_info').length
+        });
+      } catch (sem3Error) {
+        console.warn('M.Tech Sem 3 data not available:', sem3Error);
+        setMtechSem3Stats({
+          totalStudents: 0,
+          internshipTrack: 0,
+          majorProjectTrack: 0,
+          totalApplications: 0,
+          pendingApplications: 0,
+          approvedApplications: 0,
+          needsInfo: 0
+        });
+      }
+    } catch (error) {
+      console.error('Failed to load admin data:', error);
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    loadAdminData();
+  }, [loadAdminData]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -465,122 +484,6 @@ const AdminDashboard = () => {
               <div className="bg-white bg-opacity-20 rounded-lg p-4 hover:bg-opacity-30 transition-all cursor-pointer">
                 <div className="text-2xl font-bold">{sem4Stats.registeredProjects + sem4Stats.unregisteredStudents}</div>
                 <div className="text-purple-200 text-sm">Total Students</div>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* M.Tech Sem 1 Statistics */}
-      <div className="mb-8">
-        <div className="bg-gradient-to-r from-rose-600 to-pink-700 text-white p-6 rounded-lg shadow-md">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-2xl font-bold mb-4">M.Tech Semester 1 - Minor Project 1</h2>
-              <p className="text-rose-200 mb-4">Solo project registration and faculty allocation overview</p>
-              {!loading && (
-                <p className="text-sm text-rose-100">
-                  Registration Rate: {mtechSem1Stats.registrationRate}% • Unregistered Students: {mtechSem1Stats.unregisteredStudents}
-                </p>
-              )}
-            </div>
-            <div className="flex space-x-4">
-              <Link
-                to="/admin/mtech/sem1/registrations"
-                className="bg-white bg-opacity-20 hover:bg-opacity-30 px-4 py-2 rounded-md text-white font-medium transition-all duration-200 flex items-center space-x-2"
-              >
-                <span>📊</span>
-                <span>View Registrations</span>
-              </Link>
-              <Link
-                to="/admin/mtech/sem1/unregistered"
-                className="bg-white bg-opacity-20 hover:bg-opacity-30 px-4 py-2 rounded-md text-white font-medium transition-all duration-200 flex items-center space-x-2"
-              >
-                <span>📋</span>
-                <span>Unregistered Students</span>
-              </Link>
-            </div>
-          </div>
-
-          {loading ? (
-            <div className="flex items-center justify-center py-8">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div>
-            </div>
-          ) : (
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div className="bg-white bg-opacity-20 rounded-lg p-4 hover:bg-opacity-30 transition-all cursor-pointer">
-                <div className="text-2xl font-bold">{mtechSem1Stats.totalStudents}</div>
-                <div className="text-rose-200 text-sm">Total Students</div>
-              </div>
-              <div className="bg-white bg-opacity-20 rounded-lg p-4 hover:bg-opacity-30 transition-all cursor-pointer">
-                <div className="text-2xl font-bold">{mtechSem1Stats.registeredProjects}</div>
-                <div className="text-rose-200 text-sm">Registered Projects</div>
-              </div>
-              <div className="bg-white bg-opacity-20 rounded-lg p-4 hover:bg-opacity-30 transition-all cursor-pointer">
-                <div className="text-2xl font-bold">{mtechSem1Stats.facultyAllocated}</div>
-                <div className="text-rose-200 text-sm">Faculty Allocated</div>
-              </div>
-              <div className="bg-white bg-opacity-20 rounded-lg p-4 hover:bg-opacity-30 transition-all cursor-pointer">
-                <div className="text-2xl font-bold">{mtechSem1Stats.pendingAllocations}</div>
-                <div className="text-rose-200 text-sm">Pending Allocation</div>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* M.Tech Sem 2 Statistics */}
-      <div className="mb-8">
-        <div className="bg-gradient-to-r from-purple-600 to-indigo-700 text-white p-6 rounded-lg shadow-md">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-2xl font-bold mb-4">M.Tech Semester 2 - Minor Project 2</h2>
-              <p className="text-purple-200 mb-4">Solo project registration and faculty allocation overview</p>
-              {!loading && (
-                <p className="text-sm text-purple-100">
-                  Registration Rate: {mtechSem2Stats.registrationRate}% • Unregistered Students: {mtechSem2Stats.unregisteredStudents}
-                </p>
-              )}
-            </div>
-            <div className="flex space-x-4">
-              <Link
-                to="/admin/mtech/sem2/registrations"
-                className="bg-white bg-opacity-20 hover:bg-opacity-30 px-4 py-2 rounded-md text-white font-medium transition-all duration-200 flex items-center space-x-2"
-              >
-                <span>📊</span>
-                <span>View Registrations</span>
-              </Link>
-              <Link
-                to="/admin/mtech/sem2/unregistered"
-                className="bg-white bg-opacity-20 hover:bg-opacity-30 px-4 py-2 rounded-md text-white font-medium transition-all duration-200 flex items-center space-x-2"
-              >
-                <span>📋</span>
-                <span>Unregistered Students</span>
-              </Link>
-            </div>
-          </div>
-
-          {loading ? (
-            <div className="flex items-center justify-center py-8">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div>
-            </div>
-          ) : (
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div className="bg-white bg-opacity-20 rounded-lg p-4 hover:bg-opacity-30 transition-all cursor-pointer">
-                <div className="text-2xl font-bold">{mtechSem2Stats.totalStudents}</div>
-                <div className="text-purple-200 text-sm">Total Students</div>
-              </div>
-              <div className="bg-white bg-opacity-20 rounded-lg p-4 hover:bg-opacity-30 transition-all cursor-pointer">
-                <div className="text-2xl font-bold">{mtechSem2Stats.registeredProjects}</div>
-                <div className="text-purple-200 text-sm">Registered Projects</div>
-              </div>
-              <div className="bg-white bg-opacity-20 rounded-lg p-4 hover:bg-opacity-30 transition-all cursor-pointer">
-                <div className="text-2xl font-bold">{mtechSem2Stats.facultyAllocated}</div>
-                <div className="text-purple-200 text-sm">Faculty Allocated</div>
-              </div>
-              <div className="bg-white bg-opacity-20 rounded-lg p-4 hover:bg-opacity-30 transition-all cursor-pointer">
-                <div className="text-2xl font-bold">{mtechSem2Stats.pendingAllocations}</div>
-                <div className="text-purple-200 text-sm">Pending Allocation</div>
               </div>
             </div>
           )}
@@ -763,6 +666,168 @@ const AdminDashboard = () => {
                     <div className="text-orange-200 text-sm">Summer Internships</div>
                   </div>
                 </div>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* M.Tech Sem 3 Statistics */}
+      <div className="mb-8">
+        <div className="bg-gradient-to-r from-teal-600 to-cyan-700 text-white p-6 rounded-lg shadow-md">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-2xl font-bold mb-4">M.Tech Semester 3 - Track & Internship Management</h2>
+              <p className="text-white/80 mb-6">Track selections and 6-month internship verification for promoted students</p>
+            </div>
+            <div>
+              <Link
+                to="/admin/mtech/sem3/review"
+                className="bg-white bg-opacity-20 hover:bg-opacity-30 px-4 py-2 rounded-md text-white font-medium transition-all duration-200 flex items-center space-x-2"
+              >
+                <span>📋</span>
+                <span>Review Applications</span>
+              </Link>
+            </div>
+          </div>
+
+          {loading ? (
+            <div className="flex items-center justify-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="bg-white bg-opacity-20 rounded-lg p-4 hover:bg-opacity-30 transition-all cursor-pointer">
+                <div className="text-2xl font-bold">{mtechSem3Stats.totalStudents}</div>
+                <div className="text-white/80 text-sm">Track Submissions</div>
+              </div>
+              <div className="bg-white bg-opacity-20 rounded-lg p-4 hover:bg-opacity-30 transition-all cursor-pointer">
+                <div className="text-2xl font-bold">{mtechSem3Stats.internshipTrack}</div>
+                <div className="text-white/80 text-sm">Internship Track</div>
+              </div>
+              <div className="bg-white bg-opacity-20 rounded-lg p-4 hover:bg-opacity-30 transition-all cursor-pointer">
+                <div className="text-2xl font-bold">{mtechSem3Stats.totalApplications}</div>
+                <div className="text-white/80 text-sm">Internship Applications</div>
+              </div>
+              <div className="bg-white bg-opacity-20 rounded-lg p-4 hover:bg-opacity-30 transition-all cursor-pointer">
+                <div className="text-2xl font-bold">{mtechSem3Stats.pendingApplications}</div>
+                <div className="text-white/80 text-sm">Pending Reviews</div>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* M.Tech Sem 1 Statistics */}
+      <div className="mb-8">
+        <div className="bg-gradient-to-r from-rose-600 to-pink-700 text-white p-6 rounded-lg shadow-md">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-2xl font-bold mb-4">M.Tech Semester 1 - Minor Project 1</h2>
+              <p className="text-rose-200 mb-4">Solo project registration and faculty allocation overview</p>
+              {!loading && (
+                <p className="text-sm text-rose-100">
+                  Registration Rate: {mtechSem1Stats.registrationRate}% • Unregistered Students: {mtechSem1Stats.unregisteredStudents}
+                </p>
+              )}
+            </div>
+            <div className="flex space-x-4">
+              <Link
+                to="/admin/mtech/sem1/registrations"
+                className="bg-white bg-opacity-20 hover:bg-opacity-30 px-4 py-2 rounded-md text-white font-medium transition-all duration-200 flex items-center space-x-2"
+              >
+                <span>📊</span>
+                <span>View Registrations</span>
+              </Link>
+              <Link
+                to="/admin/mtech/sem1/unregistered"
+                className="bg-white bg-opacity-20 hover:bg-opacity-30 px-4 py-2 rounded-md text-white font-medium transition-all duration-200 flex items-center space-x-2"
+              >
+                <span>📋</span>
+                <span>Unregistered Students</span>
+              </Link>
+            </div>
+          </div>
+
+          {loading ? (
+            <div className="flex items-center justify-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="bg-white bg-opacity-20 rounded-lg p-4 hover:bg-opacity-30 transition-all cursor-pointer">
+                <div className="text-2xl font-bold">{mtechSem1Stats.totalStudents}</div>
+                <div className="text-rose-200 text-sm">Total Students</div>
+              </div>
+              <div className="bg-white bg-opacity-20 rounded-lg p-4 hover:bg-opacity-30 transition-all cursor-pointer">
+                <div className="text-2xl font-bold">{mtechSem1Stats.registeredProjects}</div>
+                <div className="text-rose-200 text-sm">Registered Projects</div>
+              </div>
+              <div className="bg-white bg-opacity-20 rounded-lg p-4 hover:bg-opacity-30 transition-all cursor-pointer">
+                <div className="text-2xl font-bold">{mtechSem1Stats.facultyAllocated}</div>
+                <div className="text-rose-200 text-sm">Faculty Allocated</div>
+              </div>
+              <div className="bg-white bg-opacity-20 rounded-lg p-4 hover:bg-opacity-30 transition-all cursor-pointer">
+                <div className="text-2xl font-bold">{mtechSem1Stats.pendingAllocations}</div>
+                <div className="text-rose-200 text-sm">Pending Allocation</div>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* M.Tech Sem 2 Statistics */}
+      <div className="mb-8">
+        <div className="bg-gradient-to-r from-purple-600 to-indigo-700 text-white p-6 rounded-lg shadow-md">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-2xl font-bold mb-4">M.Tech Semester 2 - Minor Project 2</h2>
+              <p className="text-purple-200 mb-4">Solo project registration and faculty allocation overview</p>
+              {!loading && (
+                <p className="text-sm text-purple-100">
+                  Registration Rate: {mtechSem2Stats.registrationRate}% • Unregistered Students: {mtechSem2Stats.unregisteredStudents}
+                </p>
+              )}
+            </div>
+            <div className="flex space-x-4">
+              <Link
+                to="/admin/mtech/sem2/registrations"
+                className="bg-white bg-opacity-20 hover:bg-opacity-30 px-4 py-2 rounded-md text-white font-medium transition-all duration-200 flex items-center space-x-2"
+              >
+                <span>📊</span>
+                <span>View Registrations</span>
+              </Link>
+              <Link
+                to="/admin/mtech/sem2/unregistered"
+                className="bg-white bg-opacity-20 hover:bg-opacity-30 px-4 py-2 rounded-md text-white font-medium transition-all duration-200 flex items-center space-x-2"
+              >
+                <span>📋</span>
+                <span>Unregistered Students</span>
+              </Link>
+            </div>
+          </div>
+
+          {loading ? (
+            <div className="flex items-center justify-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="bg-white bg-opacity-20 rounded-lg p-4 hover:bg-opacity-30 transition-all cursor-pointer">
+                <div className="text-2xl font-bold">{mtechSem2Stats.totalStudents}</div>
+                <div className="text-purple-200 text-sm">Total Students</div>
+              </div>
+              <div className="bg-white bg-opacity-20 rounded-lg p-4 hover:bg-opacity-30 transition-all cursor-pointer">
+                <div className="text-2xl font-bold">{mtechSem2Stats.registeredProjects}</div>
+                <div className="text-purple-200 text-sm">Registered Projects</div>
+              </div>
+              <div className="bg-white bg-opacity-20 rounded-lg p-4 hover:bg-opacity-30 transition-all cursor-pointer">
+                <div className="text-2xl font-bold">{mtechSem2Stats.facultyAllocated}</div>
+                <div className="text-purple-200 text-sm">Faculty Allocated</div>
+              </div>
+              <div className="bg-white bg-opacity-20 rounded-lg p-4 hover:bg-opacity-30 transition-all cursor-pointer">
+                <div className="text-2xl font-bold">{mtechSem2Stats.pendingAllocations}</div>
+                <div className="text-purple-200 text-sm">Pending Allocation</div>
               </div>
             </div>
           )}

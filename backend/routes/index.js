@@ -30,6 +30,10 @@ router.use('/projects', projectRoutes);
 const sem7Routes = require('./sem7Routes');
 router.use('/sem7', sem7Routes);
 
+// Sem3 routes
+const sem3Routes = require('./sem3Routes');
+router.use('/sem3', sem3Routes);
+
 // Internship routes
 const internshipRoutes = require('./internshipRoutes');
 router.use('/internships', internshipRoutes);
