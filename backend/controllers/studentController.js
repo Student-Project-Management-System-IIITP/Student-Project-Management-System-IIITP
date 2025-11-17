@@ -1221,6 +1221,110 @@ const registerMajorProject1 = async (req, res) => {
   }
 };
 
+const registerMTechSem3MajorProject = async (req, res) => {
+  const session = await mongoose.startSession();
+
+  try {
+    await session.withTransaction(async () => {
+      const userId = req.user.id;
+      const { title, domain, summary, facultyPreferences } = req.body;
+
+      if (!title || !domain) {
+        throw new Error('Project title and domain are required');
+      }
+
+      const student = await Student.findOne({ user: userId }).session(session);
+      if (!student) {
+        throw new Error('Student not found');
+      }
+
+      if (student.degree !== 'M.Tech' || student.semester !== 3) {
+        throw new Error('Major Project 1 registration is only available for M.Tech Semester 3 students');
+      }
+
+      const sem3Selection = student.getSemesterSelection(3);
+      const selectedTrack = sem3Selection?.finalizedTrack || sem3Selection?.chosenTrack;
+      if (selectedTrack !== 'coursework') {
+        throw new Error('Please choose the Major Project track before registering');
+      }
+
+      const existingProject = await Project.findOne({
+        student: student._id,
+        semester: 3,
+        projectType: 'major1'
+      }).session(session);
+
+      if (existingProject) {
+        throw new Error('Major Project 1 is already registered');
+      }
+
+      const allowedDomains = await SystemConfig.getConfigValue('sem3.majorProject.domains', []);
+      if (Array.isArray(allowedDomains) && allowedDomains.length > 0 && !allowedDomains.includes(domain)) {
+        throw new Error('Invalid project domain selected');
+      }
+
+      if (!Array.isArray(facultyPreferences) || facultyPreferences.length === 0) {
+        throw new Error('Please select at least one faculty preference');
+      }
+
+      const uniqueFaculty = [...new Set(facultyPreferences)];
+      if (uniqueFaculty.length !== facultyPreferences.length) {
+        throw new Error('Duplicate faculty preferences detected');
+      }
+
+      let academicYear = student.academicYear;
+      if (!academicYear) {
+        academicYear = generateAcademicYear();
+        student.academicYear = academicYear;
+        await student.save({ session });
+      }
+
+      const preferences = uniqueFaculty.map((facultyId, index) => ({
+        faculty: facultyId,
+        priority: index + 1
+      }));
+
+      const project = await Project.create([{
+        title,
+        description: summary || `Major Project 1 proposal submitted by ${student.fullName}`,
+        domain,
+        projectType: 'major1',
+        student: student._id,
+        semester: 3,
+        academicYear,
+        facultyPreferences: preferences,
+        currentFacultyIndex: 0,
+        status: 'registered'
+      }], { session });
+
+      await FacultyPreference.create([{
+        student: student._id,
+        project: project[0]._id,
+        group: null,
+        preferences,
+        semester: 3,
+        academicYear,
+        status: 'pending',
+        currentFacultyIndex: 0
+      }], { session });
+
+      res.status(201).json({
+        success: true,
+        data: project[0],
+        message: 'Major Project 1 registered successfully'
+      });
+    });
+  } catch (error) {
+    console.error('registerMTechSem3MajorProject error:', error);
+    res.status(400).json({
+      success: false,
+      message: error.message || 'Failed to register Major Project 1'
+    });
+  } finally {
+    await session.endSession();
+  }
+};
+
 // Sem 7: Check Internship 1 eligibility (helper for frontend)
 const checkInternship1Status = async (req, res) => {
   try {
@@ -5995,6 +6099,7 @@ module.exports = {
   submitProjectFacultyPreferences,
   registerMinorProject2,
   registerMajorProject1,
+  registerMTechSem3MajorProject,
   registerInternship1,
   checkInternship1Status,
   getFacultyAllocationStatus,

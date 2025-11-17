@@ -1,23 +1,31 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useSem4Project } from '../../hooks/useSem4Project';
 import { useSem5Project } from '../../hooks/useSem5Project';
 import { useSem7Project } from '../../hooks/useSem7Project';
+import { useMTechSem3Track } from '../../hooks/useMTechSem3Track';
 import { useGroupManagement } from '../../hooks/useGroupManagement';
 import { useEvaluation } from '../../hooks/useEvaluation';
-import { studentAPI } from '../../utils/api';
+import { studentAPI, internshipAPI } from '../../utils/api';
 import { useState, useEffect } from 'react';
 import { toast } from 'react-hot-toast';
 import SemesterHeader from '../../components/common/SemesterHeader';
 import StatusBadge from '../../components/common/StatusBadge';
 
 const StudentDashboard = () => {
+  const navigate = useNavigate();
   const { user, roleData, isLoading: authLoading } = useAuth();
   const [mtechProject, setMtechProject] = useState(null);
   const [mtechLoading, setMtechLoading] = useState(false);
   const [mtechSem2Project, setMtechSem2Project] = useState(null);
+  const [showSem3Welcome, setShowSem3Welcome] = useState(false);
+  const [sem3InternshipApp, setSem3InternshipApp] = useState(null);
+  const [sem3AppLoading, setSem3AppLoading] = useState(false);
   
+  const { trackChoice: sem3TrackChoice, loading: sem3ChoiceLoading } = useMTechSem3Track();
+  const sem3SelectedTrack = sem3TrackChoice?.finalizedTrack || sem3TrackChoice?.chosenTrack || null;
+
   // Sem 4 hooks
   const { project: sem4Project, loading: sem4ProjectLoading, canRegisterProject: canRegisterSem4, canUploadPPT, getProjectTimeline } = useSem4Project();
   const { evaluationSchedule, canUploadPPT: canUploadForEvaluation } = useEvaluation();
@@ -85,6 +93,24 @@ const StudentDashboard = () => {
     );
   }
   
+  const currentSemester = roleData?.semester || user?.semester;
+  const degree = roleData?.degree || user?.degree;
+
+  // Show welcome back prompt for newly promoted M.Tech Sem 3 students
+  useEffect(() => {
+    if (sem3ChoiceLoading) return;
+    if (degree === 'M.Tech' && currentSemester === 3) {
+      setShowSem3Welcome(!sem3TrackChoice);
+    } else {
+      setShowSem3Welcome(false);
+    }
+  }, [sem3ChoiceLoading, sem3TrackChoice, degree, currentSemester]);
+
+  const handleSem3WelcomeChoice = (preselect) => {
+    setShowSem3Welcome(false);
+    navigate('/student/mtech/sem3/track-selection', { state: { preselect } });
+  };
+
   // Load project status for PPT display
   const loadProjectStatus = async () => {
     if (!sem4Project?._id || statusLoading) return;
@@ -156,7 +182,6 @@ const StudentDashboard = () => {
 
   // M.Tech Sem 1: Load current project
   useEffect(() => {
-    const degree = roleData?.degree || user?.degree;
     if (degree === 'M.Tech') {
       const loadMtechProjects = async () => {
         try {
@@ -183,11 +208,40 @@ const StudentDashboard = () => {
 
   // Load Sem 6 project
   useEffect(() => {
-    const currentSemester = (roleData?.semester || user?.semester) || 4;
     if (currentSemester === 6) {
       loadSem6Project();
     }
   }, [roleData, user]);
+
+  // Load Sem 3 internship application (M.Tech)
+  useEffect(() => {
+    const loadSem3Application = async () => {
+      if (degree !== 'M.Tech' || currentSemester !== 3) {
+        setSem3InternshipApp(null);
+        return;
+      }
+      if (sem3SelectedTrack !== 'internship' || showSem3Welcome) {
+        setSem3InternshipApp(null);
+        return;
+      }
+      try {
+        setSem3AppLoading(true);
+        const response = await internshipAPI.getMyApplications();
+        const apps = response?.data || [];
+        const latest = apps
+          .filter(app => app.semester === 3 && app.type === '6month')
+          .sort((a, b) => new Date(b.updatedAt || b.createdAt || 0) - new Date(a.updatedAt || a.createdAt || 0))[0];
+        setSem3InternshipApp(latest || null);
+      } catch (error) {
+        console.error('Failed to load Sem 3 internship application:', error);
+        setSem3InternshipApp(null);
+      } finally {
+        setSem3AppLoading(false);
+      }
+    };
+
+    loadSem3Application();
+  }, [degree, currentSemester, sem3SelectedTrack, showSem3Welcome]);
 
   const loadSem6Project = async () => {
     try {
@@ -729,11 +783,138 @@ const StudentDashboard = () => {
     return actions;
   };
 
-  const currentSemester = (roleData?.semester || user?.semester) || 4;
-  const degree = (roleData?.degree || user?.degree) || 'B.Tech';
-  const isSem5 = currentSemester === 5;
-  const isSem6 = currentSemester === 6;
-  const isSem7 = currentSemester === 7;
+  const renderSem3InternshipPanel = () => {
+    if (
+      degree !== 'M.Tech' ||
+      normalizedSemester !== 3 ||
+      showSem3Welcome ||
+      sem3SelectedTrack !== 'internship'
+    ) {
+      return null;
+    }
+
+    const statusMap = {
+      submitted: { status: 'warning', text: 'Submitted' },
+      pending_verification: { status: 'warning', text: 'Pending Verification' },
+      needs_info: { status: 'error', text: 'Needs Info' },
+      verified_pass: { status: 'success', text: 'Verified (Pass)' },
+      verified_fail: { status: 'error', text: 'Verified (Fail)' },
+      absent: { status: 'error', text: 'Absent' }
+    };
+
+    const statusConfig = statusMap[sem3InternshipApp?.status] || { status: 'warning', text: 'Not Submitted' };
+
+    return (
+      <div className="mb-8">
+        <div className="bg-white rounded-lg shadow p-6 border border-gray-100">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+            <div>
+              <p className="text-sm uppercase tracking-wide text-teal-600 font-semibold">
+                Internship 1 (M.Tech Sem 3)
+              </p>
+              <h2 className="text-2xl font-bold text-gray-900 mt-1">6-Month Internship Dashboard</h2>
+              <p className="text-gray-600 mt-2">
+                Track your internship submission status and respond to admin feedback.
+              </p>
+            </div>
+            <div className="flex items-center gap-3">
+              <StatusBadge status={statusConfig.status} text={statusConfig.text} />
+              <button
+                onClick={() =>
+                  navigate('/student/mtech/sem3/track-selection', { state: { preselect: 'internship' } })
+                }
+                className="px-4 py-2 rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50 text-sm"
+              >
+                View / Update Details
+              </button>
+            </div>
+          </div>
+
+          {sem3AppLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-teal-600"></div>
+            </div>
+          ) : sem3InternshipApp ? (
+            <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="bg-teal-50 border border-teal-100 rounded-lg p-4">
+                <h3 className="text-sm font-semibold text-teal-900 mb-2">Company Details</h3>
+                <p className="text-gray-900 font-medium">{sem3InternshipApp.details?.companyName || '—'}</p>
+                <p className="text-sm text-gray-600">{sem3InternshipApp.details?.location || 'Location not provided'}</p>
+                <p className="text-sm text-gray-600 mt-2">
+                  {sem3InternshipApp.details?.startDate
+                    ? new Date(sem3InternshipApp.details.startDate).toLocaleDateString()
+                    : 'Start date'}{' '}
+                  -{' '}
+                  {sem3InternshipApp.details?.endDate
+                    ? new Date(sem3InternshipApp.details.endDate).toLocaleDateString()
+                    : 'End date'}
+                </p>
+                <p className="text-sm text-gray-600">
+                  Mode: {sem3InternshipApp.details?.mode ? sem3InternshipApp.details.mode.toUpperCase() : '—'}
+                </p>
+                <p className="text-sm text-gray-600">
+                  Stipend:{' '}
+                  {sem3InternshipApp.details?.hasStipend === 'yes'
+                    ? `₹${sem3InternshipApp.details.stipendRs || 0}/month`
+                    : 'No stipend'}
+                </p>
+              </div>
+
+              <div className="bg-gray-50 border border-gray-100 rounded-lg p-4 flex flex-col gap-3">
+                <div>
+                  <p className="text-xs uppercase tracking-wide text-gray-500">Nature of Work</p>
+                  <p className="text-gray-900 text-sm mt-1">
+                    {sem3InternshipApp.details?.roleOrNatureOfWork || 'Not provided'}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs uppercase tracking-wide text-gray-500">Reporting Manager</p>
+                  <p className="text-gray-900 text-sm mt-1">{sem3InternshipApp.details?.mentorName || 'Not provided'}</p>
+                  <p className="text-gray-600 text-sm">
+                    {sem3InternshipApp.details?.mentorEmail || '—'}
+                    {sem3InternshipApp.details?.mentorPhone ? ` • ${sem3InternshipApp.details.mentorPhone}` : ''}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs uppercase tracking-wide text-gray-500">Offer Letter</p>
+                  {sem3InternshipApp.details?.offerLetterLink ? (
+                    <a
+                      href={sem3InternshipApp.details.offerLetterLink}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-indigo-600 hover:text-indigo-800 text-sm font-medium"
+                    >
+                      View Document
+                    </a>
+                  ) : (
+                    <p className="text-sm text-gray-600">Upload pending</p>
+                  )}
+                </div>
+                {sem3InternshipApp.adminRemarks && (
+                  <div className="bg-white border border-yellow-200 rounded-md p-3">
+                    <p className="text-xs uppercase tracking-wide text-yellow-600 font-semibold">Admin Remarks</p>
+                    <p className="text-sm text-gray-800 mt-1">{sem3InternshipApp.adminRemarks}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          ) : (
+            <div className="mt-6 border border-dashed border-gray-300 rounded-lg p-6 text-center">
+              <p className="text-gray-700 font-medium">No internship application submitted yet.</p>
+              <p className="text-gray-500 text-sm mt-1">
+                Click “View / Update Details” to complete your Internship 1 submission.
+              </p>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+  const normalizedSemester = (currentSemester || 4);
+  const normalizedDegree = (degree || 'B.Tech');
+  const isSem5 = normalizedSemester === 5;
+  const isSem6 = normalizedSemester === 6;
+  const isSem7 = normalizedSemester === 7;
 
 
   const quickActions = getQuickActions();
@@ -743,7 +924,49 @@ const StudentDashboard = () => {
 
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <>
+      {showSem3Welcome && (
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/60 px-4 py-8">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl p-8">
+            <p className="text-sm uppercase tracking-wide text-indigo-600 font-semibold">
+              Welcome back
+            </p>
+            <h2 className="text-3xl font-bold text-gray-900 mt-2">
+              Hey {user?.name || roleData?.fullName || 'there'} 👋
+            </h2>
+            <p className="text-gray-600 mt-3">
+              You are now in M.Tech Semester 3. Choose how you want to start: continue with Internship
+              1 or focus on Major Project 1 with an institute guide.
+            </p>
+            <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <button
+                type="button"
+                onClick={() => handleSem3WelcomeChoice('internship')}
+                className="text-left p-5 rounded-xl border-2 border-indigo-100 hover:border-indigo-300 focus:ring-2 focus:ring-indigo-500 transition shadow-sm bg-indigo-50"
+              >
+                <p className="text-xs uppercase tracking-wide text-indigo-600">Option 1</p>
+                <h3 className="text-xl font-semibold text-gray-900 mt-1">Internship 1</h3>
+                <p className="text-sm text-gray-600 mt-2">
+                  Start with Internship 1 and submit your 6-month internship details for verification.
+                </p>
+              </button>
+              <button
+                type="button"
+                onClick={() => handleSem3WelcomeChoice('coursework')}
+                className="text-left p-5 rounded-xl border-2 border-orange-100 hover:border-orange-300 focus:ring-2 focus:ring-orange-500 transition shadow-sm bg-orange-50"
+              >
+                <p className="text-xs uppercase tracking-wide text-orange-600">Option 2</p>
+                <h3 className="text-xl font-semibold text-gray-900 mt-1">Major Project 1</h3>
+                <p className="text-sm text-gray-600 mt-2">
+                  Begin Major Project 1 on campus, form your team, and align with a faculty mentor.
+                </p>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       {/* Removed semester header as requested */}
 
       {/* Welcome Message */}
@@ -763,8 +986,10 @@ const StudentDashboard = () => {
         </p>
       </div>
 
+      {renderSem3InternshipPanel()}
+
       {/* M.Tech Sem 1 Project Section */}
-      {((roleData?.degree || user?.degree) === 'M.Tech') && ((roleData?.semester || user?.semester) === 1) && (
+      {(normalizedDegree === 'M.Tech') && (normalizedSemester === 1) && (
         <div className="mb-8">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">Minor Project 1</h2>
           <div className="bg-white rounded-lg shadow p-6">
@@ -2513,6 +2738,7 @@ const StudentDashboard = () => {
       </div>
       )}
     </div>
+    </>
   );
 };
 

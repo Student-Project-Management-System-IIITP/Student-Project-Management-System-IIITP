@@ -143,6 +143,7 @@ export const studentAPI = {
   
   // System Config
   getSystemConfig: (key) => api.get(`/student/system-config/${key}`),
+  getSystemConfigs: () => api.get('/student/system-config'),
   
   // Sem 5 Group Management
   createGroup: (groupData) => api.post('/student/groups', groupData),
@@ -199,9 +200,14 @@ export const studentAPI = {
   // Track selection
   setSem7Choice: (choice) => api.post('/sem7/choice', { chosenTrack: choice }),
   getSem7Choice: () => api.get('/sem7/choice'),
+
+  // M.Tech Sem 3 track selection
+  getMTechSem3Choice: () => api.get('/sem3/choice'),
+  setMTechSem3Choice: (choice) => api.post('/sem3/choice', { chosenTrack: choice }),
   
   // Major Project 1 registration
   registerMajorProject1: (projectData) => api.post('/student/projects/major1/register', projectData),
+  registerMTechSem3MajorProject: (payload) => api.post('/student/mtech/sem3/major-project/register', payload),
   
   // Internship 1 status and registration
   checkInternship1Status: () => api.get('/student/projects/internship1/status'),
@@ -274,6 +280,11 @@ export const facultyAPI = {
   getProjects: () => api.get('/faculty/projects'),
   getGroups: () => api.get('/faculty/groups'),
   updateProject: (projectId, data) => api.put(`/faculty/projects/${projectId}`, data),
+
+  // M.Tech Sem 3 major project allocation
+  getSem3MajorProjectRequests: () => api.get('/faculty/mtech/sem3/major-projects/pending'),
+  chooseSem3MajorProject: (projectId) => api.post(`/faculty/mtech/sem3/major-projects/${projectId}/choose`),
+  passSem3MajorProject: (projectId) => api.post(`/faculty/mtech/sem3/major-projects/${projectId}/pass`),
   
   // Sem 4 Evaluation
   getEvaluationAssignments: () => api.get('/faculty/evaluations/assignments'),
@@ -443,6 +454,10 @@ export const adminAPI = {
   listSem7TrackChoices: (params = {}) => {
     const queryString = new URLSearchParams(params).toString();
     return api.get(`/admin/sem7/track-choices${queryString ? '?' + queryString : ''}`);
+  },
+  listMTechSem3TrackChoices: (params = {}) => {
+    const queryString = new URLSearchParams(params).toString();
+    return api.get(`/sem3/track-choices${queryString ? '?' + queryString : ''}`);
   },
   finalizeSem7Track: (studentId, data) => api.patch(`/admin/sem7/finalize/${studentId}`, data),
   listInternship1TrackChoices: () => api.get('/admin/sem7/internship1-track-choices'),

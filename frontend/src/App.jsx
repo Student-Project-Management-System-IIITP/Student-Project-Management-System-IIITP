@@ -39,6 +39,7 @@ import Sem4ProjectDashboard from './pages/student/Sem4ProjectDashboard';
 import Sem6Registration from './pages/student/Sem6Registration';
 import MTechSem1Registration from './pages/student/MTechSem1Registration';
 import Sem7TrackSelection from './pages/student/Sem7TrackSelection';
+import MTechSem3TrackSelection from './pages/student/MTechSem3TrackSelection';
 import InternshipApplicationForm from './pages/student/InternshipApplicationForm';
 import MajorProject1Registration from './pages/student/MajorProject1Registration';
 import MajorProject1Dashboard from './pages/student/MajorProject1Dashboard';
@@ -50,6 +51,9 @@ import MTechSem1UnregisteredStudents from './pages/admin/MTechSem1UnregisteredSt
 import MTechSem2Registration from './pages/student/MTechSem2Registration';
 import MTechSem2Registrations from './pages/admin/MTechSem2Registrations';
 import MTechSem2UnregisteredStudents from './pages/admin/MTechSem2UnregisteredStudents';
+import MTechSem3Review from './pages/admin/MTechSem3Review';
+import MTechSem3MajorProject from './pages/student/MTechSem3MajorProject';
+import MTechSem3MajorProjectRegister from './pages/student/MTechSem3MajorProjectRegister';
 
 function App() {
   return (
@@ -198,6 +202,23 @@ function AppContent() {
           <Route path="/student/sem6/register" element={
             <ProtectedRoute allowedRoles={['student']}>
               <Sem6Registration />
+            </ProtectedRoute>
+          } />
+
+          {/* M.Tech Sem 3 Track Selection */}
+          <Route path="/student/mtech/sem3/track-selection" element={
+            <ProtectedRoute allowedRoles={['student']}>
+              <MTechSem3TrackSelection />
+            </ProtectedRoute>
+          } />
+          <Route path="/student/mtech/sem3/major-project" element={
+            <ProtectedRoute allowedRoles={['student']}>
+              <MTechSem3MajorProject />
+            </ProtectedRoute>
+          } />
+          <Route path="/student/mtech/sem3/major-project/register" element={
+            <ProtectedRoute allowedRoles={['student']}>
+              <MTechSem3MajorProjectRegister />
             </ProtectedRoute>
           } />
           
@@ -354,6 +375,11 @@ function AppContent() {
               <Layout>
                 <MTechSem2UnregisteredStudents />
               </Layout>
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/mtech/sem3/review" element={
+            <ProtectedRoute allowedRoles={['admin']}>
+              <MTechSem3Review />
             </ProtectedRoute>
           } />
           {/* Redirects to allocated-faculty page - registrations is now a tab there */}

@@ -198,6 +198,7 @@ router.get('/mtech/coursework/eligibility', studentController.checkMTechCoursewo
 router.get('/mtech/academic-path', studentController.getMTechAcademicPath);
 router.get('/mtech/sem2/pre-registration', studentController.getMTechSem1ProjectForSem2);
 router.post('/mtech/sem2/register', studentController.registerMTechSem2Project);
+router.post('/mtech/sem3/major-project/register', studentController.registerMTechSem3MajorProject);
 
 // System config routes (public for students)
 router.get('/system-config/:key', studentController.getSystemConfigForStudents);

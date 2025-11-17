@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
+import { toast } from 'react-hot-toast';
 import { useAuth } from '../../context/AuthContext';
 import { useSem5 } from '../../context/Sem5Context';
+import { facultyAPI } from '../../utils/api';
 
 const FacultyDashboard = () => {
   const { user, roleData, isLoading: authLoading } = useAuth();
@@ -11,6 +13,9 @@ const FacultyDashboard = () => {
     return localStorage.getItem('facultyDashboardTab') || 'allocated';
   });
   const [actionLoading, setActionLoading] = useState({});
+  const [sem3Requests, setSem3Requests] = useState([]);
+  const [sem3Loading, setSem3Loading] = useState(true);
+  const [sem3ActionLoading, setSem3ActionLoading] = useState({});
 
   // Show loading screen if authentication is loading
   if (authLoading || !user) {
@@ -28,6 +33,23 @@ const FacultyDashboard = () => {
   const unallocatedGroups = allocationStatus?.unallocatedGroups || [];
   const allocatedGroups = allocationStatus?.allocatedGroups || [];
   const statistics = allocationStatus?.statistics || {};
+
+  const loadSem3Requests = async () => {
+    try {
+      setSem3Loading(true);
+      const response = await facultyAPI.getSem3MajorProjectRequests();
+      setSem3Requests(response.data || []);
+    } catch (error) {
+      console.error('Failed to load Sem 3 requests:', error);
+      toast.error(error.message || 'Failed to load M.Tech Sem 3 requests');
+    } finally {
+      setSem3Loading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadSem3Requests();
+  }, []);
   
   // No debugging code needed
   
@@ -135,6 +157,36 @@ const FacultyDashboard = () => {
   const handleTabChange = (tab) => {
     setActiveTab(tab);
     localStorage.setItem('facultyDashboardTab', tab);
+  };
+
+  const handleSem3Choose = async (projectId) => {
+    const confirm = window.confirm('Are you sure you want to take this project?');
+    if (!confirm) return;
+    setSem3ActionLoading(prev => ({ ...prev, [projectId]: 'choose' }));
+    try {
+      await facultyAPI.chooseSem3MajorProject(projectId);
+      toast.success('Project allocated successfully');
+      setSem3Requests(prev => prev.filter(request => request._id !== projectId));
+    } catch (error) {
+      toast.error(error.message || 'Failed to allocate project');
+    } finally {
+      setSem3ActionLoading(prev => ({ ...prev, [projectId]: null }));
+    }
+  };
+
+  const handleSem3Pass = async (projectId) => {
+    const confirm = window.confirm('Pass this project to the next preference?');
+    if (!confirm) return;
+    setSem3ActionLoading(prev => ({ ...prev, [projectId]: 'pass' }));
+    try {
+      await facultyAPI.passSem3MajorProject(projectId);
+      toast.success('Project moved to next preference');
+      setSem3Requests(prev => prev.filter(request => request._id !== projectId));
+    } catch (error) {
+      toast.error(error.message || 'Failed to pass project');
+    } finally {
+      setSem3ActionLoading(prev => ({ ...prev, [projectId]: null }));
+    }
   };
 
   const handleChooseGroup = async (groupId) => {
@@ -315,6 +367,95 @@ const FacultyDashboard = () => {
               </div>
             </div>
           </div>
+        </div>
+      </div>
+
+      <div className="mb-8">
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+            <div>
+              <p className="text-xs uppercase tracking-wide text-teal-600 font-semibold">
+                M.Tech Semester 3
+              </p>
+              <h2 className="text-2xl font-bold text-gray-900 mt-1">Major Project Requests</h2>
+              <p className="text-gray-600">
+                Review solo Major Project 1 submissions and choose or pass based on your availability.
+              </p>
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="text-sm bg-orange-50 text-orange-800 px-4 py-2 rounded-md flex items-center">
+                <span className="font-semibold">{sem3Requests.length}</span>
+                <span className="ml-2">Pending</span>
+              </div>
+              <button
+                onClick={loadSem3Requests}
+                className="px-4 py-2 border border-gray-300 rounded-md text-sm text-gray-700 hover:bg-gray-50"
+              >
+                Refresh
+              </button>
+            </div>
+          </div>
+
+          {sem3Loading ? (
+            <div className="flex items-center justify-center py-10 text-gray-500">
+              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-indigo-600 mr-3"></div>
+              Loading requests...
+            </div>
+          ) : sem3Requests.length === 0 ? (
+            <div className="text-sm text-gray-500 py-6 text-center">
+              No pending Sem 3 requests at the moment.
+            </div>
+          ) : (
+            <div className="mt-6 space-y-4">
+              {sem3Requests.map(request => (
+                <div
+                  key={request._id}
+                  className="border border-gray-200 rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow"
+                >
+                  <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                    <div>
+                      <p className="text-xs uppercase text-indigo-600 font-semibold">
+                        Priority {request.priority} of {request.totalPreferences}
+                      </p>
+                      <h3 className="text-lg font-semibold text-gray-900">
+                        {request.title || 'Major Project 1'}
+                      </h3>
+                      <p className="text-sm text-gray-600">{request.domain || 'Domain not specified'}</p>
+                    </div>
+                    <div className="text-sm text-gray-700">
+                      <p className="font-semibold">{request.student?.fullName || 'Student'}</p>
+                      <p className="text-gray-500">{request.student?.misNumber || 'MIS'}</p>
+                      <p className="text-gray-500">{request.student?.collegeEmail}</p>
+                    </div>
+                  </div>
+                  <p className="text-sm text-gray-700 mt-3">
+                    {request.summary || 'No summary provided.'}
+                  </p>
+                  <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mt-4">
+                    <p className="text-xs text-gray-500">
+                      Submitted on {request.submittedAt ? new Date(request.submittedAt).toLocaleDateString() : '—'}
+                    </p>
+                    <div className="flex gap-3">
+                      <button
+                        onClick={() => handleSem3Choose(request._id)}
+                        disabled={sem3ActionLoading[request._id]}
+                        className="flex-1 bg-green-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {sem3ActionLoading[request._id] === 'choose' ? 'Assigning...' : 'Choose Project'}
+                      </button>
+                      <button
+                        onClick={() => handleSem3Pass(request._id)}
+                        disabled={sem3ActionLoading[request._id]}
+                        className="flex-1 bg-orange-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {sem3ActionLoading[request._id] === 'pass' ? 'Passing...' : 'Pass Project'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 

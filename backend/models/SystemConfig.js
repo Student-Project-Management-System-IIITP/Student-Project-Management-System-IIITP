@@ -144,8 +144,24 @@ systemConfigSchema.statics.initializeDefaults = async function() {
       configType: 'string',
       description: 'Current academic year',
       category: 'academic'
-    }
-    ,
+    },
+    {
+      configKey: 'sem3.majorProject.domains',
+      configValue: [
+        'Artificial Intelligence & Machine Learning',
+        'Data Science & Analytics',
+        'Cybersecurity',
+        'Embedded Systems',
+        'Cloud & DevOps',
+        'Software Engineering',
+        'Human Computer Interaction',
+        'Internet of Things',
+        'Blockchain & FinTech'
+      ],
+      configType: 'array',
+      description: 'Allowed domains for M.Tech Sem 3 Major Project 1',
+      category: 'sem3'
+    },
     // Sem 7 windows (B.Tech)
     {
       configKey: 'sem7.choiceWindow',

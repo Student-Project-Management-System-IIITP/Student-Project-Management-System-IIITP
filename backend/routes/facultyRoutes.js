@@ -32,6 +32,11 @@ router.post('/groups/:groupId/choose', facultyController.chooseGroup);
 router.post('/groups/:groupId/pass', facultyController.passGroup);
 router.get('/statistics/sem5', facultyController.getSem5Statistics);
 
+// M.Tech Sem 3 major project allocation routes
+router.get('/mtech/sem3/major-projects/pending', facultyController.getMTechSem3PendingProjects);
+router.post('/mtech/sem3/major-projects/:projectId/choose', facultyController.chooseMTechSem3Project);
+router.post('/mtech/sem3/major-projects/:projectId/pass', facultyController.passMTechSem3Project);
+
 // Project-based choose/pass for M.Tech (and generic project preferences)
 router.post('/projects/:requestId/choose', facultyController.acceptAllocation);
 router.post('/projects/:requestId/pass', facultyController.rejectAllocation);
