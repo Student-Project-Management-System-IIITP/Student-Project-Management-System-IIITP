@@ -1308,7 +1308,7 @@ const Sem7Review = () => {
                                   return (
                                     <td key={num} className="px-3 py-2 text-sm text-gray-900">
                                       {pref?.faculty?.fullName || '-'}
-                                    </td>
+                                </td>
                                   );
                                 })}
                                 {renderRemarksCell(project._id, 'project', project.feedback)}
@@ -1380,91 +1380,91 @@ const Sem7Review = () => {
                               : (app.type === 'summer' ? 'Completed the Summer Internship' : '6-Month Internship');
 
                             return (
-                              <tr key={app._id} className="hover:bg-gray-50">
+                            <tr key={app._id} className="hover:bg-gray-50">
                                 <td className="px-3 py-2 text-sm text-gray-900 whitespace-nowrap sticky left-0 bg-white z-10">
                                   {app.createdAt ? formatDateTime(app.createdAt) : '-'}
-                                </td>
+                              </td>
                                 <td className="px-3 py-2 text-sm text-gray-900 whitespace-nowrap">
                                   {app.student?.collegeEmail || '-'}
-                                </td>
+                              </td>
                                 <td className="px-3 py-2 text-sm text-gray-900">
                                   {app.student?.fullName || '-'}
-                                </td>
+                              </td>
                                 <td className="px-3 py-2 text-sm text-gray-900">
                                   {app.student?.misNumber || '-'}
-                                </td>
+                              </td>
                                 <td className="px-3 py-2 text-sm text-gray-900">
                                   {app.student?.contactNumber || '-'}
-                                </td>
+                              </td>
                                 <td className="px-3 py-2 text-sm text-gray-900">
                                   {app.student?.branch || '-'}
-                                </td>
+                              </td>
                                 <td className="px-3 py-2 text-sm text-gray-900">
                                   {internship1Details}
-                                </td>
+                              </td>
                                 <td className="px-3 py-2 text-sm text-gray-900">
                                   {app.details?.companyName || '-'}
-                                </td>
+                              </td>
                                 <td className="px-3 py-2 text-sm text-gray-900 whitespace-nowrap">
                                   {formatDate(app.details?.startDate)}
-                                </td>
+                              </td>
                                 <td className="px-3 py-2 text-sm text-gray-900 whitespace-nowrap">
                                   {formatDate(app.details?.endDate)}
-                                </td>
+                              </td>
                                 <td className="px-3 py-2 text-sm text-gray-900">
-                                  {app.type === '6month' && app.details?.offerLetterLink ? (
-                                    <a
-                                      href={app.details.offerLetterLink}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
+                                {app.type === '6month' && app.details?.offerLetterLink ? (
+                                  <a
+                                    href={app.details.offerLetterLink}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
                                       className="text-blue-600 hover:text-blue-800 underline"
-                                    >
+                                  >
                                       View Offer Letter
-                                    </a>
-                                  ) : app.type === 'summer' && (app.details?.completionCertificateLink || app.uploads?.completionCertificateFile) ? (
-                                    <a
-                                      href={app.details?.completionCertificateLink || internshipAPI.downloadFile(app._id, 'completionCertificate')}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
+                                  </a>
+                                ) : app.type === 'summer' && (app.details?.completionCertificateLink || app.uploads?.completionCertificateFile) ? (
+                                  <a
+                                    href={app.details?.completionCertificateLink || internshipAPI.downloadFile(app._id, 'completionCertificate')}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
                                       className="text-blue-600 hover:text-blue-800 underline"
-                                    >
+                                  >
                                       View Certificate
-                                    </a>
-                                  ) : (
+                                  </a>
+                                ) : (
                                     '-'
-                                  )}
-                                </td>
+                                )}
+                              </td>
                                 <td className="px-3 py-2 text-sm text-gray-900">
-                                  {app.details?.mentorName || '-'}
-                                </td>
+                                {app.details?.mentorName || '-'}
+                              </td>
                                 <td className="px-3 py-2 text-sm text-gray-900">
-                                  {app.details?.mentorPhone || '-'}
-                                </td>
+                                {app.details?.mentorPhone || '-'}
+                              </td>
                                 <td className="px-3 py-2 text-sm text-gray-900">
-                                  {app.details?.mentorEmail || '-'}
-                                </td>
+                                {app.details?.mentorEmail || '-'}
+                              </td>
                                 <td className="px-3 py-2 text-sm text-gray-900">
-                                  {app.details?.roleOrNatureOfWork || '-'}
-                                </td>
+                                {app.details?.roleOrNatureOfWork || '-'}
+                              </td>
                                 <td className="px-3 py-2 text-sm text-gray-900">
                                   {app.details?.hasStipend === 'yes' ? 'Yes' : app.details?.hasStipend === 'no' ? 'No' : '-'}
-                                </td>
+                              </td>
                                 <td className="px-3 py-2 text-sm text-gray-900">
                                   {app.details?.stipendRs || app.details?.stipendRs === 0 ? `₹${app.details.stipendRs}` : '-'}
-                                </td>
+                              </td>
                                 {renderRemarksCell(app._id, 'internship', app.adminRemarks)}
                                 <td className="px-3 py-2 text-sm text-gray-900">
-                                  {getStatusBadge(app.status)}
-                                </td>
+                                {getStatusBadge(app.status)}
+                              </td>
                                 <td className="px-3 py-2 text-sm font-medium sticky right-0 bg-white z-10">
-                                  <button
-                                    onClick={() => handleReview(app)}
+                                <button
+                                  onClick={() => handleReview(app)}
                                     className="text-blue-600 hover:text-blue-900"
-                                  >
-                                    Review
-                                  </button>
-                                </td>
-                              </tr>
+                                >
+                                  Review
+                                </button>
+                              </td>
+                            </tr>
                             );
                           })
                         )}
