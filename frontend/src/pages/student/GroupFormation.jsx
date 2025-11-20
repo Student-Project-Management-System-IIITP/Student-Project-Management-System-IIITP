@@ -4,6 +4,7 @@ import { useForm } from 'react-hook-form';
 import { useSem5Project } from '../../hooks/useSem5Project';
 import { useGroupManagement } from '../../hooks/useGroupManagement';
 import { useSem7 } from '../../context/Sem7Context';
+import { useSem8Project } from '../../hooks/useSem8Project';
 import { useWebSocket } from '../../hooks/useWebSocket';
 import { useAuth } from '../../context/AuthContext';
 import { studentAPI } from '../../utils/api';
@@ -39,8 +40,14 @@ const GroupFormation = () => {
   // Get Sem 7 context for track checking (only used for error messages)
   const sem7Context = useSem7();
   
+  // Get Sem 8 context for Type 1 students
+  const sem8Context = useSem8Project();
+  const { studentType: sem8StudentType, isType1: sem8IsType1, majorProject2Group: sem8Group, loading: sem8Loading } = sem8Context || {};
+  
   // Use the appropriate group based on semester
-  const currentGroup = currentSemester === 7 ? majorProject1Group : sem5Group;
+  const currentGroup = currentSemester === 7 ? majorProject1Group : 
+                       currentSemester === 8 ? sem8Group : 
+                       sem5Group;
 
   // WebSocket for real-time updates
   const { isConnected } = useWebSocket();
@@ -221,6 +228,22 @@ const GroupFormation = () => {
       }
     }
     
+    // For Sem 8: Check if student is Type 1 (only Type 1 students can join groups)
+    if (currentSemester === 8 && student.semester === 8) {
+      // Check if student is not Type 1 eligible
+      if (student.isType1Eligible === false || student.isType1Eligible === undefined) {
+        const studentType = student.sem8StudentType;
+        
+        if (!studentType) {
+          return { status: 'no_sem8_type', message: 'Sem 8 type not determined', disabled: true };
+        } else if (studentType === 'type2') {
+          return { status: 'type2_student', message: 'Type 2 student (must do solo project)', disabled: true };
+        } else {
+          return { status: 'not_type1', message: 'Not Type 1 student', disabled: true };
+        }
+      }
+    }
+    
     // Check if student is already in a group
     if (student.isInGroup) {
       return { status: 'in_group', message: 'Already in a group' };
@@ -287,7 +310,10 @@ const GroupFormation = () => {
         'in_group': 3,      // In group students
         'no_track_selected': 4,  // Disabled: Track not selected (Sem 7)
         'internship_track': 5,   // Disabled: Internship track (Sem 7)
-        'not_coursework': 6      // Disabled: Not coursework (Sem 7)
+        'not_coursework': 6,     // Disabled: Not coursework (Sem 7)
+        'no_sem8_type': 7,       // Disabled: Sem 8 type not determined
+        'type2_student': 8,      // Disabled: Type 2 student (Sem 8)
+        'not_type1': 9           // Disabled: Not Type 1 (Sem 8)
     };
     
     // Get priority for each status, defaulting to 999 for other statuses
@@ -344,7 +370,7 @@ const GroupFormation = () => {
       // Check if any selected students are unavailable or disabled
       const unavailableStudents = selectedStudents.filter(student => {
         const status = getInviteStatus(student);
-        // Check if student is disabled (for Sem 7 track restrictions)
+        // Check if student is disabled (for Sem 7 track restrictions or Sem 8 Type 1 restrictions)
         if (status.disabled) {
           return true;
         }
@@ -382,7 +408,7 @@ const GroupFormation = () => {
   const handleStudentSelection = (student) => {
   const inviteStatus = getInviteStatus(student);
   
-  // Check if student is disabled (for Sem 7 track restrictions)
+  // Check if student is disabled (for Sem 7 track restrictions or Sem 8 Type 1 restrictions)
   if (inviteStatus.disabled) {
     toast.error(`Cannot select ${student.fullName}: ${inviteStatus.message}`);
     return;
@@ -550,7 +576,20 @@ const GroupFormation = () => {
 
       // Refresh context data after creating group
       // This ensures the UI reflects the new group immediately
-      await fetchSem5Data();
+      if (currentSemester === 8) {
+        // Refresh Sem 8 context
+        if (sem8Context?.fetchSem8Data) {
+          await sem8Context.fetchSem8Data();
+        }
+      } else if (currentSemester === 7) {
+        // Refresh Sem 7 context
+        if (sem7Context?.fetchSem7Data) {
+          await sem7Context.fetchSem7Data();
+        }
+      } else {
+        // Refresh Sem 5 context
+        await fetchSem5Data();
+      }
 
       // Now send invitations (if any)
       if (selectedStudents.length > 0) {
@@ -595,7 +634,9 @@ const GroupFormation = () => {
 
   // If student is already in a group, show group management
   if (isInGroup && currentGroup) {
-    const projectType = currentSemester === 7 ? 'Major Project 1' : 'Minor Project 2';
+    const projectType = currentSemester === 7 ? 'Major Project 1' : 
+                        currentSemester === 8 ? 'Major Project 2' : 
+                        'Minor Project 2';
     return (
       <Layout>
         <div className="py-8">
@@ -723,6 +764,22 @@ const GroupFormation = () => {
               )}
             </div>
           </div>
+          </div>
+        </div>
+      </Layout>
+    );
+  }
+
+  // For Sem 8, wait for Sem8Context to load before checking canCreateGroup
+  if (currentSemester === 8 && sem8Loading) {
+    return (
+      <Layout>
+        <div className="py-8">
+          <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="text-center py-12">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+              <p className="mt-4 text-gray-600">Loading group creation options...</p>
+            </div>
           </div>
         </div>
       </Layout>
@@ -998,6 +1055,8 @@ const GroupFormation = () => {
                           <p className="text-xs text-gray-400">
                             {currentSemester === 7 
                               ? <>Search <strong>Semester 7 coursework</strong> students by: <strong>name</strong>, <strong>email</strong>, <strong>phone number</strong>, or <strong>MIS number</strong>. Students on internship track or without a track selection will be shown but disabled.</>
+                              : currentSemester === 8
+                              ? <>Search <strong>Semester 8 Type 1</strong> students by: <strong>name</strong>, <strong>email</strong>, <strong>phone number</strong>, or <strong>MIS number</strong>. Only Type 1 students (completed 6-month internship in Sem 7) can join groups. Type 2 students will be shown but disabled.</>
                               : <>Search {currentSemester}th semester <strong>CSE & ECE</strong> students by: <strong>name</strong>, <strong>email</strong>, <strong>phone number</strong>, or <strong>MIS number</strong></>
                             }
                           </p>
@@ -1113,7 +1172,7 @@ const GroupFormation = () => {
                       {sortedStudents.map((student, index) => {
                         const isSelected = selectedStudents.some(s => s._id === student._id);
                         const inviteStatus = getInviteStatus(student);
-                        // Check if student is disabled (for Sem 7 track restrictions)
+                        // Check if student is disabled (for Sem 7 track restrictions or Sem 8 Type 1 restrictions)
                         const isDisabled = inviteStatus.disabled === true;
                         const canSelect = !isDisabled && (
                           inviteStatus.status === 'available' || 
@@ -1204,7 +1263,7 @@ const GroupFormation = () => {
                                   ? 'bg-yellow-100 text-yellow-700'
                                   : inviteStatus.status === 'group_full'
                                   ? 'bg-purple-100 text-purple-700'
-                                  : inviteStatus.status === 'no_track_selected' || inviteStatus.status === 'internship_track' || inviteStatus.status === 'not_coursework'
+                                  : inviteStatus.status === 'no_track_selected' || inviteStatus.status === 'internship_track' || inviteStatus.status === 'not_coursework' || inviteStatus.status === 'no_sem8_type' || inviteStatus.status === 'type2_student' || inviteStatus.status === 'not_type1'
                                   ? 'bg-gray-200 text-gray-600'
                                   : 'bg-red-100 text-red-700'
                               }`}>
@@ -1474,6 +1533,48 @@ const GroupFormation = () => {
       errorButtonText = 'Change Track';
     } else {
       errorMessage = 'You cannot create a group at this time. Please contact the administrator if you believe this is an error.';
+    }
+  } else if (currentSemester === 8) {
+    // Sem 8: Only Type 1 students can create groups for Major Project 2
+    // Wait for Sem8Context to load before showing error
+    if (sem8Loading) {
+      // Still loading - show loading state instead of error
+      return (
+        <Layout>
+          <div className="py-8">
+            <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+              <div className="text-center py-12">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+                <p className="mt-4 text-gray-600">Loading group creation options...</p>
+              </div>
+            </div>
+          </div>
+        </Layout>
+      );
+    }
+    
+    // Check student type - sem8IsType1 or sem8StudentType should be available after loading
+    const isType1Student = sem8IsType1 === true || sem8StudentType === 'type1';
+    const isType2Student = sem8IsType1 === false || sem8StudentType === 'type2';
+    
+    if (isType2Student) {
+      errorMessage = 'Only Type 1 students (completed 6-month internship in Sem 7) can create groups for Major Project 2. Type 2 students must do solo Major Project 2.';
+      errorAction = () => navigate('/dashboard/student');
+      errorButtonText = 'Go to Dashboard';
+    } else if (isType1Student) {
+      // Type 1 student but can't create - check if already in group or window issue
+      if (currentGroup) {
+        errorMessage = 'You are already in a group for Major Project 2.';
+        errorAction = () => navigate('/dashboard/student');
+        errorButtonText = 'Go to Dashboard';
+      } else {
+        // Type 1 student, no group, but canCreateGroup is false
+        // This could be due to window being closed or other validation
+        errorMessage = 'You cannot create a group at this time. The group formation window may be closed. Please contact the administrator if you believe this is an error.';
+      }
+    } else {
+      // Unable to determine student type - this shouldn't happen after loading
+      errorMessage = 'Unable to determine your student type. Please refresh the page or contact the administrator.';
     }
   } else if (currentSemester === 5) {
     // For Sem 5, students should be able to create groups without registering first

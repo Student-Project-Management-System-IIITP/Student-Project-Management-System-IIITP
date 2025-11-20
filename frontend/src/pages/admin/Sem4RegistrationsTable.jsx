@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { adminAPI } from '../../utils/api';
+import { toast } from 'react-hot-toast';
 
 const Sem4RegistrationsTable = () => {
   const [registrations, setRegistrations] = useState([]);
@@ -9,6 +10,10 @@ const Sem4RegistrationsTable = () => {
   const [selectedBatch, setSelectedBatch] = useState('');
   const [currentYearOnly, setCurrentYearOnly] = useState(true);
   const [availableBatches, setAvailableBatches] = useState([]);
+  
+  // State for inline remarks editing
+  const [editingRemarks, setEditingRemarks] = useState({ id: null, value: '' });
+  const [savingRemarks, setSavingRemarks] = useState(false);
 
   // Function to calculate batch from registration date
   const calculateBatch = (registrationDate) => {
@@ -82,10 +87,22 @@ const Sem4RegistrationsTable = () => {
       // Load all registrations without filtering (backend will handle the basic filtering)
       const response = await adminAPI.getSem4Registrations();
       const allRegistrations = response.data || [];
-      setRegistrations(allRegistrations);
+      
+      // Also load projects to get feedback
+      const projectsResponse = await adminAPI.getProjects({ semester: 4, projectType: 'minor1' });
+      const projects = projectsResponse.data || [];
+      const projectsMap = new Map(projects.map(p => [p._id.toString(), p]));
+      
+      // Merge feedback into registrations
+      const registrationsWithFeedback = allRegistrations.map(reg => ({
+        ...reg,
+        feedback: projectsMap.get(reg._id)?.feedback || ''
+      }));
+      
+      setRegistrations(registrationsWithFeedback);
       
       // Apply frontend batch sorting and filtering
-      const sortedAndFiltered = sortRegistrationsByBatch(allRegistrations);
+      const sortedAndFiltered = sortRegistrationsByBatch(registrationsWithFeedback);
       setFilteredRegistrations(sortedAndFiltered);
     } catch (error) {
       console.error('Failed to load registrations:', error);
@@ -112,6 +129,109 @@ const Sem4RegistrationsTable = () => {
       minute: '2-digit',
       second: '2-digit'
     });
+  };
+
+  // Handle inline remarks editing
+  const handleStartEditRemarks = (id, currentValue) => {
+    setEditingRemarks({ id, value: currentValue || '' });
+  };
+
+  const handleCancelEditRemarks = () => {
+    setEditingRemarks({ id: null, value: '' });
+  };
+
+  const handleSaveProjectRemarks = async (projectId, remarks) => {
+    try {
+      setSavingRemarks(true);
+      const response = await adminAPI.updateProjectStatus(projectId, { feedback: remarks });
+      if (response.success) {
+        toast.success('Remarks saved successfully');
+        await loadRegistrations();
+        setEditingRemarks({ id: null, value: '' });
+      } else {
+        throw new Error(response.message || 'Failed to save remarks');
+      }
+    } catch (error) {
+      console.error('Failed to save remarks:', error);
+      toast.error(`Failed to save remarks: ${error.message}`);
+    } finally {
+      setSavingRemarks(false);
+    }
+  };
+
+  // Render editable remarks cell
+  const renderRemarksCell = (projectId, currentValue) => {
+    const isEditing = editingRemarks.id === projectId;
+    const canEdit = !!projectId; // Only allow editing if project exists
+    
+    if (isEditing) {
+      return (
+        <td className="px-6 py-4 text-sm">
+          <div className="flex items-center gap-2">
+            <input
+              type="text"
+              value={editingRemarks.value}
+              onChange={(e) => setEditingRemarks({ ...editingRemarks, value: e.target.value })}
+              className="flex-1 px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-orange-500"
+              autoFocus
+              disabled={!canEdit}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && canEdit) {
+                  handleSaveProjectRemarks(projectId, editingRemarks.value);
+                } else if (e.key === 'Escape') {
+                  handleCancelEditRemarks();
+                }
+              }}
+            />
+            <button
+              onClick={() => {
+                if (canEdit) {
+                  handleSaveProjectRemarks(projectId, editingRemarks.value);
+                }
+              }}
+              disabled={savingRemarks || !canEdit}
+              className="px-2 py-1 text-xs bg-orange-600 text-white rounded hover:bg-orange-700 disabled:opacity-50"
+              title={!canEdit ? 'Project not found. Cannot save remarks.' : ''}
+            >
+              {savingRemarks ? '...' : '✓'}
+            </button>
+            <button
+              onClick={handleCancelEditRemarks}
+              className="px-2 py-1 text-xs bg-gray-300 text-gray-700 rounded hover:bg-gray-400"
+            >
+              ✕
+            </button>
+          </div>
+          {!canEdit && (
+            <div className="mt-1 text-xs text-red-600">
+              Project not found. Cannot save remarks.
+            </div>
+          )}
+        </td>
+      );
+    }
+    
+    return (
+      <td 
+        className={`px-6 py-4 text-sm text-gray-900 min-w-[150px] ${
+          canEdit ? 'cursor-pointer hover:bg-gray-100' : 'cursor-not-allowed opacity-60'
+        }`}
+        onClick={() => {
+          if (canEdit) {
+            handleStartEditRemarks(projectId, currentValue);
+          } else {
+            toast.error('Project not found. Cannot edit remarks.');
+          }
+        }}
+        title={canEdit ? 'Click to edit remarks' : 'Project not found. Cannot edit remarks.'}
+      >
+        {currentValue || (
+          <span className={canEdit ? 'text-gray-400 italic' : 'text-gray-300 italic'}>
+            {canEdit ? 'Click to add remarks' : 'Project not found'}
+          </span>
+        )}
+      </td>
+    );
   };
 
   // Function to generate CSV content
@@ -323,6 +443,9 @@ const Sem4RegistrationsTable = () => {
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Proposed Project Title/Area
                     </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Remarks
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
@@ -349,6 +472,7 @@ const Sem4RegistrationsTable = () => {
                       <td className="px-6 py-4 text-sm text-gray-900 max-w-xs truncate">
                         {registration.projectTitle || 'N/A'}
                       </td>
+                      {renderRemarksCell(registration._id, registration.feedback)}
                     </tr>
                   ))}
                 </tbody>

@@ -1,15 +1,23 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { useSem7Project } from '../../hooks/useSem7Project';
+import { useSem8 } from '../../context/Sem8Context';
 import { useAuth } from '../../context/AuthContext';
+import { studentAPI } from '../../utils/api';
 import Layout from '../../components/common/Layout';
 import StatusBadge from '../../components/common/StatusBadge';
 
 const Internship1Dashboard = () => {
   const navigate = useNavigate();
+  const { user, roleData } = useAuth();
+  const location = useLocation();
+  
+  // Determine if this is Internship 2 route (Sem 8)
+  const isInternship2Route = location.pathname === '/student/sem8/internship2/dashboard';
+  
   const {
-    internship1Project,
-    internship1Status,
+    internship1Project: sem7Internship1Project,
+    internship1Status: sem7Internship1Status,
     finalizedTrack,
     trackChoice,
     loading: sem7Loading,
@@ -17,51 +25,176 @@ const Internship1Dashboard = () => {
     hasApprovedSummerInternship,
     getInternshipApplication
   } = useSem7Project();
+  const { 
+    sem8Status, 
+    loading: sem8Loading,
+    internship2Project,
+    internship2Status,
+    fetchSem8Data,
+    internshipApplications: sem8InternshipApplications
+  } = useSem8();
+  
+  // Determine current semester and student type
+  const currentSemester = roleData?.semester || user?.semester;
+  const isSem8 = currentSemester === 8;
+  const isSem7 = currentSemester === 7;
+  const isType1 = isSem8 && sem8Status?.studentType === 'type1';
+  
+  // State for Sem 8 Internship 1 project and status (for Type 1 students who might have Internship 1 in Sem 8)
+  const [sem8Internship1Project, setSem8Internship1Project] = useState(null);
+  const [sem8Internship1Status, setSem8Internship1Status] = useState(null);
+  
+  // Use appropriate project and status based on route and semester
+  // If Internship 2 route, use internship2Project; otherwise use internship1Project
+  const internship1Project = isInternship2Route 
+    ? internship2Project 
+    : (isSem8 ? sem8Internship1Project : sem7Internship1Project);
+  const internship1Status = isInternship2Route
+    ? internship2Status
+    : (isSem8 ? sem8Internship1Status : sem7Internship1Status);
+  const loading = isSem8 ? sem8Loading : sem7Loading;
+  
+  // Determine display labels based on route
+  const internshipLabel = isInternship2Route ? 'Internship 2' : 'Internship 1';
+  const internshipProjectLabel = isInternship2Route ? 'Internship 2 Project' : 'Internship 1 Project';
 
   const [isLoading, setIsLoading] = useState(true);
   const [selectedPath, setSelectedPath] = useState(null); // 'completed' or 'not_completed'
-  const location = useLocation();
   const prevLocationRef = useRef();
 
   useEffect(() => {
     const loadData = async () => {
       setIsLoading(true);
-      await fetchSem7Data();
+      if (isSem7) {
+        await fetchSem7Data();
+      } else if (isSem8 && isType1) {
+        // For Internship 2 route, ensure Sem8Context data is loaded
+        if (isInternship2Route) {
+          // Ensure Sem8Context data is loaded (this loads internship2Project and internship2Status)
+          if (fetchSem8Data) {
+            await fetchSem8Data();
+          }
+        } else {
+          // For Internship 1 in Sem 8, load separately
+          try {
+            let foundProject = null;
+            
+            // First, try to load projects directly
+            const projectResponse = await studentAPI.getProjects({ 
+              semester: 8, 
+              projectType: 'internship1' 
+            });
+            if (projectResponse.success && projectResponse.data && projectResponse.data.length > 0) {
+              const activeProject = projectResponse.data.find(p => p.status !== 'cancelled');
+              if (activeProject) {
+                foundProject = activeProject;
+                setSem8Internship1Project(activeProject);
+              }
+            }
+            
+            // Also load status for eligibility info
+            const statusResponse = await studentAPI.checkInternship1Status();
+            if (statusResponse.success && statusResponse.data) {
+              setSem8Internship1Status(statusResponse.data);
+              // If status response has existingProject but we didn't find it in projects, use it
+              if (statusResponse.data.existingProject && !foundProject) {
+                // The existingProject from status might have limited fields, but it's better than nothing
+                setSem8Internship1Project(statusResponse.data.existingProject);
+              }
+            }
+          } catch (error) {
+            console.error('Failed to load Sem 8 Internship 1 data:', error);
+          }
+        }
+      }
       setIsLoading(false);
     };
     loadData();
-  }, [fetchSem7Data]);
+  }, [fetchSem7Data, fetchSem8Data, isSem7, isSem8, isType1, isInternship2Route]);
 
   // Refresh data when navigating to this page (e.g., after updating application)
   useEffect(() => {
     // If location changed and we're on this page, refresh data
-    if (prevLocationRef.current !== location.pathname && location.pathname === '/student/sem7/internship1/dashboard') {
+    const isInternshipDashboard = location.pathname === '/student/sem7/internship1/dashboard' || 
+                                   location.pathname === '/student/sem8/internship1/dashboard' ||
+                                   location.pathname === '/student/sem8/internship2/dashboard';
+    if (prevLocationRef.current !== location.pathname && isInternshipDashboard) {
       const refreshData = async () => {
-        await fetchSem7Data();
+        if (isSem7) {
+          await fetchSem7Data();
+        } else if (isSem8 && isType1) {
+          if (isInternship2Route) {
+            // For Internship 2, refresh Sem8Context data to reload internship2Project and internship2Status
+            if (fetchSem8Data) {
+              await fetchSem8Data();
+            }
+          } else {
+            // Refresh Sem 8 Internship 1 data (not Internship 2)
+            try {
+              let foundProject = null;
+              
+              // First, try to load projects directly
+              const projectResponse = await studentAPI.getProjects({ 
+                semester: 8, 
+                projectType: 'internship1' 
+              });
+              if (projectResponse.success && projectResponse.data && projectResponse.data.length > 0) {
+                const activeProject = projectResponse.data.find(p => p.status !== 'cancelled');
+                if (activeProject) {
+                  foundProject = activeProject;
+                  setSem8Internship1Project(activeProject);
+                }
+              }
+              
+              // Also load status for eligibility info
+              const statusResponse = await studentAPI.checkInternship1Status();
+              if (statusResponse.success && statusResponse.data) {
+                setSem8Internship1Status(statusResponse.data);
+                // If status response has existingProject but we didn't find it in projects, use it
+                if (statusResponse.data.existingProject && !foundProject) {
+                  setSem8Internship1Project(statusResponse.data.existingProject);
+                }
+              }
+            } catch (error) {
+              console.error('Failed to refresh Sem 8 Internship 1 data:', error);
+            }
+          }
+        }
       };
       refreshData();
     }
     prevLocationRef.current = location.pathname;
-  }, [location.pathname, fetchSem7Data]);
+  }, [location.pathname, fetchSem7Data, fetchSem8Data, isSem7, isSem8, isType1, isInternship2Route]);
 
   // Determine selected track (use chosenTrack - no need to wait for finalization)
-  const selectedTrack = trackChoice?.chosenTrack;
+  const selectedTrack = isSem8 ? (sem8Status?.selection?.chosenTrack || sem8Status?.selection?.finalizedTrack) : trackChoice?.chosenTrack;
 
-  // Redirect if not coursework track (only after data is loaded)
+  // Redirect if not eligible (only after data is loaded)
   useEffect(() => {
     // Don't redirect while loading - wait for data to load first
-    if (sem7Loading) return;
+    if (loading) return;
     
-    // If no trackChoice loaded yet, don't redirect (might still be loading)
-    if (!trackChoice) return;
-    
-    if (!selectedTrack || selectedTrack !== 'coursework') {
-      navigate('/dashboard/student');
+    // For Sem 7: Check track choice
+    if (isSem7) {
+      if (!trackChoice) return;
+      if (!selectedTrack || selectedTrack !== 'coursework') {
+        navigate('/dashboard/student');
+      }
     }
-  }, [selectedTrack, sem7Loading, trackChoice, navigate]);
+    
+    // For Sem 8: Check if Type 1 student
+    if (isSem8) {
+      if (!isType1) {
+        navigate('/dashboard/student');
+      }
+    }
+  }, [selectedTrack, loading, trackChoice, navigate, isSem7, isSem8, isType1, sem8Status]);
 
   // Check if student has summer internship application
-  const summerApp = getInternshipApplication('summer');
+  // For Sem 8, use Sem8Context applications; for Sem 7, use Sem7Context
+  const summerApp = isSem8
+    ? (sem8InternshipApplications || []).find(app => app.type === 'summer' && app.semester === 8)
+    : getInternshipApplication('summer');
   const hasSummerApp = !!summerApp;
   // Check if summer internship is approved (status can be 'approved' or 'verified_pass' depending on when it was reviewed)
   // hasApprovedSummerInternship is already a boolean from the hook, not a function
@@ -96,13 +229,13 @@ const Internship1Dashboard = () => {
       !summerApp.details?.roleOrNatureOfWork
     );
 
-  if (isLoading || sem7Loading) {
+  if (isLoading || loading) {
     return (
       <Layout>
         <div className="flex items-center justify-center min-h-screen">
           <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-            <p className="mt-4 text-gray-600">Loading Internship 1 dashboard...</p>
+            <p className="mt-4 text-gray-600">Loading {internshipLabel} dashboard...</p>
           </div>
         </div>
       </Layout>
@@ -112,7 +245,8 @@ const Internship1Dashboard = () => {
   // If student has registered for Internship 1 project and it's not cancelled, show project dashboard (prioritize over application)
   // Note: Context filters out cancelled projects, so if internship1Project exists, it's active
   // But we still check status to be safe
-  if (internship1Project && internship1Project.status && internship1Project.status !== 'cancelled') {
+  // For Internship 2, allow projects even if status is undefined/null (newly registered projects might not have status set yet)
+  if (internship1Project && (internship1Project.status === undefined || internship1Project.status === null || internship1Project.status !== 'cancelled')) {
     // Redirect directly to project dashboard
     return (
       <Layout>
@@ -120,7 +254,7 @@ const Internship1Dashboard = () => {
           <div className="mb-8">
             <div className="flex items-center justify-between">
               <div>
-                <h1 className="text-3xl font-bold text-gray-900 mb-2">Internship 1</h1>
+                <h1 className="text-3xl font-bold text-gray-900 mb-2">{internshipLabel}</h1>
                 <p className="text-gray-600">
                   Manage your solo internship project
                 </p>
@@ -176,7 +310,7 @@ const Internship1Dashboard = () => {
                     </svg>
                   </div>
                   <div>
-                    <h2 className="text-xl font-semibold text-gray-900">Internship 1 Project</h2>
+                    <h2 className="text-xl font-semibold text-gray-900">{internshipProjectLabel}</h2>
                     <p className="text-sm text-gray-500">Project Dashboard</p>
                   </div>
                 </div>
@@ -260,7 +394,7 @@ const Internship1Dashboard = () => {
           <div className="mb-8">
             <div className="flex items-center justify-between">
               <div>
-                <h1 className="text-3xl font-bold text-gray-900 mb-2">Internship 1</h1>
+                <h1 className="text-3xl font-bold text-gray-900 mb-2">{internshipLabel}</h1>
                 <p className="text-gray-600">
                   Manage your 2-month summer internship
                 </p>
@@ -330,7 +464,7 @@ const Internship1Dashboard = () => {
                           <li>Completion certificate</li>
                         </ul>
                         <Link
-                          to={`/student/sem7/internship/apply/summer/${summerApp._id}/edit`}
+                          to={isSem8 ? `/student/sem8/internship/apply/summer/${summerApp._id}/edit` : `/student/sem7/internship/apply/summer/${summerApp._id}/edit`}
                           className="inline-flex items-center px-6 py-3 bg-red-600 text-white font-bold rounded-lg hover:bg-red-700 transition-colors shadow-md mt-2"
                         >
                           <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -652,7 +786,7 @@ const Internship1Dashboard = () => {
               <div className="pt-4 border-t border-gray-200">
                 {summerApp.status === 'needs_info' ? (
                   <Link
-                    to={`/student/sem7/internship/apply/summer/${summerApp._id}/edit`}
+                    to={isSem8 ? `/student/sem8/internship/apply/summer/${summerApp._id}/edit` : `/student/sem7/internship/apply/summer/${summerApp._id}/edit`}
                     className="inline-flex items-center px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition-colors"
                   >
                     <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -664,7 +798,7 @@ const Internship1Dashboard = () => {
                   <div className="space-y-3">
                     <p className="text-sm font-medium text-gray-900">Next Steps:</p>
                     <Link
-                      to="/student/sem7/internship1/register"
+                      to={isSem8 ? "/student/sem8/internship1/register" : "/student/sem7/internship1/register"}
                       className="inline-flex items-center px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
                     >
                       <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -678,7 +812,7 @@ const Internship1Dashboard = () => {
                   </div>
                 ) : (
                   <Link
-                    to={`/student/sem7/internship/apply/summer/${summerApp._id}/edit`}
+                    to={isSem8 ? `/student/sem8/internship/apply/summer/${summerApp._id}/edit` : `/student/sem7/internship/apply/summer/${summerApp._id}/edit`}
                     className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
                   >
                     <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -708,7 +842,7 @@ const Internship1Dashboard = () => {
           <div className="mb-8">
             <div className="flex items-center justify-between">
               <div>
-                <h1 className="text-3xl font-bold text-gray-900 mb-2">Internship 1</h1>
+                <h1 className="text-3xl font-bold text-gray-900 mb-2">{internshipLabel}</h1>
                 <p className="text-gray-600">
                   Manage your solo internship project
                 </p>
@@ -764,7 +898,7 @@ const Internship1Dashboard = () => {
                     </svg>
                   </div>
                   <div>
-                    <h2 className="text-xl font-semibold text-gray-900">Internship 1 Project</h2>
+                    <h2 className="text-xl font-semibold text-gray-900">{internshipProjectLabel}</h2>
                     <p className="text-sm text-gray-500">Project Dashboard</p>
                   </div>
                 </div>
@@ -818,14 +952,16 @@ const Internship1Dashboard = () => {
   }
 
   // Show path selection if no selection made yet
-  if (!selectedPath) {
+  // BUT: For Internship 2 route, if project exists, skip selection screen and show project dashboard
+  // (The project check above should have caught this, but if it didn't due to timing, check here too)
+  if (!selectedPath && !(isInternship2Route && internship1Project)) {
     return (
       <Layout>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <div className="mb-8">
             <div className="flex items-center justify-between">
               <div>
-                <h1 className="text-3xl font-bold text-gray-900 mb-2">Internship 1</h1>
+                <h1 className="text-3xl font-bold text-gray-900 mb-2">{internshipLabel}</h1>
                 <p className="text-gray-600">
                   Complete your 2-month summer internship requirement
                 </p>
@@ -881,7 +1017,7 @@ const Internship1Dashboard = () => {
                       I haven't completed internship
                     </h2>
                     <p className="text-gray-600 mb-4">
-                      Register for Internship 1 solo project under a faculty mentor
+                      Register for {internshipLabel} solo project under a faculty mentor
                     </p>
                     {internship1Status && !internship1Status.eligible && (
                       <div className="mt-4 p-3 bg-yellow-50 rounded-lg">
@@ -914,7 +1050,7 @@ const Internship1Dashboard = () => {
           <div className="mb-8">
             <div className="flex items-center justify-between">
               <div>
-                <h1 className="text-3xl font-bold text-gray-900 mb-2">Internship 1</h1>
+                <h1 className="text-3xl font-bold text-gray-900 mb-2">{internshipLabel}</h1>
                 <p className="text-gray-600">
                   Track changed to Internship 1 Project
                 </p>
@@ -958,18 +1094,20 @@ const Internship1Dashboard = () => {
             </div>
 
             <div className="text-center py-8">
-              <h2 className="text-xl font-semibold text-gray-900 mb-4">Register for Internship 1 Project</h2>
+              <h2 className="text-xl font-semibold text-gray-900 mb-4">Register for {internshipLabel} Project</h2>
               <p className="text-gray-600 mb-6">
-                You need to register for an Internship 1 solo project under an Institute Faculty supervisor.
+                You need to register for an {internshipLabel} solo project under an Institute Faculty supervisor.
               </p>
               <Link
-                to="/student/sem7/internship1/register"
+                to={isInternship2Route 
+                  ? "/student/sem8/internship2/register" 
+                  : (isSem8 ? "/student/sem8/internship1/register" : "/student/sem7/internship1/register")}
                 className="inline-flex items-center px-6 py-3 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition-colors shadow-md"
               >
                 <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
                 </svg>
-                Register for Internship 1 Project
+                Register for {internshipLabel} Project
               </Link>
             </div>
           </div>
@@ -985,9 +1123,9 @@ const Internship1Dashboard = () => {
         <div className="mb-8">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-3xl font-bold text-gray-900 mb-2">Internship 1</h1>
+              <h1 className="text-3xl font-bold text-gray-900 mb-2">{internshipLabel}</h1>
               <p className="text-gray-600">
-                {selectedPath === 'completed' ? 'Submit Summer Internship Evidence' : 'Register Internship 1 Project'}
+                {selectedPath === 'completed' ? 'Submit Summer Internship Evidence' : `Register ${internshipLabel} Project`}
               </p>
             </div>
             <button
@@ -1025,8 +1163,8 @@ const Internship1Dashboard = () => {
                 </div>
                 <Link
                   to={summerApp.status === 'needs_info' 
-                    ? `/student/sem7/internship/apply/summer/${summerApp._id}/edit`
-                    : `/student/sem7/internship/apply/summer/${summerApp._id}/edit`
+                    ? (isSem8 ? `/student/sem8/internship/apply/summer/${summerApp._id}/edit` : `/student/sem7/internship/apply/summer/${summerApp._id}/edit`)
+                    : (isSem8 ? `/student/sem8/internship/apply/summer/${summerApp._id}/edit` : `/student/sem7/internship/apply/summer/${summerApp._id}/edit`)
                   }
                   className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
                 >
@@ -1035,7 +1173,7 @@ const Internship1Dashboard = () => {
               </div>
             ) : (
               <Link
-                to="/student/sem7/internship/apply/summer"
+                to={isSem8 ? "/student/sem8/internship/apply/summer" : "/student/sem7/internship/apply/summer"}
                 className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
               >
                 <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1046,11 +1184,11 @@ const Internship1Dashboard = () => {
             )}
           </div>
         ) : (
-          // Internship 1 Project Registration
+          // Internship Project Registration
           <div className="bg-white rounded-lg shadow p-6">
             <div className="mb-6">
               <h2 className="text-xl font-semibold text-gray-900 mb-2">
-                Register Internship 1 Project
+                Register {internshipLabel} Project
               </h2>
               <p className="text-gray-600">
                 Register for a solo internship project under a faculty mentor
@@ -1065,13 +1203,15 @@ const Internship1Dashboard = () => {
               </div>
             ) : (
               <Link
-                to="/student/sem7/internship1/register"
+                to={isInternship2Route 
+                  ? "/student/sem8/internship2/register" 
+                  : (isSem8 ? "/student/sem8/internship1/register" : "/student/sem7/internship1/register")}
                 className="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
               >
                 <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                 </svg>
-                Register Internship 1 Project
+                Register {internshipLabel} Project
               </Link>
             )}
           </div>

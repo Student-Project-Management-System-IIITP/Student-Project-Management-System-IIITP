@@ -778,6 +778,20 @@ const GroupDashboard = () => {
         }
       }
       
+      // For Sem 8: Check Type 1 eligibility before other checks
+      if (groupSemester === 8 && student.semester === 8) {
+        if (student.isType1Eligible === false || student.isType1Eligible === undefined) {
+          const studentType = student.sem8StudentType;
+          if (!studentType) {
+            return { status: 'no_sem8_type', message: 'Sem 8 type not determined', disabled: true };
+          } else if (studentType === 'type2') {
+            return { status: 'type2_student', message: 'Type 2 student (must do solo project)', disabled: true };
+          } else {
+            return { status: 'not_type1', message: 'Not Type 1 student', disabled: true };
+          }
+        }
+      }
+      
       // Check if student is already in a group
       if (student.isInGroup || student.status === 'in_group') {
         return { status: 'in_group', message: 'Already in a group' };
@@ -860,7 +874,11 @@ const GroupDashboard = () => {
           // Sem 7 disabled statuses (shown but not selectable)
           'no_track_selected': 9,             // No track selected (Sem 7)
           'internship_track': 10,             // Internship track (Sem 7)
-          'not_coursework': 11                // Not coursework (Sem 7)
+          'not_coursework': 11,               // Not coursework (Sem 7)
+          // Sem 8 disabled statuses (shown but not selectable)
+          'no_sem8_type': 12,                 // Sem 8 type not determined
+          'type2_student': 13,                // Type 2 student (Sem 8)
+          'not_type1': 14                     // Not Type 1 (Sem 8)
         };
       
       const priorityA = statusPriority[statusA.status] || 999;
@@ -989,10 +1007,10 @@ const GroupDashboard = () => {
               <div className="w-3 h-3 bg-red-100 rounded-full border border-red-300"></div>
               <span className="text-red-700">In Group</span>
             </span>
-            {groupSemester === 7 && (
+            {(groupSemester === 7 || groupSemester === 8) && (
               <span className="flex items-center space-x-1">
                 <div className="w-3 h-3 bg-gray-100 rounded-full border border-gray-300 opacity-50"></div>
-                <span className="text-gray-600">Not Eligible (Sem 7)</span>
+                <span className="text-gray-600">Not Eligible {groupSemester === 7 ? '(Sem 7)' : '(Sem 8 Type 2)'}</span>
               </span>
             )}
           </div>
@@ -1032,7 +1050,7 @@ const GroupDashboard = () => {
                          inviteStatus.status === 'selected' ? 'Selected Students' :
                          inviteStatus.status === 'pending_from_current_group' ? 'Invitation Pending' :
                          inviteStatus.status === 'in_group' ? 'Students in Groups' :
-                         inviteStatus.disabled ? 'Not Eligible Students (Sem 7)' : 'Other Status'}
+                         inviteStatus.disabled ? `Not Eligible Students ${groupSemester === 7 ? '(Sem 7)' : '(Sem 8 Type 2)'}` : 'Other Status'}
                       </span>
                     </div>
                   </div>

@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { useAuth } from '../../context/AuthContext';
 import { useSem7Project } from '../../hooks/useSem7Project';
+import { useSem8 } from '../../context/Sem8Context';
 import { internshipAPI } from '../../utils/api';
 import { toast } from 'react-hot-toast';
 import Layout from '../../components/common/Layout';
@@ -12,12 +13,18 @@ const InternshipApplicationForm = () => {
   const navigate = useNavigate();
   const { type, id } = useParams(); // type: '6month' or 'summer', id: application ID for editing
   const { user, roleData } = useAuth();
-  const { 
-    internshipApplications, 
-    createInternshipApplication, 
-    updateInternshipApplication,
-    loading 
-  } = useSem7Project();
+  const currentSemester = roleData?.semester || user?.semester;
+  const isSem8 = currentSemester === 8;
+  
+  // Use appropriate context based on semester
+  const sem7Context = useSem7Project();
+  const sem8Context = useSem8();
+  
+  // Use Sem8 context for Sem 8 students, Sem7 context for Sem 7 students
+  const internshipApplications = isSem8 ? (sem8Context?.internshipApplications || []) : sem7Context.internshipApplications;
+  const createInternshipApplication = isSem8 ? sem8Context?.createInternshipApplication : sem7Context.createInternshipApplication;
+  const updateInternshipApplication = isSem8 ? sem8Context?.updateInternshipApplication : sem7Context.updateInternshipApplication;
+  const loading = isSem8 ? (sem8Context?.loading || false) : sem7Context.loading;
 
   const [isEditing, setIsEditing] = useState(!!id);
   const [application, setApplication] = useState(null);
@@ -58,8 +65,8 @@ const InternshipApplicationForm = () => {
 
   // Load existing application if editing
   useEffect(() => {
-    if (isEditing && id) {
-      const existingApp = internshipApplications?.find(app => app._id === id);
+    if (isEditing && id && internshipApplications) {
+      const existingApp = internshipApplications.find(app => app._id === id);
       if (existingApp) {
         setApplication(existingApp);
         const details = existingApp.details || {};
@@ -84,7 +91,10 @@ const InternshipApplicationForm = () => {
   useEffect(() => {
     const checkWindow = async () => {
       try {
-        const windowKey = type === '6month' ? 'sem7.sixMonthSubmissionWindow' : 'sem7.internship2.evidenceWindow';
+        // Use correct window key based on semester
+        const windowKey = type === '6month' 
+          ? (isSem8 ? 'sem8.sixMonthSubmissionWindow' : 'sem7.sixMonthSubmissionWindow')
+          : (isSem8 ? 'sem8.internship2.evidenceWindow' : 'sem7.internship2.evidenceWindow');
         const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/student/system-config/${windowKey}`, {
           headers: {
             'Authorization': `Bearer ${localStorage.getItem('token')}`
@@ -101,7 +111,7 @@ const InternshipApplicationForm = () => {
       }
     };
     if (type) checkWindow();
-  }, [type]);
+  }, [type, isSem8]);
 
   const onSubmit = async (data) => {
     try {
@@ -149,10 +159,17 @@ const InternshipApplicationForm = () => {
 
       toast.success(isEditing ? 'Application updated successfully!' : 'Application submitted successfully!');
       
-      // Navigate based on application type
+      // Navigate based on application type and semester
+      const currentSemester = roleData?.semester || user?.semester;
       if (type === 'summer') {
-        // For summer internships, navigate to Internship 1 Dashboard
-        navigate('/student/sem7/internship1/dashboard');
+        // For summer internships, navigate to appropriate dashboard based on semester
+        if (currentSemester === 8) {
+          // Sem 8: Navigate to Internship 2 Dashboard
+          navigate('/student/sem8/internship2/dashboard');
+        } else {
+          // Sem 7: Navigate to Internship 1 Dashboard
+          navigate('/student/sem7/internship1/dashboard');
+        }
       } else {
         // For 6-month internships, navigate to student dashboard
         navigate('/dashboard/student');

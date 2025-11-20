@@ -117,6 +117,11 @@ router.post('/projects/major1/register', studentController.registerMajorProject1
 // Internship 1 specific registration (Sem 7 - solo project)
 router.get('/projects/internship1/status', studentController.checkInternship1Status);
 router.post('/projects/internship1/register', studentController.registerInternship1);
+// Major Project 2 specific registration (Sem 8)
+router.post('/projects/major2/register', studentController.registerMajorProject2);
+// Internship 2 specific registration (Sem 8 - solo project)
+router.get('/projects/internship2/status', studentController.checkInternship2Status);
+router.post('/projects/internship2/register', studentController.registerInternship2);
 router.get('/projects/:projectId/allocation-status', studentController.getFacultyAllocationStatus);
 router.get('/group-status', studentController.getStudentGroupStatus);
 

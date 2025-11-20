@@ -64,6 +64,11 @@ router.patch('/sem7/finalize/:studentId', sem7Controller.finalizeSem7Track);
 router.get('/sem7/internship1-track-choices', sem7Controller.listInternship1TrackChoices);
 router.patch('/sem7/internship1-track/:studentId', sem7Controller.changeInternship1Track);
 
+// Sem 8 specific routes
+const sem8Controller = require('../controllers/sem8Controller');
+router.get('/sem8/track-choices', sem8Controller.listSem8TrackChoices);
+router.patch('/sem8/finalize/:studentId', sem8Controller.finalizeSem8Track);
+
 // System Configuration routes
 router.get('/system-config', adminController.getSystemConfigurations);
 router.get('/system-config/:key', adminController.getSystemConfig);

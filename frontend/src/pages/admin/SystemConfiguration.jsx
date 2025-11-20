@@ -8,7 +8,7 @@ const SystemConfiguration = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   
-  const [activeTab, setActiveTab] = useState('sem5'); // 'sem5' or 'sem7'
+  const [activeTab, setActiveTab] = useState('sem5'); // 'sem5', 'sem7', or 'sem8'
   
   // Sem 5 configs
   const [configs, setConfigs] = useState([]);
@@ -21,10 +21,16 @@ const SystemConfiguration = () => {
   const [sem7Major1FacultyLimit, setSem7Major1FacultyLimit] = useState(5);
   const [sem7Internship1FacultyLimit, setSem7Internship1FacultyLimit] = useState(5);
   
+  // Sem 8 configs
+  const [sem8Configs, setSem8Configs] = useState([]);
+  const [sem8Major2FacultyLimit, setSem8Major2FacultyLimit] = useState(5);
+  const [sem8Internship2FacultyLimit, setSem8Internship2FacultyLimit] = useState(5);
+  
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [originalValues, setOriginalValues] = useState({});
   const [sem7OriginalValues, setSem7OriginalValues] = useState({});
+  const [sem8OriginalValues, setSem8OriginalValues] = useState({});
   
   // Confirmation modal state
   const [showConfirmModal, setShowConfirmModal] = useState(false);
@@ -48,20 +54,28 @@ const SystemConfiguration = () => {
         const sem7Response = await adminAPI.getSystemConfigurations('sem7');
         const sem7ConfigData = sem7Response.data || [];
         
+        // Load Sem 8 configs
+        const sem8Response = await adminAPI.getSystemConfigurations('sem8');
+        const sem8ConfigData = sem8Response.data || [];
+        
         // If no configs found, auto-initialize them
-        if (sem5ConfigData.length === 0 || sem7ConfigData.length === 0) {
+        if (sem5ConfigData.length === 0 || sem7ConfigData.length === 0 || sem8ConfigData.length === 0) {
           const loadingToast = toast.loading('Initializing system configurations...');
           try {
             await adminAPI.initializeSystemConfigs();
             // Reload configs after initialization
             const newSem5Response = await adminAPI.getSystemConfigurations('sem5');
             const newSem7Response = await adminAPI.getSystemConfigurations('sem7');
+            const newSem8Response = await adminAPI.getSystemConfigurations('sem8');
             const newSem5ConfigData = newSem5Response.data || [];
             const newSem7ConfigData = newSem7Response.data || [];
+            const newSem8ConfigData = newSem8Response.data || [];
             setConfigs(newSem5ConfigData);
             setSem7Configs(newSem7ConfigData);
+            setSem8Configs(newSem8ConfigData);
             loadSem5ConfigValues(newSem5ConfigData);
             loadSem7ConfigValues(newSem7ConfigData);
+            loadSem8ConfigValues(newSem8ConfigData);
             toast.success('System configurations initialized successfully', { id: loadingToast });
           } catch (initError) {
             console.error('Failed to initialize configurations:', initError);
@@ -70,8 +84,10 @@ const SystemConfiguration = () => {
         } else {
           setConfigs(sem5ConfigData);
           setSem7Configs(sem7ConfigData);
+          setSem8Configs(sem8ConfigData);
           loadSem5ConfigValues(sem5ConfigData);
           loadSem7ConfigValues(sem7ConfigData);
+          loadSem8ConfigValues(sem8ConfigData);
         }
       } catch (error) {
         console.error('Failed to load system configuration:', error);
@@ -124,6 +140,25 @@ const SystemConfiguration = () => {
       });
     };
 
+    const loadSem8ConfigValues = (configData) => {
+      // Extract specific values
+      const major2FacultyLimit = configData.find(c => c.configKey === 'sem8.major2.facultyPreferenceLimit');
+      const internship2FacultyLimit = configData.find(c => c.configKey === 'sem8.internship2.facultyPreferenceLimit');
+      
+      if (major2FacultyLimit) {
+        setSem8Major2FacultyLimit(major2FacultyLimit.configValue);
+      }
+      if (internship2FacultyLimit) {
+        setSem8Internship2FacultyLimit(internship2FacultyLimit.configValue);
+      }
+      
+      // Store original values
+      setSem8OriginalValues({
+        major2FacultyLimit: major2FacultyLimit?.configValue || 5,
+        internship2FacultyLimit: internship2FacultyLimit?.configValue || 5
+      });
+    };
+
     loadConfig();
   }, []);
 
@@ -143,10 +178,17 @@ const SystemConfiguration = () => {
         toast.error('Minimum group members cannot be greater than maximum');
         return;
       }
-    } else {
+    } else if (activeTab === 'sem7') {
       // Validate Sem 7 values
       if (typeof sem7Major1FacultyLimit !== 'number' || 
           typeof sem7Internship1FacultyLimit !== 'number') {
+        toast.error('Please enter valid numeric values');
+        return;
+      }
+    } else if (activeTab === 'sem8') {
+      // Validate Sem 8 values
+      if (typeof sem8Major2FacultyLimit !== 'number' || 
+          typeof sem8Internship2FacultyLimit !== 'number') {
         toast.error('Please enter valid numeric values');
         return;
       }
@@ -200,7 +242,7 @@ const SystemConfiguration = () => {
         // Reload configs to confirm changes
         const response = await adminAPI.getSystemConfigurations('sem5');
         setConfigs(response.data || []);
-      } else {
+      } else if (activeTab === 'sem7') {
         // Update Sem 7 configs
         await adminAPI.updateSystemConfigByKey('sem7.major1.facultyPreferenceLimit', sem7Major1FacultyLimit,
           'Number of faculty preferences required for Sem 7 Major Project 1 registration');
@@ -217,6 +259,23 @@ const SystemConfiguration = () => {
         // Reload configs to confirm changes
         const response = await adminAPI.getSystemConfigurations('sem7');
         setSem7Configs(response.data || []);
+      } else if (activeTab === 'sem8') {
+        // Update Sem 8 configs
+        await adminAPI.updateSystemConfigByKey('sem8.major2.facultyPreferenceLimit', sem8Major2FacultyLimit,
+          'Number of faculty preferences required for Sem 8 Major Project 2 registration');
+        
+        await adminAPI.updateSystemConfigByKey('sem8.internship2.facultyPreferenceLimit', sem8Internship2FacultyLimit,
+          'Number of faculty preferences required for Sem 8 Internship 2 registration');
+        
+        // Update original values
+        setSem8OriginalValues({
+          major2FacultyLimit: sem8Major2FacultyLimit,
+          internship2FacultyLimit: sem8Internship2FacultyLimit
+        });
+        
+        // Reload configs to confirm changes
+        const response = await adminAPI.getSystemConfigurations('sem8');
+        setSem8Configs(response.data || []);
       }
       
       toast.success('Configuration saved successfully!');
@@ -238,9 +297,12 @@ const SystemConfiguration = () => {
       setFacultyPreferenceLimit(originalValues.facultyPreferenceLimit || 7);
       setMinGroupMembers(originalValues.minGroupMembers || 4);
       setMaxGroupMembers(originalValues.maxGroupMembers || 5);
-    } else {
+    } else if (activeTab === 'sem7') {
       setSem7Major1FacultyLimit(sem7OriginalValues.major1FacultyLimit || 5);
       setSem7Internship1FacultyLimit(sem7OriginalValues.internship1FacultyLimit || 5);
+    } else if (activeTab === 'sem8') {
+      setSem8Major2FacultyLimit(sem8OriginalValues.major2FacultyLimit || 5);
+      setSem8Internship2FacultyLimit(sem8OriginalValues.internship2FacultyLimit || 5);
     }
     toast.success('Configuration reset to original values');
   };
@@ -249,8 +311,11 @@ const SystemConfiguration = () => {
     ? ((typeof facultyPreferenceLimit === 'number' && facultyPreferenceLimit !== (originalValues.facultyPreferenceLimit || 7)) ||
        (typeof minGroupMembers === 'number' && minGroupMembers !== (originalValues.minGroupMembers || 4)) ||
        (typeof maxGroupMembers === 'number' && maxGroupMembers !== (originalValues.maxGroupMembers || 5)))
-    : ((typeof sem7Major1FacultyLimit === 'number' && sem7Major1FacultyLimit !== (sem7OriginalValues.major1FacultyLimit || 5)) ||
-       (typeof sem7Internship1FacultyLimit === 'number' && sem7Internship1FacultyLimit !== (sem7OriginalValues.internship1FacultyLimit || 5)));
+    : activeTab === 'sem7'
+    ? ((typeof sem7Major1FacultyLimit === 'number' && sem7Major1FacultyLimit !== (sem7OriginalValues.major1FacultyLimit || 5)) ||
+       (typeof sem7Internship1FacultyLimit === 'number' && sem7Internship1FacultyLimit !== (sem7OriginalValues.internship1FacultyLimit || 5)))
+    : ((typeof sem8Major2FacultyLimit === 'number' && sem8Major2FacultyLimit !== (sem8OriginalValues.major2FacultyLimit || 5)) ||
+       (typeof sem8Internship2FacultyLimit === 'number' && sem8Internship2FacultyLimit !== (sem8OriginalValues.internship2FacultyLimit || 5)));
 
   if (loading) {
     return (
@@ -301,7 +366,7 @@ const SystemConfiguration = () => {
             </div>
             <div className="ml-3">
               <p className="text-sm text-blue-700">
-                <strong>System-Wide Settings:</strong> Changes made here will affect all students registering for {activeTab === 'sem5' ? 'Sem 5 Minor Project 2' : 'Sem 7 Major Project 1 and Internship 1'}. You'll be asked to confirm before saving.
+                <strong>System-Wide Settings:</strong> Changes made here will affect all students registering for {activeTab === 'sem5' ? 'Sem 5 Minor Project 2' : activeTab === 'sem7' ? 'Sem 7 Major Project 1 and Internship 1' : 'Sem 8 Major Project 2 and Internship 2'}. You'll be asked to confirm before saving.
               </p>
             </div>
           </div>
@@ -331,6 +396,16 @@ const SystemConfiguration = () => {
               >
                 Semester 7 (Major Project 1 & Internship)
               </button>
+              <button
+                onClick={() => setActiveTab('sem8')}
+                className={`py-4 px-6 text-sm font-medium border-b-2 transition-colors ${
+                  activeTab === 'sem8'
+                    ? 'border-indigo-500 text-indigo-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                Semester 8 (Major Project 2 & Internship)
+              </button>
             </nav>
           </div>
         </div>
@@ -342,7 +417,9 @@ const SystemConfiguration = () => {
             <p className="text-gray-600 mt-1">
               {activeTab === 'sem5' 
                 ? 'Adjust system parameters for Sem 5 Minor Project 2'
-                : 'Adjust system parameters for Sem 7 Major Project 1 and Internship 1'}
+                : activeTab === 'sem7'
+                ? 'Adjust system parameters for Sem 7 Major Project 1 and Internship 1'
+                : 'Adjust system parameters for Sem 8 Major Project 2 and Internship 2'}
             </p>
           </div>
           
@@ -568,6 +645,102 @@ const SystemConfiguration = () => {
                           setSem7Internship1FacultyLimit(1);
                         } else if (sem7Internship1FacultyLimit > 10) {
                           setSem7Internship1FacultyLimit(10);
+                        }
+                      }}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">
+                      Range: 1-10 preferences
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+            )}
+
+            {/* Sem 8 Configuration Section */}
+            {activeTab === 'sem8' && (
+            <div>
+              <h3 className="text-lg font-medium text-gray-900 mb-4 flex items-center">
+                <span className="bg-purple-100 text-purple-600 px-2 py-1 rounded mr-2 text-sm">Sem 8</span>
+                Major Project 2 & Internship 2 Settings
+              </h3>
+              
+              <div className="space-y-6">
+                {/* Major Project 2 Faculty Preference Limit */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-start">
+                  <div className="md:col-span-1">
+                    <label className="block text-sm font-medium text-gray-700">
+                      Major Project 2 Faculty Preference Limit
+                    </label>
+                    <p className="text-xs text-gray-500 mt-1">
+                      Number of faculty preferences required for Major Project 2 registration
+                    </p>
+                  </div>
+                  <div className="md:col-span-2">
+                    <input
+                      type="number"
+                      min="1"
+                      max="10"
+                      value={sem8Major2FacultyLimit}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        if (val === '') {
+                          setSem8Major2FacultyLimit('');
+                        } else {
+                          const num = parseInt(val);
+                          if (!isNaN(num) && num >= 1 && num <= 10) {
+                            setSem8Major2FacultyLimit(num);
+                          }
+                        }
+                      }}
+                      onBlur={(e) => {
+                        if (sem8Major2FacultyLimit === '' || sem8Major2FacultyLimit < 1) {
+                          setSem8Major2FacultyLimit(1);
+                        } else if (sem8Major2FacultyLimit > 10) {
+                          setSem8Major2FacultyLimit(10);
+                        }
+                      }}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">
+                      Range: 1-10 preferences
+                    </p>
+                  </div>
+                </div>
+
+                {/* Internship 2 Faculty Preference Limit */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-start">
+                  <div className="md:col-span-1">
+                    <label className="block text-sm font-medium text-gray-700">
+                      Internship 2 Faculty Preference Limit
+                    </label>
+                    <p className="text-xs text-gray-500 mt-1">
+                      Number of faculty preferences required for Internship 2 (solo project) registration
+                    </p>
+                  </div>
+                  <div className="md:col-span-2">
+                    <input
+                      type="number"
+                      min="1"
+                      max="10"
+                      value={sem8Internship2FacultyLimit}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        if (val === '') {
+                          setSem8Internship2FacultyLimit('');
+                        } else {
+                          const num = parseInt(val);
+                          if (!isNaN(num) && num >= 1 && num <= 10) {
+                            setSem8Internship2FacultyLimit(num);
+                          }
+                        }
+                      }}
+                      onBlur={(e) => {
+                        if (sem8Internship2FacultyLimit === '' || sem8Internship2FacultyLimit < 1) {
+                          setSem8Internship2FacultyLimit(1);
+                        } else if (sem8Internship2FacultyLimit > 10) {
+                          setSem8Internship2FacultyLimit(10);
                         }
                       }}
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"

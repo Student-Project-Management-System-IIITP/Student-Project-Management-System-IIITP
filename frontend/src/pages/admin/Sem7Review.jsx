@@ -27,6 +27,7 @@ const Sem7Review = () => {
   const [trackChoices, setTrackChoices] = useState([]);
   const [majorProjectProjects, setMajorProjectProjects] = useState([]);
   const [internship1Projects, setInternship1Projects] = useState([]);
+  const [facultyPreferenceLimit, setFacultyPreferenceLimit] = useState(5); // Dynamic number of faculty preferences (default 5)
   
   // Common State
   const [loading, setLoading] = useState(true);
@@ -37,6 +38,10 @@ const Sem7Review = () => {
     status: 'submitted',
     remarks: ''
   });
+  
+  // State for inline remarks editing
+  const [editingRemarks, setEditingRemarks] = useState({ id: null, type: null, value: '' });
+  const [savingRemarks, setSavingRemarks] = useState(false);
 
   const trackChoiceByStudent = useMemo(() => {
     const map = new Map();
@@ -64,13 +69,15 @@ const Sem7Review = () => {
         appResponse,
         majorProjectsResponse,
         internshipProjectsResponse,
-        trackChoicesResponse
+        trackChoicesResponse,
+        systemConfigResponse
       ] = await Promise.all([
         adminAPI.getStudentsBySemester({ semester: 7 }),
         adminAPI.listInternshipApplications({ semester: 7 }),
         adminAPI.getProjects({ semester: 7, projectType: 'major1' }),
         adminAPI.getProjects({ semester: 7, projectType: 'internship1' }),
-        adminAPI.listSem7TrackChoices()
+        adminAPI.listSem7TrackChoices(),
+        adminAPI.getSystemConfigByKey('sem7.internship1.facultyPreferenceLimit').catch(() => ({ success: false, data: null })) // Optional, don't fail if not available
       ]);
       
       if (appResponse.success) {
@@ -91,6 +98,12 @@ const Sem7Review = () => {
 
       if (internshipProjectsResponse.success) {
         setInternship1Projects(internshipProjectsResponse.data || []);
+      }
+
+      // Load faculty preference limit from system config (if available)
+      if (systemConfigResponse.success && systemConfigResponse.data?.value) {
+        const limit = parseInt(systemConfigResponse.data.value, 10) || 5;
+        setFacultyPreferenceLimit(limit);
       }
     } catch (error) {
       console.error('Failed to load data:', error);
@@ -209,6 +222,144 @@ const Sem7Review = () => {
     };
     const config = statusMap[status] || { status: 'info', text: status || 'Unknown' };
     return <StatusBadge status={config.status} text={config.text} />;
+  };
+
+  // Handle inline remarks editing
+  const handleStartEditRemarks = (id, type, currentValue) => {
+    setEditingRemarks({ id, type, value: currentValue || '' });
+  };
+
+  const handleCancelEditRemarks = () => {
+    setEditingRemarks({ id: null, type: null, value: '' });
+  };
+
+  const handleSaveProjectRemarks = async (projectId, remarks) => {
+    try {
+      setSavingRemarks(true);
+      const response = await adminAPI.updateProjectStatus(projectId, { feedback: remarks });
+      if (response.success) {
+        toast.success('Remarks saved successfully');
+        await loadAllData();
+        setEditingRemarks({ id: null, type: null, value: '' });
+      } else {
+        throw new Error(response.message || 'Failed to save remarks');
+      }
+    } catch (error) {
+      console.error('Failed to save remarks:', error);
+      toast.error(`Failed to save remarks: ${error.message}`);
+    } finally {
+      setSavingRemarks(false);
+    }
+  };
+
+  const handleSaveInternshipRemarks = async (applicationId, remarks, currentStatus) => {
+    try {
+      setSavingRemarks(true);
+      // Pass current status to avoid validation error, but only update remarks
+      const response = await adminAPI.reviewInternshipApplication(applicationId, { 
+        status: currentStatus || 'submitted', // Pass current status to avoid validation error
+        adminRemarks: remarks 
+      });
+      if (response.success) {
+        toast.success('Remarks saved successfully');
+        await loadAllData();
+        setEditingRemarks({ id: null, type: null, value: '' });
+      } else {
+        throw new Error(response.message || 'Failed to save remarks');
+      }
+    } catch (error) {
+      console.error('Failed to save remarks:', error);
+      toast.error(`Failed to save remarks: ${error.message}`);
+    } finally {
+      setSavingRemarks(false);
+    }
+  };
+
+  // Render editable remarks cell
+  const renderRemarksCell = (id, type, currentValue) => {
+    const isEditing = editingRemarks.id === id && editingRemarks.type === type;
+    const canEdit = !!id; // Only allow editing if ID exists
+    
+    if (isEditing) {
+      return (
+        <td className="px-3 py-2 text-sm">
+          <div className="flex items-center gap-2">
+            <input
+              type="text"
+              value={editingRemarks.value}
+              onChange={(e) => setEditingRemarks({ ...editingRemarks, value: e.target.value })}
+              className="flex-1 px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-orange-500"
+              autoFocus
+              disabled={!canEdit}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && canEdit) {
+                  if (type === 'project') {
+                    handleSaveProjectRemarks(id, editingRemarks.value);
+                  } else if (type === 'internship') {
+                    // Get current status from the application
+                    const app = applications.find(a => a._id === id) || filteredApplications.find(a => a._id === id);
+                    handleSaveInternshipRemarks(id, editingRemarks.value, app?.status);
+                  }
+                } else if (e.key === 'Escape') {
+                  handleCancelEditRemarks();
+                }
+              }}
+            />
+            <button
+              onClick={() => {
+                if (canEdit) {
+                  if (type === 'project') {
+                    handleSaveProjectRemarks(id, editingRemarks.value);
+                  } else if (type === 'internship') {
+                    // Get current status from the application
+                    const app = applications.find(a => a._id === id) || filteredApplications.find(a => a._id === id);
+                    handleSaveInternshipRemarks(id, editingRemarks.value, app?.status);
+                  }
+                }
+              }}
+              disabled={savingRemarks || !canEdit}
+              className="px-2 py-1 text-xs bg-orange-600 text-white rounded hover:bg-orange-700 disabled:opacity-50"
+              title={!canEdit ? (type === 'project' ? 'Project not found. Cannot save remarks.' : 'Application not found. Cannot save remarks.') : ''}
+            >
+              {savingRemarks ? '...' : '✓'}
+            </button>
+            <button
+              onClick={handleCancelEditRemarks}
+              className="px-2 py-1 text-xs bg-gray-300 text-gray-700 rounded hover:bg-gray-400"
+            >
+              ✕
+            </button>
+          </div>
+          {!canEdit && (
+            <div className="mt-1 text-xs text-red-600">
+              {type === 'project' ? 'Project not found. Cannot save remarks.' : 'Application not found. Cannot save remarks.'}
+            </div>
+          )}
+        </td>
+      );
+    }
+    
+    return (
+      <td 
+        className={`px-3 py-2 text-sm text-gray-900 min-w-[150px] ${
+          canEdit ? 'cursor-pointer hover:bg-gray-100' : 'cursor-not-allowed opacity-60'
+        }`}
+        onClick={() => {
+          if (canEdit) {
+            handleStartEditRemarks(id, type, currentValue);
+          } else {
+            toast.error(type === 'project' ? 'Project not found. Cannot edit remarks.' : 'Application not found. Cannot edit remarks.');
+          }
+        }}
+        title={canEdit ? 'Click to edit remarks' : (type === 'project' ? 'Project not found. Cannot edit remarks.' : 'Application not found. Cannot edit remarks.')}
+      >
+        {currentValue || (
+          <span className={canEdit ? 'text-gray-400 italic' : 'text-gray-300 italic'}>
+            {canEdit ? 'Click to add remarks' : (type === 'project' ? 'Project not found' : 'Application not found')}
+          </span>
+        )}
+      </td>
+    );
   };
 
   const getProjectStatusBadge = (status) => {
@@ -504,6 +655,8 @@ const Sem7Review = () => {
       // Create group data object
       const groupData = {
         _id: groupId,
+        projectId: project._id.toString(), // Store project ID for remarks editing
+        timestamp: project.createdAt ? formatDateTime(project.createdAt) : '-',
         groupName: group.name || '-',
         allocatedFaculty: faculty.fullName || '-',
         department: faculty.department || '-',
@@ -878,176 +1031,190 @@ const Sem7Review = () => {
                     <table className="min-w-full divide-y divide-gray-200">
                       <thead className="bg-gray-50">
                         <tr>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky left-0 bg-gray-50 z-10">
-                            Group Name
+                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky left-0 bg-gray-50 z-10">
+                            Timestamp
                           </th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Allocated Faculty
                           </th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Department
                           </th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Project Title
                           </th>
-                          <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Member 1
                           </th>
-                          <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             MIS 1
                           </th>
-                          <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Contact 1
                           </th>
-                          <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Branch 1
                           </th>
-                          <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Member 2
                           </th>
-                          <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             MIS 2
                           </th>
-                          <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Contact 2
                           </th>
-                          <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Branch 2
                           </th>
-                          <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Member 3
                           </th>
-                          <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             MIS 3
                           </th>
-                          <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Contact 3
                           </th>
-                          <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Branch 3
                           </th>
-                          <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Member 4
                           </th>
-                          <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             MIS 4
                           </th>
-                          <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Contact 4
                           </th>
-                          <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Branch 4
                           </th>
-                          <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Member 5
                           </th>
-                          <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             MIS 5
                           </th>
-                          <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Contact 5
                           </th>
-                          <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Branch 5
+                          </th>
+                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Status
                           </th>
                           {/* Dynamic Supervisor Headers */}
                           {Array.from({ length: maxSupervisors }, (_, i) => (
-                            <th key={`supervisor-header-${i + 1}`} className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            <th key={`supervisor-header-${i + 1}`} className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                               Supervisor {i + 1}
                             </th>
                           ))}
+                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Remarks
+                          </th>
                         </tr>
                       </thead>
                       <tbody className="bg-white divide-y divide-gray-200">
                         {majorProject1Groups.length === 0 ? (
                           <tr>
-                            <td colSpan={24 + maxSupervisors} className="px-6 py-8 text-center text-gray-500">
+                            <td colSpan={26 + maxSupervisors} className="px-6 py-8 text-center text-gray-500">
                               No Major Project 1 groups found
                             </td>
                           </tr>
                         ) : (
-                          majorProject1Groups.map((group, index) => (
+                          majorProject1Groups.map((group, index) => {
+                            // Find the actual project object to get feedback
+                            const project = majorProjectProjects.find(p => p._id === group.projectId);
+                            return (
                             <tr key={group._id || index} className="hover:bg-gray-50">
-                              <td className="px-4 py-4 whitespace-nowrap text-sm font-medium text-gray-900 sticky left-0 bg-white z-10">
-                                {group.groupName}
+                              <td className="px-3 py-2 text-sm text-gray-900 whitespace-nowrap sticky left-0 bg-white z-10">
+                                {group.timestamp}
                               </td>
-                              <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
+                              <td className="px-3 py-2 text-sm text-gray-900">
                                 {group.allocatedFaculty}
                               </td>
-                              <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
+                              <td className="px-3 py-2 text-sm text-gray-900">
                                 {group.department}
                               </td>
-                              <td className="px-4 py-4 text-sm text-gray-900 max-w-xs truncate" title={group.projectTitle}>
+                              <td className="px-3 py-2 text-sm text-gray-900 max-w-xs truncate" title={group.projectTitle}>
                                 {group.projectTitle}
                               </td>
-                              <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900">
+                              <td className="px-3 py-2 text-sm text-gray-900">
                                 {group.member1Name}
                               </td>
-                              <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900">
+                              <td className="px-3 py-2 text-sm text-gray-900">
                                 {group.member1MIS}
                               </td>
-                              <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900">
+                              <td className="px-3 py-2 text-sm text-gray-900">
                                 {group.member1Contact}
                               </td>
-                              <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900">
+                              <td className="px-3 py-2 text-sm text-gray-900">
                                 {group.member1Branch}
                               </td>
-                              <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900">
+                              <td className="px-3 py-2 text-sm text-gray-900">
                                 {group.member2Name}
                               </td>
-                              <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900">
+                              <td className="px-3 py-2 text-sm text-gray-900">
                                 {group.member2MIS}
                               </td>
-                              <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900">
+                              <td className="px-3 py-2 text-sm text-gray-900">
                                 {group.member2Contact}
                               </td>
-                              <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900">
+                              <td className="px-3 py-2 text-sm text-gray-900">
                                 {group.member2Branch}
                               </td>
-                              <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900">
+                              <td className="px-3 py-2 text-sm text-gray-900">
                                 {group.member3Name}
                               </td>
-                              <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900">
+                              <td className="px-3 py-2 text-sm text-gray-900">
                                 {group.member3MIS}
                               </td>
-                              <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900">
+                              <td className="px-3 py-2 text-sm text-gray-900">
                                 {group.member3Contact}
                               </td>
-                              <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900">
+                              <td className="px-3 py-2 text-sm text-gray-900">
                                 {group.member3Branch}
                               </td>
-                              <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900">
+                              <td className="px-3 py-2 text-sm text-gray-900">
                                 {group.member4Name}
                               </td>
-                              <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900">
+                              <td className="px-3 py-2 text-sm text-gray-900">
                                 {group.member4MIS}
                               </td>
-                              <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900">
+                              <td className="px-3 py-2 text-sm text-gray-900">
                                 {group.member4Contact}
                               </td>
-                              <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900">
+                              <td className="px-3 py-2 text-sm text-gray-900">
                                 {group.member4Branch}
                               </td>
-                              <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900">
+                              <td className="px-3 py-2 text-sm text-gray-900">
                                 {group.member5Name}
                               </td>
-                              <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900">
+                              <td className="px-3 py-2 text-sm text-gray-900">
                                 {group.member5MIS}
                               </td>
-                              <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900">
+                              <td className="px-3 py-2 text-sm text-gray-900">
                                 {group.member5Contact}
                               </td>
-                              <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900">
+                              <td className="px-3 py-2 text-sm text-gray-900">
                                 {group.member5Branch}
+                              </td>
+                              <td className="px-3 py-2 text-sm text-gray-900">
+                                {getProjectStatusBadge(group.projectStatus)}
                               </td>
                               {/* Dynamic Supervisor Columns */}
                               {Array.from({ length: maxSupervisors }, (_, i) => (
-                                <td key={`supervisor-${index}-${i + 1}`} className="px-3 py-4 whitespace-nowrap text-sm text-gray-900">
+                                <td key={`supervisor-${index}-${i + 1}`} className="px-3 py-2 text-sm text-gray-900">
                                   {group[`supervisor${i + 1}`] || '-'}
                                 </td>
                               ))}
+                              {renderRemarksCell(group.projectId, 'project', project?.feedback)}
                             </tr>
-                          ))
+                          );
+                          })
                         )}
                       </tbody>
                     </table>
@@ -1061,67 +1228,90 @@ const Sem7Review = () => {
                     <table className="min-w-full divide-y divide-gray-200">
                       <thead className="bg-gray-50">
                         <tr>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">S.No.</th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Student</th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">MIS No.</th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Branch</th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Project Title</th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Faculty Mentor</th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Registered On</th>
+                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky left-0 bg-gray-50 z-10">Timestamp</th>
+                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Allocated Faculty</th>
+                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Department</th>
+                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Project Title</th>
+                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">MIS</th>
+                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
+                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Contact</th>
+                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Branch</th>
+                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                          {/* Dynamic columns for faculty preferences */}
+                          {Array.from({ length: facultyPreferenceLimit }, (_, i) => i + 1).map((num) => (
+                            <th key={num} className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Supervisor {num}
+                            </th>
+                          ))}
+                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Remarks
+                          </th>
                         </tr>
                       </thead>
                       <tbody className="bg-white divide-y divide-gray-200">
                         {internship1Projects.length === 0 ? (
                           <tr>
-                            <td colSpan="9" className="px-6 py-8 text-center text-gray-500">
+                            <td colSpan={11 + facultyPreferenceLimit} className="px-4 py-8 text-center text-gray-500">
                               No Internship 1 project registrations found
                             </td>
                           </tr>
                         ) : (
-                          internship1Projects.map((project, index) => {
-                            const student = project.student || {};
-                            const faculty = project.faculty || {};
+                          internship1Projects.map((project) => {
+                            const timestamp = project.createdAt ? formatDateTime(project.createdAt) : '-';
+                            
+                            // Get faculty preferences from project
+                            const facultyPrefs = project.facultyPreferences || [];
+                            
+                            // Sort preferences by priority (priority is 1-indexed)
+                            const sortedPrefs = [...facultyPrefs].sort((a, b) => {
+                              const priorityA = a.priority || (facultyPrefs.indexOf(a) + 1);
+                              const priorityB = b.priority || (facultyPrefs.indexOf(b) + 1);
+                              return priorityA - priorityB;
+                            });
 
                             return (
                               <tr key={project._id} className="hover:bg-gray-50">
-                                <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
-                                  {index + 1}
+                                <td className="px-3 py-2 text-sm text-gray-900 whitespace-nowrap sticky left-0 bg-white z-10">
+                                  {timestamp}
                                 </td>
-                                <td className="px-4 py-3 text-sm font-medium text-gray-900">
-                                  {student.fullName || 'N/A'}
+                                <td className="px-3 py-2 text-sm text-gray-900">
+                                  {project.faculty?.fullName || '-'}
                                 </td>
-                                <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
-                                  {student.misNumber || 'N/A'}
+                                <td className="px-3 py-2 text-sm text-gray-900">
+                                  {project.faculty?.department || '-'}
                                 </td>
-                                <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
-                                  {student.collegeEmail || 'N/A'}
+                                <td className="px-3 py-2 text-sm font-medium text-gray-900">
+                                  {project.title || '-'}
                                 </td>
-                                <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
-                                  {student.branch || 'N/A'}
+                                <td className="px-3 py-2 text-sm text-gray-900">
+                                  {project.student?.fullName || '-'}
                                 </td>
-                                <td className="px-4 py-3 text-sm text-gray-900">
-                                  {project.title || 'N/A'}
+                                <td className="px-3 py-2 text-sm text-gray-900">
+                                  {project.student?.misNumber || '-'}
                                 </td>
-                                <td className="px-4 py-3 text-sm text-gray-900">
-                                  {faculty.fullName ? (
-                                    <div>
-                                      <p className="font-medium">{faculty.fullName}</p>
-                                      {faculty.department && (
-                                        <p className="text-xs text-gray-500">{faculty.department}</p>
-                                      )}
-                                    </div>
-                                  ) : (
-                                    <span className="text-gray-400">Not allocated</span>
-                                  )}
+                                <td className="px-3 py-2 text-sm text-gray-900">
+                                  {project.student?.collegeEmail || '-'}
                                 </td>
-                                <td className="px-4 py-3 whitespace-nowrap">
+                                <td className="px-3 py-2 text-sm text-gray-900">
+                                  {project.student?.contactNumber || '-'}
+                                </td>
+                                <td className="px-3 py-2 text-sm text-gray-900">
+                                  {project.student?.branch || '-'}
+                                </td>
+                                <td className="px-3 py-2 text-sm text-gray-900">
                                   {getProjectStatusBadge(project.status)}
                                 </td>
-                                <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
-                                  {formatDateTime(project.createdAt)}
+                                {/* Render faculty preferences */}
+                                {Array.from({ length: facultyPreferenceLimit }, (_, i) => i + 1).map((num) => {
+                                  const pref = sortedPrefs[num - 1];
+                                  return (
+                                    <td key={num} className="px-3 py-2 text-sm text-gray-900">
+                                      {pref?.faculty?.fullName || '-'}
                                 </td>
+                                  );
+                                })}
+                                {renderRemarksCell(project._id, 'project', project.feedback)}
                               </tr>
                             );
                           })
@@ -1138,26 +1328,26 @@ const Sem7Review = () => {
                     <table className="min-w-full divide-y divide-gray-200">
                       <thead className="bg-gray-50">
                         <tr>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky left-0 bg-gray-50 z-10">S.No.</th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email Address</th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">MIS No.</th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Contact No.</th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Branch</th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Internship-I Details</th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Company Name</th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Start Date</th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">End Date</th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Completion Certificate</th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Manager Name</th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Manager Contact</th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Manager Email</th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nature of Work</th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Stipend/Salary?</th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Monthly Amount (Rs.)</th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Remarks</th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky right-0 bg-gray-50 z-10">Actions</th>
+                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky left-0 bg-gray-50 z-10">Timestamp</th>
+                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email Address</th>
+                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">MIS No.</th>
+                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Contact No.</th>
+                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Branch</th>
+                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Internship-I Details</th>
+                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Company Name</th>
+                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Start Date</th>
+                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">End Date</th>
+                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Offer Letter</th>
+                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Manager Name</th>
+                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Manager Contact</th>
+                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Manager Email</th>
+                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nature of Work</th>
+                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Stipend/Salary?</th>
+                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Monthly Stipend (Rs.)</th>
+                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Admin Remarks</th>
+                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky right-0 bg-gray-50 z-10">Actions</th>
                         </tr>
                       </thead>
                       <tbody className="bg-white divide-y divide-gray-200">
@@ -1169,97 +1359,114 @@ const Sem7Review = () => {
                             </td>
                           </tr>
                         ) : (
-                          filteredApplications.map((app, index) => (
+                          filteredApplications.map((app, index) => {
+                            const formatDate = (date) => {
+                              if (!date) return '-';
+                              try {
+                                return new Date(date).toLocaleDateString('en-IN', {
+                                  year: 'numeric',
+                                  month: '2-digit',
+                                  day: '2-digit'
+                                });
+                              } catch {
+                                return '-';
+                              }
+                            };
+
+                            const internship1Details = app.previousInternship1Track 
+                              ? app.previousInternship1Track === 'project' 
+                                ? 'Project under Faculty' 
+                                : 'Application (Company)'
+                              : (app.type === 'summer' ? 'Completed the Summer Internship' : '6-Month Internship');
+
+                            return (
                             <tr key={app._id} className="hover:bg-gray-50">
-                              <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500 sticky left-0 bg-white z-10 font-medium">
-                                {index + 1}
+                                <td className="px-3 py-2 text-sm text-gray-900 whitespace-nowrap sticky left-0 bg-white z-10">
+                                  {app.createdAt ? formatDateTime(app.createdAt) : '-'}
                               </td>
-                              <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
-                                {app.student?.collegeEmail || 'N/A'}
+                                <td className="px-3 py-2 text-sm text-gray-900 whitespace-nowrap">
+                                  {app.student?.collegeEmail || '-'}
                               </td>
-                              <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900">
-                                {app.student?.fullName || 'N/A'}
+                                <td className="px-3 py-2 text-sm text-gray-900">
+                                  {app.student?.fullName || '-'}
                               </td>
-                              <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
-                                {app.student?.misNumber || 'N/A'}
+                                <td className="px-3 py-2 text-sm text-gray-900">
+                                  {app.student?.misNumber || '-'}
                               </td>
-                              <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
-                                {app.student?.contactNumber || 'N/A'}
+                                <td className="px-3 py-2 text-sm text-gray-900">
+                                  {app.student?.contactNumber || '-'}
                               </td>
-                              <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
-                                {app.student?.branch || 'N/A'}
+                                <td className="px-3 py-2 text-sm text-gray-900">
+                                  {app.student?.branch || '-'}
                               </td>
-                              <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
-                                {app.type === 'summer' ? 'Completed the Summer Internship' : '6-Month Internship'}
+                                <td className="px-3 py-2 text-sm text-gray-900">
+                                  {internship1Details}
                               </td>
-                              <td className="px-4 py-3 text-sm text-gray-900">
-                                {app.details?.companyName || 'N/A'}
+                                <td className="px-3 py-2 text-sm text-gray-900">
+                                  {app.details?.companyName || '-'}
                               </td>
-                              <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
-                                {app.details?.startDate ? new Date(app.details.startDate).toLocaleDateString() : 'N/A'}
+                                <td className="px-3 py-2 text-sm text-gray-900 whitespace-nowrap">
+                                  {formatDate(app.details?.startDate)}
                               </td>
-                              <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
-                                {app.details?.endDate ? new Date(app.details.endDate).toLocaleDateString() : 'N/A'}
+                                <td className="px-3 py-2 text-sm text-gray-900 whitespace-nowrap">
+                                  {formatDate(app.details?.endDate)}
                               </td>
-                              <td className="px-4 py-3 text-sm">
+                                <td className="px-3 py-2 text-sm text-gray-900">
                                 {app.type === '6month' && app.details?.offerLetterLink ? (
                                   <a
                                     href={app.details.offerLetterLink}
                                     target="_blank"
                                     rel="noopener noreferrer"
-                                    className="text-blue-600 hover:text-blue-900 underline break-all"
+                                      className="text-blue-600 hover:text-blue-800 underline"
                                   >
-                                    View Link
+                                      View Offer Letter
                                   </a>
                                 ) : app.type === 'summer' && (app.details?.completionCertificateLink || app.uploads?.completionCertificateFile) ? (
                                   <a
                                     href={app.details?.completionCertificateLink || internshipAPI.downloadFile(app._id, 'completionCertificate')}
                                     target="_blank"
                                     rel="noopener noreferrer"
-                                    className="text-blue-600 hover:text-blue-900 underline break-all"
+                                      className="text-blue-600 hover:text-blue-800 underline"
                                   >
-                                    {app.details?.completionCertificateLink ? 'View Link' : 'View File'}
+                                      View Certificate
                                   </a>
                                 ) : (
-                                  <span className="text-gray-400">-</span>
+                                    '-'
                                 )}
                               </td>
-                              <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
+                                <td className="px-3 py-2 text-sm text-gray-900">
                                 {app.details?.mentorName || '-'}
                               </td>
-                              <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
+                                <td className="px-3 py-2 text-sm text-gray-900">
                                 {app.details?.mentorPhone || '-'}
                               </td>
-                              <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
+                                <td className="px-3 py-2 text-sm text-gray-900">
                                 {app.details?.mentorEmail || '-'}
                               </td>
-                              <td className="px-4 py-3 text-sm text-gray-900 max-w-xs truncate" title={app.details?.roleOrNatureOfWork || ''}>
+                                <td className="px-3 py-2 text-sm text-gray-900">
                                 {app.details?.roleOrNatureOfWork || '-'}
                               </td>
-                              <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
-                                {app.details?.hasStipend === 'yes' ? 'Yes' : app.details?.hasStipend === 'no' ? 'No' : (app.details?.stipendRs > 0 ? 'Yes' : 'No')}
+                                <td className="px-3 py-2 text-sm text-gray-900">
+                                  {app.details?.hasStipend === 'yes' ? 'Yes' : app.details?.hasStipend === 'no' ? 'No' : '-'}
                               </td>
-                              <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
-                                {app.details?.hasStipend === 'yes' || app.details?.stipendRs > 0 
-                                  ? (app.details?.stipendRs?.toLocaleString('en-IN') || '0') 
-                                  : '0'}
+                                <td className="px-3 py-2 text-sm text-gray-900">
+                                  {app.details?.stipendRs || app.details?.stipendRs === 0 ? `₹${app.details.stipendRs}` : '-'}
                               </td>
-                              <td className="px-4 py-3 text-sm text-gray-900 max-w-xs">
-                                {app.adminRemarks || '-'}
-                              </td>
-                              <td className="px-4 py-3 whitespace-nowrap">
+                                {renderRemarksCell(app._id, 'internship', app.adminRemarks)}
+                                <td className="px-3 py-2 text-sm text-gray-900">
                                 {getStatusBadge(app.status)}
                               </td>
-                              <td className="px-4 py-3 whitespace-nowrap text-sm font-medium sticky right-0 bg-white z-10">
+                                <td className="px-3 py-2 text-sm font-medium sticky right-0 bg-white z-10">
                                 <button
                                   onClick={() => handleReview(app)}
-                                  className="text-orange-600 hover:text-orange-900 hover:underline"
+                                    className="text-blue-600 hover:text-blue-900"
                                 >
                                   Review
                                 </button>
                               </td>
                             </tr>
-                          ))
+                            );
+                          })
                         )}
                       </tbody>
                     </table>

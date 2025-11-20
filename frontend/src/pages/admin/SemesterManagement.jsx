@@ -28,7 +28,7 @@ const SemesterManagement = () => {
   const loadStudents = async () => {
     try {
       setLoading(true);
-      const response = await adminAPI.getStudentsBySemester(fromSemester, degree);
+      const response = await adminAPI.getStudentsBySemester({ semester: fromSemester, degree });
       
       if (response.success) {
         setStudents(response.data);
@@ -466,8 +466,15 @@ const SemesterManagement = () => {
                 <ul className="list-disc list-inside space-y-1">
                   <li>This action updates student semester data in the database</li>
                   <li>Enable "Validate Prerequisites" to check if students have required data (group, project, faculty)</li>
-                  <li>For Sem 5 → Sem 6: Students must have a finalized group, registered project, and allocated faculty</li>
+                  <li><strong>For Sem 5 → Sem 6:</strong> Students must have a finalized group, registered project, and allocated faculty</li>
+                  <li><strong>For Sem 7 → Sem 8:</strong> 
+                    <ul className="list-disc list-inside ml-4 mt-1 space-y-1">
+                      <li><strong>Coursework track (Type 2):</strong> Must have finalized group, registered Major Project 1, and allocated faculty</li>
+                      <li><strong>Internship track (Type 1):</strong> Must have verified 6-month internship (status: verified_pass) and internship outcome set to verified_pass</li>
+                    </ul>
+                  </li>
                   <li>Students will need to register for their new semester's project after the update</li>
+                  <li>Type 1 students (6-month internship in Sem 7) will be auto-enrolled in coursework for Sem 8</li>
                 </ul>
               </div>
             </div>

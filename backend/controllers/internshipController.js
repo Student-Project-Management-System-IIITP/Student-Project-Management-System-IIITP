@@ -31,12 +31,14 @@ exports.createApplicationWithWindowCheck = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Student not found' });
     }
 
-    // Determine which window to check based on application type
+    // Determine which window to check based on application type and semester
     let windowKey;
     if (type === '6month') {
-      windowKey = 'sem7.sixMonthSubmissionWindow';
+      // Check semester to determine which window to use
+      windowKey = student.semester === 8 ? 'sem8.sixMonthSubmissionWindow' : 'sem7.sixMonthSubmissionWindow';
     } else if (type === 'summer') {
-      windowKey = 'sem7.internship2.evidenceWindow';
+      // Check semester to determine which window to use
+      windowKey = student.semester === 8 ? 'sem8.internship2.evidenceWindow' : 'sem7.internship2.evidenceWindow';
     }
     
     // Check if window is open
@@ -323,7 +325,7 @@ exports.reviewApplication = async (req, res) => {
     const wasNotApprovedBefore = previousStatus !== 'verified_pass';
 
     app.status = status;
-    app.adminRemarks = adminRemarks || '';
+    app.adminRemarks = adminRemarks !== undefined ? adminRemarks : app.adminRemarks; // Allow empty strings to clear remarks
     app.reviewedBy = req.user.userId;
     app.reviewedAt = new Date();
     if (['verified_pass', 'verified_fail', 'absent'].includes(status)) {

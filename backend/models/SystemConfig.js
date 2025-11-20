@@ -225,6 +225,70 @@ systemConfigSchema.statics.initializeDefaults = async function() {
       configType: 'number',
       description: 'Number of faculty preferences required for Sem 7 Internship 1 registration',
       category: 'sem7'
+    },
+    // Sem 8 windows (B.Tech)
+    {
+      configKey: 'sem8.choiceWindow',
+      configValue: { start: null, end: null },
+      configType: 'object',
+      description: 'Window for Type 2 students to choose 6-Month Internship or Major Project 2 in Sem 8',
+      category: 'sem8'
+    },
+    {
+      configKey: 'sem8.sixMonthSubmissionWindow',
+      configValue: { start: null, end: null },
+      configType: 'object',
+      description: 'Window to submit 6-month internship company details for Sem 8',
+      category: 'sem8'
+    },
+    {
+      configKey: 'sem8.sixMonthVerificationWindow',
+      configValue: { start: null, end: null },
+      configType: 'object',
+      description: 'Window for admin verification of 6-month internship details for Sem 8',
+      category: 'sem8'
+    },
+    {
+      configKey: 'sem8.major2.groupFormationWindow',
+      configValue: { start: null, end: null },
+      configType: 'object',
+      description: 'Window for Major Project 2 group formation (Type 1 students only)',
+      category: 'sem8'
+    },
+    {
+      configKey: 'sem8.major2.preferenceWindow',
+      configValue: { start: null, end: null },
+      configType: 'object',
+      description: 'Window for Major Project 2 faculty preferences (Type 1 and Type 2 students)',
+      category: 'sem8'
+    },
+    {
+      configKey: 'sem8.internship2.evidenceWindow',
+      configValue: { start: null, end: null },
+      configType: 'object',
+      description: 'Window to submit 2-month internship evidence (summer) for Sem 8',
+      category: 'sem8'
+    },
+    {
+      configKey: 'sem8.internship2.registrationWindow',
+      configValue: { start: null, end: null },
+      configType: 'object',
+      description: 'Window for Internship 2 (solo project) registration and preferences',
+      category: 'sem8'
+    },
+    {
+      configKey: 'sem8.major2.facultyPreferenceLimit',
+      configValue: 5,
+      configType: 'number',
+      description: 'Number of faculty preferences required for Sem 8 Major Project 2 registration',
+      category: 'sem8'
+    },
+    {
+      configKey: 'sem8.internship2.facultyPreferenceLimit',
+      configValue: 5,
+      configType: 'number',
+      description: 'Number of faculty preferences required for Sem 8 Internship 2 registration',
+      category: 'sem8'
     }
   ];
 

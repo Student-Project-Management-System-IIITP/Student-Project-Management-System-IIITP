@@ -5,6 +5,8 @@ import { useSem4Project } from '../../hooks/useSem4Project';
 import { useSem5Project } from '../../hooks/useSem5Project';
 import { useSem7Project } from '../../hooks/useSem7Project';
 import { useMTechSem3Track } from '../../hooks/useMTechSem3Track';
+import { useSem8Project } from '../../hooks/useSem8Project';
+import { useSem8 } from '../../context/Sem8Context';
 import { useGroupManagement } from '../../hooks/useGroupManagement';
 import { useEvaluation } from '../../hooks/useEvaluation';
 import { studentAPI, internshipAPI } from '../../utils/api';
@@ -70,6 +72,34 @@ const StudentDashboard = () => {
     fetchSem7Data
   } = useSem7Project();
 
+  // Sem 8 hooks
+  const { 
+    trackChoice: sem8TrackChoice, 
+    finalizedTrack: sem8FinalizedTrack, 
+    trackChoiceStatus: sem8TrackChoiceStatus,
+    canChooseTrack: sem8CanChooseTrack,
+    canRegisterMajorProject2,
+    canRegisterInternship2,
+    hasApprovedSixMonthInternship: sem8HasApprovedSixMonthInternship,
+    hasApprovedSummerInternship: sem8HasApprovedSummerInternship,
+    majorProject2,
+    majorProject2Group,
+    internship2Project,
+    internship2Status,
+    getInternshipApplication: sem8GetInternshipApplication,
+    getNextStep: sem8GetNextStep,
+    getProgressSteps: getSem8ProgressSteps,
+    studentType,
+    isType1,
+    isType2,
+    loading: sem8Loading,
+    fetchSem8Data
+  } = useSem8Project();
+  
+  // Get Sem 8 group invitations from Sem8Context
+  const sem8Context = useSem8();
+  const sem8GroupInvitations = sem8Context?.groupInvitations || [];
+
   // Determine selected track (finalized takes precedence, else chosen)
   const selectedTrack = finalizedTrack || (trackChoice?.chosenTrack);
 
@@ -80,6 +110,14 @@ const StudentDashboard = () => {
       fetchSem7Data();
     }
   }, [user, roleData, fetchSem7Data]);
+
+  // Refresh Sem8 data when dashboard mounts (useful after form submissions)
+  useEffect(() => {
+    const currentSemester = roleData?.semester || user?.semester;
+    if (currentSemester === 8 && fetchSem8Data) {
+      fetchSem8Data();
+    }
+  }, [user, roleData, fetchSem8Data]);
 
   // Show loading screen if authentication is loading or no user data yet
   if (authLoading || !user) {
@@ -295,15 +333,21 @@ const StudentDashboard = () => {
     }
   };
 
-  // Handle invitation response (works for both Sem 5 and Sem 7)
-  const handleInvitationResponse = async (invitationId, accept = true) => {
+  // Handle invitation response (works for Sem 5, Sem 7, and Sem 8)
+  const handleInvitationResponse = async (invitationId, accept = true, isSem8Student = false) => {
     try {
       setInvitationLoading(prev => ({ ...prev, [invitationId]: true }));
       
       const currentSemester = (roleData?.semester || user?.semester) || 4;
       
       if (accept) {
+        if (isSem8Student && sem8Context?.acceptGroupInvitation) {
+          // Use Sem 8 context method for Sem 8 students
+          await sem8Context.acceptGroupInvitation(invitationId);
+        } else {
+          // Use group management method for Sem 5 and Sem 7
         await acceptGroupInvitation(invitationId);
+        }
         toast.success('Invitation accepted successfully!');
         // Refresh group data after accepting invitation
         // This ensures isInGroup updates correctly and invitations are refreshed
@@ -311,14 +355,30 @@ const StudentDashboard = () => {
           // fetchSem5Data from useGroupManagement works for both Sem 5 and Sem 7
           // It internally calls the correct context's fetch function
           await fetchSem5Data();
+        } else if (currentSemester === 8) {
+          // Refresh Sem 8 data
+          if (fetchSem8Data) {
+            await fetchSem8Data();
+          }
         }
       } else {
+        if (isSem8Student && sem8Context?.rejectGroupInvitation) {
+          // Use Sem 8 context method for Sem 8 students
+          await sem8Context.rejectGroupInvitation(invitationId);
+        } else {
+          // Use group management method for Sem 5 and Sem 7
         await rejectGroupInvitation(invitationId);
+        }
         toast.success('Invitation rejected');
         // Refresh invitations after rejecting
         // fetchSem5Data will refresh invitations for both Sem 5 and Sem 7
         if (currentSemester === 5 || currentSemester === 7) {
           await fetchSem5Data();
+        } else if (currentSemester === 8) {
+          // Refresh Sem 8 data
+          if (fetchSem8Data) {
+            await fetchSem8Data();
+          }
         }
       }
     } catch (error) {
@@ -778,6 +838,238 @@ const StudentDashboard = () => {
           });
         }
       }
+    } else if (currentSemester === 8) {
+      // Sem 8 actions
+      const sem8NextStep = sem8GetNextStep();
+      const sem8SelectedTrack = sem8FinalizedTrack || (sem8TrackChoice?.chosenTrack);
+      
+      // Type 2: Track selection - only show if no choice submitted or needs_info
+      if (isType2 && !sem8FinalizedTrack) {
+        if (!sem8TrackChoice || !sem8TrackChoice.chosenTrack) {
+          // No choice submitted yet
+          if ((typeof sem8CanChooseTrack === 'function' ? sem8CanChooseTrack() : sem8CanChooseTrack)) {
+            actions.push({
+              title: 'Choose Track',
+              description: 'Select 6-month internship or Major Project 2',
+              icon: '🎯',
+              link: '/student/sem8/track-selection',
+              color: 'bg-blue-50 border-blue-200 hover:bg-blue-100',
+              textColor: 'text-blue-800',
+            });
+          }
+        } else if (sem8TrackChoice.verificationStatus === 'needs_info') {
+          // Choice submitted but needs info
+          actions.push({
+            title: 'Update Track Choice',
+            description: 'Provide additional information',
+            icon: '📝',
+            link: '/student/sem8/track-selection',
+            color: 'bg-yellow-50 border-yellow-200 hover:bg-yellow-100',
+            textColor: 'text-yellow-800',
+          });
+        }
+      }
+      
+      // Internship track actions (Type 2 only - Type 1 can't choose internship track)
+      if (isType2 && sem8SelectedTrack === 'internship') {
+        const sixMonthApp = sem8GetInternshipApplication('6month');
+        if (!sixMonthApp) {
+          actions.push({
+            title: 'Submit 6-Month Internship Application',
+            description: 'Submit company details and offer letter',
+            icon: '📄',
+            link: '/student/sem8/internship/apply/6month',
+            color: 'bg-purple-50 border-purple-200 hover:bg-purple-100',
+            textColor: 'text-purple-800',
+          });
+        } else if (sixMonthApp.status === 'needs_info') {
+          actions.push({
+            title: '⚠️ Update Internship Application',
+            description: 'Provide additional information required',
+            icon: '📝',
+            link: `/student/sem8/internship/apply/6month/${sixMonthApp._id}/edit`,
+            color: 'bg-yellow-50 border-yellow-200 hover:bg-yellow-100',
+            textColor: 'text-yellow-800',
+          });
+        } else if (sixMonthApp.status === 'verified_pass') {
+          actions.push({
+            title: '✓ Internship Verified',
+            description: 'Your 6-month internship has been approved',
+            icon: '✅',
+            link: `/student/sem8/internship/apply/6month/${sixMonthApp._id}/edit`,
+            color: 'bg-green-50 border-green-200 hover:bg-green-100',
+            textColor: 'text-green-800',
+          });
+        } else if (sixMonthApp.status === 'verified_fail' || sixMonthApp.status === 'absent') {
+          actions.push({
+            title: '✗ Internship Verification Failed',
+            description: 'View details and next steps',
+            icon: '⚠️',
+            link: `/student/sem8/internship/apply/6month/${sixMonthApp._id}/edit`,
+            color: 'bg-red-50 border-red-200 hover:bg-red-100',
+            textColor: 'text-red-800',
+          });
+        } else if (sixMonthApp.status === 'submitted' || sixMonthApp.status === 'pending_verification') {
+          actions.push({
+            title: 'View Application Status',
+            description: 'Check your internship application status',
+            icon: '📋',
+            link: `/student/sem8/internship/apply/6month/${sixMonthApp._id}/edit`,
+            color: 'bg-blue-50 border-blue-200 hover:bg-blue-100',
+            textColor: 'text-blue-800',
+          });
+        }
+      }
+      
+      // Major Project 2 track actions (Type 1 auto-enrolled in 'coursework', Type 2 chooses 'major2')
+      // Type 1 students have 'coursework' track (which represents major2 for them)
+      // Type 2 students have 'major2' track (converted from 'coursework' by backend)
+      if ((isType1 && sem8SelectedTrack === 'coursework') || (isType2 && sem8SelectedTrack === 'major2')) {
+        // Major Project 2 Actions
+        if (majorProject2) {
+          actions.push({
+            title: 'View Major Project 2',
+            description: 'View your registered project details',
+            icon: '📋',
+            link: '/student/sem8/major2/dashboard',
+            color: 'bg-blue-50 border-blue-200 hover:bg-blue-100',
+            textColor: 'text-blue-800',
+          });
+        } else if (isType1 && majorProject2Group?.status === 'finalized') {
+          actions.push({
+            title: 'Register Major Project 2',
+            description: 'Group finalized - register your project now',
+            icon: '✅',
+            link: '/student/sem8/major2/dashboard',
+            color: 'bg-yellow-50 border-yellow-200 hover:bg-yellow-100',
+            textColor: 'text-yellow-800',
+          });
+        } else if (isType1 && majorProject2Group) {
+          actions.push({
+            title: 'Finalize Group',
+            description: 'Finalize your group to register Major Project 2',
+            icon: '👥',
+            link: '/student/sem8/major2/dashboard',
+            color: 'bg-blue-50 border-blue-200 hover:bg-blue-100',
+            textColor: 'text-blue-800',
+          });
+        } else if (isType1 && !majorProject2Group) {
+          actions.push({
+            title: 'Create Group',
+            description: 'Create a group for Major Project 2',
+            icon: '➕',
+            link: '/student/sem8/major2/dashboard',
+            color: 'bg-blue-50 border-blue-200 hover:bg-blue-100',
+            textColor: 'text-blue-800',
+          });
+        } else if (isType2) {
+          actions.push({
+            title: 'Register Major Project 2',
+            description: 'Register your solo Major Project 2',
+            icon: '📝',
+            link: '/student/sem8/major2/dashboard',
+            color: 'bg-blue-50 border-blue-200 hover:bg-blue-100',
+            textColor: 'text-blue-800',
+          });
+        }
+
+        // Internship 2 Actions - Only for Type 1 students (Type 2 students on major2 track only do Major Project 2)
+        if (isType1) {
+          const summerApp = sem8GetInternshipApplication('summer');
+          
+          // Check if summer app has placeholder values that need completion
+          const wasAssignedOrChangedByAdmin = summerApp?.adminRemarks === 'Assigned by admin' || 
+            (summerApp?.adminRemarks && (
+              summerApp.adminRemarks.includes('Assigned by admin') ||
+              summerApp.adminRemarks.includes('Switched from Internship-I under Institute Faculty')
+            )) ||
+            summerApp?.internship1TrackChangedByAdminAt;
+          
+          const hasPlaceholderValues = summerApp && 
+            summerApp.status === 'submitted' && 
+            wasAssignedOrChangedByAdmin && (
+              !summerApp.details?.companyName || 
+              summerApp.details?.companyName === 'To be provided by student' ||
+              summerApp.details?.companyName === 'N/A - Assigned to Internship 1 Project' ||
+              (summerApp.details?.startDate && summerApp.details?.endDate && 
+               new Date(summerApp.details.startDate).getTime() === new Date(summerApp.details.endDate).getTime()) ||
+              !summerApp.details?.completionCertificateLink ||
+              !summerApp.details?.roleOrNatureOfWork
+            );
+          
+          if (sem8HasApprovedSummerInternship) {
+            // Summer internship approved - Internship 2 not required
+            actions.push({
+              title: '✓ Internship 2 Approved',
+              description: 'Summer internship approved - no project needed',
+              icon: '✅',
+              link: '/student/sem8/internship2/dashboard',
+              color: 'bg-green-50 border-green-200 hover:bg-green-100',
+              textColor: 'text-green-800',
+            });
+          } else if (internship2Project) {
+            // Internship 2 project registered
+            actions.push({
+              title: 'View Internship 2',
+              description: 'View your registered solo project',
+              icon: '📋',
+              link: '/student/sem8/internship2/dashboard',
+              color: 'bg-orange-50 border-orange-200 hover:bg-orange-100',
+              textColor: 'text-orange-800',
+            });
+          } else if (summerApp && (summerApp.status === 'verified_fail' || summerApp.status === 'absent')) {
+            // Summer internship failed/absent - must register Internship 2 project
+            actions.push({
+              title: '⚠️ Register Internship 2',
+              description: 'Summer internship failed - register solo project required',
+              icon: '🚨',
+              link: '/student/sem8/internship2/register',
+              color: 'bg-red-50 border-red-200 hover:bg-red-100',
+              textColor: 'text-red-800',
+            });
+          } else if (summerApp && summerApp.status === 'needs_info') {
+            // Summer app needs update
+            actions.push({
+              title: '⚠️ Update Summer Evidence',
+              description: 'Provide additional information for summer internship',
+              icon: '📝',
+              link: `/student/sem8/internship/apply/summer/${summerApp._id}/edit`,
+              color: 'bg-yellow-50 border-yellow-200 hover:bg-yellow-100',
+              textColor: 'text-yellow-800',
+            });
+          } else if (hasPlaceholderValues) {
+            // URGENT: Application has placeholder values
+            actions.push({
+              title: '🚨 URGENT: Complete Application',
+              description: 'Summer application has placeholder values - fill immediately',
+              icon: '🚨',
+              link: `/student/sem8/internship/apply/summer/${summerApp._id}/edit`,
+              color: 'bg-red-50 border-red-300 hover:bg-red-100',
+              textColor: 'text-red-800',
+            });
+          } else if (summerApp && summerApp.status === 'submitted') {
+            // Summer app submitted, waiting for verification
+            actions.push({
+              title: 'View Summer Evidence',
+              description: 'Check your summer internship evidence status',
+              icon: '📋',
+              link: `/student/sem8/internship/apply/summer/${summerApp._id}/edit`,
+              color: 'bg-blue-50 border-blue-200 hover:bg-blue-100',
+              textColor: 'text-blue-800',
+            });
+          } else if (internship2Status?.eligible) {
+            // Eligible for Internship 2 but no summer app submitted yet
+            actions.push({
+              title: 'Start Internship 2',
+              description: 'Submit summer evidence or register solo project',
+              icon: '🚀',
+              link: '/student/sem8/internship2/dashboard',
+              color: 'bg-orange-50 border-orange-200 hover:bg-orange-100',
+              textColor: 'text-orange-800',
+            });
+          }
+        }
+      }
     }
 
     return actions;
@@ -902,7 +1194,7 @@ const StudentDashboard = () => {
             <div className="mt-6 border border-dashed border-gray-300 rounded-lg p-6 text-center">
               <p className="text-gray-700 font-medium">No internship application submitted yet.</p>
               <p className="text-gray-500 text-sm mt-1">
-                Click “View / Update Details” to complete your Internship 1 submission.
+                Click "View / Update Details" to complete your Internship 1 submission.
               </p>
             </div>
           )}
@@ -910,11 +1202,13 @@ const StudentDashboard = () => {
       </div>
     );
   };
-  const normalizedSemester = (currentSemester || 4);
-  const normalizedDegree = (degree || 'B.Tech');
+
+  const normalizedSemester = currentSemester || 4;
+  const normalizedDegree = degree || 'B.Tech';
   const isSem5 = normalizedSemester === 5;
   const isSem6 = normalizedSemester === 6;
   const isSem7 = normalizedSemester === 7;
+  const isSem8 = normalizedSemester === 8;
 
 
   const quickActions = getQuickActions();
@@ -975,7 +1269,9 @@ const StudentDashboard = () => {
           Welcome back, {roleData?.fullName || user?.fullName || user?.name || 'Student'}!
         </h1>
         <p className="text-gray-600 mt-2">
-          {isSem7
+          {isSem8
+            ? "Manage your Semester 8 track, projects, and internships"
+            : isSem7
             ? "Manage your Semester 7 track, projects, and internships"
             : isSem6
             ? "Manage your Minor Project 3 and track your progress"
@@ -1046,12 +1342,14 @@ const StudentDashboard = () => {
         </div>
       )}
 
-      {/* Group Invitations Section - For Sem 5 and Sem 7 students with pending invitations */}
-      {(isSem5 || isSem7) && !isInGroup && groupInvitations && groupInvitations.length > 0 && (
+      {/* Group Invitations Section - For Sem 5, Sem 7, and Sem 8 Type 1 students with pending invitations */}
+      {((isSem5 || isSem7) && !isInGroup && groupInvitations && groupInvitations.length > 0) ||
+       (isSem8 && isType1 && !majorProject2Group && sem8GroupInvitations && sem8GroupInvitations.length > 0) ? (
         <div className="mb-8">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">Group Invitations</h2>
           <div className="space-y-4">
-            {groupInvitations.map((invitation) => (
+            {/* Display invitations - use sem8GroupInvitations for Sem 8, groupInvitations for Sem 5/7 */}
+            {(isSem8 ? sem8GroupInvitations : groupInvitations).map((invitation) => (
               <div key={invitation._id} className="bg-white rounded-lg shadow border border-gray-200 p-6">
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
@@ -1099,6 +1397,9 @@ const StudentDashboard = () => {
                           {invitation.group.semester === 7 && (
                             <span className="ml-2 text-xs text-blue-600">(Major Project 1)</span>
                           )}
+                          {invitation.group.semester === 8 && (
+                            <span className="ml-2 text-xs text-blue-600">(Major Project 2)</span>
+                          )}
                         </div>
                       )}
                     </div>
@@ -1110,7 +1411,7 @@ const StudentDashboard = () => {
                   
                   <div className="flex space-x-3 ml-6">
                     <button
-                      onClick={() => handleInvitationResponse(invitation._id, true)}
+                      onClick={() => handleInvitationResponse(invitation._id, true, isSem8)}
                       disabled={invitationLoading[invitation._id]}
                       className="px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
                     >
@@ -1123,7 +1424,7 @@ const StudentDashboard = () => {
                     </button>
                     
                     <button
-                      onClick={() => handleInvitationResponse(invitation._id, false)}
+                      onClick={() => handleInvitationResponse(invitation._id, false, isSem8)}
                       disabled={invitationLoading[invitation._id]}
                       className="px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-md hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
                     >
@@ -1140,14 +1441,16 @@ const StudentDashboard = () => {
             ))}
           </div>
         </div>
-      )}
+      ) : null}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         {/* Project Status Card */}
         <div className="bg-white rounded-lg shadow">
           <div className="px-6 py-4 border-b border-gray-200">
             <h2 className="text-lg font-semibold text-gray-900">
-              {isSem7
+              {isSem8
+                ? "Semester 8 Status"
+                : isSem7
                 ? "Semester 7 Status"
                 : isSem6 
                 ? "Minor Project 3 Status" 
@@ -1406,6 +1709,233 @@ const StudentDashboard = () => {
                       </div>
                     )}
                   </div>
+
+                </div>
+              )
+            ) : isSem8 ? (
+              // Sem 8 Project Status
+              sem8Loading ? (
+                <div className="flex items-center justify-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                </div>
+              ) : (
+                <div className="space-y-6">
+                  
+                  {/* Student Type Indicator */}
+                  {studentType && (
+                    <div className="border-b pb-4">
+                      <h3 className="text-sm font-medium text-gray-700 mb-2">Student Type</h3>
+                      <div className="flex items-center space-x-2">
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                          isType1
+                            ? 'bg-green-100 text-green-800' 
+                            : 'bg-blue-100 text-blue-800'
+                        }`}>
+                          {isType1 ? 'Type 1: Completed 6-Month Internship in Sem 7' : 'Type 2: Did Coursework in Sem 7'}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Track Choice Status (Type 2 only) */}
+                  {isType2 && (
+                    <div className="border-b pb-4">
+                      <h3 className="text-sm font-medium text-gray-700 mb-2">Track Choice</h3>
+                      {sem8FinalizedTrack ? (
+                        <div className="space-y-2">
+                          <div className="flex items-center space-x-2">
+                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                              sem8FinalizedTrack === 'internship' 
+                                ? 'bg-purple-100 text-purple-800' 
+                                : 'bg-blue-100 text-blue-800'
+                            }`}>
+                              {sem8FinalizedTrack === 'internship' ? '6-Month Internship' : 'Major Project 2'}
+                            </span>
+                            {sem8TrackChoiceStatus && (
+                              <StatusBadge status={sem8TrackChoiceStatus === 'approved' ? 'success' : sem8TrackChoiceStatus === 'needs_info' ? 'error' : 'warning'} text={sem8TrackChoiceStatus} />
+                            )}
+                          </div>
+                          {sem8TrackChoiceStatus === 'needs_info' && (
+                            <div className="mt-2 p-3 bg-yellow-50 border border-yellow-200 rounded-md">
+                              <p className="text-sm text-yellow-800 font-medium mb-1">Action Required</p>
+                              <p className="text-xs text-yellow-700">Please update your track choice with the additional information requested by the admin.</p>
+                            </div>
+                          )}
+                        </div>
+                      ) : sem8TrackChoice && sem8TrackChoice.chosenTrack ? (
+                        <div className="space-y-3">
+                          <div className="flex items-center space-x-2">
+                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                              sem8TrackChoice.chosenTrack === 'internship' 
+                                ? 'bg-purple-100 text-purple-800' 
+                                : 'bg-blue-100 text-blue-800'
+                            }`}>
+                              {sem8TrackChoice.chosenTrack === 'internship' ? '6-Month Internship' : 'Major Project 2'}
+                            </span>
+                            {(() => {
+                              // For internship track, check application status
+                              if (sem8TrackChoice.chosenTrack === 'internship') {
+                                const sixMonthApp = sem8GetInternshipApplication('6month');
+                                if (sixMonthApp) {
+                                  if (sixMonthApp.status === 'verified_pass') {
+                                    return <StatusBadge status="success" text="Verified (Pass)" />;
+                                  } else if (sixMonthApp.status === 'needs_info') {
+                                    return <StatusBadge status="error" text="Update Required" />;
+                                  } else if (sixMonthApp.status === 'pending_verification') {
+                                    return <StatusBadge status="info" text="Pending Verification" />;
+                                  } else if (sixMonthApp.status === 'submitted') {
+                                    return <StatusBadge status="info" text="Application Submitted" />;
+                                  } else if (sixMonthApp.status === 'verified_fail') {
+                                    return <StatusBadge status="error" text="Verified (Fail)" />;
+                                  } else if (sixMonthApp.status === 'absent') {
+                                    return <StatusBadge status="error" text="Absent" />;
+                                  }
+                                }
+                                return <StatusBadge status="info" text="Proceed to Application" />;
+                              }
+                              // For major2 track
+                              if (sem8TrackChoiceStatus === 'needs_info') {
+                                return <StatusBadge status="error" text="Needs Info" />;
+                              }
+                              return <StatusBadge status="info" text="Pending Review" />;
+                            })()}
+                          </div>
+                          <div className="p-3 bg-blue-50 border border-blue-200 rounded-md">
+                            {(() => {
+                              // For internship track, show application status
+                              if (sem8TrackChoice.chosenTrack === 'internship') {
+                                const sixMonthApp = sem8GetInternshipApplication('6month');
+                                if (sixMonthApp) {
+                                  if (sixMonthApp.status === 'verified_pass') {
+                                    return (
+                                      <>
+                                        <p className="text-sm text-green-800 font-medium mb-1">Internship Verified (Pass)</p>
+                                        <p className="text-xs text-green-700 mb-2">
+                                          Your 6-month internship has been verified.
+                                        </p>
+                                      </>
+                                    );
+                                  } else if (sixMonthApp.status === 'needs_info') {
+                                    return (
+                                      <>
+                                        <p className="text-sm text-yellow-800 font-medium mb-1">Update Required</p>
+                                        <p className="text-xs text-yellow-700 mb-2">
+                                          The admin has requested additional information. Please update your internship application with the required details.
+                                        </p>
+                                      </>
+                                    );
+                                  } else if (sixMonthApp.status === 'submitted') {
+                                    return (
+                                      <>
+                                        <p className="text-sm text-blue-800 font-medium mb-1">Application Submitted</p>
+                                        <p className="text-xs text-blue-700 mb-2">
+                                          Your 6-month internship application has been submitted and is awaiting review.
+                                        </p>
+                                      </>
+                                    );
+                                  } else if (sixMonthApp.status === 'pending_verification') {
+                                    return (
+                                      <>
+                                        <p className="text-sm text-blue-800 font-medium mb-1">Pending Verification</p>
+                                        <p className="text-xs text-blue-700 mb-2">
+                                          Your internship will be verified by the admin/panel. You will be notified once it is decided.
+                                        </p>
+                                      </>
+                                    );
+                                  } else if (sixMonthApp.status === 'verified_fail' || sixMonthApp.status === 'absent') {
+                                    return (
+                                      <>
+                                        <p className="text-sm text-red-800 font-medium mb-1">Verification Failed / Absent</p>
+                                        <p className="text-xs text-red-700 mb-2">
+                                          Your internship verification failed. Please contact admin for next steps.
+                                        </p>
+                                        {sixMonthApp.adminRemarks && (
+                                          <div className="mt-2 p-3 bg-red-50 border border-red-200 rounded">
+                                            <p className="text-xs text-red-800"><strong>Admin Remarks:</strong> {sixMonthApp.adminRemarks}</p>
+                                          </div>
+                                        )}
+                                      </>
+                                    );
+                                  }
+                                }
+                                return (
+                                  <>
+                                    <p className="text-sm text-blue-800 font-medium mb-1">Next Step</p>
+                                    <p className="text-xs text-blue-700 mb-2">
+                                      You selected 6-Month Internship. Please submit your internship application with company details now.
+                                    </p>
+                                  </>
+                                );
+                              }
+                              // For major2 track
+                              if (sem8TrackChoiceStatus === 'needs_info') {
+                                return (
+                                  <>
+                                    <p className="text-sm text-yellow-800 font-medium mb-1">Update Required</p>
+                                    <p className="text-xs text-yellow-700 mb-2">
+                                      The admin has requested additional information. Please update your track choice with the required details.
+                                    </p>
+                                  </>
+                                );
+                              }
+                              return (
+                                <>
+                                  <p className="text-sm text-blue-800 font-medium mb-1">Awaiting Admin Review</p>
+                                  <p className="text-xs text-blue-700 mb-2">
+                                    You selected Major Project 2. You can proceed with project registration once approved.
+                                  </p>
+                                </>
+                              );
+                            })()}
+                          </div>
+                        </div>
+                      ) : (
+                        <p className="text-sm text-gray-500">No track choice submitted yet</p>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Coursework track - Quick redirect links (Type 1 or Type 2 with Major Project 2) */}
+                  {((isType1 && sem8FinalizedTrack === 'coursework') || (isType2 && (sem8FinalizedTrack === 'major2' || sem8TrackChoice?.chosenTrack === 'major2'))) && (
+                    <div className="mt-4 pt-4 border-t border-gray-200">
+                      <h3 className="text-sm font-medium text-gray-700 mb-3">Quick Access</h3>
+                      <div className={`grid gap-3 ${isType1 ? 'grid-cols-2' : 'grid-cols-1'}`}>
+                        <Link
+                          to="/student/sem8/major2/dashboard"
+                          className="text-center px-4 py-3 bg-indigo-50 border-2 border-indigo-300 rounded-lg hover:bg-indigo-100 hover:border-indigo-400 transition-colors shadow-sm"
+                        >
+                          <p className="text-sm font-semibold text-indigo-900">Major Project 2</p>
+                          <p className="text-xs text-indigo-700 mt-1">View Dashboard</p>
+                        </Link>
+                        {/* Internship 2 link - Only for Type 1 students (Type 2 students on major2 track only do Major Project 2) */}
+                        {isType1 && (() => {
+                          const summerApp = sem8GetInternshipApplication('summer');
+                          // If application is rejected and no project registered, show red registration link
+                          if (summerApp && (summerApp.status === 'verified_fail' || summerApp.status === 'absent') && !internship2Project) {
+                            return (
+                              <Link
+                                to="/student/sem8/internship2/register"
+                                className="text-center px-4 py-3 bg-red-50 border-2 border-red-300 rounded-lg hover:bg-red-100 hover:border-red-400 transition-colors shadow-sm"
+                              >
+                                <p className="text-sm font-semibold text-red-900">Internship 2</p>
+                                <p className="text-xs text-red-700 mt-1">Register Project</p>
+                              </Link>
+                            );
+                          }
+                          // Otherwise show dashboard link
+                          return (
+                            <Link
+                              to="/student/sem8/internship2/dashboard"
+                              className="text-center px-4 py-3 bg-teal-50 border-2 border-teal-300 rounded-lg hover:bg-teal-100 hover:border-teal-400 transition-colors shadow-sm"
+                            >
+                              <p className="text-sm font-semibold text-teal-900">Internship 2</p>
+                              <p className="text-xs text-teal-700 mt-1">View Dashboard</p>
+                            </Link>
+                          );
+                        })()}
+                      </div>
+                    </div>
+                  )}
 
                 </div>
               )
@@ -2272,6 +2802,463 @@ const StudentDashboard = () => {
                 </div>
               ) : (
                 <p className="text-sm text-gray-500 text-center py-4">Select your track to see status</p>
+              )}
+            </div>
+          </div>
+        ) : isSem8 ? (
+          /* Sem 8 Status Overview Card */
+          <div className="bg-white rounded-lg shadow">
+            <div className="px-6 py-4 border-b border-gray-200">
+              <h2 className="text-lg font-semibold text-gray-900">
+                {isType1 ? 'Coursework Overview' : 
+                 (sem8FinalizedTrack || sem8TrackChoice?.chosenTrack) === 'internship' ? '6-Month Internship Overview' : 
+                 (sem8FinalizedTrack || sem8TrackChoice?.chosenTrack) === 'major2' ? 'Major Project 2 Overview' : 
+                 'Semester 8 Overview'}
+              </h2>
+            </div>
+            <div className="p-6">
+              {sem8Loading ? (
+                <div className="flex items-center justify-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                </div>
+              ) : ((isType1 && (sem8FinalizedTrack || sem8TrackChoice?.chosenTrack) === 'coursework') || (isType2 && (sem8FinalizedTrack || sem8TrackChoice?.chosenTrack) === 'major2')) ? (
+                <div className="space-y-6">
+                  {/* Major Project 2 Status */}
+                  <div className="border-l-4 border-blue-500 pl-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <h3 className="text-base font-semibold text-gray-900">Major Project 2</h3>
+                      {(() => {
+                        if (majorProject2) {
+                          return (
+                            <StatusBadge 
+                              status={
+                                majorProject2.faculty || majorProject2Group?.allocatedFaculty ? 'success' : 'info'
+                              }
+                              text={
+                                majorProject2.faculty || majorProject2Group?.allocatedFaculty ? 'Active' : 'Pending Faculty'
+                              }
+                            />
+                          );
+                        } else if (isType1 && majorProject2Group?.status === 'finalized') {
+                          return (
+                            <span className="text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full font-medium">
+                              Ready to Register
+                            </span>
+                          );
+                        } else if (isType2 && (sem8FinalizedTrack || sem8TrackChoice?.chosenTrack) === 'major2') {
+                          return (
+                            <span className="text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full font-medium">
+                              Ready to Register
+                            </span>
+                          );
+                        }
+                        return (
+                          <span className="text-xs bg-gray-100 text-gray-800 px-2 py-1 rounded-full font-medium">
+                            Not Registered
+                          </span>
+                        );
+                      })()}
+                    </div>
+                    <div className="space-y-2 text-sm text-gray-600">
+                      {majorProject2 ? (
+                        <>
+                          <p className="font-medium text-gray-900">{majorProject2.title}</p>
+                          {majorProject2.faculty || majorProject2Group?.allocatedFaculty ? (
+                            <>
+                              <p>Faculty: {majorProject2.faculty?.fullName || majorProject2Group?.allocatedFaculty?.fullName}</p>
+                              <p className="text-green-600 font-medium">✓ Project active and allocated</p>
+                            </>
+                          ) : (
+                            <>
+                              <p className="text-yellow-600 font-medium">⏳ Waiting for faculty allocation</p>
+                              <p className="text-xs text-gray-500">Your project is registered and pending faculty assignment</p>
+                            </>
+                          )}
+                        </>
+                      ) : isType1 ? (
+                        <>
+                          {majorProject2Group?.status === 'finalized' ? (
+                            <>
+                              <p className="text-green-600 font-medium">✓ Group finalized</p>
+                              <p className="text-sm text-gray-600">Your group is ready. Register your Major Project 2 now.</p>
+                            </>
+                          ) : majorProject2Group ? (
+                            <>
+                              <p className="text-blue-600 font-medium">👥 Group formed</p>
+                              <p className="text-sm text-gray-600">Finalize your group to proceed with project registration.</p>
+                            </>
+                          ) : (
+                            <>
+                              <p className="text-gray-700">Form a group and register for Major Project 2</p>
+                              <p className="text-xs text-gray-500 mt-1">Create or join a group to start your Major Project 2</p>
+                            </>
+                          )}
+                        </>
+                      ) : (
+                        <>
+                          <p className="text-gray-700">Register for Major Project 2 (solo project)</p>
+                          <p className="text-xs text-gray-500 mt-1">Complete project registration to begin your solo Major Project 2</p>
+                        </>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Internship 2 Status - Only for Type 1 students (Type 2 students on major2 track only do Major Project 2) */}
+                  {isType1 && (
+                  <div className="border-l-4 border-teal-500 pl-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <h3 className="text-base font-semibold text-gray-900">Internship 2</h3>
+                      {(() => {
+                        if (internship2Project) {
+                          return (
+                            <StatusBadge 
+                              status={internship2Project.faculty ? 'success' : 'info'}
+                              text={internship2Project.faculty ? 'Active' : 'Pending Faculty'}
+                            />
+                          );
+                        }
+                        const summerApp = sem8GetInternshipApplication('summer');
+                        if (summerApp) {
+                          if (summerApp.status === 'approved' || summerApp.status === 'verified_pass') {
+                            return <StatusBadge status="success" text="Evidence Approved" />;
+                          } else if (summerApp.status === 'verified_fail' || summerApp.status === 'absent') {
+                            return <StatusBadge status="error" text="Project Required" />;
+                          } else if (summerApp.status === 'needs_info') {
+                            return <StatusBadge status="error" text="Update Required" />;
+                          }
+                          return <StatusBadge status="info" text={summerApp.status} />;
+                        }
+                        return (
+                          <span className="text-xs bg-gray-100 text-gray-800 px-2 py-1 rounded-full font-medium">
+                            Not Started
+                          </span>
+                        );
+                      })()}
+                    </div>
+                    <div className="space-y-2 text-sm text-gray-600">
+                      {(() => {
+                        const summerApp = sem8GetInternshipApplication('summer');
+                        
+                        // Check for placeholder values
+                        const wasAssignedOrChangedByAdmin = summerApp?.adminRemarks === 'Assigned by admin' || 
+                          (summerApp?.adminRemarks && (
+                            summerApp.adminRemarks.includes('Assigned by admin') ||
+                            summerApp.adminRemarks.includes('Switched from Internship-I under Institute Faculty')
+                          )) ||
+                          summerApp?.internship1TrackChangedByAdminAt;
+                        
+                        const hasPlaceholderValues = summerApp && 
+                          summerApp.status === 'submitted' && 
+                          wasAssignedOrChangedByAdmin && (
+                            !summerApp.details?.companyName || 
+                            summerApp.details?.companyName === 'To be provided by student' ||
+                            summerApp.details?.companyName === 'N/A - Assigned to Internship 1 Project' ||
+                            (summerApp.details?.startDate && summerApp.details?.endDate && 
+                             new Date(summerApp.details.startDate).getTime() === new Date(summerApp.details.endDate).getTime()) ||
+                            !summerApp.details?.completionCertificateLink ||
+                            !summerApp.details?.roleOrNatureOfWork
+                          );
+                        
+                        if (internship2Project) {
+                          return (
+                            <>
+                              <p className="font-medium text-gray-900">{internship2Project.title}</p>
+                              {internship2Project.faculty ? (
+                                <>
+                                  <p>Faculty: {internship2Project.faculty.fullName}</p>
+                                  <p className="text-green-600 font-medium">✓ Project active and allocated</p>
+                                </>
+                              ) : (
+                                <>
+                                  <p className="text-yellow-600 font-medium">⏳ Waiting for faculty allocation</p>
+                                  <p className="text-xs text-gray-500">Your project is registered and pending faculty assignment</p>
+                                </>
+                              )}
+                            </>
+                          );
+                        } else if (summerApp) {
+                          if (summerApp.status === 'approved' || summerApp.status === 'verified_pass') {
+                            return (
+                              <>
+                                <p className="text-green-700 font-medium">✓ Evidence approved</p>
+                                <p className="text-sm text-gray-600">Your 2-month summer internship evidence has been approved. No Internship 2 project required.</p>
+                                <div className="mt-2 space-y-1">
+                                  {summerApp.details?.companyName && (
+                                    <p className="text-xs text-gray-600">Company: {summerApp.details.companyName}</p>
+                                  )}
+                                  {summerApp.details?.startDate && summerApp.details?.endDate && (
+                                    <p className="text-xs text-gray-600">
+                                      Duration: {new Date(summerApp.details.startDate).toLocaleDateString()} - {new Date(summerApp.details.endDate).toLocaleDateString()}
+                                    </p>
+                                  )}
+                                </div>
+                              </>
+                            );
+                          } else if (summerApp.status === 'verified_fail' || summerApp.status === 'absent') {
+                            return (
+                              <>
+                                <p className="text-red-700 font-medium">✗ Evidence rejected</p>
+                                <p className="text-sm text-gray-600">Your summer internship evidence was not approved. You must register for an Internship 2 solo project.</p>
+                                {summerApp.adminRemarks && (
+                                  <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded-lg">
+                                    <p className="text-xs font-medium text-red-900 mb-1">Admin Remarks:</p>
+                                    <p className="text-xs text-red-800">{summerApp.adminRemarks}</p>
+                                  </div>
+                                )}
+                              </>
+                            );
+                          } else if (summerApp.status === 'needs_info') {
+                            return (
+                              <>
+                                <p className="text-yellow-700 font-medium">⚠️ Update Required</p>
+                                <p className="text-sm text-gray-600">Additional information is required for your summer internship evidence.</p>
+                                {summerApp.adminRemarks && (
+                                  <div className="mt-2 p-2 bg-yellow-50 border border-yellow-200 rounded-lg">
+                                    <p className="text-xs font-medium text-yellow-900 mb-1">Admin Remarks:</p>
+                                    <p className="text-xs text-yellow-800">{summerApp.adminRemarks}</p>
+                                  </div>
+                                )}
+                              </>
+                            );
+                          } else if (hasPlaceholderValues) {
+                            return (
+                              <>
+                                <p className="text-red-700 font-medium">🚨 URGENT: Complete Application</p>
+                                <p className="text-sm text-gray-600">Your application contains placeholder values. Fill in all details immediately.</p>
+                                <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded-lg">
+                                  <p className="text-xs font-medium text-red-900 mb-1">Required:</p>
+                                  <ul className="text-xs text-red-800 list-disc list-inside space-y-1">
+                                    <li>Company name and details</li>
+                                    <li>Actual internship start and end dates</li>
+                                    <li>Completion certificate link</li>
+                                    <li>Role/nature of work</li>
+                                  </ul>
+                                </div>
+                              </>
+                            );
+                          } else if (summerApp.status === 'submitted' || summerApp.status === 'pending_verification') {
+                            return (
+                              <>
+                                <p className="text-blue-700 font-medium">⏳ Pending Verification</p>
+                                <p className="text-sm text-gray-600">Your summer internship evidence is submitted and awaiting admin review.</p>
+                                <div className="mt-2 space-y-1">
+                                  {summerApp.details?.companyName && (
+                                    <p className="text-xs text-gray-600">Company: {summerApp.details.companyName}</p>
+                                  )}
+                                  {summerApp.details?.startDate && summerApp.details?.endDate && (
+                                    <p className="text-xs text-gray-600">
+                                      Duration: {new Date(summerApp.details.startDate).toLocaleDateString()} - {new Date(summerApp.details.endDate).toLocaleDateString()}
+                                    </p>
+                                  )}
+                                </div>
+                              </>
+                            );
+                          } else {
+                            return (
+                              <>
+                                <div className="space-y-1">
+                                  {summerApp.details?.companyName && (
+                                    <p className="font-medium text-gray-900">Company: {summerApp.details.companyName}</p>
+                                  )}
+                                  {summerApp.details?.startDate && summerApp.details?.endDate && (
+                                    <p className="text-gray-600">
+                                      Duration: {new Date(summerApp.details.startDate).toLocaleDateString()} - {new Date(summerApp.details.endDate).toLocaleDateString()}
+                                    </p>
+                                  )}
+                                </div>
+                              </>
+                            );
+                          }
+                        } else {
+                          return (
+                            <>
+                              <p className="text-gray-700">Submit summer internship evidence or register for solo project</p>
+                              <p className="text-xs text-gray-500 mt-1">Complete your 2-month summer internship requirement</p>
+                            </>
+                          );
+                        }
+                      })()}
+                    </div>
+                  </div>
+                  )}
+                </div>
+              ) : (sem8FinalizedTrack || sem8TrackChoice?.chosenTrack) === 'internship' ? (
+                <div className="space-y-6">
+                  {/* 6-Month Internship Application Status */}
+                  <div className="border-l-4 border-purple-500 pl-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <h3 className="text-base font-semibold text-gray-900">6-Month Internship Application</h3>
+                      {(() => {
+                        const sixMonthApp = sem8GetInternshipApplication('6month');
+                        if (!sixMonthApp) {
+                          return (
+                            <span className="text-xs bg-gray-100 text-gray-800 px-2 py-1 rounded-full font-medium">
+                              Not Submitted
+                            </span>
+                          );
+                        }
+                        return (
+                          <StatusBadge 
+                            status={
+                              sixMonthApp.status === 'verified_pass' ? 'success' :
+                              sixMonthApp.status === 'verified_fail' ? 'error' :
+                              sixMonthApp.status === 'absent' ? 'error' :
+                              sixMonthApp.status === 'needs_info' ? 'error' :
+                              sixMonthApp.status === 'pending_verification' ? 'info' :
+                              sixMonthApp.status === 'submitted' ? 'info' :
+                              'warning'
+                            }
+                            text={
+                              sixMonthApp.status === 'verified_pass' ? 'Verified (Pass)' :
+                              sixMonthApp.status === 'verified_fail' ? 'Verified (Fail)' :
+                              sixMonthApp.status === 'absent' ? 'Absent' :
+                              sixMonthApp.status === 'needs_info' ? 'Update Required' :
+                              sixMonthApp.status === 'pending_verification' ? 'Pending Verification' :
+                              sixMonthApp.status === 'submitted' ? 'Submitted' :
+                              sixMonthApp.status
+                            }
+                          />
+                        );
+                      })()}
+                    </div>
+                    <div className="space-y-2 text-sm text-gray-600">
+                      {(() => {
+                        const sixMonthApp = sem8GetInternshipApplication('6month');
+                        if (!sixMonthApp) {
+                          return (
+                            <>
+                              <p className="text-gray-700">Submit your 6-month internship application with company details</p>
+                              <p className="text-xs text-gray-500 mt-1">Provide company information and offer letter to complete your application</p>
+                            </>
+                          );
+                        }
+                        
+                        if (sixMonthApp.status === 'verified_pass') {
+                          return (
+                            <>
+                              <p className="text-green-700 font-medium">✓ Internship Verified</p>
+                              <p className="text-sm text-gray-600">Your 6-month internship has been approved and verified.</p>
+                              <div className="mt-2 space-y-1">
+                                <p className="font-medium text-gray-900">Company: {sixMonthApp.details?.companyName || 'N/A'}</p>
+                                {sixMonthApp.details?.startDate && sixMonthApp.details?.endDate && (
+                                  <p className="text-gray-600">
+                                    Duration: {new Date(sixMonthApp.details.startDate).toLocaleDateString()} - {new Date(sixMonthApp.details.endDate).toLocaleDateString()}
+                                  </p>
+                                )}
+                                {sixMonthApp.details?.offerLetterLink && (
+                                  <p className="text-gray-600">
+                                    <a href={sixMonthApp.details.offerLetterLink} target="_blank" rel="noopener noreferrer" className="text-purple-600 hover:text-purple-800 underline">
+                                      View Offer Letter
+                                    </a>
+                                  </p>
+                                )}
+                              </div>
+                            </>
+                          );
+                        } else if (sixMonthApp.status === 'verified_fail' || sixMonthApp.status === 'absent') {
+                          return (
+                            <>
+                              <p className="text-red-700 font-medium">✗ Verification Failed</p>
+                              <p className="text-sm text-gray-600">Your 6-month internship application was not approved.</p>
+                              {sixMonthApp.adminRemarks && (
+                                <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded-lg">
+                                  <p className="text-xs font-medium text-red-900 mb-1">Admin Remarks:</p>
+                                  <p className="text-xs text-red-800">{sixMonthApp.adminRemarks}</p>
+                                </div>
+                              )}
+                              <div className="mt-2 space-y-1">
+                                <p className="text-xs text-gray-600">Company: {sixMonthApp.details?.companyName || 'N/A'}</p>
+                              </div>
+                            </>
+                          );
+                        } else if (sixMonthApp.status === 'needs_info') {
+                          return (
+                            <>
+                              <p className="text-yellow-700 font-medium">⚠️ Update Required</p>
+                              <p className="text-sm text-gray-600">Additional information is required for your application.</p>
+                              {sixMonthApp.adminRemarks && (
+                                <div className="mt-2 p-2 bg-yellow-50 border border-yellow-200 rounded-lg">
+                                  <p className="text-xs font-medium text-yellow-900 mb-1">Admin Remarks:</p>
+                                  <p className="text-xs text-yellow-800">{sixMonthApp.adminRemarks}</p>
+                                </div>
+                              )}
+                              <div className="mt-2 space-y-1">
+                                <p className="text-xs text-gray-600">Company: {sixMonthApp.details?.companyName || 'N/A'}</p>
+                              </div>
+                            </>
+                          );
+                        } else {
+                          return (
+                            <>
+                              <p className="text-blue-700 font-medium">⏳ {sixMonthApp.status === 'submitted' ? 'Submitted' : 'Pending Verification'}</p>
+                              <p className="text-sm text-gray-600">Your application is {sixMonthApp.status === 'submitted' ? 'submitted' : 'pending verification'}.</p>
+                              <div className="mt-2 space-y-1">
+                                <p className="font-medium text-gray-900">Company: {sixMonthApp.details?.companyName || 'N/A'}</p>
+                                {sixMonthApp.details?.startDate && sixMonthApp.details?.endDate && (
+                                  <p className="text-gray-600">
+                                    Duration: {new Date(sixMonthApp.details.startDate).toLocaleDateString()} - {new Date(sixMonthApp.details.endDate).toLocaleDateString()}
+                                  </p>
+                                )}
+                                {sixMonthApp.details?.offerLetterLink && (
+                                  <p className="text-gray-600">
+                                    <a href={sixMonthApp.details.offerLetterLink} target="_blank" rel="noopener noreferrer" className="text-purple-600 hover:text-purple-800 underline">
+                                      View Offer Letter
+                                    </a>
+                                  </p>
+                                )}
+                              </div>
+                            </>
+                          );
+                        }
+                      })()}
+                    </div>
+                  </div>
+
+                  {/* Quick Actions */}
+                  <div className="pt-4 border-t border-gray-200">
+                    {(() => {
+                      const sixMonthApp = sem8GetInternshipApplication('6month');
+                      if (!sixMonthApp) {
+                        return (
+                          <Link
+                            to="/student/sem8/internship/apply/6month"
+                            className="inline-flex items-center justify-center w-full px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
+                          >
+                            <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                            </svg>
+                            Submit Internship Application
+                          </Link>
+                        );
+                      }
+                      if (sixMonthApp.status === 'needs_info') {
+                        return (
+                          <Link
+                            to={`/student/sem8/internship/apply/6month/${sixMonthApp._id}/edit`}
+                            className="inline-flex items-center justify-center w-full px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition-colors"
+                          >
+                            <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                            </svg>
+                            Update Application
+                          </Link>
+                        );
+                      }
+                      return (
+                        <Link
+                          to={`/student/sem8/internship/apply/6month/${sixMonthApp._id}/edit`}
+                          className="inline-flex items-center justify-center w-full px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
+                        >
+                          View Application Details
+                        </Link>
+                      );
+                    })()}
+                  </div>
+                </div>
+              ) : (
+                <p className="text-sm text-gray-500 text-center py-4">
+                  {isType2 ? 'Select your track to see status' : 'Loading status...'}
+                </p>
               )}
             </div>
           </div>

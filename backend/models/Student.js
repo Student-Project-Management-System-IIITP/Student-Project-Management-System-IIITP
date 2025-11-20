@@ -833,6 +833,67 @@ studentSchema.methods.getInternshipStatistics = function() {
   };
 };
 
+// Sem 8 specific method: Get student type for Sem 8
+// Returns: 'type1' (completed 6-month internship in Sem 7), 'type2' (did coursework in Sem 7), or null
+studentSchema.methods.getSem8StudentType = function() {
+  if (this.semester !== 8) {
+    return null;
+  }
+  
+  const sem7Selection = this.getSemesterSelection(7);
+  if (!sem7Selection) {
+    return null;
+  }
+  
+  // Type 1: Completed 6-month internship in Sem 7
+  if (sem7Selection.finalizedTrack === 'internship' && 
+      sem7Selection.internshipOutcome === 'verified_pass') {
+    return 'type1';
+  }
+  
+  // Type 2: Did coursework in Sem 7
+  if (sem7Selection.finalizedTrack === 'coursework') {
+    return 'type2';
+  }
+  
+  return null;
+};
+
+// Sem 8 specific method: Initialize Sem 8 for Type 1 students (auto-enroll in coursework)
+// This should be called when a Type 1 student first accesses Sem 8 features
+studentSchema.methods.initializeSem8ForType1 = async function(academicYear) {
+  if (this.semester !== 8) {
+    throw new Error('Student must be in semester 8 to initialize Sem 8');
+  }
+  
+  const studentType = this.getSem8StudentType();
+  if (studentType !== 'type1') {
+    throw new Error('This method is only for Type 1 students (completed 6-month internship in Sem 7)');
+  }
+  
+  // Check if Sem 8 selection already exists
+  const existingSelection = this.getSemesterSelection(8);
+  if (existingSelection) {
+    // Already initialized, return existing selection
+    return existingSelection;
+  }
+  
+  // Auto-create coursework selection for Type 1 students
+  await this.setSemesterSelection(8, academicYear, 'coursework');
+  
+  // Auto-finalize to coursework (Type 1 students must do coursework)
+  const selection = this.getSemesterSelection(8);
+  if (selection) {
+    selection.finalizedTrack = 'coursework';
+    selection.verificationStatus = 'approved';
+    selection.adminRemarks = 'Auto-enrolled: Completed 6-month internship in Sem 7';
+    selection.updatedAt = new Date();
+    await this.save();
+  }
+  
+  return this.getSemesterSelection(8);
+};
+
 // Sem 8 specific method: Check graduation eligibility
 studentSchema.methods.checkGraduationEligibility = function() {
   // Check if student has completed major projects (either in currentProjects or historically)

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { useSem7Project } from '../../hooks/useSem7Project';
+import { useSem8Project } from '../../hooks/useSem8Project';
 import { useAuth } from '../../context/AuthContext';
 import { studentAPI } from '../../utils/api';
 import { toast } from 'react-hot-toast';
@@ -10,65 +11,134 @@ import Layout from '../../components/common/Layout';
 const MajorProject1Registration = () => {
   const navigate = useNavigate();
   const { user, roleData } = useAuth();
+  const currentSemester = roleData?.semester || user?.semester;
+  const isSem8 = currentSemester === 8;
+  
+  // Use appropriate hooks based on semester
+  const sem7Context = useSem7Project();
+  const sem8Context = useSem8Project();
+  
   const { 
-    majorProject1Group, 
+    majorProject1Group: sem7Group, 
     registerMajorProject1, 
     loading: sem7Loading,
     finalizedTrack 
-  } = useSem7Project();
+  } = sem7Context || {};
   
-  // Initialize state from localStorage or defaults
+  const {
+    majorProject2Group: sem8Group,
+    registerMajorProject2,
+    loading: sem8Loading,
+    studentType,
+    isType1,
+    isType2
+  } = sem8Context || {};
+  
+  // Select appropriate values based on semester
+  const majorProjectGroup = isSem8 ? sem8Group : sem7Group;
+  const loading = isSem8 ? sem8Loading : sem7Loading;
+  const storagePrefix = isSem8 ? 'majorProject2Registration' : 'majorProject1Registration';
+  
+  // Initialize state from localStorage or defaults (use semester-specific keys)
+  // For Type 2 solo projects: Start at step 1 (Project Details)
+  // For Type 1 group projects: Start at step 3 (Group Member Verification)
   const [currentStep, setCurrentStep] = useState(() => {
-    const saved = localStorage.getItem('majorProject1Registration_currentStep');
-    return saved ? parseInt(saved) : 3;
+    const prefix = isSem8 ? 'majorProject2Registration' : 'majorProject1Registration';
+    const saved = localStorage.getItem(`${prefix}_currentStep`);
+    if (saved) {
+      return parseInt(saved);
+    }
+    // Type 2 solo projects start at step 1, Type 1 group projects start at step 3
+    return (isSem8 && isType2) ? 1 : 3;
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [facultyList, setFacultyList] = useState([]);
   const [facultyPreferences, setFacultyPreferences] = useState(() => {
-    const saved = localStorage.getItem('majorProject1Registration_facultyPreferences');
+    const prefix = isSem8 ? 'majorProject2Registration' : 'majorProject1Registration';
+    const saved = localStorage.getItem(`${prefix}_facultyPreferences`);
     return saved ? JSON.parse(saved) : [];
   });
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedDepartment, setSelectedDepartment] = useState('all');
   const [isRestoredFromStorage, setIsRestoredFromStorage] = useState(false);
   const [customDomain, setCustomDomain] = useState(() => {
-    const saved = localStorage.getItem('majorProject1Registration_customDomain');
+    const prefix = isSem8 ? 'majorProject2Registration' : 'majorProject1Registration';
+    const saved = localStorage.getItem(`${prefix}_customDomain`);
     return saved || '';
   });
-  const [facultyPreferenceLimit, setFacultyPreferenceLimit] = useState(7); // Default to 7
+  // Default to 7 for Sem 7, 5 for Sem 8 (matching backend defaults)
+  const [facultyPreferenceLimit, setFacultyPreferenceLimit] = useState(() => {
+    return isSem8 ? 5 : 7;
+  });
   const [groupLoading, setGroupLoading] = useState(true);
 
-  // Validation: Check if student is in Sem 7 and finalized for coursework
+  // Validation: Check if student is in Sem 7 or Sem 8 and eligible
   useEffect(() => {
-    const currentSemester = roleData?.semester || user?.semester;
-    if (currentSemester !== 7) {
-      toast.error('Major Project 1 registration is only available for Semester 7 students');
+    // Wait for Sem 8 context to load before validating student type
+    if (isSem8 && sem8Loading) {
+      return; // Don't validate while loading
+    }
+    
+    if (currentSemester !== 7 && currentSemester !== 8) {
+      toast.error(`${isSem8 ? 'Major Project 2' : 'Major Project 1'} registration is only available for Semester ${isSem8 ? '8' : '7'} students`);
       navigate('/dashboard/student');
       return;
     }
     
+    if (currentSemester === 7) {
     if (finalizedTrack !== 'coursework') {
       toast.error('Major Project 1 is only available for students finalized for coursework track');
       navigate('/dashboard/student');
       return;
     }
-  }, [roleData, user, finalizedTrack, navigate]);
+    } else if (currentSemester === 8) {
+      // For Sem 8, Type 1 students must be in coursework track, Type 2 students must have chosen major2
+      // Only validate if we have student type information
+      if (studentType === 'type1') {
+        // Type 1 students are auto-enrolled in coursework, so they should be eligible
+        // Additional validation will happen in the group check
+      } else if (studentType === 'type2') {
+        // Type 2 students should have chosen major2 track
+        // This will be validated in the registration function
+      } else if (studentType === null || studentType === undefined) {
+        // Still loading or unable to determine - wait a bit more
+        // Don't show error yet, let the context finish loading
+        return;
+      } else {
+        toast.error('Unable to determine student type for Major Project 2 registration');
+        navigate('/dashboard/student');
+        return;
+      }
+    }
+  }, [roleData, user, finalizedTrack, navigate, currentSemester, isSem8, isType1, isType2, studentType, sem8Loading]);
 
   // Load group data
   useEffect(() => {
     const loadGroup = async () => {
       try {
         setGroupLoading(true);
-        const response = await studentAPI.getGroups({ semester: 7 });
+        const targetSemester = isSem8 ? 8 : 7;
+        const response = await studentAPI.getGroups({ semester: targetSemester });
+        
+        if (isSem8 && isType2) {
+          // Type 2 students don't need a group (solo project)
+          setGroupLoading(false);
+          return;
+        }
+        
         if (response.success && response.data && response.data.length > 0) {
-          // Group is already loaded in Sem7Context, but we validate here
+          // Group is already loaded in context, but we validate here
           if (response.data[0].status !== 'finalized') {
-            toast.error('Your group must be finalized before registering Major Project 1');
+            toast.error(`Your group must be finalized before registering ${isSem8 ? 'Major Project 2' : 'Major Project 1'}`);
             navigate('/dashboard/student');
             return;
           }
         } else {
+          if (isSem8 && isType1) {
+            toast.error('You must be in a finalized group to register Major Project 2');
+          } else if (!isSem8) {
           toast.error('You must be in a finalized group to register Major Project 1');
+          }
           navigate('/dashboard/student');
           return;
         }
@@ -81,25 +151,32 @@ const MajorProject1Registration = () => {
       }
     };
     
-    if (finalizedTrack === 'coursework') {
+    if ((!isSem8 && finalizedTrack === 'coursework') || (isSem8 && (isType1 || isType2))) {
       loadGroup();
     }
-  }, [finalizedTrack, navigate]);
+  }, [finalizedTrack, navigate, isSem8, isType1, isType2]);
 
   // Validate group access
   useEffect(() => {
-    if (!groupLoading && majorProject1Group) {
+    const currentGroup = majorProjectGroup;
+    
+    // For Sem 8 Type 2, no group is needed (solo project)
+    if (isSem8 && isType2) {
+      return;
+    }
+    
+    if (!groupLoading && currentGroup) {
       // Check if group is finalized
-      if (majorProject1Group.status !== 'finalized') {
-        toast.error('Your group must be finalized before registering your project');
+      if (currentGroup.status !== 'finalized') {
+        toast.error(`Your group must be finalized before registering ${isSem8 ? 'Major Project 2' : 'Major Project 1'}`);
         navigate('/dashboard/student');
         return;
       }
 
       // Check if user is group leader
-      const isLeader = majorProject1Group.leader?._id === roleData?._id || 
-                      majorProject1Group.leader === roleData?._id ||
-                      (typeof majorProject1Group.leader === 'object' && majorProject1Group.leader._id === roleData?._id);
+      const isLeader = currentGroup.leader?._id === roleData?._id || 
+                      currentGroup.leader === roleData?._id ||
+                      (typeof currentGroup.leader === 'object' && currentGroup.leader._id === roleData?._id);
       
       if (!isLeader) {
         toast.error('Only the group leader can register the project');
@@ -107,37 +184,60 @@ const MajorProject1Registration = () => {
         return;
       }
       
-      const memberCount = majorProject1Group.members?.length || 0;
+      const memberCount = currentGroup.members?.length || 0;
       if (memberCount < 2) {
         toast.error('Your group must have at least 2 members before registering your project');
         navigate('/dashboard/student');
         return;
       }
     }
-  }, [groupLoading, majorProject1Group, roleData, navigate]);
+  }, [groupLoading, majorProjectGroup, roleData, navigate, isSem8, isType2]);
 
   // Load faculty preference limit from system config
   useEffect(() => {
     const loadFacultyPreferenceLimit = async () => {
       try {
-        const response = await studentAPI.getSystemConfig('sem7.major1.facultyPreferenceLimit');
+        const configKey = isSem8 ? 'sem8.major2.facultyPreferenceLimit' : 'sem7.major1.facultyPreferenceLimit';
+        const response = await studentAPI.getSystemConfig(configKey);
         if (response.success && response.data) {
-          setFacultyPreferenceLimit(response.data.value);
-        } else {
-          // Fallback to sem5 limit
-          const fallbackResponse = await studentAPI.getSystemConfig('sem5.facultyPreferenceLimit');
-          if (fallbackResponse.success && fallbackResponse.data) {
-            setFacultyPreferenceLimit(fallbackResponse.data.value);
+          // Backend returns { key, value } structure
+          const limitValue = response.data.value || response.data.configValue;
+          if (limitValue !== undefined && limitValue !== null) {
+            setFacultyPreferenceLimit(limitValue);
+            return;
           }
         }
+        
+        // If primary config not found, try fallback for Sem 7 only
+        if (!isSem8) {
+          try {
+          const fallbackResponse = await studentAPI.getSystemConfig('sem5.facultyPreferenceLimit');
+          if (fallbackResponse.success && fallbackResponse.data) {
+              const fallbackValue = fallbackResponse.data.value || fallbackResponse.data.configValue;
+              if (fallbackValue !== undefined && fallbackValue !== null) {
+                setFacultyPreferenceLimit(fallbackValue);
+                return;
+              }
+            }
+          } catch (fallbackError) {
+            // Ignore fallback errors
+          }
+        }
+        
+        // If all configs fail, keep the default (already set in useState)
+        // Sem 8: 5, Sem 7: 7
       } catch (error) {
+        // Only log non-404 errors to avoid console noise
+        if (error.message && !error.message.includes('404') && !error.message.includes('not found')) {
         console.error('Failed to load faculty preference limit, using default:', error);
-        // Keep default value of 7
+        }
+        // Keep default value (5 for Sem 8, 7 for Sem 7)
+        // This is already set in useState initialization
       }
     };
 
     loadFacultyPreferenceLimit();
-  }, []);
+  }, [isSem8]);
 
   // Load faculty list for preferences
   useEffect(() => {
@@ -156,10 +256,18 @@ const MajorProject1Registration = () => {
       }
     };
 
-    if (currentStep === 5) {
+    // For Type 2 students: Step 2 is Faculty Preferences
+    // For Type 1 students: Step 5 is Faculty Preferences
+    // Wait for student type to be determined before loading
+    if (isSem8 && (studentType === null || studentType === undefined)) {
+      return; // Still loading student type
+    }
+    
+    const facultyStep = (isSem8 && studentType === 'type2') ? 2 : 5;
+    if (currentStep === facultyStep) {
       loadFacultyList();
     }
-  }, [currentStep]);
+  }, [currentStep, isSem8, isType2, studentType]);
 
   const {
     register,
@@ -169,8 +277,8 @@ const MajorProject1Registration = () => {
     reset
   } = useForm({
     defaultValues: {
-      title: localStorage.getItem('majorProject1Registration_title') || '',
-      domain: localStorage.getItem('majorProject1Registration_domain') || ''
+      title: localStorage.getItem(`${storagePrefix}_title`) || '',
+      domain: localStorage.getItem(`${storagePrefix}_domain`) || ''
     }
   });
 
@@ -180,42 +288,42 @@ const MajorProject1Registration = () => {
 
   // Check if form was restored from localStorage
   useEffect(() => {
-    const hasStoredData = localStorage.getItem('majorProject1Registration_currentStep') ||
-                         localStorage.getItem('majorProject1Registration_title') ||
-                         localStorage.getItem('majorProject1Registration_domain') ||
-                         localStorage.getItem('majorProject1Registration_facultyPreferences');
+    const hasStoredData = localStorage.getItem(`${storagePrefix}_currentStep`) ||
+                         localStorage.getItem(`${storagePrefix}_title`) ||
+                         localStorage.getItem(`${storagePrefix}_domain`) ||
+                         localStorage.getItem(`${storagePrefix}_facultyPreferences`);
     
     if (hasStoredData) {
       setIsRestoredFromStorage(true);
       setTimeout(() => setIsRestoredFromStorage(false), 5000);
     }
-  }, []);
+  }, [storagePrefix]);
 
   // Persist state changes to localStorage
   useEffect(() => {
-    localStorage.setItem('majorProject1Registration_currentStep', currentStep.toString());
-  }, [currentStep]);
+    localStorage.setItem(`${storagePrefix}_currentStep`, currentStep.toString());
+  }, [currentStep, storagePrefix]);
 
   useEffect(() => {
-    localStorage.setItem('majorProject1Registration_facultyPreferences', JSON.stringify(facultyPreferences));
-  }, [facultyPreferences]);
+    localStorage.setItem(`${storagePrefix}_facultyPreferences`, JSON.stringify(facultyPreferences));
+  }, [facultyPreferences, storagePrefix]);
 
   // Persist form data
   useEffect(() => {
     if (watchedTitle !== undefined) {
-      localStorage.setItem('majorProject1Registration_title', watchedTitle || '');
+      localStorage.setItem(`${storagePrefix}_title`, watchedTitle || '');
     }
-  }, [watchedTitle]);
+  }, [watchedTitle, storagePrefix]);
 
   useEffect(() => {
     if (watchedDomain !== undefined) {
-      localStorage.setItem('majorProject1Registration_domain', watchedDomain || '');
+      localStorage.setItem(`${storagePrefix}_domain`, watchedDomain || '');
     }
-  }, [watchedDomain]);
+  }, [watchedDomain, storagePrefix]);
 
   useEffect(() => {
-    localStorage.setItem('majorProject1Registration_customDomain', customDomain);
-  }, [customDomain]);
+    localStorage.setItem(`${storagePrefix}_customDomain`, customDomain);
+  }, [customDomain, storagePrefix]);
 
   const onSubmit = async (data) => {
     try {
@@ -227,17 +335,23 @@ const MajorProject1Registration = () => {
         facultyPreferences: facultyPreferences
       };
 
+      // Use appropriate registration function based on semester
+      if (isSem8) {
+        await registerMajorProject2(projectData);
+      } else {
       await registerMajorProject1(projectData);
+      }
       
-      // Clear localStorage on successful completion
-      localStorage.removeItem('majorProject1Registration_currentStep');
-      localStorage.removeItem('majorProject1Registration_facultyPreferences');
-      localStorage.removeItem('majorProject1Registration_title');
-      localStorage.removeItem('majorProject1Registration_domain');
-      localStorage.removeItem('majorProject1Registration_customDomain');
-      localStorage.removeItem('majorProject1Registration_completed');
+      // Clear localStorage on successful completion (use semester-specific keys)
+      const storagePrefix = isSem8 ? 'majorProject2Registration' : 'majorProject1Registration';
+      localStorage.removeItem(`${storagePrefix}_currentStep`);
+      localStorage.removeItem(`${storagePrefix}_facultyPreferences`);
+      localStorage.removeItem(`${storagePrefix}_title`);
+      localStorage.removeItem(`${storagePrefix}_domain`);
+      localStorage.removeItem(`${storagePrefix}_customDomain`);
+      localStorage.removeItem(`${storagePrefix}_completed`);
       
-      toast.success('Major Project 1 registered successfully!');
+      toast.success(`${isSem8 ? 'Major Project 2' : 'Major Project 1'} registered successfully!`);
       navigate('/dashboard/student');
     } catch (error) {
       toast.error(`Registration failed: ${error.message}`);
@@ -248,24 +362,46 @@ const MajorProject1Registration = () => {
 
   const onCancel = () => {
     reset();
-    // Clear localStorage persistence
-    localStorage.removeItem('majorProject1Registration_currentStep');
-    localStorage.removeItem('majorProject1Registration_facultyPreferences');
-    localStorage.removeItem('majorProject1Registration_title');
-    localStorage.removeItem('majorProject1Registration_domain');
-    localStorage.removeItem('majorProject1Registration_customDomain');
-    localStorage.removeItem('majorProject1Registration_completed');
+    // Clear localStorage persistence (use semester-specific keys)
+    localStorage.removeItem(`${storagePrefix}_currentStep`);
+    localStorage.removeItem(`${storagePrefix}_facultyPreferences`);
+    localStorage.removeItem(`${storagePrefix}_title`);
+    localStorage.removeItem(`${storagePrefix}_domain`);
+    localStorage.removeItem(`${storagePrefix}_customDomain`);
+    localStorage.removeItem(`${storagePrefix}_completed`);
     navigate('/dashboard/student');
   };
 
+  // Helper to get the maximum step based on student type
+  const getMaxStep = () => {
+    // Type 2 solo projects: Step 1 (Project Details) -> Step 2 (Faculty Preferences)
+    if (isSem8 && isType2) {
+      return 2;
+    }
+    // Type 1 group projects: Step 3 (Group Verification) -> Step 4 (Project Details) -> Step 5 (Faculty Preferences)
+    return 5;
+  };
+
+  // Helper to get the minimum step based on student type
+  const getMinStep = () => {
+    // Type 2 solo projects: Start at step 1
+    if (isSem8 && isType2) {
+      return 1;
+    }
+    // Type 1 group projects: Start at step 3
+    return 3;
+  };
+
   const nextStep = () => {
-    if (currentStep < 5) {
+    const maxStep = getMaxStep();
+    if (currentStep < maxStep) {
       setCurrentStep(currentStep + 1);
     }
   };
 
   const prevStep = () => {
-    if (currentStep > 3) {
+    const minStep = getMinStep();
+    if (currentStep > minStep) {
       setCurrentStep(currentStep - 1);
     }
   };
@@ -327,10 +463,10 @@ const MajorProject1Registration = () => {
   };
 
   const getGroupMembers = () => {
-    if (!majorProject1Group || !majorProject1Group.members) return [];
+    if (!majorProjectGroup || !majorProjectGroup.members) return [];
     
     // Sort members: leader first, then members
-    const sortedMembers = [...majorProject1Group.members].sort((a, b) => {
+    const sortedMembers = [...majorProjectGroup.members].sort((a, b) => {
       if (a.role === 'leader') return -1;
       if (b.role === 'leader') return 1;
       return 0;
@@ -340,17 +476,17 @@ const MajorProject1Registration = () => {
   };
 
   const getGroupStats = () => {
-    if (!majorProject1Group) return { memberCount: 0 };
+    if (!majorProjectGroup) return { memberCount: 0 };
     return {
-      memberCount: majorProject1Group.members?.length || 0
+      memberCount: majorProjectGroup.members?.length || 0
     };
   };
 
   const isGroupLeader = () => {
-    if (!majorProject1Group || !majorProject1Group.leader) return false;
-    return majorProject1Group.leader?._id === roleData?._id || 
-           majorProject1Group.leader === roleData?._id ||
-           (typeof majorProject1Group.leader === 'object' && majorProject1Group.leader._id === roleData?._id);
+    if (!majorProjectGroup || !majorProjectGroup.leader) return false;
+    return majorProjectGroup.leader?._id === roleData?._id || 
+           majorProjectGroup.leader === roleData?._id ||
+           (typeof majorProjectGroup.leader === 'object' && majorProjectGroup.leader._id === roleData?._id);
   };
 
   const renderStep3 = () => (
@@ -445,7 +581,9 @@ const MajorProject1Registration = () => {
   const renderStep4 = () => (
     <div className="space-y-6">
       <div className="text-center mb-6">
-        <h2 className="text-2xl font-bold text-gray-900 mb-2">Step 4: Project Details</h2>
+        <h2 className="text-2xl font-bold text-gray-900 mb-2">
+          {isSem8 && isType2 ? 'Step 1: Project Details' : 'Step 4: Project Details'}
+        </h2>
         <p className="text-gray-600">Enter your project details. These can be changed later.</p>
       </div>
 
@@ -558,7 +696,9 @@ const MajorProject1Registration = () => {
       return (
         <div className="space-y-6">
           <div className="text-center mb-6">
-            <h2 className="text-2xl font-bold text-gray-900 mb-2">Step 5: Faculty Preferences</h2>
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">
+              {isSem8 && isType2 ? 'Step 2: Faculty Preferences' : 'Step 5: Faculty Preferences'}
+            </h2>
             <p className="text-gray-600">Loading faculty list...</p>
           </div>
           <div className="flex items-center justify-center py-8">
@@ -789,8 +929,8 @@ const MajorProject1Registration = () => {
     );
   };
 
-  // Show loading screen while group data is loading
-  if (groupLoading || sem7Loading) {
+  // Show loading screen while group data is loading (only for Type 1, not Type 2)
+  if ((groupLoading || sem7Loading || sem8Loading) && !(isSem8 && isType2)) {
     return (
       <Layout>
         <div className="min-h-screen bg-gray-50 py-8">
@@ -817,10 +957,12 @@ const MajorProject1Registration = () => {
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-3xl font-bold text-gray-900">
-                Major Project 1 Registration
+                {isSem8 ? 'Major Project 2' : 'Major Project 1'} Registration
               </h1>
               <p className="mt-2 text-gray-600">
-                Register for your B.Tech Semester 7 Major Project 1
+                {isSem8 && isType2 
+                  ? 'Register for your solo Major Project 2 (Semester 8)' 
+                  : `Register for your B.Tech Semester ${currentSemester} ${isSem8 ? 'Major Project 2' : 'Major Project 1'}`}
               </p>
             </div>
             <button
@@ -836,6 +978,31 @@ const MajorProject1Registration = () => {
 
         {/* Progress Indicator */}
         <div className="mb-8">
+          {isSem8 && isType2 ? (
+            // Type 2 Solo Project: Only 2 steps
+            <div className="flex items-center space-x-4">
+              <div className="flex items-center">
+                <div className={`w-8 h-8 ${currentStep >= 1 ? 'bg-blue-600' : 'bg-gray-300'} text-white rounded-full flex items-center justify-center text-sm font-medium`}>
+                  1
+                </div>
+                <span className={`ml-2 text-sm ${currentStep >= 1 ? 'font-medium text-blue-600' : 'text-gray-500'}`}>
+                  Project Details
+                </span>
+              </div>
+              <div className="flex-1 h-0.5 bg-gray-200">
+                <div className={`h-full ${currentStep >= 2 ? 'bg-blue-600' : 'bg-gray-200'} w-1/2`}></div>
+              </div>
+              <div className="flex items-center">
+                <div className={`w-8 h-8 ${currentStep >= 2 ? 'bg-blue-600' : 'bg-gray-300'} text-white rounded-full flex items-center justify-center text-sm font-medium`}>
+                  2
+                </div>
+                <span className={`ml-2 text-sm ${currentStep >= 2 ? 'font-medium text-blue-600' : 'text-gray-500'}`}>
+                  Faculty Preferences
+                </span>
+              </div>
+            </div>
+          ) : (
+            // Type 1 Group Project: 5 steps (includes group verification)
           <div className="flex items-center space-x-4">
             <div className="flex items-center">
               <div className="w-8 h-8 bg-green-600 text-white rounded-full flex items-center justify-center text-sm font-medium">
@@ -884,6 +1051,7 @@ const MajorProject1Registration = () => {
               </span>
             </div>
           </div>
+          )}
         </div>
 
         {/* Restoration Banner */}
@@ -915,8 +1083,8 @@ const MajorProject1Registration = () => {
           </div>
         )}
 
-        {/* Group Information */}
-        {majorProject1Group && (
+        {/* Group Information - Only show for Type 1 group projects */}
+        {majorProjectGroup && !(isSem8 && isType2) && (
           <div className="mb-6 bg-green-50 rounded-lg p-4 border border-green-200">
             <div className="flex items-center">
               <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center mr-3">
@@ -926,7 +1094,7 @@ const MajorProject1Registration = () => {
               </div>
               <div>
                 <h3 className="text-sm font-medium text-green-900">
-                  Group Finalized ({getGroupStats().memberCount} members) - {majorProject1Group.name || 'Unnamed Group'}
+                  Group Finalized ({getGroupStats().memberCount} members) - {majorProjectGroup.name || 'Unnamed Group'}
                 </h3>
                 <p className="text-xs text-green-700">
                   Your group has been finalized and you can now register your project details
@@ -938,38 +1106,92 @@ const MajorProject1Registration = () => {
             </div>
           </div>
         )}
+        
+        {/* Type 2 Solo Project Info */}
+        {isSem8 && isType2 && (
+          <div className="mb-6 bg-blue-50 rounded-lg p-4 border border-blue-200">
+            <div className="flex items-center">
+              <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center mr-3">
+                <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <div>
+                <h3 className="text-sm font-medium text-blue-900">
+                  Solo Major Project 2
+                </h3>
+                <p className="text-xs text-blue-700">
+                  You are registering a solo Major Project 2. No group is required.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Step Content */}
         <div className="bg-white rounded-lg shadow-lg">
           <div className="px-6 py-4 border-b border-gray-200">
             <h2 className="text-xl font-semibold text-gray-900">
+              {isSem8 && isType2 ? (
+                <>
+                  {currentStep === 1 && 'Step 1: Project Details'}
+                  {currentStep === 2 && 'Step 2: Faculty Preferences'}
+                </>
+              ) : (
+                <>
               {currentStep === 3 && 'Step 3: Group Member Verification'}
               {currentStep === 4 && 'Step 4: Project Details'}
               {currentStep === 5 && 'Step 5: Faculty Preferences'}
+                </>
+              )}
             </h2>
             <p className="text-gray-600 mt-1">
+              {isSem8 && isType2 ? (
+                <>
+                  {currentStep === 1 && 'Enter your project information'}
+                  {currentStep === 2 && 'Select your preferred faculty members'}
+                </>
+              ) : (
+                <>
               {currentStep === 3 && 'Verify group member details before proceeding'}
               {currentStep === 4 && 'Enter your project information'}
               {currentStep === 5 && 'Select your preferred faculty members'}
+                </>
+              )}
             </p>
           </div>
 
           <div className="p-6">
+            {isSem8 && isType2 ? (
+              <>
+                {currentStep === 1 && renderStep4()}
+                {currentStep === 2 && renderStep5()}
+              </>
+            ) : (
+              <>
             {currentStep === 3 && renderStep3()}
             {currentStep === 4 && renderStep4()}
             {currentStep === 5 && renderStep5()}
+              </>
+            )}
           </div>
         </div>
 
         {/* Information Card */}
         <div className="mt-8 bg-blue-50 rounded-lg p-6">
-          <h3 className="text-lg font-semibold text-blue-900 mb-4">About Major Project 1 Registration</h3>
+          <h3 className="text-lg font-semibold text-blue-900 mb-4">About {isSem8 ? 'Major Project 2' : 'Major Project 1'} Registration</h3>
           <div className="text-blue-800 space-y-2">
-            <p>• <strong>Progress:</strong> You have successfully completed group formation and finalization ✅</p>
-            <p>• <strong>Current Step:</strong> {currentStep === 3 ? 'Verifying group member details' : currentStep === 4 ? 'Entering project details' : 'Selecting faculty preferences'}</p>
-            <p>• <strong>Leader Only:</strong> Only the group leader can register the project details</p>
+            {(!isSem8 || isType1) && <p>• <strong>Progress:</strong> You have successfully completed group formation and finalization ✅</p>}
+            <p>• <strong>Current Step:</strong> {
+              isSem8 && isType2 
+                ? (currentStep === 1 ? 'Entering project details' : 'Selecting faculty preferences')
+                : (currentStep === 3 ? 'Verifying group member details' : currentStep === 4 ? 'Entering project details' : 'Selecting faculty preferences')
+            }</p>
+            {(!isSem8 || isType1) && <p>• <strong>Leader Only:</strong> Only the group leader can register the project details</p>}
             <p>• <strong>Faculty Allocation:</strong> Faculty selection will be processed after registration</p>
-            <p>• <strong>New Group:</strong> Major Project 1 requires a completely new group formation (cannot use previous semester groups)</p>
+            {!isSem8 && <p>• <strong>New Group:</strong> Major Project 1 requires a completely new group formation (cannot use previous semester groups)</p>}
+            {isSem8 && isType1 && <p>• <strong>Group Project:</strong> Major Project 2 for Type 1 students requires a finalized group (Sem 8)</p>}
+            {isSem8 && isType2 && <p>• <strong>Solo Project:</strong> Major Project 2 for Type 2 students is a solo project (no group required)</p>}
             <p>• <strong>Next Steps:</strong> After registration, faculty allocation will be processed based on your preferences</p>
           </div>
         </div>

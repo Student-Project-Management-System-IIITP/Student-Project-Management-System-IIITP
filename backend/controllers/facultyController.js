@@ -622,12 +622,119 @@ const rejectAllocation = async (req, res) => {
       });
     }
 
+    // Check if this faculty is the current one being presented to
+    const currentFaculty = request.getCurrentFaculty();
+    if (!currentFaculty || currentFaculty.faculty.toString() !== faculty._id.toString()) {
+      // Also check Project's currentFacultyIndex for solo projects
+      if (request.project && !request.group) {
+        const project = await Project.findById(request.project);
+        if (project && project.supportsFacultyAllocation()) {
+          const projectCurrentFaculty = project.getCurrentFaculty();
+          if (!projectCurrentFaculty || projectCurrentFaculty.faculty.toString() !== faculty._id.toString()) {
+            return res.status(400).json({
+              success: false,
+              message: 'This project is not currently presented to you'
+            });
+          }
+        } else {
+          return res.status(400).json({
+            success: false,
+            message: 'This project is not currently presented to you'
+          });
+        }
+      } else {
+        return res.status(400).json({
+          success: false,
+          message: 'This allocation request is not currently presented to you'
+        });
+      }
+    }
+
     // Record faculty response
     await request.recordFacultyResponse(faculty._id, 'rejected', comments);
 
+    // For solo projects (like Type 2 Major Project 2), use Project's facultyPass method
+    let projectUpdated = false;
+    if (request.project && !request.group) {
+      const project = await Project.findById(request.project);
+      if (project && project.supportsFacultyAllocation()) {
+        try {
+          // Use the Project's facultyPass method which updates the Project's currentFacultyIndex
+          await project.facultyPass(faculty._id, comments || reason || '');
+          projectUpdated = true;
+          
+          // Present to next faculty if available
+          if (!project.allFacultyPresented()) {
+            try {
+              await project.presentToCurrentFaculty();
+            } catch (presentError) {
+              console.error('Error presenting to next faculty:', presentError);
+            }
+          }
+        } catch (projectPassError) {
+          console.error('Error passing project:', projectPassError);
+          // If project.facultyPass fails, manually update the project's currentFacultyIndex
+          const currentIndex = project.currentFacultyIndex || 0;
+          if (currentIndex < (project.facultyPreferences?.length || 0)) {
+            project.currentFacultyIndex = currentIndex + 1;
+            await project.save();
+            projectUpdated = true;
+            
+            // Present to next faculty if available
+            if (!project.allFacultyPresented()) {
+              try {
+                await project.presentToCurrentFaculty();
+              } catch (presentError) {
+                console.error('Error presenting to next faculty:', presentError);
+              }
+            }
+          }
+        }
+      }
+    }
+
+    // Move to next faculty in FacultyPreference
+    // For solo projects, sync FacultyPreference's index with Project's index
+    try {
+      if (request.project && !request.group && projectUpdated) {
+        // For solo projects, sync FacultyPreference's currentFacultyIndex with Project's
+        const project = await Project.findById(request.project);
+        if (project) {
+          request.currentFacultyIndex = project.currentFacultyIndex || 0;
+          await request.save();
+        } else {
+          // Fallback: use moveToNextFaculty
+          await request.moveToNextFaculty();
+        }
+      } else {
+        // For group projects, use FacultyPreference's index as source of truth
+        await request.moveToNextFaculty();
+      }
+    } catch (moveError) {
+      // All faculty have been presented to - ready for admin allocation
+      console.log('All faculty have been presented to');
+    }
+
+    // Get the updated project to check current faculty
+    let nextFaculty = request.getCurrentFaculty();
+    if (request.project) {
+      const updatedProject = await Project.findById(request.project);
+      if (updatedProject && updatedProject.supportsFacultyAllocation()) {
+        const projectCurrentFaculty = updatedProject.getCurrentFaculty();
+        if (projectCurrentFaculty) {
+          nextFaculty = projectCurrentFaculty;
+        }
+      }
+    }
+
     res.json({
       success: true,
-      message: 'Allocation request rejected successfully'
+      message: 'Allocation request rejected successfully',
+      data: {
+        projectId: request.project,
+        nextFaculty: nextFaculty,
+        isReadyForAdmin: request.isReadyForAdminAllocation()
+      }
     });
   } catch (error) {
     console.error('Error rejecting allocation:', error);
@@ -788,9 +895,17 @@ const getUnallocatedGroups = async (req, res) => {
 
     // Format the response
     const groups = activePreferences.map(pref => {
-      // Handle solo projects (internship1) - no group
-      const isSoloProject = pref.project?.projectType === 'internship1' || !pref.group;
+      // Handle solo projects: internship1 (Sem 7 or Sem 8 Type 1) or major2 without group (Sem 8 Type 2)
+      // Group projects: major2 with group (Sem 8 Type 1) or other group-based projects
+      const isSoloProject = pref.project?.projectType === 'internship1' || 
+                           (pref.project?.projectType === 'major2' && !pref.group) ||
+                           !pref.group;
       const student = pref.student;
+      
+      // Determine project type label with solo/group distinction for Major Project 2
+      const projectType = pref.project?.projectType || (pref.semester === 7 ? 'major1' : pref.semester === 8 ? 'major2' : pref.semester === 5 ? 'minor2' : pref.semester === 4 ? 'minor1' : pref.semester === 6 ? 'minor3' : 'unknown');
+      const isMajor2Solo = projectType === 'major2' && isSoloProject;
+      const isMajor2Group = projectType === 'major2' && !isSoloProject;
       
       return {
       id: pref._id,
@@ -798,7 +913,10 @@ const getUnallocatedGroups = async (req, res) => {
           ? (student?.fullName ? `${student.fullName}'s Project` : 'Solo Project')
           : (pref.group?.name || 'Unnamed Group'),
       projectTitle: pref.project?.title || 'No Project',
-      projectType: pref.project?.projectType || (pref.semester === 7 ? 'major1' : pref.semester === 5 ? 'minor2' : pref.semester === 4 ? 'minor1' : pref.semester === 6 ? 'minor3' : 'unknown'),
+      projectType: projectType,
+      isSoloProject: isSoloProject,
+      isMajor2Solo: isMajor2Solo,
+      isMajor2Group: isMajor2Group,
         members: isSoloProject 
           ? (student ? [{
               name: student.fullName || 'Unknown',
@@ -888,9 +1006,18 @@ const getAllocatedGroups = async (req, res) => {
 
     // Combine both methods and format the response
     const groupsFromPreferences = activePreferences.map(pref => {
-      // Handle solo projects (internship1) - no group
-      const isSoloProject = pref.project?.projectType === 'internship1' || !pref.group;
+      // Handle solo projects: internship1 (Sem 7 or Sem 8 Type 1), internship2 (Sem 8), or major2 without group (Sem 8 Type 2)
+      // Group projects: major2 with group (Sem 8 Type 1) or other group-based projects
+      const isSoloProject = pref.project?.projectType === 'internship1' || 
+                           pref.project?.projectType === 'internship2' ||
+                           (pref.project?.projectType === 'major2' && !pref.group) ||
+                           !pref.group;
       const student = pref.student;
+      
+      // Determine project type label with solo/group distinction for Major Project 2
+      const projectType = pref.project?.projectType || (pref.semester === 7 ? 'major1' : pref.semester === 8 ? 'major2' : pref.semester === 5 ? 'minor2' : pref.semester === 4 ? 'minor1' : pref.semester === 6 ? 'minor3' : 'unknown');
+      const isMajor2Solo = projectType === 'major2' && isSoloProject;
+      const isMajor2Group = projectType === 'major2' && !isSoloProject;
       
       return {
       id: pref._id,
@@ -898,7 +1025,10 @@ const getAllocatedGroups = async (req, res) => {
           ? (student?.fullName ? `${student.fullName}'s Project` : 'Solo Project')
           : (pref.group?.name || 'Unnamed Group'),
       projectTitle: pref.project?.title || 'No Project',
-      projectType: pref.project?.projectType || (pref.semester === 7 ? 'major1' : pref.semester === 5 ? 'minor2' : pref.semester === 4 ? 'minor1' : pref.semester === 6 ? 'minor3' : 'unknown'),
+      projectType: projectType,
+      isSoloProject: isSoloProject,
+      isMajor2Solo: isMajor2Solo,
+      isMajor2Group: isMajor2Group,
         members: isSoloProject 
           ? (student ? [{
               name: student.fullName || 'Unknown',
@@ -922,7 +1052,7 @@ const getAllocatedGroups = async (req, res) => {
       id: group._id,
       groupName: group.name || 'Unnamed Group',
       projectTitle: group.project?.title || 'No Project',
-      projectType: group.project?.projectType || (group.semester === 7 ? 'major1' : group.semester === 5 ? 'minor2' : group.semester === 4 ? 'minor1' : group.semester === 6 ? 'minor3' : 'unknown'),
+      projectType: group.project?.projectType || (group.semester === 7 ? 'major1' : group.semester === 8 ? 'major2' : group.semester === 5 ? 'minor2' : group.semester === 4 ? 'minor1' : group.semester === 6 ? 'minor3' : 'unknown'),
       members: group.members?.map(member => ({
         name: member.student?.fullName || 'Unknown',
         misNumber: member.student?.misNumber || 'N/A',
@@ -981,7 +1111,7 @@ const chooseGroup = async (req, res) => {
     }
 
     // Check if this faculty is the current one being presented to
-    // For solo projects (internship1), check the Project's currentFacultyIndex
+    // For solo projects (internship1 - Sem 7 or Sem 8 Type 1), check the Project's currentFacultyIndex
     // For group projects, check the FacultyPreference's currentFacultyIndex
     let currentFaculty = preference.getCurrentFaculty();
     let isValidCurrentFaculty = currentFaculty && currentFaculty.faculty.toString() === faculty._id.toString();
@@ -1024,7 +1154,7 @@ const chooseGroup = async (req, res) => {
     if (preference.project) {
       const project = await Project.findById(preference.project);
       if (project) {
-        // For solo projects (internship1), use the Project's facultyChoose method
+        // For solo projects (internship1 - Sem 7 or Sem 8 Type 1, solo major2 - Sem 8 Type 2), use the Project's facultyChoose method
         // This ensures allocation history is properly recorded
         if (project.supportsFacultyAllocation() && !preference.group) {
           try {
@@ -1060,7 +1190,7 @@ const chooseGroup = async (req, res) => {
             }
           }
         } else if (project.projectType === 'internship1' && preference.student) {
-          // Handle solo projects (internship1) - update student's currentProjects directly
+          // Handle solo projects (internship1 - Sem 7 or Sem 8 Type 1) - update student's currentProjects directly
           const student = await Student.findById(preference.student);
           if (student) {
             const currentProject = student.currentProjects.find(cp => 
@@ -1116,7 +1246,7 @@ const passGroup = async (req, res) => {
     }
 
     // Check if this faculty is the current one being presented to
-    // For solo projects (internship1), check the Project's currentFacultyIndex
+    // For solo projects (internship1 - Sem 7 or Sem 8 Type 1), check the Project's currentFacultyIndex
     // For group projects, check the FacultyPreference's currentFacultyIndex
     let currentFaculty = preference.getCurrentFaculty();
     let isValidCurrentFaculty = currentFaculty && currentFaculty.faculty.toString() === faculty._id.toString();
@@ -1141,7 +1271,7 @@ const passGroup = async (req, res) => {
     // Record the faculty response
     await preference.recordFacultyResponse(faculty._id, 'rejected', comments);
 
-    // Update the Project's currentFacultyIndex first (for solo projects like internship1)
+    // Update the Project's currentFacultyIndex first (for solo projects like internship1 - Sem 7 or Sem 8 Type 1)
     // For solo projects, Project's currentFacultyIndex is the source of truth
     // For group projects, FacultyPreference's currentFacultyIndex is the source of truth
     let projectUpdated = false;

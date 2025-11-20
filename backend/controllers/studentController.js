@@ -849,22 +849,7 @@ const registerMinorProject2 = async (req, res) => {
         if (memberStudent) {
           // Determine role based on whether they're the leader
           const role = member.role === 'leader' ? 'leader' : 'member';
-          
-          // Check if project already exists in currentProjects (avoid duplicates)
-          const existingProject = memberStudent.currentProjects.find(cp => 
-            cp.project.toString() === project._id.toString()
-          );
-          
-          if (!existingProject) {
-            memberStudent.currentProjects.push({
-              project: project._id,
-              role: role,
-              semester: 5,
-              status: 'active',
-              joinedAt: new Date()
-            });
-            await memberStudent.save({ session });
-          }
+          await memberStudent.addCurrentProject(project._id, role, 5);
         }
       }
 
@@ -923,48 +908,59 @@ const registerMinorProject2 = async (req, res) => {
 
 // Helper: Check if student needs Internship 1 (solo project)
 const checkInternship1Eligibility = async (student) => {
-  if (student.semester !== 7) {
-    return { eligible: false, reason: 'Not in semester 7' };
+  // Allow Sem 7 students or Sem 8 Type 1 students
+  if (student.semester === 7) {
+    // Sem 7: Check if student has chosen coursework track (no need to wait for finalization)
+    const selection = student.getSemesterSelection(7);
+    const chosenTrack = selection?.chosenTrack;
+    
+    if (!chosenTrack) {
+      return { eligible: false, reason: 'Please select your track choice first.' };
+    }
+    if (chosenTrack !== 'coursework') {
+      return { eligible: false, reason: 'Only students who have chosen the coursework track can register for Internship 1' };
+    }
+  } else if (student.semester === 8) {
+    // Sem 8: Only Type 1 students can register for Internship 1
+    const studentType = student.getSem8StudentType();
+    if (studentType !== 'type1') {
+      return { eligible: false, reason: 'Only Type 1 students (who completed 6-month internship in Sem 7) can register for Internship 1 in Sem 8' };
+    }
+  } else {
+    return { eligible: false, reason: 'Internship 1 registration is only available for Semester 7 or Semester 8 Type 1 students' };
   }
 
-  // Check if student has chosen coursework track (no need to wait for finalization)
-  const selection = student.getSemesterSelection(7);
-  const chosenTrack = selection?.chosenTrack;
-  
-  if (!chosenTrack) {
-    return { eligible: false, reason: 'Please select your track choice first.' };
-  }
-  if (chosenTrack !== 'coursework') {
-    return { eligible: false, reason: 'Only students who have chosen the coursework track can register for Internship 1' };
-  }
-
-  // Check summer internship application status
+  // Check summer internship application status (for both Sem 7 and Sem 8)
   // If approved: not eligible (Internship 1 not required)
   // If rejected (verified_fail/absent): eligible (must complete Internship 1 project)
   const InternshipApplication = require('../models/InternshipApplication');
-  const summerApp = await InternshipApplication.findOne({
+  const summerAppSem7 = await InternshipApplication.findOne({
     student: student._id,
     semester: 7,
     type: 'summer'
   });
+  
+  const summerAppSem8 = await InternshipApplication.findOne({
+    student: student._id,
+    semester: 8,
+    type: 'summer'
+  });
 
-  if (summerApp) {
-    if (['approved', 'verified_pass'].includes(summerApp.status)) {
-      return { 
-        eligible: false, 
-        reason: 'You have an approved summer internship. Internship 1 is not required.',
-        hasApprovedSummer: true
-      };
-    }
-    // If rejected (verified_fail or absent), student is eligible for Internship 1 project
-    // This case will proceed to check if project already exists
+  const approvedSummerApp = summerAppSem7 || summerAppSem8;
+  if (approvedSummerApp && ['approved', 'verified_pass'].includes(approvedSummerApp.status)) {
+    return { 
+      eligible: false, 
+      reason: 'You have an approved summer internship. Internship 1 is not required.',
+      hasApprovedSummer: true
+    };
   }
 
-  // Check if Internship 1 project already exists
+  // Check if Internship 1 project already exists (in Sem 7 or Sem 8)
   const existingProject = await Project.findOne({
     student: student._id,
-    semester: 7,
-    projectType: 'internship1'
+    semester: { $in: [7, 8] },
+    projectType: 'internship1',
+    status: { $ne: 'cancelled' } // Exclude cancelled projects
   });
 
   if (existingProject) {
@@ -1149,22 +1145,7 @@ const registerMajorProject1 = async (req, res) => {
         if (memberStudent) {
           // Determine role based on whether they're the leader
           const role = member.role === 'leader' ? 'leader' : 'member';
-          
-          // Check if project already exists in currentProjects (avoid duplicates)
-          const existingProject = memberStudent.currentProjects.find(cp => 
-            cp.project.toString() === project._id.toString()
-          );
-          
-          if (!existingProject) {
-            memberStudent.currentProjects.push({
-              project: project._id,
-              role: role,
-              semester: 7,
-              status: 'active',
-              joinedAt: new Date()
-            });
-            await memberStudent.save({ session });
-          }
+          await memberStudent.addCurrentProject(project._id, role, 7);
         }
       }
 
@@ -1325,7 +1306,7 @@ const registerMTechSem3MajorProject = async (req, res) => {
   }
 };
 
-// Sem 7: Check Internship 1 eligibility (helper for frontend)
+// Sem 7 & Sem 8: Check Internship 1 eligibility (helper for frontend)
 const checkInternship1Status = async (req, res) => {
   try {
     const studentId = req.user.id;
@@ -1339,22 +1320,31 @@ const checkInternship1Status = async (req, res) => {
 
     const eligibility = await checkInternship1Eligibility(student);
     
-    // Also check if they already have an active (non-cancelled) Internship 1 project
+    // Also check if they already have an active (non-cancelled) Internship 1 project (in Sem 7 or Sem 8)
     const existingProject = await Project.findOne({
       student: student._id,
-      semester: 7,
+      semester: { $in: [7, 8] },
       projectType: 'internship1',
       status: { $ne: 'cancelled' } // Exclude cancelled projects
     }).populate('faculty', 'fullName department');
 
-    // Check approved summer internship
+    // Check approved summer internship (for both Sem 7 and Sem 8)
     const InternshipApplication = require('../models/InternshipApplication');
-    const approvedSummerApp = await InternshipApplication.findOne({
+    const approvedSummerAppSem7 = await InternshipApplication.findOne({
       student: student._id,
       semester: 7,
       type: 'summer',
       status: { $in: ['approved', 'verified_pass'] } // Support both statuses
     });
+    
+    const approvedSummerAppSem8 = await InternshipApplication.findOne({
+      student: student._id,
+      semester: 8,
+      type: 'summer',
+      status: { $in: ['approved', 'verified_pass'] } // Support both statuses
+    });
+
+    const approvedSummerApp = approvedSummerAppSem7 || approvedSummerAppSem8;
 
     return res.json({
       success: true,
@@ -1367,7 +1357,8 @@ const checkInternship1Status = async (req, res) => {
           id: existingProject._id,
           title: existingProject.title,
           status: existingProject.status,
-          faculty: existingProject.faculty
+          faculty: existingProject.faculty,
+          semester: existingProject.semester
         } : null
       }
     });
@@ -1402,10 +1393,24 @@ const registerInternship1 = async (req, res) => {
         throw new Error(eligibility.reason);
       }
 
+      // Determine target semester and window config
+      const targetSemester = student.semester;
+      const windowConfigKey = targetSemester === 8 
+        ? 'sem8.internship1.registrationWindow' 
+        : 'sem7.internship1.registrationWindow';
+      
       // Check window for Internship 1 registration
-      const windowStatus = await isWindowOpen('sem7.internship1.registrationWindow');
+      const windowStatus = await isWindowOpen(windowConfigKey);
       if (!windowStatus.isOpen) {
-        throw new Error(windowStatus.reason || 'Internship 1 registration window is currently closed');
+        // Fallback to Sem 7 window if Sem 8 window doesn't exist
+        if (targetSemester === 8) {
+          const fallbackWindow = await isWindowOpen('sem7.internship1.registrationWindow');
+          if (!fallbackWindow.isOpen) {
+            throw new Error(windowStatus.reason || fallbackWindow.reason || 'Internship 1 registration window is currently closed');
+          }
+        } else {
+          throw new Error(windowStatus.reason || 'Internship 1 registration window is currently closed');
+        }
       }
 
       // Handle undefined academic year
@@ -1422,16 +1427,12 @@ const registerInternship1 = async (req, res) => {
         await student.save({ session });
       }
 
-      // Check if student is in semester 7
-      if (student.semester !== 7) {
-        throw new Error('Internship 1 is only available for Semester 7 students');
-      }
-
       // Check if Internship 1 project already exists (exclude cancelled projects)
+      // Check in both Sem 7 and Sem 8 to prevent duplicates
       const existingProject = await Project.findOne({
         student: student._id,
         projectType: 'internship1',
-        semester: 7,
+        semester: { $in: [7, 8] },
         academicYear: studentAcademicYear,
         status: { $ne: 'cancelled' } // Exclude cancelled projects - allow re-registration after track change
       }).session(session);
@@ -1440,9 +1441,24 @@ const registerInternship1 = async (req, res) => {
         throw new Error('Internship 1 project is already registered');
       }
 
-      // Get faculty preference limit from system config (use sem5 limit as default)
-      const facultyPreferenceLimit = await SystemConfig.getConfigValue('sem7.internship1.facultyPreferenceLimit') || 
-                                     await SystemConfig.getConfigValue('sem5.facultyPreferenceLimit', 5); // Default 5 for Internship 1
+      // Get faculty preference limit from system config (semester-specific)
+      // Try semester-specific config first, then fallback to Sem 7 config, then Sem 5 config, then default
+      let facultyPreferenceLimit;
+      if (targetSemester === 8) {
+        // For Sem 8: Try Sem 8 specific config, then Sem 7 config, then default to 5
+        // Note: We don't fallback to sem5.facultyPreferenceLimit (which is 7) for Internship 1
+        const sem8Limit = await SystemConfig.getConfigValue('sem8.internship1.facultyPreferenceLimit');
+        const sem7Limit = await SystemConfig.getConfigValue('sem7.internship1.facultyPreferenceLimit');
+        facultyPreferenceLimit = (sem8Limit !== null && sem8Limit !== undefined) ? sem8Limit :
+                                 (sem7Limit !== null && sem7Limit !== undefined) ? sem7Limit :
+                                 5; // Default 5 for Internship 1
+      } else {
+        // For Sem 7: Try Sem 7 specific config, then default to 5
+        // Note: We don't fallback to sem5.facultyPreferenceLimit (which is 7) for Internship 1
+        const sem7Limit = await SystemConfig.getConfigValue('sem7.internship1.facultyPreferenceLimit');
+        facultyPreferenceLimit = (sem7Limit !== null && sem7Limit !== undefined) ? sem7Limit :
+                                 5; // Default 5 for Internship 1
+      }
       
       // Validate faculty preferences
       if (!facultyPreferences || facultyPreferences.length !== facultyPreferenceLimit) {
@@ -1475,7 +1491,7 @@ const registerInternship1 = async (req, res) => {
         projectType: 'internship1',
         student: student._id,
         // No group for solo projects
-        semester: 7,
+        semester: targetSemester, // Use target semester (7 or 8)
         academicYear: studentAcademicYear,
         status: 'registered',
         isInternship: true, // Mark as internship project
@@ -1492,14 +1508,14 @@ const registerInternship1 = async (req, res) => {
       await project.save({ session });
 
       // Add project to student's currentProjects array
-      await student.addCurrentProject(project._id, 'solo', 7);
+      await student.addCurrentProject(project._id, 'solo', targetSemester);
 
       // Create FacultyPreference document for tracking allocation process
       const facultyPreferenceData = {
         student: student._id,
         project: project._id,
         // No group for solo projects
-        semester: 7,
+        semester: targetSemester, // Use target semester (7 or 8)
         academicYear: studentAcademicYear,
         status: 'pending',
         currentFacultyIndex: 0, // Initialize to 0 to match Project's currentFacultyIndex
@@ -1542,6 +1558,534 @@ const registerInternship1 = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error registering Internship 1',
+      error: error.message
+    });
+  } finally {
+    await session.endSession();
+  }
+};
+
+// Sem 8: Check if student needs Internship 2 (solo project)
+const checkInternship2Status = async (req, res) => {
+  try {
+    const studentId = req.user.id;
+    const student = await Student.findOne({ user: studentId });
+    if (!student) {
+      return res.status(404).json({
+        success: false,
+        message: 'Student not found'
+      });
+    }
+
+    const status = await checkInternship2Eligibility(student);
+    return res.json({
+      success: true,
+      data: status
+    });
+  } catch (error) {
+    console.error('Error checking Internship 2 status:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error checking Internship 2 status',
+      error: error.message
+    });
+  }
+};
+
+// Helper: Check if student needs Internship 2 (solo project)
+const checkInternship2Eligibility = async (student) => {
+  if (student.semester !== 8) {
+    return { eligible: false, reason: 'Not in semester 8' };
+  }
+
+  // Check if student has chosen coursework track (major2) - both Type 1 and Type 2 can have Internship 2
+  const selection = student.getSemesterSelection(8);
+  const chosenTrack = selection?.chosenTrack;
+  const finalizedTrack = selection?.finalizedTrack;
+  const selectedTrack = finalizedTrack || chosenTrack;
+  
+  if (!selectedTrack) {
+    return { eligible: false, reason: 'Please select your track choice first.' };
+  }
+  
+  // Internship 2 is only for students on coursework track
+  // Type 1: auto-enrolled in 'coursework' track
+  // Type 2: can choose 'major2' track (which maps to coursework)
+  // Both tracks are valid for Internship 2
+  if (selectedTrack !== 'coursework' && selectedTrack !== 'major2') {
+    return { eligible: false, reason: 'Only students on coursework track (Type 1) or major2 track (Type 2) can register for Internship 2' };
+  }
+
+  // Check summer internship application status for semester 8
+  // If approved: not eligible (Internship 2 not required)
+  // If rejected (verified_fail/absent): eligible (must complete Internship 2 project)
+  const InternshipApplication = require('../models/InternshipApplication');
+  const summerApp = await InternshipApplication.findOne({
+    student: student._id,
+    semester: 8,
+    type: 'summer'
+  });
+
+  if (summerApp) {
+    if (['approved', 'verified_pass'].includes(summerApp.status)) {
+      return { 
+        eligible: false, 
+        reason: 'You have an approved summer internship. Internship 2 is not required.',
+        hasApprovedSummer: true
+      };
+    }
+    // If rejected (verified_fail or absent), student is eligible for Internship 2 project
+  }
+
+  // Check if Internship 2 project already exists
+  const existingProject = await Project.findOne({
+    student: student._id,
+    semester: 8,
+    projectType: 'internship2'
+  });
+
+  if (existingProject) {
+    return { 
+      eligible: false, 
+      reason: 'Internship 2 project already registered',
+      existingProject: existingProject._id
+    };
+  }
+
+  return { eligible: true };
+};
+
+// Sem 8: Register for Major Project 2 (group-based for Type 1, solo for Type 2)
+const registerMajorProject2 = async (req, res) => {
+  const session = await mongoose.startSession();
+  
+  try {
+    await session.withTransaction(async () => {
+      const studentId = req.user.id;
+      const { title, domain, facultyPreferences } = req.body;
+      
+      // Get student with session
+      const student = await Student.findOne({ user: studentId }).session(session);
+      if (!student) {
+        throw new Error('Student not found');
+      }
+
+      // Check eligibility for coursework (major2)
+      const eligibility = checkCourseworkEligibility(student, 8);
+      if (!eligibility.eligible) {
+        throw new Error(eligibility.reason);
+      }
+
+      // Check window for Major Project 2 registration
+      const windowStatus = await isWindowOpen('sem8.major2.preferenceWindow');
+      if (!windowStatus.isOpen) {
+        throw new Error(windowStatus.reason || 'Major Project 2 registration window is currently closed');
+      }
+      
+      // Handle undefined academic year
+      let studentAcademicYear = student.academicYear;
+      
+      if (!studentAcademicYear) {
+        // Try to find any group for this student to get the academic year (for Type 1)
+        const anyGroup = await Group.findOne({
+          'members.student': student._id,
+          semester: 8
+        }).session(session);
+        
+        if (anyGroup && anyGroup.academicYear) {
+          studentAcademicYear = anyGroup.academicYear;
+        } else {
+          // Generate academic year based on current year
+          const currentYear = new Date().getFullYear();
+          const nextYear = currentYear + 1;
+          studentAcademicYear = `${currentYear}-${nextYear.toString().slice(-2)}`;
+        }
+        
+        // Update student with determined academic year
+        student.academicYear = studentAcademicYear;
+        await student.save({ session });
+      }
+
+      // Check if student is in semester 8
+      if (student.semester !== 8) {
+        throw new Error('Major Project 2 is only available for Semester 8 students');
+      }
+
+      // Determine student type and check group requirement
+      const studentType = student.getSem8StudentType();
+      let group = null;
+      let isGroupLeader = false;
+
+      if (studentType === 'type1') {
+        // Type 1: Must be in a group (group-based project)
+        group = await Group.findOne({
+          'members.student': student._id,
+          semester: 8,
+          academicYear: studentAcademicYear
+        }).populate('members.student', 'fullName misNumber contactNumber branch').session(session);
+
+        if (!group) {
+          throw new Error('You must be in a group to register for Major Project 2. Please create or join a group first.');
+        }
+        
+        if (group.semester !== 8) {
+          throw new Error(`Invalid group semester. Major Project 2 requires a Semester 8 group. Found: Semester ${group.semester}`);
+        }
+
+        // Check if group is finalized
+        if (group.status !== 'finalized') {
+          throw new Error(`Your group must be finalized before registering for Major Project 2. Current status: ${group.status}. Please finalize your group first.`);
+        }
+
+        // Check if current student is the group leader
+        isGroupLeader = group.leader.toString() === student._id.toString();
+
+        if (!isGroupLeader) {
+          throw new Error('Only the group leader can register for Major Project 2');
+        }
+
+        // Check if project is already registered for this group
+        const existingGroupProject = await Project.findOne({
+          group: group._id,
+          projectType: 'major2',
+          semester: 8,
+          academicYear: studentAcademicYear,
+          status: { $ne: 'cancelled' }
+        }).session(session);
+
+        if (existingGroupProject) {
+          throw new Error('Major Project 2 is already registered for this group');
+        }
+      } else if (studentType === 'type2') {
+        // Type 2: Solo project (no group)
+        // Check if student already has a Major Project 2
+        const existingSoloProject = await Project.findOne({
+          student: student._id,
+          projectType: 'major2',
+          semester: 8,
+          academicYear: studentAcademicYear,
+          status: { $ne: 'cancelled' }
+        }).session(session);
+
+        if (existingSoloProject) {
+          throw new Error('Major Project 2 is already registered');
+        }
+      } else {
+        throw new Error('Unable to determine student type for Major Project 2 registration');
+      }
+
+      // Get faculty preference limit from system config
+      const facultyPreferenceLimit = await SystemConfig.getConfigValue('sem8.major2.facultyPreferenceLimit') || 5;
+      
+      // Validate faculty preferences
+      if (!facultyPreferences || facultyPreferences.length !== facultyPreferenceLimit) {
+        throw new Error(`You must select exactly ${facultyPreferenceLimit} faculty preferences (current system requirement)`);
+      }
+
+      // Validate that all faculty preferences are unique
+      const facultyIds = facultyPreferences.map(p => p.faculty._id || p.faculty);
+      const uniqueFacultyIds = [...new Set(facultyIds)];
+      if (facultyIds.length !== uniqueFacultyIds.length) {
+        throw new Error('All faculty preferences must be unique');
+      }
+
+      // Validate that all faculty exist
+      const facultyValidationPromises = facultyIds.map(async (facultyId) => {
+        const faculty = await Faculty.findById(facultyId).session(session);
+        if (!faculty) {
+          throw new Error(`Faculty with ID ${facultyId} not found`);
+        }
+        return faculty;
+      });
+
+      const validatedFaculty = await Promise.all(facultyValidationPromises);
+
+      // Create project with group (Type 1) or solo (Type 2) and faculty preferences
+      const projectData = {
+        title: title.trim(),
+        description: title.trim(), // Use title as description for Major Project 2
+        projectType: 'major2',
+        student: student._id,
+        semester: 8,
+        academicYear: studentAcademicYear,
+        status: 'registered',
+        facultyPreferences: facultyPreferences.map((pref, index) => ({
+          faculty: pref.faculty._id || pref.faculty,
+          priority: index + 1
+        })),
+        // Initialize faculty allocation fields
+        currentFacultyIndex: 0,
+        allocationHistory: []
+      };
+
+      // Add group for Type 1 students
+      if (group) {
+        projectData.group = group._id;
+        projectData.groupLeader = group.leader;
+      }
+
+      const project = new Project(projectData);
+      await project.save({ session });
+
+      // Update group with project reference (Type 1 only)
+      if (group) {
+        await Group.findByIdAndUpdate(
+          group._id,
+          { project: project._id },
+          { session }
+        );
+
+        // Add project to ALL group members' currentProjects array
+        const groupMembers = group.members.filter(m => m.isActive);
+        
+        for (const member of groupMembers) {
+          const memberStudent = await Student.findById(member.student).session(session);
+          if (memberStudent) {
+            // Determine role based on whether they're the leader
+            const role = member.role === 'leader' ? 'leader' : 'member';
+            await memberStudent.addCurrentProject(project._id, role, 8);
+          }
+        }
+      } else {
+        // Solo project (Type 2): Add to student's currentProjects
+        await student.addCurrentProject(project._id, 'solo', 8);
+      }
+
+      // Create FacultyPreference document for tracking allocation process
+      const facultyPreferenceData = {
+        student: student._id,
+        project: project._id,
+        group: group ? group._id : undefined,
+        semester: 8,
+        academicYear: studentAcademicYear,
+        status: 'pending',
+        currentFacultyIndex: 0,
+        preferences: facultyPreferences.map((pref, index) => ({
+          faculty: pref.faculty._id || pref.faculty,
+          priority: index + 1,
+          submittedAt: new Date()
+        }))
+      };
+
+      const facultyPreferenceDoc = new FacultyPreference(facultyPreferenceData);
+      await facultyPreferenceDoc.save({ session });
+
+      // Present project to first faculty (start the allocation process)
+      try {
+        await project.presentToCurrentFaculty();
+      } catch (presentError) {
+        console.error('Error presenting project to faculty:', presentError);
+      }
+
+      // Populate the response with faculty details
+      await project.populate([
+        { path: 'facultyPreferences.faculty', select: 'fullName department designation mode' },
+        { path: 'group', select: 'name members' }
+      ]);
+      
+      res.status(201).json({
+        success: true,
+        data: {
+          project: project,
+          facultyPreference: facultyPreferenceDoc,
+          allocationStatus: project.getAllocationStatus()
+        },
+        message: 'Major Project 2 registered successfully'
+      });
+    });
+  } catch (error) {
+    console.error('Error registering Major Project 2:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error registering Major Project 2',
+      error: error.message
+    });
+  } finally {
+    await session.endSession();
+  }
+};
+
+// Sem 8: Register for Internship 2 (solo project with faculty preferences)
+const registerInternship2 = async (req, res) => {
+  const session = await mongoose.startSession();
+  
+  try {
+    await session.withTransaction(async () => {
+      const studentId = req.user.id;
+      const { title, domain, facultyPreferences } = req.body;
+      
+      // Get student with session
+      const student = await Student.findOne({ user: studentId }).session(session);
+      if (!student) {
+        throw new Error('Student not found');
+      }
+
+      // Check eligibility for Internship 2
+      const eligibility = await checkInternship2Eligibility(student);
+      if (!eligibility.eligible) {
+        throw new Error(eligibility.reason);
+      }
+
+      // Check window for Internship 2 registration
+      const windowStatus = await isWindowOpen('sem8.internship2.registrationWindow');
+      if (!windowStatus.isOpen) {
+        throw new Error(windowStatus.reason || 'Internship 2 registration window is currently closed');
+      }
+
+      // Handle undefined academic year
+      let studentAcademicYear = student.academicYear;
+      
+      if (!studentAcademicYear) {
+        // Generate academic year based on current year
+        const currentYear = new Date().getFullYear();
+        const nextYear = currentYear + 1;
+        studentAcademicYear = `${currentYear}-${nextYear.toString().slice(-2)}`;
+        
+        // Update student with determined academic year
+        student.academicYear = studentAcademicYear;
+        await student.save({ session });
+      }
+
+      // Check if student is in semester 8
+      if (student.semester !== 8) {
+        throw new Error('Internship 2 is only available for Semester 8 students');
+      }
+
+      // Check if Internship 2 project already exists (exclude cancelled projects)
+      const existingProject = await Project.findOne({
+        student: student._id,
+        projectType: 'internship2',
+        semester: 8,
+        academicYear: studentAcademicYear,
+        status: { $ne: 'cancelled' }
+      }).session(session);
+
+      if (existingProject) {
+        throw new Error('Internship 2 project is already registered');
+      }
+
+      // Get faculty preference limit from system config
+      const facultyPreferenceLimit = await SystemConfig.getConfigValue('sem8.internship2.facultyPreferenceLimit') || 5;
+      
+      // Validate faculty preferences
+      if (!facultyPreferences || facultyPreferences.length !== facultyPreferenceLimit) {
+        throw new Error(`You must select exactly ${facultyPreferenceLimit} faculty preferences (current system requirement)`);
+      }
+
+      // Validate that all faculty preferences are unique
+      const facultyIds = facultyPreferences.map(p => p.faculty._id || p.faculty);
+      const uniqueFacultyIds = [...new Set(facultyIds)];
+      if (facultyIds.length !== uniqueFacultyIds.length) {
+        throw new Error('All faculty preferences must be unique');
+      }
+
+      // Validate that all faculty exist
+      const facultyValidationPromises = facultyIds.map(async (facultyId) => {
+        const faculty = await Faculty.findById(facultyId).session(session);
+        if (!faculty) {
+          throw new Error(`Faculty with ID ${facultyId} not found`);
+        }
+        return faculty;
+      });
+
+      const validatedFaculty = await Promise.all(facultyValidationPromises);
+
+      // Create project (solo, no group) with faculty preferences
+      const projectData = {
+        title: title.trim(),
+        description: title.trim(), // Use title as description
+        domain: domain ? domain.trim() : undefined, // Store domain if provided
+        projectType: 'internship2',
+        student: student._id,
+        // No group for solo projects
+        semester: 8,
+        academicYear: studentAcademicYear,
+        status: 'registered',
+        isInternship: true, // Mark as internship project
+        facultyPreferences: facultyPreferences.map((pref, index) => ({
+          faculty: pref.faculty._id || pref.faculty,
+          priority: index + 1
+        })),
+        // Initialize faculty allocation fields
+        currentFacultyIndex: 0,
+        allocationHistory: []
+      };
+
+      // Ensure projectType is explicitly set to 'internship2' (safety check)
+      projectData.projectType = 'internship2';
+      
+      const project = new Project(projectData);
+      
+      // Double-check projectType before saving
+      if (project.projectType !== 'internship2') {
+        project.projectType = 'internship2';
+      }
+      
+      await project.save({ session });
+
+      // Add project to student's currentProjects array
+      // Note: addCurrentProject calls save() which needs to use the same session
+      const existingCurrentProject = student.currentProjects.find(cp => 
+        cp.project.toString() === project._id.toString()
+      );
+      
+      if (!existingCurrentProject) {
+        student.currentProjects.push({
+          project: project._id,
+          role: 'solo',
+          semester: 8,
+          status: 'active',
+          joinedAt: new Date()
+        });
+        await student.save({ session });
+      }
+
+      // Create FacultyPreference document for tracking allocation process
+      const facultyPreferenceData = {
+        student: student._id,
+        project: project._id,
+        // No group for solo projects
+        semester: 8,
+        academicYear: studentAcademicYear,
+        status: 'pending',
+        currentFacultyIndex: 0, // Initialize to 0 to match Project's currentFacultyIndex
+        preferences: facultyPreferences.map((pref, index) => ({
+          faculty: pref.faculty._id || pref.faculty,
+          priority: index + 1,
+          submittedAt: new Date()
+        }))
+      };
+
+      const facultyPreferenceDoc = new FacultyPreference(facultyPreferenceData);
+      await facultyPreferenceDoc.save({ session });
+
+      // Present project to first faculty (start the allocation process)
+      try {
+        await project.presentToCurrentFaculty();
+      } catch (presentError) {
+        console.error('Error presenting project to faculty:', presentError);
+      }
+
+      // Populate the response with faculty details
+      await project.populate([
+        { path: 'facultyPreferences.faculty', select: 'fullName department designation mode' }
+      ]);
+      
+      res.status(201).json({
+        success: true,
+        data: {
+          project: project,
+          facultyPreference: facultyPreferenceDoc,
+          allocationStatus: project.getAllocationStatus()
+        },
+        message: 'Internship 2 registered successfully'
+      });
+    });
+  } catch (error) {
+    console.error('Error registering Internship 2:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error registering Internship 2',
       error: error.message
     });
   } finally {
@@ -1977,23 +2521,45 @@ const getSem4ProjectStatus = async (req, res) => {
   }
 };
 
-// Helper: Check if student is eligible for coursework in Sem 7
-const checkSem7CourseworkEligibility = (student) => {
-  if (student.semester !== 7) {
-    return { eligible: false, reason: 'Not in semester 7' };
+// Helper: Check if student is eligible for coursework in Sem 7 or Sem 8
+const checkCourseworkEligibility = (student, semester) => {
+  if (student.semester !== semester) {
+    return { eligible: false, reason: `Not in semester ${semester}` };
   }
+  
   // Tracks are auto-finalized by default, so check finalizedTrack or chosenTrack
-  const finalizedTrack = student.getFinalizedTrack(7);
-  const chosenTrack = (student.getSemesterSelection(7) || {}).chosenTrack;
+  const finalizedTrack = student.getFinalizedTrack(semester);
+  const chosenTrack = (student.getSemesterSelection(semester) || {}).chosenTrack;
   const selectedTrack = finalizedTrack || chosenTrack;
   
   if (!selectedTrack) {
     return { eligible: false, reason: 'Please select your track choice first.' };
   }
-  if (selectedTrack !== 'coursework') {
-    return { eligible: false, reason: `Student is on ${selectedTrack} track, not coursework` };
+  
+  // For Sem 7: check for 'coursework' track
+  if (semester === 7) {
+    if (selectedTrack !== 'coursework') {
+      return { eligible: false, reason: `Student is on ${selectedTrack} track, not coursework` };
+    }
+    return { eligible: true };
   }
-  return { eligible: true };
+  
+  // For Sem 8: check for 'coursework' (Type 1) or 'major2' (Type 2) track
+  // Type 1 students are auto-enrolled in 'coursework' track
+  // Type 2 students choose 'major2' track
+  if (semester === 8) {
+    if (selectedTrack !== 'coursework' && selectedTrack !== 'major2') {
+      return { eligible: false, reason: `Student is on ${selectedTrack} track. Major Project 2 requires coursework track (Type 1) or major2 track (Type 2)` };
+    }
+    return { eligible: true };
+  }
+  
+  return { eligible: false, reason: `Coursework eligibility check not implemented for semester ${semester}` };
+};
+
+// Helper: Check if student is eligible for coursework in Sem 7 (backward compatibility)
+const checkSem7CourseworkEligibility = (student) => {
+  return checkCourseworkEligibility(student, 7);
 };
 
 // Sem 5 enhanced: Create group with leader selection and bulk invites
@@ -2011,7 +2577,7 @@ const createGroup = async (req, res) => {
       });
     }
 
-    // Check if student can form groups - Sem 5 and Sem 7 (coursework) students should be allowed
+    // Check if student can form groups - Sem 5, Sem 7 (coursework), and Sem 8 Type 1 (coursework) students should be allowed
     if (student.semester === 5) {
       // Semester 5 students explicitly allowed for Minor Project 2
     } else if (student.semester === 7) {
@@ -2036,6 +2602,40 @@ const createGroup = async (req, res) => {
       
       // Check window for Sem 7 group formation
       const windowStatus = await isWindowOpen('sem7.major1.groupFormationWindow');
+      if (!windowStatus.isOpen) {
+        return res.status(403).json({
+          success: false,
+          message: windowStatus.reason || 'Group formation window is currently closed',
+          windowStart: windowStatus.start,
+          windowEnd: windowStatus.end
+        });
+      }
+    } else if (student.semester === 8) {
+      // Sem 8: Only Type 1 students (auto-enrolled in coursework) can form groups for Major Project 2
+      const studentType = student.getSem8StudentType();
+      if (studentType !== 'type1') {
+        return res.status(400).json({
+          success: false,
+          message: 'Only Type 1 students (completed 6-month internship in Sem 7) can form groups for Major Project 2. Type 2 students must do solo Major Project 2.'
+        });
+      }
+      
+      // Verify they are on coursework track
+      // Type 1 students have 'coursework' stored, Type 2 students choosing Major Project 2 have 'major2' (converted from 'coursework')
+      const finalizedTrack = student.getFinalizedTrack(8);
+      const chosenTrack = (student.getSemesterSelection(8) || {}).chosenTrack;
+      const selectedTrack = finalizedTrack || chosenTrack;
+      
+      // Type 1 students have 'coursework' track, which is valid for Major Project 2
+      if (!selectedTrack || (selectedTrack !== 'coursework' && selectedTrack !== 'major2')) {
+        return res.status(400).json({
+          success: false,
+          message: 'Only students on coursework track can form groups for Major Project 2.'
+        });
+      }
+      
+      // Check window for Sem 8 group formation
+      const windowStatus = await isWindowOpen('sem8.major2.groupFormationWindow');
       if (!windowStatus.isOpen) {
         return res.status(403).json({
           success: false,
@@ -2230,10 +2830,11 @@ const sendGroupInvitations = async (req, res) => {
     }
 
     // Check if group is in correct status for sending invitations
-    if (group.status !== 'invitations_sent') {
+    // Allow both 'invitations_sent' and 'forming' statuses (forming happens when members leave)
+    if (group.status !== 'invitations_sent' && group.status !== 'forming') {
       return res.status(400).json({
         success: false,
-        message: 'Group is not in invitations_sent status'
+        message: 'Group is not in a valid status for sending invitations. Group must be in "invitations_sent" or "forming" status.'
       });
     }
 
@@ -2266,6 +2867,19 @@ const sendGroupInvitations = async (req, res) => {
                 studentId: memberId,
                 status: 'failed',
                 message: eligibility.reason
+              });
+              continue;
+            }
+          }
+
+          // For Sem 8 groups: Check if invited student is Type 1 (only Type 1 students can join groups)
+          if (freshGroup.semester === 8) {
+            const invitedStudentType = invitedStudent.getSem8StudentType();
+            if (invitedStudentType !== 'type1') {
+              invitationResults.push({
+                studentId: memberId,
+                status: 'failed',
+                message: 'Only Type 1 students (completed 6-month internship in Sem 7) can join groups for Major Project 2. Type 2 students must do solo Major Project 2.'
               });
               continue;
             }
@@ -2612,6 +3226,10 @@ const getAvailableStudents = async (req, res) => {
         let trackInfo = null;
         let isCourseworkEligible = true; // Default to true for non-Sem 7 students
         
+        // For Sem 8: Include student type information for Type 1 filtering
+        let sem8StudentType = null;
+        let isType1Eligible = true; // Default to true for non-Sem 8 students
+        
         if (student.semester === 7 && s.semester === 7) {
           // Get full student document with semester selections for track checking
           const fullStudent = await Student.findById(s._id);
@@ -2635,6 +3253,19 @@ const getAvailableStudents = async (req, res) => {
           // Check if student is eligible for coursework (for disabling in frontend)
           const eligibility = checkSem7CourseworkEligibility(fullStudent);
           isCourseworkEligible = eligibility.eligible;
+        } else if (student.semester === 8 && s.semester === 8) {
+          // Get full student document for Sem 8 Type 1 checking
+          const fullStudent = await Student.findById(s._id);
+          if (!fullStudent) {
+            return null;
+          }
+          
+          // Get Sem 8 student type
+          sem8StudentType = fullStudent.getSem8StudentType();
+          
+          // For Sem 8 group formation: Only Type 1 students are eligible
+          // (Type 1 students completed 6-month internship in Sem 7 and must do coursework)
+          isType1Eligible = sem8StudentType === 'type1';
         }
         // For Sem 5 and other semesters: No track info needed, return all students
 
@@ -2696,7 +3327,11 @@ const getAvailableStudents = async (req, res) => {
           // Sem 7 track information (only for Sem 7 students)
           ...(trackInfo && { trackInfo }),
           // Flag to indicate if student is eligible for coursework (for Sem 7)
-          isCourseworkEligible
+          isCourseworkEligible,
+          // Sem 8 student type information (only for Sem 8 students)
+          ...(sem8StudentType && { sem8StudentType }),
+          // Flag to indicate if student is Type 1 eligible (for Sem 8 group formation)
+          isType1Eligible
         };
       })
     );
@@ -2965,6 +3600,24 @@ const inviteToGroup = async (req, res) => {
           if (!invitedStudent || invitedStudent.semester !== student.semester) {
             errors.push(`${invitedStudentId}: Student not found or wrong semester`);
             continue;
+          }
+
+          // For Sem 7 groups: Check if invited student is finalized for coursework
+          if (group.semester === 7) {
+            const eligibility = checkSem7CourseworkEligibility(invitedStudent);
+            if (!eligibility.eligible) {
+              errors.push(`${invitedStudentId}: ${eligibility.reason}`);
+              continue;
+            }
+          }
+
+          // For Sem 8 groups: Check if invited student is Type 1 (only Type 1 students can join groups)
+          if (group.semester === 8) {
+            const invitedStudentType = invitedStudent.getSem8StudentType();
+            if (invitedStudentType !== 'type1') {
+              errors.push(`${invitedStudentId}: Only Type 1 students (completed 6-month internship in Sem 7) can join groups for Major Project 2. Type 2 students must do solo Major Project 2.`);
+              continue;
+            }
           }
 
           // Check if already in a group using session for integrity
@@ -4768,11 +5421,11 @@ const getGroupInvitations = async (req, res) => {
       });
     }
 
-    // Check if student is in semester 5 or 7 (both support group invitations)
-    if (student.semester !== 5 && student.semester !== 7) {
+    // Check if student is in semester 5, 7, or 8 (all support group invitations)
+    if (student.semester !== 5 && student.semester !== 7 && student.semester !== 8) {
       return res.status(400).json({
         success: false,
-        message: 'Group invitations are only available for semester 5 and 7 students'
+        message: 'Group invitations are only available for semester 5, 7, and 8 students'
       });
     }
 
@@ -4783,6 +5436,17 @@ const getGroupInvitations = async (req, res) => {
         return res.status(400).json({
           success: false,
           message: eligibility.reason || 'Only coursework track students can receive group invitations'
+        });
+      }
+    }
+
+    // For Sem 8: Verify student is Type 1 (coursework track) - Type 1 students need groups for Major Project 2
+    if (student.semester === 8) {
+      const studentType = student.getSem8StudentType();
+      if (studentType !== 'type1') {
+        return res.status(400).json({
+          success: false,
+          message: 'Only Type 1 students (coursework track) can receive group invitations for Major Project 2'
         });
       }
     }
@@ -6102,6 +6766,10 @@ module.exports = {
   registerMTechSem3MajorProject,
   registerInternship1,
   checkInternship1Status,
+  // Sem 8 specific functions
+  registerMajorProject2,
+  registerInternship2,
+  checkInternship2Status,
   getFacultyAllocationStatus,
   getStudentGroupStatus,
   updateProject,
