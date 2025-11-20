@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useSem7 } from '../../context/Sem7Context';
+import { useSem8 } from '../../context/Sem8Context';
 
 const Navbar = ({ userRole: propUserRole = null, user: propUser = null, roleData: propRoleData = null }) => {
   // Use props if provided, otherwise get from AuthContext
@@ -21,6 +22,19 @@ const Navbar = ({ userRole: propUserRole = null, user: propUser = null, roleData
   } catch (error) {
     // Sem7Context might not be available, ignore silently
     console.warn('Sem7Context not available:', error);
+  }
+
+  // Get Sem 8 data for students (always call hook, but conditionally use)
+  let sem8Data = null;
+  try {
+    const sem8Context = useSem8();
+    // Only use Sem 8 data if student is in semester 8
+    if (userRole === 'student' && (roleData?.semester || user?.semester) === 8) {
+      sem8Data = sem8Context;
+    }
+  } catch (error) {
+    // Sem8Context might not be available, ignore silently
+    console.warn('Sem8Context not available:', error);
   }
   
   // Get user's actual name based on role
@@ -305,6 +319,62 @@ const Navbar = ({ userRole: propUserRole = null, user: propUser = null, roleData
         }
       }
 
+      // Sem 8 specific navigation
+      if (currentSemester === 8) {
+        const sem8FinalizedTrack = sem8Data?.trackChoice?.finalizedTrack;
+        const sem8TrackChoice = sem8Data?.trackChoice;
+        const sem8SelectedTrack = sem8FinalizedTrack || sem8TrackChoice?.chosenTrack;
+        const studentType = sem8Data?.sem8Status?.studentType;
+        const isType2 = studentType === 'type2';
+        
+        // Show track selection only for Type 2 students:
+        // 1. Not finalized AND
+        // 2. No choice submitted yet OR needs_info status
+        if (isType2 && !sem8FinalizedTrack) {
+          if (!sem8TrackChoice || !sem8TrackChoice.chosenTrack) {
+            // No choice submitted yet - show track selection
+            items.push({ 
+              name: 'Sem 8 Track Selection', 
+              path: '/student/sem8/track-selection' 
+            });
+          } else if (sem8TrackChoice.verificationStatus === 'needs_info') {
+            // Choice submitted but needs info - show update option
+            items.push({ 
+              name: 'Update Track Choice', 
+              path: '/student/sem8/track-selection' 
+            });
+          }
+        }
+        
+        // Show internship applications when internship is chosen or finalized (Type 2 only)
+        if (isType2 && sem8SelectedTrack === 'internship') {
+          const sixMonthApp = sem8Data?.internshipApplications?.find(app => app.type === '6month');
+          // Only show link if no application exists or needs_info status
+          if (!sixMonthApp || sixMonthApp.status === 'needs_info') {
+            items.push({
+              name: sixMonthApp?.status === 'needs_info' ? 'Update Internship Application' : 'Internship Application',
+              path: sixMonthApp ? `/student/sem8/internship/apply/6month/${sixMonthApp._id}/edit` : '/student/sem8/internship/apply/6month'
+            });
+          }
+        }
+        
+        // Show Major Project 2 Dashboard and Internship 2 Dashboard for major2 track
+        // (Type 1 auto-enrolled, Type 2 can choose)
+        if (sem8SelectedTrack === 'major2') {
+          // Major Project 2 Dashboard - always show for major2 track students
+          items.push({
+            name: 'Major Project 2',
+            path: '/student/sem8/major2/dashboard'
+          });
+          
+          // Internship 2 Dashboard - always show for major2 track students
+          items.push({
+            name: 'Internship 2',
+            path: '/student/sem8/internship2/dashboard'
+          });
+        }
+      }
+
       // Groups link removed - students can access group dashboard through Major Project 1 dashboard
     }
 
@@ -342,9 +412,9 @@ const Navbar = ({ userRole: propUserRole = null, user: propUser = null, roleData
                 { name: 'Minor Project 2 (Sem 5)', path: '/admin/projects/btech/minor2' },
                 { name: 'Minor Project 3 (Sem 6)', path: '/admin/projects/btech/minor3' },
                 { name: 'Major Project 1 (Sem 7)', path: '/admin/projects/btech/major1' },
-                { name: 'Internship 1 (2 Month)', path: '/admin/projects/btech/internship1' },
                 { name: 'Major Project 2 (Sem 8)', path: '/admin/projects/btech/major2' },
-                { name: 'Internship 2 (6 Month)', path: '/admin/projects/btech/internship2' }
+                { name: 'Internship 1 (2 Month)', path: '/admin/projects/btech/internship1' },
+                { name: 'Internship 2 (2 Month)', path: '/admin/projects/btech/internship2' },
               ]
             },
             { 

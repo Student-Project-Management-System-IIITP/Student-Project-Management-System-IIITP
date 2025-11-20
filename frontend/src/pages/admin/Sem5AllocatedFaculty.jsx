@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { adminAPI } from '../../utils/api';
+import { toast } from 'react-hot-toast';
 
 const Sem5AllocatedFaculty = () => {
   const [groups, setGroups] = useState([]);
@@ -26,6 +27,10 @@ const Sem5AllocatedFaculty = () => {
     notInGroup: 0
   });
   const [maxSupervisors, setMaxSupervisors] = useState(7);
+  
+  // State for inline remarks editing
+  const [editingRemarks, setEditingRemarks] = useState({ id: null, type: null, value: '' });
+  const [savingRemarks, setSavingRemarks] = useState(false);
 
   // Function to calculate batch from registration date
   const calculateBatch = (registrationDate) => {
@@ -178,10 +183,52 @@ const Sem5AllocatedFaculty = () => {
         allocationRate: 0
       };
       
-      setGroups(allGroups);
+      // Load projects to get feedback
+      const projectsResponse = await adminAPI.getProjects({ semester: 5, projectType: 'minor2' });
+      const projects = projectsResponse.data || [];
+      const projectsMap = new Map(projects.map(p => [p._id.toString(), p]));
+      // Also create a map by group ID for groups that don't have project populated
+      const projectsByGroupMap = new Map();
+      projects.forEach(p => {
+        if (p.group) {
+          const groupId = p.group._id ? p.group._id.toString() : (typeof p.group === 'string' ? p.group : null);
+          if (groupId) {
+            projectsByGroupMap.set(groupId, p);
+          }
+        }
+      });
+      
+      // Merge feedback into groups (groups have project._id)
+      const groupsWithFeedback = allGroups.map(grp => {
+        // Try to find project by grp.project._id first, then by group._id
+        let project = null;
+        let projectId = null;
+        
+        // First try: use grp.project._id if available
+        if (grp.project?._id) {
+          projectId = grp.project._id.toString();
+          project = projectsMap.get(projectId);
+        }
+        
+        // Second try: find project by group ID if project not found yet
+        if (!project && grp._id) {
+          project = projectsByGroupMap.get(grp._id.toString());
+          if (project) {
+            projectId = project._id.toString();
+          }
+        }
+        
+        return {
+          ...grp,
+          projectFeedback: project?.feedback || '',
+          projectId: projectId
+        };
+      });
+      
+      setGroups(groupsWithFeedback);
       setStats(statsData);
       
-      const filteredGrps = sortAndFilterGroups(allGroups);
+      const filteredGrps = sortAndFilterGroups(groupsWithFeedback);
       setFilteredGroups(filteredGrps);
 
       // Load non-registered students data
@@ -202,11 +249,18 @@ const Sem5AllocatedFaculty = () => {
       // Load registrations data
       const registrationsResponse = await adminAPI.getSem5Registrations();
       const allRegistrations = registrationsResponse.data || [];
-      setRegistrations(allRegistrations);
+      
+      // Merge feedback into registrations (registration._id is project._id)
+      const registrationsWithFeedback = allRegistrations.map(reg => ({
+        ...reg,
+        feedback: projectsMap.get(reg._id)?.feedback || ''
+      }));
+      
+      setRegistrations(registrationsWithFeedback);
       
       // Calculate maximum number of supervisors in the data
       let maxSups = 0;
-      allRegistrations.forEach(reg => {
+      registrationsWithFeedback.forEach(reg => {
         for (let i = 1; i <= 10; i++) {
           if (reg[`supervisor${i}`]) {
             maxSups = Math.max(maxSups, i);
@@ -215,7 +269,7 @@ const Sem5AllocatedFaculty = () => {
       });
       setMaxSupervisors(maxSups || 7);
       
-      const filteredRegs = sortAndFilterRegistrations(allRegistrations);
+      const filteredRegs = sortAndFilterRegistrations(registrationsWithFeedback);
       setFilteredRegistrations(filteredRegs);
     } catch (error) {
       console.error('Failed to load data:', error);
@@ -257,6 +311,109 @@ const Sem5AllocatedFaculty = () => {
       month: '2-digit',
       day: '2-digit'
     });
+  };
+
+  // Handle inline remarks editing
+  const handleStartEditRemarks = (id, type, currentValue) => {
+    setEditingRemarks({ id, type, value: currentValue || '' });
+  };
+
+  const handleCancelEditRemarks = () => {
+    setEditingRemarks({ id: null, type: null, value: '' });
+  };
+
+  const handleSaveProjectRemarks = async (projectId, remarks) => {
+    try {
+      setSavingRemarks(true);
+      const response = await adminAPI.updateProjectStatus(projectId, { feedback: remarks });
+      if (response.success) {
+        toast.success('Remarks saved successfully');
+        await loadData();
+        setEditingRemarks({ id: null, type: null, value: '' });
+      } else {
+        throw new Error(response.message || 'Failed to save remarks');
+      }
+    } catch (error) {
+      console.error('Failed to save remarks:', error);
+      toast.error(`Failed to save remarks: ${error.message}`);
+    } finally {
+      setSavingRemarks(false);
+    }
+  };
+
+  // Render editable remarks cell
+  const renderRemarksCell = (rowId, type, currentValue, projectId) => {
+    const isEditing = editingRemarks.id === rowId && editingRemarks.type === type;
+    const canEdit = !!projectId; // Only allow editing if project exists
+    
+    if (isEditing) {
+      return (
+        <td className="px-3 py-4 text-sm">
+          <div className="flex items-center gap-2">
+            <input
+              type="text"
+              value={editingRemarks.value}
+              onChange={(e) => setEditingRemarks({ ...editingRemarks, value: e.target.value })}
+              className="flex-1 px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-orange-500"
+              autoFocus
+              disabled={!canEdit}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && canEdit) {
+                  handleSaveProjectRemarks(projectId, editingRemarks.value);
+                } else if (e.key === 'Escape') {
+                  handleCancelEditRemarks();
+                }
+              }}
+            />
+            <button
+              onClick={() => {
+                if (canEdit) {
+                  handleSaveProjectRemarks(projectId, editingRemarks.value);
+                }
+              }}
+              disabled={savingRemarks || !canEdit}
+              className="px-2 py-1 text-xs bg-orange-600 text-white rounded hover:bg-orange-700 disabled:opacity-50"
+              title={!canEdit ? 'Project not registered yet. Register project first to add remarks.' : ''}
+            >
+              {savingRemarks ? '...' : '✓'}
+            </button>
+            <button
+              onClick={handleCancelEditRemarks}
+              className="px-2 py-1 text-xs bg-gray-300 text-gray-700 rounded hover:bg-gray-400"
+            >
+              ✕
+            </button>
+          </div>
+          {!canEdit && (
+            <div className="mt-1 text-xs text-red-600">
+              Project not registered yet. Register project first to add remarks.
+            </div>
+          )}
+        </td>
+      );
+    }
+    
+    return (
+      <td 
+        className={`px-3 py-4 text-sm text-gray-900 min-w-[150px] ${
+          canEdit ? 'cursor-pointer hover:bg-gray-100' : 'cursor-not-allowed opacity-60'
+        }`}
+        onClick={() => {
+          if (canEdit) {
+            handleStartEditRemarks(rowId, type, currentValue);
+          } else {
+            toast.error('Project not registered yet. Register project first to add remarks.');
+          }
+        }}
+        title={canEdit ? 'Click to edit remarks' : 'Project not registered yet. Register project first to add remarks.'}
+      >
+        {currentValue || (
+          <span className={canEdit ? 'text-gray-400 italic' : 'text-gray-300 italic'}>
+            {canEdit ? 'Click to add remarks' : 'No project registered'}
+          </span>
+        )}
+      </td>
+    );
   };
 
   // Function to generate CSV content for groups
@@ -896,6 +1053,9 @@ const Sem5AllocatedFaculty = () => {
                           Supervisor {i + 1}
                         </th>
                       ))}
+                      <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Remarks
+                      </th>
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
@@ -976,6 +1136,7 @@ const Sem5AllocatedFaculty = () => {
                             {reg[`supervisor${i + 1}`] || '-'}
                           </td>
                         ))}
+                        {renderRemarksCell(reg._id, 'registration', reg.feedback, reg._id)}
                       </tr>
                     ))}
                   </tbody>
@@ -1086,6 +1247,9 @@ const Sem5AllocatedFaculty = () => {
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Status
                     </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Remarks
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
@@ -1177,6 +1341,7 @@ const Sem5AllocatedFaculty = () => {
                           {grp.status}
                         </span>
                       </td>
+                      {renderRemarksCell(grp._id, 'group', grp.projectFeedback, grp.projectId)}
                     </tr>
                   ))}
                 </tbody>

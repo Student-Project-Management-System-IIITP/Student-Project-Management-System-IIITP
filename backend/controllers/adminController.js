@@ -6,6 +6,7 @@ const Project = require('../models/Project');
 const Group = require('../models/Group');
 const FacultyPreference = require('../models/FacultyPreference');
 const SystemConfig = require('../models/SystemConfig');
+const InternshipApplication = require('../models/InternshipApplication');
 
 // Get admin profile data
 const getAdminProfile = async (req, res) => {
@@ -610,11 +611,11 @@ const forceAllocateFaculty = async (req, res) => {
 // Update project status (admin override)
 const updateProjectStatus = async (req, res) => {
   try {
-    const { projectId } = req.params;
+    const { id } = req.params; // Route parameter is :id, not :projectId
     const { status, grade, feedback } = req.body;
     
     // Find project
-    const project = await Project.findById(projectId);
+    const project = await Project.findById(id);
     if (!project) {
       return res.status(404).json({
         success: false,
@@ -625,7 +626,7 @@ const updateProjectStatus = async (req, res) => {
     // Update project
     if (status) project.status = status;
     if (grade) project.grade = grade;
-    if (feedback) project.feedback = feedback;
+    if (feedback !== undefined) project.feedback = feedback; // Allow empty strings to clear feedback
     
     if (status === 'completed' || grade) {
       project.evaluatedBy = req.user.id;
@@ -1069,7 +1070,7 @@ const getSem5AllocatedFaculty = async (req, res) => {
       })
       .populate({
         path: 'project',
-        select: 'title status semester'
+        select: '_id title status semester'
       })
       .sort({ allocatedFaculty: 1, createdAt: -1 }); // Sort by faculty first, then by creation date
 
@@ -1793,6 +1794,7 @@ const updateStudentSemesters = async (req, res) => {
     }
 
     // Find students matching criteria
+    // Note: semesterSelections is embedded, so it's included in lean() results
     const students = await Student.find(query)
       .populate('user', 'email')
       .lean();
@@ -1857,6 +1859,67 @@ const updateStudentSemesters = async (req, res) => {
           }
         }
 
+        // For Sem 7 to Sem 8 progression - check prerequisites based on Sem 7 track
+        if (fromSemester === 7 && toSemester === 8) {
+          // Get Sem 7 track selection (semesterSelections is embedded, so available in lean() results)
+          const sem7Selection = (student.semesterSelections || []).find(s => s.semester === 7);
+          const finalizedTrack = sem7Selection?.finalizedTrack;
+          
+          if (!finalizedTrack) {
+            validation.eligible = false;
+            validation.issues.push('Sem 7 track not finalized. Student must have a finalized track (internship or coursework) in Sem 7.');
+          } else if (finalizedTrack === 'coursework') {
+            // Type 2 students (did coursework in Sem 7) - check Major Project 1 requirements
+            const sem7Group = await Group.findOne({
+              'members.student': student._id,
+              semester: 7,
+              status: 'finalized'
+            });
+
+            if (!sem7Group) {
+              validation.eligible = false;
+              validation.issues.push('No finalized Sem 7 group found for Major Project 1');
+            }
+
+            // Check for Sem 7 Major Project 1
+            const sem7Project = await Project.findOne({
+              semester: 7,
+              projectType: 'major1',
+              $or: [
+                { student: student._id },
+                { group: sem7Group?._id }
+              ]
+            });
+
+            if (!sem7Project) {
+              validation.eligible = false;
+              validation.issues.push('No Sem 7 Major Project 1 found');
+            }
+
+            // Check if faculty is allocated
+            if (sem7Group && !sem7Group.allocatedFaculty && !sem7Project?.faculty) {
+              validation.eligible = false;
+              validation.issues.push('No faculty allocated to Sem 7 Major Project 1');
+            }
+          } else if (finalizedTrack === 'internship') {
+            // Type 1 students (did 6-month internship in Sem 7) - check internship verification
+            const sixMonthApp = await InternshipApplication.findOne({
+              student: student._id,
+              semester: 7,
+              type: '6month',
+              status: 'verified_pass'
+            });
+
+            if (!sixMonthApp) {
+              validation.eligible = false;
+              validation.issues.push('6-month internship in Sem 7 not verified (status must be verified_pass)');
+            } else if (sem7Selection?.internshipOutcome !== 'verified_pass') {
+              validation.eligible = false;
+              validation.issues.push('Sem 7 internship outcome not set to verified_pass in semester selection');
+            }
+          }
+        }
+
         validationResults.push(validation);
         
         if (validation.eligible) {
@@ -1897,13 +1960,56 @@ const updateStudentSemesters = async (req, res) => {
       }
     );
 
-    // Get updated students for confirmation
+    // Get updated students for confirmation and post-processing
+    const updatedStudentIds = validatePrerequisites ? eligibleStudents : students.map(s => s._id);
     const updatedStudents = await Student.find({ 
-      _id: { $in: validatePrerequisites ? eligibleStudents : students.map(s => s._id) }
+      _id: { $in: updatedStudentIds }
     })
       .populate('user', 'email')
-      .select('fullName misNumber semester degree')
+      .select('fullName misNumber semester degree academicYear')
       .lean();
+
+    // Post-update processing: Auto-initialize Sem 8 for Type 1 students (Sem 7 → Sem 8)
+    if (fromSemester === 7 && toSemester === 8) {
+      const updatedStudentDocs = await Student.find({ _id: { $in: updatedStudentIds } });
+      
+      // Helper function to get current academic year
+      const getCurrentAcademicYear = () => {
+        const now = new Date();
+        const year = now.getFullYear();
+        const month = now.getMonth(); // 0-11
+        // Academic year starts in July (month 6)
+        if (month >= 6) {
+          return `${year}-${(year+1).toString().slice(-2)}`;
+        } else {
+          return `${(year-1)}-${year.toString().slice(-2)}`;
+        }
+      };
+
+      const academicYear = getCurrentAcademicYear();
+      
+      // Process each student to auto-initialize Type 1 students
+      for (const studentDoc of updatedStudentDocs) {
+        try {
+          // Refresh to get latest semester
+          await studentDoc.populate('semesterSelections');
+          
+          // Check if this is a Type 1 student (completed 6-month internship in Sem 7)
+          const sem7Selection = studentDoc.getSemesterSelection(7);
+          if (sem7Selection?.finalizedTrack === 'internship' && 
+              sem7Selection?.internshipOutcome === 'verified_pass') {
+            // This is a Type 1 student - auto-initialize Sem 8
+            const existingSem8Selection = studentDoc.getSemesterSelection(8);
+            if (!existingSem8Selection) {
+              await studentDoc.initializeSem8ForType1(academicYear);
+            }
+          }
+        } catch (error) {
+          console.error(`Error auto-initializing Sem 8 for student ${studentDoc._id}:`, error);
+          // Continue with other students even if one fails
+        }
+      }
+    }
 
     res.json({
       success: true,
@@ -1944,9 +2050,15 @@ const getStudentsBySemester = async (req, res) => {
       query.degree = degree;
     }
 
+    // For Sem 8, we need semesterSelections to determine student types
+    const semesterNum = semester ? parseInt(semester, 10) : null;
+    const selectFields = semesterNum === 8 
+      ? 'fullName misNumber semester degree branch collegeEmail contactNumber semesterSelections'
+      : 'fullName misNumber semester degree branch collegeEmail contactNumber';
+    
     const students = await Student.find(query)
       .populate('user', 'email')
-      .select('fullName misNumber semester degree branch collegeEmail contactNumber')
+      .select(selectFields)
       .sort({ misNumber: 1 })
       .lean();
 

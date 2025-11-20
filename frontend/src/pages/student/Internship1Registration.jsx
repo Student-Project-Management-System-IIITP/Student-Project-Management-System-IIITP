@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { useSem7Project } from '../../hooks/useSem7Project';
+import { useSem8 } from '../../context/Sem8Context';
 import { useAuth } from '../../context/AuthContext';
 import { studentAPI } from '../../utils/api';
 import { toast } from 'react-hot-toast';
@@ -9,15 +10,38 @@ import Layout from '../../components/common/Layout';
 
 const Internship1Registration = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { user, roleData } = useAuth();
+  
+  // Determine if this is Internship 2 registration route
+  const isInternship2Route = location.pathname === '/student/sem8/internship2/register';
+  
   const { 
-    internship1Status,
-    internship1Project,
-    registerInternship1,
+    internship1Status: sem7Internship1Status,
+    internship1Project: sem7Internship1Project,
+    registerInternship1: sem7RegisterInternship1,
     loading: sem7Loading,
     trackChoice,
     fetchSem7Data
   } = useSem7Project();
+  const { 
+    sem8Status, 
+    loading: sem8Loading,
+    registerInternship2: sem8RegisterInternship2,
+    internship2Status,
+    internship2Project
+  } = useSem8();
+  
+  // Determine current semester and student type
+  const currentSemester = roleData?.semester || user?.semester;
+  const isSem8 = currentSemester === 8;
+  const isSem7 = currentSemester === 7;
+  const isType1 = isSem8 && sem8Status?.studentType === 'type1';
+  
+  // Use appropriate status and project based on semester
+  const internship1Status = isSem8 ? null : sem7Internship1Status; // Will load separately for Sem 8
+  const internship1Project = isSem8 ? null : sem7Internship1Project; // Will load separately for Sem 8
+  const loading = isSem8 ? sem8Loading : sem7Loading;
 
   const [currentStep, setCurrentStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -42,42 +66,81 @@ const Internship1Registration = () => {
     }
   });
 
+  // State for Sem 8 Internship 1 status (only for Internship 1, not Internship 2)
+  const [sem8Internship1Status, setSem8Internship1Status] = useState(null);
+  const [sem8Internship1Project, setSem8Internship1Project] = useState(null);
+  
   // Load eligibility status first
   useEffect(() => {
-    if (!internship1Status && !sem7Loading) {
+    if (isSem7 && !internship1Status && !sem7Loading) {
       fetchSem7Data();
+    } else if (isSem8 && !isInternship2Route && !sem8Internship1Status && !sem8Loading) {
+      // Load Internship 1 status for Sem 8 Type 1 students (not Internship 2)
+      const loadSem8Internship1Status = async () => {
+        try {
+          const response = await studentAPI.checkInternship1Status();
+          if (response.success && response.data) {
+            setSem8Internship1Status(response.data);
+            if (response.data.existingProject) {
+              setSem8Internship1Project(response.data.existingProject);
+            }
+          }
+        } catch (error) {
+          console.error('Failed to load Sem 8 Internship 1 status:', error);
+        }
+      };
+      loadSem8Internship1Status();
     }
-  }, [internship1Status, sem7Loading, fetchSem7Data]);
+    // For Internship 2 route, status is already loaded via useSem8 hook
+  }, [isSem7, isSem8, isInternship2Route, internship1Status, sem7Loading, sem8Internship1Status, sem8Loading, fetchSem7Data]);
+  
+  // Use the appropriate status and project based on route and semester
+  const effectiveInternship1Status = isInternship2Route 
+    ? internship2Status 
+    : (isSem8 ? sem8Internship1Status : internship1Status);
+  const effectiveInternship1Project = isInternship2Route
+    ? internship2Project
+    : (isSem8 ? sem8Internship1Project : internship1Project);
 
   // Combined validation: Check eligibility, track choice, and project status
   // Only run after all data is loaded to avoid false positives and duplicate errors
   useEffect(() => {
     // Don't validate while loading
-    if (sem7Loading) return;
+    if (loading) return;
     
     // Wait for data to be loaded
-    // Note: trackChoice might be null if student hasn't chosen yet, that's ok - we'll check eligibility instead
-    const currentSemester = roleData?.semester || user?.semester;
-    if (currentSemester !== 7) {
-      toast.error('Internship 1 registration is only available for Semester 7 students');
+    if (!isSem7 && !isSem8) {
+      const internshipLabel = isInternship2Route ? 'Internship 2' : 'Internship 1';
+      toast.error(`${internshipLabel} registration is only available for Semester 7 or Semester 8 students`);
       navigate('/dashboard/student');
       return;
     }
+    
+    // For Sem 8 Internship 1, check if Type 1 student
+    if (isSem8 && !isInternship2Route && !isType1) {
+      toast.error('Only Type 1 students (who completed 6-month internship in Sem 7) can register for Internship 1 in Sem 8');
+      navigate('/dashboard/student');
+      return;
+    }
+    
+    // For Sem 8 Internship 2, Type 1 students are eligible (summer internship failed/absent)
+    // Eligibility is checked via internship2Status from backend
 
     // Check if already registered (exclude cancelled projects)
-    if (internship1Project && internship1Project.status !== 'cancelled') {
-      toast('You have already registered for Internship 1', { icon: 'ℹ️' });
-      navigate('/dashboard/student');
+    if (effectiveInternship1Project && effectiveInternship1Project.status !== 'cancelled') {
+      const internshipLabel = isInternship2Route ? 'Internship 2' : 'Internship 1';
+      toast(`You have already registered for ${internshipLabel}`, { icon: 'ℹ️' });
+      navigate(isInternship2Route ? '/student/sem8/internship2/dashboard' : '/dashboard/student');
       return;
     }
 
     // Check eligibility status from backend (this includes track choice check)
     // This is the single source of truth - don't duplicate track choice check
-    if (internship1Status) {
-      if (!internship1Status.eligible) {
+    if (effectiveInternship1Status) {
+      if (!effectiveInternship1Status.eligible) {
         // Only show error if we have a reason (backend should provide it)
-        if (internship1Status.reason) {
-          toast.error(internship1Status.reason);
+        if (effectiveInternship1Status.reason) {
+          toast.error(effectiveInternship1Status.reason);
         }
         navigate('/dashboard/student');
         return;
@@ -88,42 +151,102 @@ const Internship1Registration = () => {
       // Don't show error yet
       return;
     }
-  }, [roleData, user, internship1Status, internship1Project, sem7Loading, navigate]);
+  }, [isSem7, isSem8, isType1, effectiveInternship1Status, effectiveInternship1Project, loading, navigate]);
 
   // Load faculty preference limit from system config
   useEffect(() => {
     const loadFacultyPreferenceLimit = async () => {
       try {
-        // Try Sem 7 Internship 1 specific limit first
-        let response = await studentAPI.getSystemConfig('sem7.internship1.facultyPreferenceLimit');
-        if (response.success && response.data) {
-          setFacultyPreferenceLimit(response.data.value);
-          return;
-        }
-        
-        // Fallback to Sem 5 limit
-        response = await studentAPI.getSystemConfig('sem5.facultyPreferenceLimit');
-        if (response.success && response.data) {
-          setFacultyPreferenceLimit(response.data.value);
+        // Try semester-specific Internship limit first
+        if (isSem8) {
+          if (isInternship2Route) {
+            // For Internship 2: Try Sem 8 Internship 2 config, then default to 5
+            try {
+              const response = await studentAPI.getSystemConfig('sem8.internship2.facultyPreferenceLimit');
+              if (response.success && response.data) {
+                setFacultyPreferenceLimit(response.data.value);
+                return;
+              }
+            } catch (error) {
+              // Config doesn't exist, use default
+            }
+            // Default to 5 for Sem 8 Internship 2
+            setFacultyPreferenceLimit(5);
+          } else {
+            // For Sem 8 Internship 1: Try Sem 8 specific config, then Sem 7 config, then default to 5
+            try {
+              const response = await studentAPI.getSystemConfig('sem8.internship1.facultyPreferenceLimit');
+              if (response.success && response.data) {
+                setFacultyPreferenceLimit(response.data.value);
+                return;
+              }
+            } catch (error) {
+              // Config doesn't exist, continue to next check
+            }
+            
+            // Fallback to Sem 7 Internship 1 limit
+            try {
+              const response = await studentAPI.getSystemConfig('sem7.internship1.facultyPreferenceLimit');
+              if (response.success && response.data) {
+                setFacultyPreferenceLimit(response.data.value);
+                return;
+              }
+            } catch (error) {
+              // Config doesn't exist, use default
+            }
+            
+            // Default to 5 for Sem 8 Internship 1
+            setFacultyPreferenceLimit(5);
+          }
+        } else {
+          // For Sem 7: Try Sem 7 specific config, then default to 5
+          // Note: We don't fallback to sem5.facultyPreferenceLimit (which is 7) for Internship 1
+          try {
+            const response = await studentAPI.getSystemConfig('sem7.internship1.facultyPreferenceLimit');
+            if (response.success && response.data) {
+              setFacultyPreferenceLimit(response.data.value);
+              return;
+            }
+          } catch (error) {
+            // Config doesn't exist, use default
+          }
+          
+          // Default to 5 for Sem 7 Internship 1
+          setFacultyPreferenceLimit(5);
         }
       } catch (error) {
         console.error('Failed to load faculty preference limit, using default:', error);
         // Keep default value of 5
+        setFacultyPreferenceLimit(5);
       }
     };
 
     loadFacultyPreferenceLimit();
-  }, []);
+  }, [isSem8]);
 
   // Load window status
   useEffect(() => {
     const checkWindow = async () => {
       try {
-        const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/student/system-config/sem7.internship1.registrationWindow`, {
+        // Try semester-specific window first
+        const configKey = isSem8 
+          ? (isInternship2Route ? 'sem8.internship2.registrationWindow' : 'sem8.internship1.registrationWindow')
+          : 'sem7.internship1.registrationWindow';
+        let response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/student/system-config/${configKey}`, {
           headers: {
             'Authorization': `Bearer ${localStorage.getItem('token')}`
           }
         });
+        
+        // Fallback to Sem 7 window if Sem 8 window doesn't exist (only for Internship 1, not Internship 2)
+        if (!response.ok && isSem8 && !isInternship2Route) {
+          response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/student/system-config/sem7.internship1.registrationWindow`, {
+            headers: {
+              'Authorization': `Bearer ${localStorage.getItem('token')}`
+            }
+          });
+        }
+        
         if (response.ok) {
           const data = await response.json();
           if (data.success && data.data) {
@@ -135,7 +258,7 @@ const Internship1Registration = () => {
       }
     };
     checkWindow();
-  }, []);
+  }, [isSem8]);
 
   // Load faculty list for preferences
   useEffect(() => {
@@ -192,10 +315,37 @@ const Internship1Registration = () => {
         facultyPreferences: facultyPreferences
       };
 
-      await registerInternship1(projectData);
-      
-      toast.success('Internship 1 registered successfully!');
-      navigate('/dashboard/student');
+      // Use appropriate registration function based on route
+      if (isInternship2Route) {
+        // Register Internship 2 using Sem8Context function
+        await sem8RegisterInternship2(projectData);
+        toast.success('Internship 2 registered successfully!');
+        navigate('/student/sem8/internship2/dashboard');
+      } else if (isSem8) {
+        // Register Internship 1 for Sem 8 Type 1 students
+        const response = await studentAPI.registerInternship1(projectData);
+        if (response.success) {
+          // Refresh Sem 8 data - response.data contains { project, facultyPreference, allocationStatus }
+          const project = response.data?.project || response.data;
+          if (project) {
+            setSem8Internship1Project(project);
+          }
+          // Refresh status
+          const statusResponse = await studentAPI.checkInternship1Status();
+          if (statusResponse.success && statusResponse.data) {
+            setSem8Internship1Status(statusResponse.data);
+          }
+        } else {
+          throw new Error(response.message || 'Registration failed');
+        }
+        toast.success(`${internshipLabel} registered successfully!`);
+        navigate('/dashboard/student');
+      } else {
+        // Register Internship 1 for Sem 7
+        await sem7RegisterInternship1(projectData);
+        toast.success(`${internshipLabel} registered successfully!`);
+        navigate('/dashboard/student');
+      }
     } catch (error) {
       toast.error(`Registration failed: ${error.message}`);
     } finally {
@@ -276,11 +426,15 @@ const Internship1Registration = () => {
 
   const watchedDomain = watch('domain');
 
+  // Determine labels based on route
+  const internshipLabel = isInternship2Route ? 'Internship 2' : 'Internship 1';
+  const internshipProjectLabel = isInternship2Route ? 'Internship 2 Project' : 'Internship 1 Project';
+
   const renderStep1 = () => (
     <div className="space-y-6">
       <div className="text-center mb-6">
         <h2 className="text-2xl font-bold text-gray-900 mb-2">Step 1: Project Details</h2>
-        <p className="text-gray-600">Enter your Internship 1 project details</p>
+        <p className="text-gray-600">Enter your {internshipLabel} project details</p>
       </div>
 
       <form onSubmit={handleSubmit(nextStep)} className="space-y-6">
@@ -378,7 +532,7 @@ const Internship1Registration = () => {
               </svg>
             </div>
             <div className="ml-3">
-              <h3 className="text-sm font-medium text-blue-800">About Internship 1</h3>
+              <h3 className="text-sm font-medium text-blue-800">About {internshipLabel}</h3>
               <div className="mt-2 text-sm text-blue-700">
                 <p>This is a solo project that you will complete under a faculty mentor. You need to select {facultyPreferenceLimit} faculty preferences.</p>
                 <p className="mt-1">Note: You can write "TBD" for the proposed title if not decided yet. This can be changed later.</p>
@@ -608,7 +762,7 @@ const Internship1Registration = () => {
           <button
             type="button"
             onClick={handleSubmit(onSubmit)}
-            disabled={facultyPreferences.length !== facultyPreferenceLimit || isSubmitting || sem7Loading || !isWindowOpen()}
+            disabled={facultyPreferences.length !== facultyPreferenceLimit || isSubmitting || loading || !isWindowOpen()}
             className={`px-6 py-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors flex items-center ${
               facultyPreferences.length === facultyPreferenceLimit && isWindowOpen()
                 ? 'bg-blue-600 text-white hover:bg-blue-700'
@@ -643,7 +797,7 @@ const Internship1Registration = () => {
     );
   };
 
-  if (sem7Loading) {
+  if (loading) {
     return (
       <Layout>
         <div className="flex items-center justify-center min-h-screen">
@@ -662,22 +816,22 @@ const Internship1Registration = () => {
     <Layout>
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Internship 1 Registration</h1>
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">{internshipLabel} Registration</h1>
           <p className="text-gray-600">
-            Register for your solo Internship 1 project (2-month internship project under faculty mentor)
+            Register for your solo {internshipLabel} project (2-month internship project under faculty mentor)
           </p>
         </div>
 
         {/* Eligibility Status */}
-        {internship1Status && (
+        {effectiveInternship1Status && (
           <div className={`mb-6 p-4 rounded-lg border ${
-            internship1Status.eligible 
+            effectiveInternship1Status.eligible 
               ? 'bg-green-50 border-green-200' 
               : 'bg-red-50 border-red-200'
           }`}>
             <div className="flex items-center">
               <div className="flex-shrink-0">
-                {internship1Status.eligible ? (
+                {effectiveInternship1Status.eligible ? (
                   <svg className="h-5 w-5 text-green-400" fill="currentColor" viewBox="0 0 20 20">
                     <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                   </svg>
@@ -689,15 +843,15 @@ const Internship1Registration = () => {
               </div>
               <div className="ml-3">
                 <h3 className={`text-sm font-medium ${
-                  internship1Status.eligible ? 'text-green-800' : 'text-red-800'
+                  effectiveInternship1Status.eligible ? 'text-green-800' : 'text-red-800'
                 }`}>
-                  {internship1Status.eligible ? 'Eligible for Internship 1' : 'Not Eligible'}
+                  {effectiveInternship1Status.eligible ? `Eligible for ${internshipLabel}` : 'Not Eligible'}
                 </h3>
-                {internship1Status.reason && (
+                {effectiveInternship1Status.reason && (
                   <p className={`text-sm mt-1 ${
-                    internship1Status.eligible ? 'text-green-700' : 'text-red-700'
+                    effectiveInternship1Status.eligible ? 'text-green-700' : 'text-red-700'
                   }`}>
-                    {internship1Status.reason}
+                    {effectiveInternship1Status.reason}
                   </p>
                 )}
               </div>
@@ -760,7 +914,7 @@ const Internship1Registration = () => {
 
         {/* Information Card */}
         <div className="mt-8 bg-blue-50 rounded-lg p-6">
-          <h3 className="text-lg font-semibold text-blue-900 mb-4">About Internship 1</h3>
+          <h3 className="text-lg font-semibold text-blue-900 mb-4">About {internshipLabel}</h3>
           <div className="text-blue-800 space-y-2">
             <p>• <strong>Type:</strong> Solo project under faculty mentor</p>
             <p>• <strong>Eligibility:</strong> Students who have not completed an approved 2-month summer internship</p>

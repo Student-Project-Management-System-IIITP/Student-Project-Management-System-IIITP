@@ -4,6 +4,7 @@ import { Toaster } from 'react-hot-toast';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { Sem5Provider } from './context/Sem5Context';
 import { Sem7Provider } from './context/Sem7Context';
+import { Sem8Provider } from './context/Sem8Context';
 import Layout from './components/common/Layout';
 import Home from './pages/Home';
 import Login from './pages/auth/Login';
@@ -27,6 +28,8 @@ import Sem5AllocatedFaculty from './pages/admin/Sem5AllocatedFaculty';
 import Sem6RegistrationsTable from './pages/admin/Sem6RegistrationsTable';
 import Sem7Review from './pages/admin/Sem7Review';
 import Sem7TrackFinalization from './pages/admin/Sem7TrackFinalization';
+import Sem8Review from './pages/admin/Sem8Review';
+import Sem8TrackFinalization from './pages/admin/Sem8TrackFinalization';
 import SystemConfiguration from './pages/admin/SystemConfiguration';
 import NotFound from './pages/NotFound';
 import AdminProfile from './pages/admin/Profile';
@@ -45,6 +48,9 @@ import MajorProject1Dashboard from './pages/student/MajorProject1Dashboard';
 import Internship1Registration from './pages/student/Internship1Registration';
 import Internship1Dashboard from './pages/student/Internship1Dashboard';
 import SemesterManagement from './pages/admin/SemesterManagement';
+import Sem8TrackSelection from './pages/student/Sem8TrackSelection';
+import Sem8Status from './pages/student/Sem8Status';
+import MajorProject2Dashboard from './pages/student/MajorProject2Dashboard';
 
 function App() {
   return (
@@ -52,7 +58,9 @@ function App() {
       <AuthProvider>
         <Sem5Provider>
           <Sem7Provider>
-            <AppContent />
+            <Sem8Provider>
+              <AppContent />
+            </Sem8Provider>
           </Sem7Provider>
         </Sem5Provider>
       </AuthProvider>
@@ -227,6 +235,48 @@ function AppContent() {
             </ProtectedRoute>
           } />
           
+          {/* Sem 8 Routes */}
+          <Route path="/student/sem8/track-selection" element={
+            <ProtectedRoute allowedRoles={['student']}>
+              <Sem8TrackSelection />
+            </ProtectedRoute>
+          } />
+          <Route path="/student/sem8/status" element={
+            <ProtectedRoute allowedRoles={['student']}>
+              <Sem8Status />
+            </ProtectedRoute>
+          } />
+          <Route path="/student/sem8/internship/apply/:type" element={
+            <ProtectedRoute allowedRoles={['student']}>
+              <InternshipApplicationForm />
+            </ProtectedRoute>
+          } />
+          <Route path="/student/sem8/internship/apply/:type/:id/edit" element={
+            <ProtectedRoute allowedRoles={['student']}>
+              <InternshipApplicationForm />
+            </ProtectedRoute>
+          } />
+          <Route path="/student/sem8/major2/dashboard" element={
+            <ProtectedRoute allowedRoles={['student']}>
+              <MajorProject2Dashboard />
+            </ProtectedRoute>
+          } />
+          <Route path="/student/sem8/major2/register" element={
+            <ProtectedRoute allowedRoles={['student']}>
+              <MajorProject1Registration />
+            </ProtectedRoute>
+          } />
+          <Route path="/student/sem8/internship2/dashboard" element={
+            <ProtectedRoute allowedRoles={['student']}>
+              <Internship1Dashboard />
+            </ProtectedRoute>
+          } />
+          <Route path="/student/sem8/internship2/register" element={
+            <ProtectedRoute allowedRoles={['student']}>
+              <Internship1Registration />
+            </ProtectedRoute>
+          } />
+          
           <Route path="/student/groups/create" element={
             <ProtectedRoute allowedRoles={['student']}>
               <GroupFormation />
@@ -343,6 +393,18 @@ function AppContent() {
           <Route path="/admin/sem7/track-choices" element={
             <ProtectedRoute allowedRoles={['admin']}>
               <Sem7TrackFinalization />
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/sem8/review" element={
+            <ProtectedRoute allowedRoles={['admin']}>
+              <Sem8Review />
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/sem8/track-choices" element={
+            <ProtectedRoute allowedRoles={['admin']}>
+              <Layout>
+                <Sem8TrackFinalization />
+              </Layout>
             </ProtectedRoute>
           } />
           <Route path="/admin/profile" element={

@@ -1,5 +1,6 @@
 import { useSem5 } from '../context/Sem5Context';
 import { useSem7 } from '../context/Sem7Context';
+import { useSem8 } from '../context/Sem8Context';
 import { useAuth } from '../context/AuthContext';
 
 export const useGroupManagement = () => {
@@ -9,17 +10,25 @@ export const useGroupManagement = () => {
   // Use appropriate context based on semester
   const sem5Context = useSem5();
   const sem7Context = useSem7();
+  const sem8Context = useSem8();
   
   // Select context and group data based on semester
-  const context = currentSemester === 7 ? sem7Context : sem5Context;
-  const group = currentSemester === 7 ? sem7Context.majorProject1Group : sem5Context.sem5Group;
-  const groupInvitations = currentSemester === 7 ? sem7Context.groupInvitations : sem5Context.groupInvitations; // Both Sem 5 and Sem 7 use invitations
-  const loading = context.loading;
-  const error = context.error;
+  const context = currentSemester === 7 ? sem7Context : 
+                  currentSemester === 8 ? sem8Context : 
+                  sem5Context;
+  const group = currentSemester === 7 ? sem7Context.majorProject1Group : 
+                currentSemester === 8 ? sem8Context.majorProject2Group : 
+                sem5Context.sem5Group;
+  const groupInvitations = currentSemester === 7 ? sem7Context.groupInvitations : 
+                           currentSemester === 8 ? sem8Context.groupInvitations : 
+                           sem5Context.groupInvitations;
+  const loading = context?.loading || false;
+  const error = context?.error || null;
 
   // Check if student can create a group
   // For Sem 5: Basic eligibility check
   // For Sem 7: Must be coursework track and no existing group
+  // For Sem 8: Must be Type 1 student (coursework track) and no existing group
   const canCreateGroup = (() => {
     if (userRole !== 'student') return false;
     if (user?.degree !== 'B.Tech' && roleData?.degree !== 'B.Tech') return false;
@@ -30,6 +39,16 @@ export const useGroupManagement = () => {
       // Sem 7: Check if student is in coursework track
       const selectedTrack = sem7Context.trackChoice?.finalizedTrack || sem7Context.trackChoice?.chosenTrack;
       return selectedTrack === 'coursework' && !group;
+    } else if (currentSemester === 8) {
+      // Sem 8: Check if student is Type 1 (auto-enrolled in coursework for Major Project 2)
+      // Wait for Sem8Context to load before checking
+      if (sem8Context?.loading) {
+        return false; // Still loading, can't determine yet
+      }
+      // studentType is in sem8Status object, not directly on context
+      const studentType = sem8Context?.sem8Status?.studentType;
+      const isType1 = studentType === 'type1';
+      return isType1 && !group;
     }
     
     return false;
@@ -45,8 +64,8 @@ export const useGroupManagement = () => {
     ((typeof group.leader === 'object' && group.leader._id === roleData?._id) ||
      (typeof group.leader === 'string' && group.leader === roleData?._id));
 
-  // Check if group is complete (for Sem 5) or finalized (for Sem 7)
-  const isGroupComplete = currentSemester === 7 
+  // Check if group is complete (for Sem 5) or finalized (for Sem 7 and Sem 8)
+  const isGroupComplete = (currentSemester === 7 || currentSemester === 8)
     ? group?.status === 'finalized' 
     : group?.status === 'complete';
 
@@ -202,6 +221,18 @@ export const useGroupManagement = () => {
         // Refresh Sem 7 data
         await sem7Context.fetchSem7Data();
         return response.data;
+      } else if (currentSemester === 8) {
+        // For Sem 8, use studentAPI directly
+        const { studentAPI } = await import('../utils/api');
+        const response = await studentAPI.createGroup(groupData);
+        if (!response.success) {
+          throw new Error(response.message || 'Failed to create group');
+        }
+        // Refresh Sem 8 data
+        if (sem8Context?.fetchSem8Data) {
+          await sem8Context.fetchSem8Data();
+        }
+        return response.data;
       } else {
         // For Sem 5, use context method
         await sem5Context.createGroup(groupData);
@@ -232,6 +263,18 @@ export const useGroupManagement = () => {
         }
         // Refresh Sem 7 data
         await sem7Context.fetchSem7Data();
+        return response.data;
+      } else if (currentSemester === 8) {
+        // For Sem 8, use studentAPI directly
+        const { studentAPI } = await import('../utils/api');
+        const response = await studentAPI.sendGroupInvitations(groupId, { memberIds: studentIds });
+        if (!response.success) {
+          throw new Error(response.message || 'Failed to send invitations');
+        }
+        // Refresh Sem 8 data
+        if (sem8Context?.fetchSem8Data) {
+          await sem8Context.fetchSem8Data();
+        }
         return response.data;
       } else {
         // For Sem 5, use context method
@@ -265,6 +308,10 @@ export const useGroupManagement = () => {
       // This ensures the UI updates right away, not just via WebSocket
       if (currentSemester === 7) {
         await sem7Context.fetchSem7Data();
+      } else if (currentSemester === 8) {
+        if (sem8Context?.fetchSem8Data) {
+          await sem8Context.fetchSem8Data();
+        }
       } else {
         await sem5Context.fetchSem5Data();
       }

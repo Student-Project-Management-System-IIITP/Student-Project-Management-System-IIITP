@@ -82,6 +82,25 @@ const AdminDashboard = () => {
     summerApplications: 0
   });
   
+  // Sem 8 specific state
+  const [sem8Stats, setSem8Stats] = useState({
+    totalStudents: 0,
+    type1Students: 0,
+    type2Students: 0,
+    totalTrackChoices: 0,
+    pendingTrackChoices: 0,
+    approvedTrackChoices: 0,
+    major2TrackChoices: 0,
+    internshipTrackChoices: 0,
+    totalMajorProject2: 0,
+    groupMajorProject2: 0,
+    soloMajorProject2: 0,
+    totalInternship2: 0,
+    total6MonthApplications: 0,
+    pending6MonthApplications: 0,
+    verifiedPass6Month: 0
+  });
+  
   const [loading, setLoading] = useState(true);
 
   const defaultPassword = useMemo(() => computeDefaultPassword(form.name), [form.name]);
@@ -211,6 +230,96 @@ const AdminDashboard = () => {
             approvedApplications: 0,
             sixMonthApplications: 0,
             summerApplications: 0
+          });
+        }
+
+        // Load Sem 8 statistics
+        try {
+          const [
+            studentsResponse,
+            trackChoicesResponse,
+            majorProject2Response,
+            internship2Response,
+            applicationsResponse
+          ] = await Promise.all([
+            adminAPI.getStudentsBySemester({ semester: 8 }),
+            adminAPI.listSem8TrackChoices(),
+            adminAPI.getProjects({ semester: 8, projectType: 'major2' }),
+            adminAPI.getProjects({ semester: 8, projectType: 'internship2' }),
+            adminAPI.listInternshipApplications({ semester: 8 })
+          ]);
+
+          const students = studentsResponse.success ? (studentsResponse.data || []) : [];
+          const trackChoices = trackChoicesResponse.success ? (trackChoicesResponse.data || []) : [];
+          const majorProject2Projects = majorProject2Response.success ? (majorProject2Response.data || []) : [];
+          const internship2Projects = internship2Response.success ? (internship2Response.data || []) : [];
+          const allApplications = applicationsResponse.success ? (applicationsResponse.data || []) : [];
+          const sixMonthApps = allApplications.filter(app => app.type === '6month');
+
+
+          // Calculate student types (matching backend logic)
+          const type1Count = students.filter(s => {
+            const sem7Selection = s.semesterSelections?.find(sel => sel.semester === 7);
+            return sem7Selection?.finalizedTrack === 'internship' && 
+                   sem7Selection?.internshipOutcome === 'verified_pass';
+          }).length;
+          const type2Count = students.filter(s => {
+            const sem7Selection = s.semesterSelections?.find(sel => sel.semester === 7);
+            return sem7Selection?.finalizedTrack === 'coursework';
+          }).length;
+
+          // Calculate track choices (Type 2 only)
+          const major2Choices = trackChoices.filter(tc => {
+            const track = tc.finalizedTrack || tc.chosenTrack;
+            return (track === 'coursework' && tc.studentType === 'type2') || track === 'major2';
+          }).length;
+          const internshipChoices = trackChoices.filter(tc => {
+            const track = tc.finalizedTrack || tc.chosenTrack;
+            return track === 'internship';
+          }).length;
+
+          // Calculate Major Project 2 types
+          const groupMajor2 = majorProject2Projects.filter(p => !!p.group).length;
+          const soloMajor2 = majorProject2Projects.filter(p => !p.group).length;
+
+          const sem8Stats = {
+            totalStudents: students.length,
+            type1Students: type1Count,
+            type2Students: type2Count,
+            totalTrackChoices: trackChoices.length,
+            pendingTrackChoices: trackChoices.filter(tc => !tc.finalizedTrack || tc.verificationStatus === 'pending').length,
+            approvedTrackChoices: trackChoices.filter(tc => tc.verificationStatus === 'approved').length,
+            major2TrackChoices: major2Choices,
+            internshipTrackChoices: internshipChoices,
+            totalMajorProject2: majorProject2Projects.length,
+            groupMajorProject2: groupMajor2,
+            soloMajorProject2: soloMajor2,
+            totalInternship2: internship2Projects.length,
+            total6MonthApplications: sixMonthApps.length,
+            pending6MonthApplications: sixMonthApps.filter(app => ['submitted', 'pending_verification', 'needs_info'].includes(app.status)).length,
+            verifiedPass6Month: sixMonthApps.filter(app => app.status === 'verified_pass').length
+          };
+
+          setSem8Stats(sem8Stats);
+        } catch (sem8Error) {
+          console.warn('Sem 8 data not available:', sem8Error);
+          // Set default Sem 8 stats if not available
+          setSem8Stats({
+            totalStudents: 0,
+            type1Students: 0,
+            type2Students: 0,
+            totalTrackChoices: 0,
+            pendingTrackChoices: 0,
+            approvedTrackChoices: 0,
+            major2TrackChoices: 0,
+            internshipTrackChoices: 0,
+            totalMajorProject2: 0,
+            groupMajorProject2: 0,
+            soloMajorProject2: 0,
+            totalInternship2: 0,
+            total6MonthApplications: 0,
+            pending6MonthApplications: 0,
+            verifiedPass6Month: 0
           });
         }
       } catch (error) {
@@ -575,6 +684,137 @@ const AdminDashboard = () => {
                   <div className="bg-white bg-opacity-20 rounded-lg p-4 hover:bg-opacity-30 transition-all cursor-pointer">
                     <div className="text-2xl font-bold">{sem7Stats.summerApplications}</div>
                     <div className="text-orange-200 text-sm">Summer Internships</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Sem 8 Statistics */}
+      <div className="mb-8">
+        <div className="bg-gradient-to-r from-purple-600 to-purple-800 text-white p-6 rounded-lg shadow-md">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-2xl font-bold mb-4">B.Tech Semester 8 - Comprehensive Management</h2>
+              <p className="text-purple-200 mb-6">Type 1 & Type 2 students, Major Project 2, Internship 2, and 6-month internship management</p>
+            </div>
+            <div className="flex space-x-4 flex-wrap gap-2">
+              <Link
+                to="/admin/sem8/review"
+                className="bg-white bg-opacity-20 hover:bg-opacity-30 px-4 py-2 rounded-md text-white font-medium transition-all duration-200 flex items-center space-x-2"
+              >
+                <span>📋</span>
+                <span>Review & Manage</span>
+              </Link>
+              <Link
+                to="/admin/sem8/track-choices"
+                className="bg-white bg-opacity-20 hover:bg-opacity-30 px-4 py-2 rounded-md text-white font-medium transition-all duration-200 flex items-center space-x-2"
+              >
+                <span>🎯</span>
+                <span>Track Choices</span>
+              </Link>
+            </div>
+          </div>
+          
+          {loading ? (
+            <div className="flex items-center justify-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {/* Student Types Section */}
+              <div>
+                <h3 className="text-lg font-semibold mb-3 text-purple-100">Student Types</h3>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                  <div className="bg-white bg-opacity-20 rounded-lg p-4 hover:bg-opacity-30 transition-all cursor-pointer">
+                    <div className="text-2xl font-bold">{sem8Stats.totalStudents}</div>
+                    <div className="text-purple-200 text-sm">Total Students</div>
+                  </div>
+                  <div className="bg-white bg-opacity-20 rounded-lg p-4 hover:bg-opacity-30 transition-all cursor-pointer">
+                    <div className="text-2xl font-bold">{sem8Stats.type1Students}</div>
+                    <div className="text-purple-200 text-sm">Type 1</div>
+                  </div>
+                  <div className="bg-white bg-opacity-20 rounded-lg p-4 hover:bg-opacity-30 transition-all cursor-pointer">
+                    <div className="text-2xl font-bold">{sem8Stats.type2Students}</div>
+                    <div className="text-purple-200 text-sm">Type 2</div>
+                  </div>
+                </div>
+              </div>
+              
+              {/* Track Choices Section */}
+              <div>
+                <h3 className="text-lg font-semibold mb-3 text-purple-100">Track Choices (Type 2)</h3>
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                  <div className="bg-white bg-opacity-20 rounded-lg p-4 hover:bg-opacity-30 transition-all cursor-pointer">
+                    <div className="text-2xl font-bold">{sem8Stats.totalTrackChoices}</div>
+                    <div className="text-purple-200 text-sm">Total Choices</div>
+                  </div>
+                  <div className="bg-white bg-opacity-20 rounded-lg p-4 hover:bg-opacity-30 transition-all cursor-pointer">
+                    <div className="text-2xl font-bold">{sem8Stats.pendingTrackChoices}</div>
+                    <div className="text-purple-200 text-sm">Pending Review</div>
+                  </div>
+                  <div className="bg-white bg-opacity-20 rounded-lg p-4 hover:bg-opacity-30 transition-all cursor-pointer">
+                    <div className="text-2xl font-bold">{sem8Stats.approvedTrackChoices}</div>
+                    <div className="text-purple-200 text-sm">Approved</div>
+                  </div>
+                  <div className="bg-white bg-opacity-20 rounded-lg p-4 hover:bg-opacity-30 transition-all cursor-pointer">
+                    <div className="text-2xl font-bold">{sem8Stats.major2TrackChoices}</div>
+                    <div className="text-purple-200 text-sm">Major Project 2</div>
+                  </div>
+                  <div className="bg-white bg-opacity-20 rounded-lg p-4 hover:bg-opacity-30 transition-all cursor-pointer">
+                    <div className="text-2xl font-bold">{sem8Stats.internshipTrackChoices}</div>
+                    <div className="text-purple-200 text-sm">6-Month Internship</div>
+                  </div>
+                </div>
+              </div>
+              
+              {/* Major Project 2 Section */}
+              <div>
+                <h3 className="text-lg font-semibold mb-3 text-purple-100">Major Project 2</h3>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                  <div className="bg-white bg-opacity-20 rounded-lg p-4 hover:bg-opacity-30 transition-all cursor-pointer">
+                    <div className="text-2xl font-bold">{sem8Stats.totalMajorProject2}</div>
+                    <div className="text-purple-200 text-sm">Total Projects</div>
+                  </div>
+                  <div className="bg-white bg-opacity-20 rounded-lg p-4 hover:bg-opacity-30 transition-all cursor-pointer">
+                    <div className="text-2xl font-bold">{sem8Stats.groupMajorProject2}</div>
+                    <div className="text-purple-200 text-sm">Group Projects</div>
+                  </div>
+                  <div className="bg-white bg-opacity-20 rounded-lg p-4 hover:bg-opacity-30 transition-all cursor-pointer">
+                    <div className="text-2xl font-bold">{sem8Stats.soloMajorProject2}</div>
+                    <div className="text-purple-200 text-sm">Solo Projects</div>
+                  </div>
+                </div>
+              </div>
+              
+              {/* Internship 2 Section */}
+              <div>
+                <h3 className="text-lg font-semibold mb-3 text-purple-100">Internship 2</h3>
+                <div className="grid grid-cols-1 md:grid-cols-1 gap-4">
+                  <div className="bg-white bg-opacity-20 rounded-lg p-4 hover:bg-opacity-30 transition-all cursor-pointer">
+                    <div className="text-2xl font-bold">{sem8Stats.totalInternship2}</div>
+                    <div className="text-purple-200 text-sm">Total Projects</div>
+                  </div>
+                </div>
+              </div>
+              
+              {/* 6-Month Applications Section */}
+              <div>
+                <h3 className="text-lg font-semibold mb-3 text-purple-100">6-Month Internship Applications (Type 2)</h3>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                  <div className="bg-white bg-opacity-20 rounded-lg p-4 hover:bg-opacity-30 transition-all cursor-pointer">
+                    <div className="text-2xl font-bold">{sem8Stats.total6MonthApplications}</div>
+                    <div className="text-purple-200 text-sm">Total Applications</div>
+                  </div>
+                  <div className="bg-white bg-opacity-20 rounded-lg p-4 hover:bg-opacity-30 transition-all cursor-pointer">
+                    <div className="text-2xl font-bold">{sem8Stats.pending6MonthApplications}</div>
+                    <div className="text-purple-200 text-sm">Pending Review</div>
+                  </div>
+                  <div className="bg-white bg-opacity-20 rounded-lg p-4 hover:bg-opacity-30 transition-all cursor-pointer">
+                    <div className="text-2xl font-bold">{sem8Stats.verifiedPass6Month}</div>
+                    <div className="text-purple-200 text-sm">Verified (Pass)</div>
                   </div>
                 </div>
               </div>

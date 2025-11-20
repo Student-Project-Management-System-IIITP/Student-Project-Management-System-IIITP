@@ -100,19 +100,60 @@ const FacultyDashboard = () => {
             displayName = projectType || 'Unknown';
         }
         
-        if (!acc[projectType]) {
-          acc[projectType] = {
-            displayName,
-            groups: []
-          };
+        // For Major Project 2, create subsections for group and solo
+        if (projectType === 'major2') {
+          // Use a composite key to separate group and solo
+          const subType = group.isMajor2Solo ? 'major2-solo' : 'major2-group';
+          const subDisplayName = group.isMajor2Solo ? 'Solo Major Project 2' : 'Group Major Project 2';
+          
+          if (!acc[subType]) {
+            acc[subType] = {
+              displayName: subDisplayName,
+              projectType: 'major2', // Keep original project type for reference
+              isSubsection: true, // Mark as subsection
+              groups: []
+            };
+          }
+          acc[subType].groups.push(group);
+        } else {
+          // For other project types, use normal grouping
+          if (!acc[projectType]) {
+            acc[projectType] = {
+              displayName,
+              projectType,
+              isSubsection: false,
+              groups: []
+            };
+          }
+          acc[projectType].groups.push(group);
         }
-        acc[projectType].groups.push(group);
         return acc;
       }, {});
       
+      // Group Major Project 2 subsections together
+      const projectTypesArray = Object.values(byProjectType);
+      const major2Subsections = projectTypesArray.filter(pt => pt.projectType === 'major2' && pt.isSubsection);
+      const otherProjectTypes = projectTypesArray.filter(pt => pt.projectType !== 'major2' || !pt.isSubsection);
+      
+      // If we have Major Project 2 subsections, create a parent section
+      if (major2Subsections.length > 0) {
+        const major2Parent = {
+          displayName: 'Major Project 2',
+          projectType: 'major2',
+          isSubsection: false,
+          isParent: true,
+          subsections: major2Subsections,
+          groups: [] // Parent doesn't have direct groups
+        };
+        return {
+          semester,
+          projectTypes: [major2Parent, ...otherProjectTypes]
+        };
+      }
+      
       return {
         semester,
-        projectTypes: Object.values(byProjectType)
+        projectTypes: projectTypesArray
       };
     });
     
@@ -374,25 +415,65 @@ const FacultyDashboard = () => {
                       </h3>
                       
                       <div className="space-y-8">
-                        {semesterData.projectTypes.map((projectType) => (
-                          // Only show project types that have groups
-                          projectType.groups.length > 0 && (
-                            <div key={`${semesterData.semester}-${projectType.displayName}`} className="mb-6">
-                              <h4 className="text-lg font-medium text-gray-800 mb-4 pl-4 border-l-4 border-green-500">
-                                {projectType.displayName}
-                                <span className="ml-2 text-sm text-gray-500">
-                                  ({projectType.groups.length} group{projectType.groups.length !== 1 ? 's' : ''})
-                                </span>
-                              </h4>
-                              
-                              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                                {projectType.groups.map((group) => (
-                                  <GroupCard key={group.id} group={group} isAllocated={true} />
-                                ))}
+                        {semesterData.projectTypes.map((projectType) => {
+                          // Handle Major Project 2 parent with subsections
+                          if (projectType.isParent && projectType.subsections) {
+                            const totalGroups = projectType.subsections.reduce((sum, sub) => sum + sub.groups.length, 0);
+                            return (
+                              <div key={`${semesterData.semester}-${projectType.displayName}`} className="mb-6">
+                                <h4 className="text-lg font-medium text-gray-800 mb-4 pl-4 border-l-4 border-green-500">
+                                  {projectType.displayName}
+                                  <span className="ml-2 text-sm text-gray-500">
+                                    ({totalGroups} {totalGroups === 1 ? 'project' : 'projects'})
+                                  </span>
+                                </h4>
+                                
+                                {/* Render subsections */}
+                                <div className="space-y-6 ml-6">
+                                  {projectType.subsections.map((subsection) => (
+                                    subsection.groups.length > 0 && (
+                                      <div key={`${semesterData.semester}-${subsection.displayName}`} className="mb-4">
+                                        <h5 className="text-md font-medium text-gray-700 mb-3 pl-3 border-l-2 border-green-400">
+                                          {subsection.displayName}
+                                          <span className="ml-2 text-sm text-gray-500">
+                                            ({subsection.groups.length} {subsection.groups.length === 1 ? 'project' : 'projects'})
+                                          </span>
+                                        </h5>
+                                        
+                                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 ml-4">
+                                          {subsection.groups.map((group) => (
+                                            <GroupCard key={group.id} group={group} isAllocated={true} />
+                                          ))}
+                                        </div>
+                                      </div>
+                                    )
+                                  ))}
+                                </div>
                               </div>
-                            </div>
-                          )
-                        ))}
+                            );
+                          }
+                          
+                          // Regular project type rendering
+                          return (
+                            // Only show project types that have groups
+                            projectType.groups.length > 0 && (
+                              <div key={`${semesterData.semester}-${projectType.displayName}`} className="mb-6">
+                                <h4 className="text-lg font-medium text-gray-800 mb-4 pl-4 border-l-4 border-green-500">
+                                  {projectType.displayName}
+                                  <span className="ml-2 text-sm text-gray-500">
+                                    ({projectType.groups.length} group{projectType.groups.length !== 1 ? 's' : ''})
+                                  </span>
+                                </h4>
+                                
+                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                                  {projectType.groups.map((group) => (
+                                    <GroupCard key={group.id} group={group} isAllocated={true} />
+                                  ))}
+                                </div>
+                              </div>
+                            )
+                          );
+                        })}
                       </div>
                     </div>
                   )
@@ -432,25 +513,65 @@ const FacultyDashboard = () => {
                       </h3>
                       
                       <div className="space-y-8">
-                        {semesterData.projectTypes.map((projectType) => (
-                          // Only show project types that have groups
-                          projectType.groups.length > 0 && (
-                            <div key={`${semesterData.semester}-${projectType.displayName}`} className="mb-6">
-                              <h4 className="text-lg font-medium text-gray-800 mb-4 pl-4 border-l-4 border-blue-500">
-                                {projectType.displayName}
-                                <span className="ml-2 text-sm text-gray-500">
-                                  ({projectType.groups.length} group{projectType.groups.length !== 1 ? 's' : ''})
-                                </span>
-                              </h4>
-                              
-                              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                                {projectType.groups.map((group) => (
-                                  <GroupCard key={group.id} group={group} />
-                                ))}
+                        {semesterData.projectTypes.map((projectType) => {
+                          // Handle Major Project 2 parent with subsections
+                          if (projectType.isParent && projectType.subsections) {
+                            const totalGroups = projectType.subsections.reduce((sum, sub) => sum + sub.groups.length, 0);
+                            return (
+                              <div key={`${semesterData.semester}-${projectType.displayName}`} className="mb-6">
+                                <h4 className="text-lg font-medium text-gray-800 mb-4 pl-4 border-l-4 border-blue-500">
+                                  {projectType.displayName}
+                                  <span className="ml-2 text-sm text-gray-500">
+                                    ({totalGroups} {totalGroups === 1 ? 'project' : 'projects'})
+                                  </span>
+                                </h4>
+                                
+                                {/* Render subsections */}
+                                <div className="space-y-6 ml-6">
+                                  {projectType.subsections.map((subsection) => (
+                                    subsection.groups.length > 0 && (
+                                      <div key={`${semesterData.semester}-${subsection.displayName}`} className="mb-4">
+                                        <h5 className="text-md font-medium text-gray-700 mb-3 pl-3 border-l-2 border-blue-400">
+                                          {subsection.displayName}
+                                          <span className="ml-2 text-sm text-gray-500">
+                                            ({subsection.groups.length} {subsection.groups.length === 1 ? 'project' : 'projects'})
+                                          </span>
+                                        </h5>
+                                        
+                                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 ml-4">
+                                          {subsection.groups.map((group) => (
+                                            <GroupCard key={group.id} group={group} />
+                                          ))}
+                                        </div>
+                                      </div>
+                                    )
+                                  ))}
+                                </div>
                               </div>
-                            </div>
-                          )
-                        ))}
+                            );
+                          }
+                          
+                          // Regular project type rendering
+                          return (
+                            // Only show project types that have groups
+                            projectType.groups.length > 0 && (
+                              <div key={`${semesterData.semester}-${projectType.displayName}`} className="mb-6">
+                                <h4 className="text-lg font-medium text-gray-800 mb-4 pl-4 border-l-4 border-blue-500">
+                                  {projectType.displayName}
+                                  <span className="ml-2 text-sm text-gray-500">
+                                    ({projectType.groups.length} group{projectType.groups.length !== 1 ? 's' : ''})
+                                  </span>
+                                </h4>
+                                
+                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                                  {projectType.groups.map((group) => (
+                                    <GroupCard key={group.id} group={group} />
+                                  ))}
+                                </div>
+                              </div>
+                            )
+                          );
+                        })}
                       </div>
                     </div>
                   )

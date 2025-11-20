@@ -45,9 +45,21 @@ const apiRequest = async (endpoint, options = {}) => {
 
   try {
     const response = await fetch(url, config);
+    // Don't log 404 errors for system config endpoints (expected when configs aren't initialized)
+    const isSystemConfig404 = endpoint.includes('/system-config/') && response.status === 404;
+    if (isSystemConfig404) {
+      // For system config 404s, return a structured error response instead of throwing
+      const errorData = await response.json().catch(() => ({ message: 'Configuration not found' }));
+      throw new Error(errorData.message || 'Configuration not found');
+    }
     return await handleApiResponse(response);
   } catch (error) {
-    console.error('API Request Error:', error);
+    // Don't log 404 errors for system config endpoints (expected when configs aren't initialized)
+    const isSystemConfig404 = endpoint.includes('/system-config/') && 
+                              (error.message?.includes('404') || error.message?.includes('not found'));
+    if (!isSystemConfig404) {
+      console.error('API Request Error:', error);
+    }
     throw error;
   }
 };
@@ -141,8 +153,24 @@ export const studentAPI = {
   // Sem 5 Project Registration
   registerMinorProject2: (projectData) => api.post('/student/projects/minor2/register', projectData),
   
-  // System Config
-  getSystemConfig: (key) => api.get(`/student/system-config/${key}`),
+  // System Config (handles 404 gracefully for missing configs)
+  getSystemConfig: async (key) => {
+    try {
+      return await api.get(`/student/system-config/${key}`);
+    } catch (error) {
+      // Return a structured response for 404s instead of throwing
+      // This allows components to handle missing configs gracefully
+      if (error.message && (error.message.includes('404') || error.message.includes('not found'))) {
+        return {
+          success: false,
+          data: null,
+          message: 'Configuration not found'
+        };
+      }
+      // Re-throw other errors
+      throw error;
+    }
+  },
   
   // Sem 5 Group Management
   createGroup: (groupData) => api.post('/student/groups', groupData),
@@ -203,12 +231,31 @@ export const studentAPI = {
   // Internship 1 status and registration
   checkInternship1Status: () => api.get('/student/projects/internship1/status'),
   registerInternship1: (projectData) => api.post('/student/projects/internship1/register', projectData),
+  
+  // Sem 8 specific methods
+  // Track selection
+  setSem8Choice: (choice) => api.post('/sem8/choice', { chosenTrack: choice }),
+  getSem8Choice: () => api.get('/sem8/choice'),
+  
+  // Major Project 2 registration
+  registerMajorProject2: (projectData) => api.post('/student/projects/major2/register', projectData),
+  
+  // Internship 2 status and registration
+  checkInternship2Status: () => api.get('/student/projects/internship2/status'),
+  registerInternship2: (projectData) => api.post('/student/projects/internship2/register', projectData),
 };
 
 // Sem 7 API - Track selection and internship applications
 export const sem7API = {
   setChoice: (choice) => api.post('/sem7/choice', { chosenTrack: choice }),
   getChoice: () => api.get('/sem7/choice'),
+};
+
+// Sem 8 API - Track selection and status
+export const sem8API = {
+  getStatus: () => api.get('/sem8/status'),
+  setChoice: (choice) => api.post('/sem8/choice', { chosenTrack: choice }),
+  getChoice: () => api.get('/sem8/choice'),
 };
 
 // Internship API - Application management
@@ -412,6 +459,13 @@ export const adminAPI = {
   finalizeSem7Track: (studentId, data) => api.patch(`/admin/sem7/finalize/${studentId}`, data),
   listInternship1TrackChoices: () => api.get('/admin/sem7/internship1-track-choices'),
   changeInternship1Track: (studentId, data) => api.patch(`/admin/sem7/internship1-track/${studentId}`, data),
+  
+  // Sem 8 specific methods
+  listSem8TrackChoices: (params = {}) => {
+    const queryString = new URLSearchParams(params).toString();
+    return api.get(`/admin/sem8/track-choices${queryString ? '?' + queryString : ''}`);
+  },
+  finalizeSem8Track: (studentId, data) => api.patch(`/admin/sem8/finalize/${studentId}`, data),
   listInternshipApplications: (params = {}) => {
     const queryString = new URLSearchParams(params).toString();
     // Backend route is under /internships/applications (admin protected)
