@@ -114,6 +114,57 @@ const projectSchema = new mongoose.Schema({
   },
   endDate: Date,
   submissionDeadline: Date,
+  nextMeeting: {
+    scheduledAt: Date,
+    location: {
+      type: String,
+      trim: true,
+      maxlength: 200
+    },
+    notes: {
+      type: String,
+      trim: true,
+      maxlength: 500
+    },
+    createdBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Faculty'
+    },
+    createdAt: {
+      type: Date,
+      default: Date.now
+    }
+  },
+  meetingHistory: [{
+    scheduledAt: Date,
+    location: {
+      type: String,
+      trim: true,
+      maxlength: 200
+    },
+    agenda: {
+      type: String,
+      trim: true,
+      maxlength: 500
+    },
+    notes: {
+      type: String,
+      trim: true,
+      maxlength: 1000
+    },
+    createdBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Faculty'
+    },
+    createdAt: {
+      type: Date,
+      default: Date.now
+    },
+    completedAt: {
+      type: Date,
+      default: Date.now
+    }
+  }],
   
   // Deliverables
   deliverables: [{

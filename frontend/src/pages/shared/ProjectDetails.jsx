@@ -63,8 +63,8 @@ const ProjectDetails = () => {
   const { projectId } = useParams();
   const navigate = useNavigate();
   const { user, userRole, roleData, token } = useAuth();
-  const messagesEndRef = useRef(null);
   const socketRef = useRef(null);
+  const chatContainerRef = useRef(null);
   
   const [project, setProject] = useState(null);
   const [messages, setMessages] = useState([]);
@@ -83,6 +83,8 @@ const ProjectDetails = () => {
   const [searchResults, setSearchResults] = useState([]);
   const [isSearching, setIsSearching] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(null);
+  const [showMessageEmojiPicker, setShowMessageEmojiPicker] = useState(false);
+  const [showMessageMenu, setShowMessageMenu] = useState(null);
   const [showSearch, setShowSearch] = useState(false);
   
   // File upload state
@@ -93,9 +95,27 @@ const ProjectDetails = () => {
   const [previewFile, setPreviewFile] = useState(null);
   const [showPreview, setShowPreview] = useState(false);
 
+  const [showMeetingModal, setShowMeetingModal] = useState(false);
+  const [meetingDate, setMeetingDate] = useState('');
+  const [meetingTime, setMeetingTime] = useState('');
+  const [meetingLocation, setMeetingLocation] = useState('');
+  const [meetingNotes, setMeetingNotes] = useState('');
+  const [isScheduling, setIsScheduling] = useState(false);
+
+  const [meetingSummary, setMeetingSummary] = useState('');
+  const [isSavingSummary, setIsSavingSummary] = useState(false);
+
+  const [hasMoreMessages, setHasMoreMessages] = useState(false);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+
   // Scroll to bottom of messages
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  const scrollToBottom = (behavior = 'smooth') => {
+    if (chatContainerRef.current) {
+      chatContainerRef.current.scrollTo({
+        top: chatContainerRef.current.scrollHeight,
+        behavior,
+      });
+    }
   };
 
   // Load project details
@@ -243,7 +263,7 @@ const ProjectDetails = () => {
       console.log('📨 New message received:', data);
       if (data.projectId === actualProjectId) {
         setMessages(prev => [...prev, data.message]);
-        setTimeout(scrollToBottom, 100);
+        setTimeout(() => scrollToBottom('smooth'), 100);
       }
     });
 
@@ -308,10 +328,15 @@ const ProjectDetails = () => {
   // Load initial messages
   useEffect(() => {
     const loadMessages = async () => {
+      if (!actualProjectId) return;
       try {
-        const response = await projectAPI.getProjectMessages(actualProjectId);
-        setMessages(response.data);
-        setTimeout(scrollToBottom, 100);
+        const PAGE_SIZE = 30;
+        const response = await projectAPI.getProjectMessages(actualProjectId, PAGE_SIZE);
+        const payload = response?.data || {};
+        const initialMessages = payload.messages || [];
+        setMessages(initialMessages);
+        setHasMoreMessages(!!payload.hasMore);
+        setTimeout(() => scrollToBottom('auto'), 100);
       } catch (error) {
         console.error('Error loading messages:', error);
       }
@@ -321,6 +346,28 @@ const ProjectDetails = () => {
       loadMessages();
     }
   }, [actualProjectId, project]);
+
+  const handleLoadOlderMessages = async () => {
+    if (!actualProjectId || !hasMoreMessages || isLoadingMore || messages.length === 0) return;
+    setIsLoadingMore(true);
+    try {
+      const PAGE_SIZE = 30;
+      const oldestMessage = messages[0];
+      const before = oldestMessage.createdAt;
+      const response = await projectAPI.getProjectMessages(actualProjectId, PAGE_SIZE, before);
+      const payload = response?.data || {};
+      const olderMessages = payload.messages || [];
+      if (olderMessages.length > 0) {
+        setMessages(prev => [...olderMessages, ...prev]);
+      }
+      setHasMoreMessages(!!payload.hasMore);
+    } catch (error) {
+      console.error('Error loading older messages:', error);
+      toast.error('Failed to load older messages');
+    } finally {
+      setIsLoadingMore(false);
+    }
+  };
 
   // Handle typing indicator
   const handleTyping = (e) => {
@@ -451,6 +498,23 @@ const ProjectDetails = () => {
     setEditingText('');
   };
 
+  // Add emoji to message input
+  const addEmojiToMessage = (emoji) => {
+    setNewMessage(prev => prev + emoji);
+    setShowMessageEmojiPicker(false);
+  };
+
+  // Copy message to clipboard
+  const copyToClipboard = (text) => {
+    navigator.clipboard.writeText(text).then(() => {
+      toast.success('Message copied to clipboard');
+    }).catch(err => {
+      console.error('Failed to copy text: ', err);
+      toast.error('Failed to copy message');
+    });
+    setShowMessageMenu(null);
+  };
+
   // Add reaction
   const handleAddReaction = async (messageId, emoji) => {
     try {
@@ -551,6 +615,75 @@ const ProjectDetails = () => {
     }
   };
 
+  // Format time
+  const formatTime = (dateString) => {
+    const date = new Date(dateString);
+    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  };
+
+  // Format date for date separator
+  const formatDate = (dateString) => {
+    const date = new Date(dateString);
+    const today = new Date();
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+    
+    if (date.toDateString() === today.toDateString()) {
+      return 'Today';
+    } else if (date.toDateString() === yesterday.toDateString()) {
+      return 'Yesterday';
+    } else {
+      return date.toLocaleDateString('en-US', { 
+        weekday: 'long', 
+        year: 'numeric', 
+        month: 'long', 
+        day: 'numeric' 
+      });
+    }
+  };
+
+  const formatMeetingDateTime = (dateString) => {
+    if (!dateString) return '';
+    const date = new Date(dateString);
+    return date.toLocaleString('en-IN', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+
+  // Group messages by date
+  const groupMessagesByDate = (messages) => {
+    if (!messages || messages.length === 0) return [];
+    
+    const grouped = [];
+    let currentDate = null;
+    
+    messages.forEach((message, index) => {
+      const messageDate = new Date(message.createdAt).toDateString();
+      
+      // Add date separator if this is the first message or date has changed
+      if (currentDate !== messageDate) {
+        currentDate = messageDate;
+        grouped.push({
+          _id: `date-${message._id}`,
+          type: 'date',
+          date: message.createdAt
+        });
+      }
+      
+      // Add the actual message
+      grouped.push(message);
+    });
+    
+    return grouped;
+  };
+
+  // Get grouped messages
+  const groupedMessages = groupMessagesByDate(messages);
+  
   // Get file icon based on type
   const getFileIcon = (mimeType) => {
     if (mimeType.startsWith('image/')) return '🖼️';
@@ -618,6 +751,77 @@ const ProjectDetails = () => {
     setShowPreview(false);
   };
 
+  const openMeetingModal = () => {
+    if (project?.nextMeeting?.scheduledAt) {
+      const dateObj = new Date(project.nextMeeting.scheduledAt);
+      setMeetingDate(dateObj.toISOString().slice(0, 10));
+      setMeetingTime(dateObj.toISOString().slice(11, 16));
+      setMeetingLocation(project.nextMeeting.location || '');
+      setMeetingNotes(project.nextMeeting.notes || '');
+    } else {
+      setMeetingDate('');
+      setMeetingTime('');
+      setMeetingLocation('');
+      setMeetingNotes('');
+    }
+    setShowMeetingModal(true);
+  };
+
+  const handleScheduleMeeting = async (e) => {
+    e.preventDefault();
+    if (!meetingDate || !meetingTime) {
+      toast.error('Please select date and time');
+      return;
+    }
+    if (!actualProjectId) return;
+    setIsScheduling(true);
+    try {
+      const scheduledAt = new Date(`${meetingDate}T${meetingTime}:00`);
+      const response = await projectAPI.scheduleMeeting(actualProjectId, {
+        scheduledAt,
+        location: meetingLocation,
+        notes: meetingNotes
+      });
+      setProject(prev => prev ? { ...prev, nextMeeting: response.data } : prev);
+      toast.success('Meeting scheduled');
+      setShowMeetingModal(false);
+    } catch (error) {
+      console.error('Error scheduling meeting:', error);
+      toast.error(error.message || 'Failed to schedule meeting');
+    } finally {
+      setIsScheduling(false);
+    }
+  };
+
+  const handleSaveMeetingNotes = async () => {
+    if (!actualProjectId || !project?.nextMeeting) return;
+    if (!meetingSummary.trim()) {
+      toast.error('Please write some notes before saving');
+      return;
+    }
+
+    setIsSavingSummary(true);
+    try {
+      const response = await projectAPI.completeMeeting(actualProjectId, {
+        notes: meetingSummary
+      });
+      const payload = response?.data || {};
+      setProject(prev => prev ? {
+        ...prev,
+        nextMeeting: payload.nextMeeting || null,
+        meetingHistory: payload.meetingHistory || prev.meetingHistory || []
+      } : prev);
+      setMeetingSummary('');
+      toast.success('Meeting notes saved to history');
+    } catch (error) {
+      console.error('Error saving meeting notes:', error);
+      const message = error.response?.data?.message || error.message || 'Failed to save meeting notes';
+      toast.error(message);
+    } finally {
+      setIsSavingSummary(false);
+    }
+  };
+
   // Download file with authentication
   const handleDownloadFile = async (filename, originalName) => {
     try {
@@ -682,6 +886,7 @@ const ProjectDetails = () => {
   }
 
   const isFaculty = userType === 'faculty';
+  const isStudent = userType === 'student';
 
   return (
     <Layout>
@@ -813,8 +1018,20 @@ const ProjectDetails = () => {
                 )}
 
                 {/* Messages */}
-                <div className="flex-1 overflow-y-auto p-4 space-y-4">
-                  {messages.length === 0 ? (
+                <div ref={chatContainerRef} className="flex-1 overflow-y-auto p-4 space-y-4">
+                  {hasMoreMessages && groupedMessages.length > 0 && (
+                    <div className="flex justify-center">
+                      <button
+                        onClick={handleLoadOlderMessages}
+                        disabled={isLoadingMore}
+                        className="px-3 py-1 text-xs rounded-full border border-gray-300 text-gray-600 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {isLoadingMore ? 'Loading...' : 'Load earlier messages'}
+                      </button>
+                    </div>
+                  )}
+
+                  {groupedMessages.length === 0 ? (
                     <div className="text-center text-gray-500 mt-10">
                       <svg className="w-16 h-16 mx-auto mb-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
@@ -822,7 +1039,20 @@ const ProjectDetails = () => {
                       <p>No messages yet. Start the conversation!</p>
                     </div>
                   ) : (
-                    (searchQuery ? searchResults : messages).map((message) => {
+                    groupedMessages.map((message) => {
+                      // Skip if this is a date separator (handled below)
+                      if (message.type === 'date') {
+                        return (
+                          <div key={message._id} className="flex items-center my-4">
+                            <div className="flex-1 border-t border-gray-200"></div>
+                            <div className="px-3 text-sm text-gray-500 font-medium">
+                              {formatDate(message.date)}
+                            </div>
+                            <div className="flex-1 border-t border-gray-200"></div>
+                          </div>
+                        );
+                      }
+                      
                       // Check if message is from current user
                       const currentUserId = user?.id || user?._id;
                       const messageSenderId = message.sender?._id || message.sender;
@@ -852,7 +1082,7 @@ const ProjectDetails = () => {
                                   {message.senderName}
                                 </span>
                                 <span className={`text-xs ${isOwnMessage ? 'text-indigo-200' : 'text-gray-400'} ml-2`}>
-                                  {formatTimestamp(message.createdAt)}
+                                  {formatTime(message.createdAt)}
                                 </span>
                               </div>
 
@@ -1002,10 +1232,64 @@ const ProjectDetails = () => {
                             {/* Message Actions (shown on hover) */}
                             {!isEditing && (
                               <div className={`flex items-center gap-1 mt-1 opacity-0 group-hover:opacity-100 transition-opacity ${isOwnMessage ? 'justify-end' : 'justify-start'}`}>
-                                {/* Emoji Reaction Button */}
+                                {/* Message Menu Button */}
                                 <div className="relative">
                                   <button
-                                    onClick={() => setShowEmojiPicker(showEmojiPicker === message._id ? null : message._id)}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setShowMessageMenu(showMessageMenu === message._id ? null : message._id);
+                                    }}
+                                    className="p-1 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded transition-colors"
+                                    title="Message options"
+                                  >
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 12h.01M12 12h.01M19 12h.01M6 12a1 1 0 11-2 0 1 1 0 012 0zm7 0a1 1 0 11-2 0 1 1 0 012 0zm7 0a1 1 0 11-2 0 1 1 0 012 0z" />
+                                    </svg>
+                                  </button>
+                                  
+                                  {/* Message Menu Dropdown */}
+                                  {showMessageMenu === message._id && (
+                                    <div
+                                      className={`absolute ${isOwnMessage ? 'right-0' : 'left-0'} bottom-full mb-1 bg-white border border-gray-200 rounded-lg shadow-lg py-1 z-20 w-40`}
+                                      onClick={(e) => e.stopPropagation()}
+                                    >
+                                      <div className="flex flex-col">
+                                        <button
+                                          onClick={() => { copyToClipboard(message.message); setShowMessageMenu(null); }}
+                                          className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+                                        >
+                                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
+                                          Copy
+                                        </button>
+                                        {canEdit && (
+                                          <button
+                                            onClick={() => { startEditing(message); setShowMessageMenu(null); }}
+                                            className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+                                          >
+                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.5L15.232 5.232z" /></svg>
+                                            Edit
+                                          </button>
+                                        )}
+                                        {canDelete && (
+                                          <button
+                                            onClick={() => { handleDeleteMessage(message._id); setShowMessageMenu(null); }}
+                                            className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
+                                          >
+                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                            Delete
+                                          </button>
+                                        )}
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                                {/* Emoji Reaction Button - Positioned based on message alignment */}
+                                <div className={`relative ${isOwnMessage ? 'order-first' : 'order-last'}`}>
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setShowEmojiPicker(showEmojiPicker === message._id ? null : message._id);
+                                    }}
                                     className="p-1 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded transition-colors"
                                     title="Add reaction"
                                   >
@@ -1014,9 +1298,14 @@ const ProjectDetails = () => {
                                     </svg>
                                   </button>
                                   
-                                  {/* Emoji Picker */}
+                                  {/* Emoji Picker - Position based on message alignment */}
                                   {showEmojiPicker === message._id && (
-                                    <div className="absolute bottom-full mb-2 left-0 bg-white border border-gray-200 rounded-lg shadow-lg p-1.5 z-10">
+                                    <div 
+                                      className={`absolute ${
+                                        isOwnMessage ? 'right-0' : 'left-0'
+                                      } bottom-full mb-2 bg-white border border-gray-200 rounded-lg shadow-lg p-1.5 z-10`}
+                                      onClick={(e) => e.stopPropagation()}
+                                    >
                                       <div className="flex gap-0.5">
                                         {['👍', '❤️', '😊', '😂', '🎉', '🔥', '👏', '✅', '💯', '🚀'].map(emoji => (
                                           <button
@@ -1052,7 +1341,6 @@ const ProjectDetails = () => {
                       );
                     })
                   )}
-                  <div ref={messagesEndRef} />
                 </div>
 
                 {/* Message Input */}
@@ -1117,15 +1405,54 @@ const ProjectDetails = () => {
                       </svg>
                     </button>
                     
-                    {/* Message Input */}
-                    <input
-                      type="text"
-                      value={newMessage}
-                      onChange={handleTyping}
-                      placeholder={!project.faculty && project.status === 'registered' && !isFaculty ? "Waiting for faculty allocation..." : "Type your message..."}
-                      className="flex-1 border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
-                      disabled={isSending || (!project.faculty && project.status === 'registered' && !isFaculty)}
-                    />
+
+                    <div className="relative flex-1">
+                      {/* Message Input */}
+                      <input
+                        type="text"
+                        value={newMessage}
+                        onChange={handleTyping}
+                        placeholder={
+                          !project.faculty && project.status === 'registered' && !isFaculty
+                            ? 'Waiting for faculty allocation...'
+                            : 'Type your message...'
+                        }
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
+                        disabled={isSending || (!project.faculty && project.status === 'registered' && !isFaculty)}
+                      />
+                      
+                      {/* Emoji Picker Button */}
+                      <button
+                        type="button"
+                        onClick={() => setShowMessageEmojiPicker(!showMessageEmojiPicker)}
+                        className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-indigo-600 p-1 disabled:text-gray-300"
+                        title="Add emoji"
+                        disabled={isSending || (!project.faculty && project.status === 'registered' && !isFaculty)}
+                      >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                      </button>
+                      
+                      {/* Emoji Picker */}
+                      {showMessageEmojiPicker && (
+                        <div className="absolute right-0 bottom-full mb-2 bg-white border border-gray-200 rounded-lg shadow-lg p-1.5 z-10">
+                          <div className="flex flex-wrap gap-1 w-48 max-h-40 overflow-y-auto">
+                            {['😀', '😃', '😄', '😁', '😆', '😅', '😂', '🤣', '😊', '😇', '🙂', '🙃', '😉', '😌', '😍', '🥰', '😘', '😗', '😙', '😚', '😋', '😛', '😝', '😜', '🤪', '🤨', '🧐', '🤓', '😎', '🤩', '🥳', '😏', '😒', '😞', '😔', '😟', '😕', '🙁', '😣', '😖', '😫', '😩', '🥺', '😢', '😭', '😤', '😠', '😡', '🤬', '🤯', '😳', '🥵', '🥶', '😱', '😨', '😰', '😥', '😓', '🤗', '🤔', '🤭', '🤫', '🤥', '😶', '😐', '😑', '😬', '🙄', '😯', '😦', '😧', '😮', '😲', '😴', '🤤', '😪', '😵', '🤐', '🥴', '🤢', '🤮', '🤧', '😷', '🤒', '🤕', '🤑', '🤠', '😈', '👿', '👹', '👺', '🤡', '💩', '👻', '💀', '☠️', '👽', '👾', '🤖', '🎃', '😺', '😸', '😹', '😻', '😼', '😽', '🙀', '😿', '😾', '👋', '🤚', '🖐', '✋', '🖖', '👌', '🤏', '✌️', '🤞', '🤟', '🤘', '🤙', '👈', '👉', '👆', '🖕', '👇', '☝️', '👍', '👎', '✊', '👊', '🤛', '🤜', '👏', '🙌', '👐', '🤲', '🤝', '🙏', '✍️', '💅', '🤳', '💪', '🦾', '🦵', '🦿', '🦶', '👂', '🦻', '👃', '🧠', '🦷', '🦴', '👀', '👁️', '👅', '👄'].map(emoji => (
+                              <button
+                                key={emoji}
+                                onClick={() => addEmojiToMessage(emoji)}
+                                className="text-xl hover:bg-gray-100 rounded p-1 transition-colors w-7 h-7 flex items-center justify-center"
+                                title={emoji}
+                              >
+                                {emoji}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
                     
                     {/* Send Button */}
                     <button
@@ -1210,6 +1537,90 @@ const ProjectDetails = () => {
                 </div>
               )}
 
+              {/* Next Meeting */}
+              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mt-6">
+                <div className="flex items-center mb-4">
+                  <div className="w-9 h-9 rounded-full bg-indigo-50 flex items-center justify-center mr-3">
+                    <svg className="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V5a1 1 0 011-1h6a1 1 0 011 1v2m-9 0h10M5 11h14v7a2 2 0 01-2 2H7a2 2 0 01-2-2v-7z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <h2 className="text-lg font-semibold text-gray-900 leading-tight">Next Meeting</h2>
+                    {!isFaculty && (
+                      <p className="text-xs text-gray-500">Details of your next discussion with supervisor.</p>
+                    )}
+                  </div>
+                </div>
+
+                {project.nextMeeting ? (
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">Scheduled for</span>
+                      <span className="font-medium text-gray-900 text-right">
+                        {formatMeetingDateTime(project.nextMeeting.scheduledAt)}
+                      </span>
+                    </div>
+                    {project.nextMeeting.location && (
+                      <div className="flex justify-between">
+                        <span className="text-gray-500">Location</span>
+                        <span className="text-gray-900 text-right">{project.nextMeeting.location}</span>
+                      </div>
+                    )}
+                    {project.nextMeeting.notes && (
+                      <div>
+                        <p className="text-gray-500">Notes</p>
+                        <p className="text-gray-900 whitespace-pre-wrap break-words text-sm mt-1">{project.nextMeeting.notes}</p>
+                      </div>
+                    )}
+                    {!isFaculty && (
+                      <p className="text-xs text-gray-400 mt-1">If you need to change this timing, contact your supervisor.</p>
+                    )}
+                  </div>
+                ) : (
+                  <div className="text-sm text-gray-500">
+                    {isFaculty ? (
+                      <p>No meeting scheduled yet. Use the button below to plan the next discussion.</p>
+                    ) : (
+                      <p>Your supervisor has not scheduled the next meeting yet. Once it is planned, date and time will appear here.</p>
+                    )}
+                  </div>
+                )}
+
+                {/* Post-meeting notes for faculty when meeting time is over */}
+                {isFaculty && project.nextMeeting && project.nextMeeting.scheduledAt &&
+                  new Date(project.nextMeeting.scheduledAt) < new Date() && (
+                  <div className="mt-4 border-t border-gray-200 pt-4">
+                    <p className="text-sm font-medium text-gray-900 mb-2">Add meeting notes</p>
+                    <textarea
+                      value={meetingSummary}
+                      onChange={(e) => setMeetingSummary(e.target.value)}
+                      className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                      rows="3"
+                      placeholder="Summary of discussion, key points, action items..."
+                    />
+                    <div className="flex justify-end mt-2">
+                      <button
+                        onClick={handleSaveMeetingNotes}
+                        disabled={isSavingSummary || !meetingSummary.trim()}
+                        className="px-3 py-1.5 text-sm font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
+                      >
+                        {isSavingSummary ? 'Saving...' : 'Save notes to history'}
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {isFaculty && (
+                  <button
+                    onClick={openMeetingModal}
+                    className="mt-4 w-full inline-flex justify-center items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                  >
+                    {project.nextMeeting ? 'Reschedule Meeting' : 'Schedule Meeting'}
+                  </button>
+                )}
+              </div>
+
               {/* Group Members */}
               {project.group && project.group.members && (
                 <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mt-6">
@@ -1245,6 +1656,248 @@ const ProjectDetails = () => {
           </div>
         </div>
       </div>
+
+      {/* Meeting History */}
+      {project?.meetingHistory && project.meetingHistory.length > 0 && (
+        <div className="mt-8 px-4">
+          <h2 className="text-xl font-semibold text-gray-900 mb-4">Meeting History</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {project.meetingHistory
+              .slice()
+              .sort((a, b) => new Date(b.scheduledAt) - new Date(a.scheduledAt))
+              .map((meeting) => (
+                <div key={meeting._id} className="bg-white rounded-lg shadow-sm border border-gray-200 p-5">
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="flex items-center">
+                      <div className="w-9 h-9 rounded-full bg-green-50 flex items-center justify-center mr-3">
+                        <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold text-gray-900">
+                          {formatMeetingDateTime(meeting.scheduledAt)}
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          {meeting.location || 'No location specified'}
+                        </p>
+                      </div>
+                    </div>
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                      Completed
+                    </span>
+                  </div>
+
+                  {(meeting.agenda || meeting.notes) && <div className="border-t border-gray-200 my-3"></div>}
+
+                  {meeting.agenda && (
+                    <div className="mb-3">
+                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Agenda</p>
+                      <p className="text-sm text-gray-800 whitespace-pre-wrap break-words">{meeting.agenda}</p>
+                    </div>
+                  )}
+                  {meeting.notes && (
+                    <div>
+                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Notes & Action Items</p>
+                      <p className="text-sm text-gray-800 whitespace-pre-wrap break-words">{meeting.notes}</p>
+                    </div>
+                  )}
+                </div>
+              ))}
+          </div>
+        </div>
+      )}
+
+      {/* Deliverables Section */}
+      {project && (
+        <div className="mt-8 px-4">
+          <h2 className="text-xl font-semibold text-gray-900 mb-4">Project Deliverables</h2>
+          {(() => {
+            const isGroupProject = project.group && project.group.members && project.group.members.length > 1;
+            const requiredDeliverables = isGroupProject
+              ? [
+                  { key: 'mid', label: 'Mid-Sem Presentation (PDF/PPT)' },
+                  { key: 'end', label: 'End-Sem Presentation (PDF/PPT)' },
+                  { key: 'report', label: 'Project Report (PDF)' },
+                ]
+              : [
+                  { key: 'end', label: 'End-Sem Presentation (PDF/PPT)' },
+                  { key: 'report', label: 'Project Report (PDF)' },
+                ];
+
+            const deliverablesByName = (project.deliverables || []).reduce((acc, d) => {
+              acc[d.name] = d;
+              return acc;
+            }, {});
+
+            const nameMap = {
+              mid: 'Mid Sem Presentation',
+              end: 'End Sem Presentation',
+              report: 'Project Report',
+            };
+
+            const handleFileUpload = async (deliverableType, event) => {
+              const file = event.target.files[0];
+              if (!file) return;
+
+              const toastId = toast.loading('Uploading file...');
+              try {
+                await projectAPI.uploadDeliverable(actualProjectId, deliverableType, file);
+                const response = await projectAPI.getProjectDetails(actualProjectId);
+                setProject(response.data.project);
+                toast.success('File uploaded successfully!', { id: toastId });
+              } catch (error) {
+                console.error('Error uploading file:', error);
+                toast.error(error.message || 'Failed to upload file.', { id: toastId });
+              }
+            };
+
+            const DeliverableIcon = ({ type }) => {
+              if (type === 'presentation') {
+                return (
+                  <svg className="w-6 h-6 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                );
+              }
+              return (
+                <svg className="w-6 h-6 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+              );
+            };
+
+            return (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {requiredDeliverables.map((d) => {
+                  const deliverableName = nameMap[d.key];
+                  const existing = deliverablesByName[deliverableName];
+
+                  return (
+                    <div key={d.key} className="bg-white rounded-lg shadow-sm border border-gray-200 p-5 flex flex-col">
+                      <div className="flex items-start mb-3">
+                        <div className="w-10 h-10 rounded-full bg-indigo-50 flex items-center justify-center mr-4 flex-shrink-0">
+                          <DeliverableIcon type={d.icon} />
+                        </div>
+                        <div>
+                          <p className="font-semibold text-gray-900">{d.label}</p>
+                          <p className="text-xs text-gray-500">{d.icon === 'report' ? 'PDF format' : 'PDF or PPT format'}</p>
+                        </div>
+                      </div>
+                      
+                      <div className="mt-auto">
+                        {existing ? (
+                          <div className="text-sm text-center bg-green-50 p-3 rounded-md border border-green-200">
+                            <p className="font-medium text-green-800 truncate">{existing.originalName}</p>
+                            <p className="text-xs text-green-600 mb-2">Uploaded on {new Date(existing.submittedAt).toLocaleDateString()}</p>
+                            <button
+                              onClick={() => handleDownloadDeliverable(existing.filename, existing.originalName)}
+                              className="w-full mt-2 inline-flex justify-center items-center px-3 py-1 text-xs font-medium rounded bg-green-600 text-white hover:bg-green-700"
+                            >
+                              Download
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="text-sm text-center text-gray-500 italic bg-gray-50 p-3 rounded-md border border-dashed">
+                            Not yet uploaded
+                          </div>
+                        )}
+
+                        {isStudent && (
+                          <div className="mt-3">
+                            <input
+                              type="file"
+                              id={`file-upload-${d.key}`}
+                              className="hidden"
+                              accept=".pdf,.ppt,.pptx,application/pdf,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation"
+                              onChange={(e) => handleFileUpload(d.key, e)}
+                            />
+                            <label 
+                              htmlFor={`file-upload-${d.key}`}
+                              className="w-full text-center cursor-pointer rounded-md px-3 py-1.5 text-sm font-medium border border-gray-300 hover:bg-gray-50 text-gray-700"
+                            >
+                              {existing ? 'Replace File' : 'Upload File'}
+                            </label>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })()}
+        </div>
+      )}
+
+      {showMeetingModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4" onClick={() => { if (!isScheduling) setShowMeetingModal(false); }}>
+          <div className="bg-white rounded-lg max-w-md w-full p-6" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">
+              {project.nextMeeting ? 'Reschedule Meeting' : 'Schedule Meeting'}
+            </h3>
+            <form onSubmit={handleScheduleMeeting} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
+                <input
+                  type="date"
+                  value={meetingDate}
+                  onChange={(e) => setMeetingDate(e.target.value)}
+                  className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm px-3 py-2 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Time</label>
+                <input
+                  type="time"
+                  value={meetingTime}
+                  onChange={(e) => setMeetingTime(e.target.value)}
+                  className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm px-3 py-2 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Location (optional)</label>
+                <input
+                  type="text"
+                  value={meetingLocation}
+                  onChange={(e) => setMeetingLocation(e.target.value)}
+                  className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm px-3 py-2 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                  placeholder="Online (Teams/Meet) or room number"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Notes (optional)</label>
+                <textarea
+                  value={meetingNotes}
+                  onChange={(e) => setMeetingNotes(e.target.value)}
+                  className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm px-3 py-2 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                  rows="3"
+                  placeholder="Agenda, meeting link, etc."
+                />
+              </div>
+              <div className="flex justify-end gap-2 mt-4">
+                <button
+                  type="button"
+                  onClick={() => { if (!isScheduling) setShowMeetingModal(false); }}
+                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-300"
+                  disabled={isScheduling}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
+                  disabled={isScheduling}
+                >
+                  {isScheduling ? 'Saving...' : 'Save Meeting'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* File Preview Modal */}
       {showPreview && previewFile && (
@@ -1300,5 +1953,8 @@ const ProjectDetails = () => {
     </Layout>
   );
 };
+
+
+
 
 export default ProjectDetails;

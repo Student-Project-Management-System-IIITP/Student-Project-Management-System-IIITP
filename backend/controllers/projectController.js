@@ -3,8 +3,15 @@ const Group = require('../models/Group');
 const Student = require('../models/Student');
 const Faculty = require('../models/Faculty');
 const Message = require('../models/Message');
+const { deliverableUploadDir } = require('../middleware/deliverableUpload');
 
 // Helper to check if project belongs to a student (covers populated and non-populated refs)
+// Helper to get a user ID from a populated or unpopulated field
+const getUserId = (field) => {
+  if (!field) return null;
+  return field._id ? field._id.toString() : field.toString();
+};
+
 const isProjectOwnedByStudent = (projectStudent, studentId) => {
   if (!projectStudent || !studentId) {
     return false;
@@ -16,6 +23,91 @@ const isProjectOwnedByStudent = (projectStudent, studentId) => {
     `${projectStudent}`;
 
   return projectStudentId === studentId.toString();
+};
+
+// Save notes for a completed meeting and move it to history
+const completeMeeting = async (req, res) => {
+  try {
+    const { projectId } = req.params;
+    const { notes } = req.body;
+    const userId = req.user.id;
+    const userRole = req.user.role;
+
+    const project = await Project.findById(projectId).populate('faculty');
+    if (!project) {
+      return res.status(404).json({
+        success: false,
+        message: 'Project not found'
+      });
+    }
+
+    if (userRole !== 'faculty' && userRole !== 'admin') {
+      return res.status(403).json({
+        success: false,
+        message: 'Only faculty or admin can add meeting notes'
+      });
+    }
+
+    let facultyId = null;
+
+    if (userRole === 'faculty') {
+      const faculty = await Faculty.findOne({ user: userId });
+      if (!faculty || !project.faculty || project.faculty._id.toString() !== faculty._id.toString()) {
+        return res.status(403).json({
+          success: false,
+          message: 'You are not the supervisor for this project'
+        });
+      }
+      facultyId = faculty._id;
+    } else if (userRole === 'admin') {
+      facultyId = project.faculty?._id || project.faculty;
+    }
+
+    if (!project.nextMeeting || !project.nextMeeting.scheduledAt) {
+      return res.status(400).json({
+        success: false,
+        message: 'No scheduled meeting to add notes for'
+      });
+    }
+
+    const now = new Date();
+
+    const historyEntry = {
+      scheduledAt: project.nextMeeting.scheduledAt,
+      location: project.nextMeeting.location || '',
+      agenda: project.nextMeeting.notes || '',
+      notes: notes || '',
+      createdBy: facultyId,
+      createdAt: project.nextMeeting.createdAt || now,
+      completedAt: now
+    };
+
+    if (!project.meetingHistory) {
+      project.meetingHistory = [];
+    }
+    project.meetingHistory.push(historyEntry);
+
+    // Clear next meeting once it is moved to history
+    project.nextMeeting = undefined;
+
+    await project.save();
+
+    res.json({
+      success: true,
+      data: {
+        nextMeeting: project.nextMeeting,
+        meetingHistory: project.meetingHistory
+      },
+      message: 'Meeting notes saved successfully'
+    });
+  } catch (error) {
+    console.error('Error saving meeting notes:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error saving meeting notes',
+      error: error.message
+    });
+  }
 };
 
 // Get project details with access control
@@ -113,11 +205,11 @@ const getProjectDetails = async (req, res) => {
   }
 };
 
-// Get project messages
+// Get project messages (supports pagination with limit & before cursor)
 const getProjectMessages = async (req, res) => {
   try {
     const { projectId } = req.params;
-    const { limit = 50 } = req.query;
+    const { limit = 50, before } = req.query;
     const userId = req.user.id;
     const userRole = req.user.role;
 
@@ -162,12 +254,36 @@ const getProjectMessages = async (req, res) => {
       });
     }
 
-    // Get messages
-    const messages = await Message.find({ project: projectId })
-      .sort({ createdAt: 1 })
-      .limit(parseInt(limit))
+    // Build query with optional "before" cursor
+    const query = { project: projectId };
+    if (before) {
+      const beforeDate = new Date(before);
+      if (!isNaN(beforeDate.getTime())) {
+        query.createdAt = { $lt: beforeDate };
+      }
+    }
+
+    const numericLimit = parseInt(limit, 10) || 50;
+
+    // Get messages ordered from newest to oldest, then reverse for chronological order
+    const fetched = await Message.find(query)
+      .sort({ createdAt: -1 })
+      .limit(numericLimit)
       .populate('sender', 'fullName')
       .lean();
+
+    const messages = fetched.slice().reverse();
+
+    // Determine if there are older messages
+    let hasMore = false;
+    if (messages.length > 0) {
+      const oldest = messages[0];
+      const olderCount = await Message.countDocuments({
+        project: projectId,
+        createdAt: { $lt: oldest.createdAt }
+      });
+      hasMore = olderCount > 0;
+    }
 
     // Mark messages as read for this user
     await Message.updateMany(
@@ -184,7 +300,10 @@ const getProjectMessages = async (req, res) => {
 
     res.json({
       success: true,
-      data: messages
+      data: {
+        messages,
+        hasMore
+      }
     });
   } catch (error) {
     console.error('Error fetching project messages:', error);
@@ -563,7 +682,8 @@ const deleteMessage = async (req, res) => {
     }
 
     // Only sender or admin can delete
-    if (message.sender.toString() !== userId && userRole !== 'admin') {
+    const senderId = getUserId(message.sender);
+    if (!senderId || (senderId.toString() !== userId.toString() && userRole !== 'admin')) {
       return res.status(403).json({
         success: false,
         message: 'You can only delete your own messages'
@@ -875,6 +995,219 @@ const downloadChatFile = async (req, res) => {
   }
 };
 
+// Schedule a meeting for a project
+const scheduleMeeting = async (req, res) => {
+  try {
+    const { projectId } = req.params;
+    const { scheduledAt, location, notes } = req.body;
+    const userId = req.user.id;
+    const userRole = req.user.role;
+
+    if (!scheduledAt) {
+      return res.status(400).json({
+        success: false,
+        message: 'Scheduled date and time is required'
+      });
+    }
+
+    const project = await Project.findById(projectId).populate('faculty');
+    if (!project) {
+      return res.status(404).json({
+        success: false,
+        message: 'Project not found'
+      });
+    }
+
+    if (userRole !== 'faculty' && userRole !== 'admin') {
+      return res.status(403).json({
+        success: false,
+        message: 'Only faculty or admin can schedule meetings'
+      });
+    }
+
+    let facultyId = null;
+
+    if (userRole === 'faculty') {
+      const faculty = await Faculty.findOne({ user: userId });
+      if (!faculty || !project.faculty || project.faculty._id.toString() !== faculty._id.toString()) {
+        return res.status(403).json({
+          success: false,
+          message: 'You are not the supervisor for this project'
+        });
+      }
+      facultyId = faculty._id;
+    } else if (userRole === 'admin') {
+      facultyId = project.faculty;
+    }
+
+    project.nextMeeting = {
+      scheduledAt: new Date(scheduledAt),
+      location: location || '',
+      notes: notes || '',
+      createdBy: facultyId,
+      createdAt: new Date()
+    };
+
+    await project.save();
+
+    res.json({
+      success: true,
+      data: project.nextMeeting,
+      message: 'Meeting scheduled successfully'
+    });
+  } catch (error) {
+    console.error('Error scheduling meeting:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error scheduling meeting',
+      error: error.message
+    });
+  }
+};
+
+// Upload a deliverable for a project
+const uploadDeliverable = async (req, res) => {
+  try {
+    const { projectId, deliverableType } = req.params;
+    const userId = req.user.id;
+    const userRole = req.user.role;
+    const file = req.file;
+
+    if (userRole !== 'student') {
+      return res.status(403).json({ success: false, message: 'Only students can upload deliverables' });
+    }
+
+    if (!file) {
+      return res.status(400).json({ success: false, message: 'File is required' });
+    }
+
+    const project = await Project.findById(projectId);
+    if (!project) {
+      return res.status(404).json({ success: false, message: 'Project not found' });
+    }
+
+    // Access control: ensure student is part of the project
+    const student = await Student.findOne({ user: userId });
+    let hasAccess = false;
+    if (student) {
+      if (project.group) {
+        const group = await Group.findById(project.group);
+        hasAccess = group.members.some(member => member.student.toString() === student._id.toString());
+      } else if (project.student) {
+        hasAccess = project.student.toString() === student._id.toString();
+      }
+    }
+
+    if (!hasAccess) {
+      return res.status(403).json({ success: false, message: 'You do not have access to this project' });
+    }
+
+    const nameMap = {
+      mid: 'Mid Sem Presentation',
+      end: 'End Sem Presentation',
+      report: 'Project Report'
+    };
+    const deliverableName = nameMap[deliverableType];
+
+    if (!deliverableName) {
+      return res.status(400).json({ success: false, message: 'Invalid deliverable type' });
+    }
+
+    let simpleFileType = 'other';
+    if (file.mimetype === 'application/pdf') {
+      simpleFileType = 'pdf';
+    } else if (file.mimetype.includes('powerpoint') || file.mimetype.includes('presentation')) {
+      simpleFileType = 'ppt';
+    }
+
+    const newDeliverable = {
+      name: deliverableName,
+      submitted: true,
+      submittedAt: new Date(),
+      filename: file.filename,
+      originalName: file.originalname,
+      filePath: file.path,
+      fileSize: file.size,
+      fileType: simpleFileType,
+      uploadedBy: userId
+    };
+
+    // Check if deliverable already exists and update it, otherwise add new
+    const existingIndex = project.deliverables.findIndex(d => d.name === deliverableName);
+    if (existingIndex > -1) {
+      project.deliverables[existingIndex] = { ...project.deliverables[existingIndex], ...newDeliverable };
+    } else {
+      project.deliverables.push(newDeliverable);
+    }
+
+    await project.save();
+
+    res.json({ success: true, message: 'Deliverable uploaded successfully', data: project.deliverables });
+
+  } catch (error) {
+    console.error('Error uploading deliverable:', error);
+    res.status(500).json({ success: false, message: 'Error uploading deliverable', error: error.message });
+  }
+};
+
+// Download a deliverable file
+const downloadDeliverable = async (req, res) => {
+  try {
+    const { projectId, filename } = req.params;
+    const userId = req.user.id;
+    const userRole = req.user.role;
+
+    const project = await Project.findById(projectId);
+    if (!project) {
+      return res.status(404).json({ success: false, message: 'Project not found' });
+    }
+
+    // Access control (students in project, assigned faculty, admin)
+    let hasAccess = false;
+    if (userRole === 'admin') {
+      hasAccess = true;
+    } else if (userRole === 'faculty') {
+      const faculty = await Faculty.findOne({ user: userId });
+      if (faculty && project.faculty) {
+        hasAccess = project.faculty.toString() === faculty._id.toString();
+      }
+    } else if (userRole === 'student') {
+      const student = await Student.findOne({ user: userId });
+       if (student) {
+        if (project.group) {
+          const group = await Group.findById(project.group);
+          hasAccess = group.members.some(member => member.student.toString() === student._id.toString());
+        } else if (project.student) {
+          hasAccess = project.student.toString() === student._id.toString();
+        }
+      }
+    }
+
+    if (!hasAccess) {
+      return res.status(403).json({ success: false, message: 'You do not have access to this project' });
+    }
+
+    const deliverable = project.deliverables.find(d => d.filename === filename);
+    if (!deliverable) {
+      return res.status(404).json({ success: false, message: 'File not found' });
+    }
+
+    const path = require('path');
+    const filePath = path.join(deliverableUploadDir, filename);
+
+    const fs = require('fs');
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({ success: false, message: 'File not found on server' });
+    }
+
+    res.download(filePath, deliverable.originalName);
+
+  } catch (error) {
+    console.error('Error downloading deliverable:', error);
+    res.status(500).json({ success: false, message: 'Error downloading deliverable', error: error.message });
+  }
+};
+
 module.exports = {
   getProjectDetails,
   getProjectMessages,
@@ -886,6 +1219,9 @@ module.exports = {
   removeReaction,
   downloadChatFile,
   getStudentCurrentProject,
-  getFacultyAllocatedProjects
+  getFacultyAllocatedProjects,
+  scheduleMeeting,
+  completeMeeting,
+  uploadDeliverable,
+  downloadDeliverable
 };
-

@@ -552,7 +552,13 @@ export const projectAPI = {
   getProjectDetails: (projectId) => api.get(`/projects/${projectId}`),
   
   // Chat Messages
-  getProjectMessages: (projectId, limit = 50) => api.get(`/projects/${projectId}/messages?limit=${limit}`),
+  getProjectMessages: (projectId, limit = 50, before) => {
+    let url = `/projects/${projectId}/messages?limit=${limit}`;
+    if (before) {
+      url += `&before=${encodeURIComponent(before)}`;
+    }
+    return api.get(url);
+  },
   sendMessage: (projectId, message) => api.post(`/projects/${projectId}/messages`, { message }),
   sendMessageWithFiles: async (projectId, message, files) => {
     const formData = new FormData();
@@ -582,10 +588,34 @@ export const projectAPI = {
   deleteMessage: (projectId, messageId) => api.delete(`/projects/${projectId}/messages/${messageId}`),
   searchMessages: (projectId, query) => api.get(`/projects/${projectId}/messages/search?q=${encodeURIComponent(query)}`),
   getFileUrl: (projectId, filename) => `${API_BASE_URL}/projects/${projectId}/files/${filename}`,
+  scheduleMeeting: (projectId, data) => api.post(`/projects/${projectId}/meeting`, data),
+  completeMeeting: (projectId, data) => api.post(`/projects/${projectId}/meeting/complete`, data),
   
   // Message Reactions
   addReaction: (projectId, messageId, emoji) => api.post(`/projects/${projectId}/messages/${messageId}/reactions`, { emoji }),
   removeReaction: (projectId, messageId, emoji) => api.delete(`/projects/${projectId}/messages/${messageId}/reactions/${encodeURIComponent(emoji)}`),
+
+  // Deliverables
+  uploadDeliverable: async (projectId, deliverableType, file) => {
+    const formData = new FormData();
+    formData.append('deliverable', file);
+
+    const token = localStorage.getItem('token');
+    const response = await fetch(`${API_BASE_URL}/projects/${projectId}/deliverables/${deliverableType}`, {
+      method: 'POST',
+      headers: {
+        ...(token && { Authorization: `Bearer ${token}` }),
+      },
+      body: formData
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+    }
+    return response.json();
+  },
+  getDeliverableUrl: (projectId, filename) => `${API_BASE_URL}/projects/${projectId}/deliverables/${filename}`,
 };
 
 export default api;
