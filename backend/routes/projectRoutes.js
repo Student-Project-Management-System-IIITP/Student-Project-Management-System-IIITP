@@ -4,6 +4,7 @@ const projectController = require('../controllers/projectController');
 const { authenticateToken } = require('../middleware/auth');
 const { uploadChatFiles, handleChatUploadError } = require('../middleware/chatUpload');
 const { submitProjectFacultyPreferences } = require('../controllers/studentController');
+const { uploadDeliverableFile, handleDeliverableUploadError } = require('../middleware/deliverableUpload');
 
 // Apply authentication to all routes
 router.use(authenticateToken);
@@ -16,6 +17,12 @@ router.get('/faculty/allocated', projectController.getFacultyAllocatedProjects);
 
 // Get project details
 router.get('/:projectId', projectController.getProjectDetails);
+
+// Schedule a meeting for a project
+router.post('/:projectId/meeting', projectController.scheduleMeeting);
+
+// Complete a meeting and save notes to history
+router.post('/:projectId/meeting/complete', projectController.completeMeeting);
 
 // Get project messages
 router.get('/:projectId/messages', projectController.getProjectMessages);
@@ -40,6 +47,16 @@ router.delete('/:projectId/messages/:messageId/reactions/:emoji', projectControl
 
 // Download/serve chat file
 router.get('/:projectId/files/:filename', projectController.downloadChatFile);
+
+// Upload a deliverable file
+router.post('/:projectId/deliverables/:deliverableType', 
+  uploadDeliverableFile, 
+  handleDeliverableUploadError, 
+  projectController.uploadDeliverable
+);
+
+// Download a deliverable file
+router.get('/:projectId/deliverables/:filename', projectController.downloadDeliverable);
 
 // Student: submit/update faculty preferences for a project (M.Tech Sem 1 solo flow)
 router.post('/:projectId/faculty-preferences', submitProjectFacultyPreferences);
