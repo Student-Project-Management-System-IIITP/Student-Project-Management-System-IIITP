@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useSem5Project } from '../../hooks/useSem5Project';
 import { useGroupManagement } from '../../hooks/useGroupManagement';
 import { useAuth } from '../../context/AuthContext';
-import { adminAPI } from '../../utils/api';
+import { adminAPI, studentAPI } from '../../utils/api';
 import { toast } from 'react-hot-toast';
 import FacultySelector from '../../components/faculty/FacultySelector';
 
@@ -14,7 +14,8 @@ const FacultyPreferences = () => {
   const { sem5Project, submitFacultyPreferences } = useSem5Project();
   const { sem5Group, isGroupLeader } = useGroupManagement();
 
-  const [systemConfig, setSystemConfig] = useState(null);
+  const [allowedFacultyTypes, setAllowedFacultyTypes] = useState(['Regular', 'Adjunct', 'On Lien']);
+  const [facultyPreferenceLimit, setFacultyPreferenceLimit] = useState(7); // Default to 7
   const [selectedFaculties, setSelectedFaculties] = useState([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -24,8 +25,23 @@ const FacultyPreferences = () => {
     const loadSystemConfig = async () => {
       try {
         setIsLoading(true);
-        const response = await adminAPI.getSystemConfig();
-        setSystemConfig(response.data);
+        
+        // Load Sem 5 faculty preference limit and allowed faculty types
+        const [limitResponse, allowedTypesResponse] = await Promise.all([
+          studentAPI.getSystemConfig('sem5.facultyPreferenceLimit'),
+          studentAPI.getSystemConfig('sem5.minor2.allowedFacultyTypes')
+        ]);
+        
+        if (limitResponse.success && limitResponse.data) {
+          const limitValue = limitResponse.data.value || limitResponse.data.configValue;
+          if (limitValue !== undefined && limitValue !== null) {
+            setFacultyPreferenceLimit(limitValue);
+          }
+        }
+        
+        if (allowedTypesResponse.success && allowedTypesResponse.data?.value && Array.isArray(allowedTypesResponse.data.value)) {
+          setAllowedFacultyTypes(allowedTypesResponse.data.value);
+        }
       } catch (error) {
         console.error('Failed to load system configuration:', error);
         toast.error('Failed to load system configuration');
@@ -42,7 +58,8 @@ const FacultyPreferences = () => {
     isGroupLeader && 
     sem5Group && 
     sem5Group.status === 'complete' && 
-    systemConfig;
+    systemConfig &&
+    facultyPreferenceLimit;
 
   const handleFacultySelection = (faculties) => {
     setSelectedFaculties(faculties);
@@ -54,8 +71,8 @@ const FacultyPreferences = () => {
       return;
     }
 
-    if (selectedFaculties.length > (systemConfig?.facultyPreferenceLimit || 7)) {
-      toast.error(`You can select maximum ${systemConfig.facultyPreferenceLimit || 7} faculty members`);
+    if (selectedFaculties.length > facultyPreferenceLimit) {
+      toast.error(`You can select maximum ${facultyPreferenceLimit} faculty members`);
       return;
     }
 
@@ -207,8 +224,8 @@ const FacultyPreferences = () => {
             <FacultySelector
               selectedFaculties={selectedFaculties}
               onSelectionChange={handleFacultySelection}
-              facultyTypes={systemConfig?.allowedFacultyTypes || ['Regular', 'Adjunct', 'On Lien']}
-              maxSelections={systemConfig?.facultyPreferenceLimit || 7}
+              facultyTypes={allowedFacultyTypes}
+              maxSelections={facultyPreferenceLimit}
               disabled={isSubmitting}
               placeholder="Search and select faculty members..."
             />
@@ -281,8 +298,8 @@ const FacultyPreferences = () => {
           <h3 className="text-lg font-semibold text-blue-900 mb-4">About Faculty Preferences</h3>
           <div className="text-blue-800 space-y-2">
             <p>• <strong>Priority Order:</strong> Faculty will be contacted in the order of your preferences</p>
-            <p>• <strong>Faculty Types:</strong> You can select from {systemConfig?.allowedFacultyTypes?.join(', ') || 'Regular, Adjunct, On Lien'} faculty</p>
-            <p>• <strong>Selection Limit:</strong> You can select up to {systemConfig?.facultyPreferenceLimit || 7} faculty members</p>
+            <p>• <strong>Faculty Types:</strong> You can select from {allowedFacultyTypes.join(', ')} faculty</p>
+            <p>• <strong>Selection Limit:</strong> You can select up to {facultyPreferenceLimit} faculty members</p>
             <p>• <strong>Allocation Process:</strong> Faculty will receive your group details and can choose to accept or pass</p>
             <p>• <strong>Next Steps:</strong> After submission, wait for faculty allocation results</p>
           </div>

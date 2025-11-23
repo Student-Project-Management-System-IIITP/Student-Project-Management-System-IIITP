@@ -48,6 +48,10 @@ const StudentDashboard = () => {
   // Invitation handling state
   const [invitationLoading, setInvitationLoading] = useState({});
   
+  // Group size limits from admin config (for Sem 5)
+  const [minGroupMembers, setMinGroupMembers] = useState(4); // Default fallback
+  const [maxGroupMembers, setMaxGroupMembers] = useState(5); // Default fallback
+  
   // Sem 5 hooks
   const { sem5Project, loading: sem5ProjectLoading, canRegisterProject: canRegisterSem5, getProgressSteps, hasFacultyAllocated } = useSem5Project();
   const { sem5Group, canCreateGroup, isInGroup, isGroupLeader, getGroupStats, getPendingInvitationsCount, groupInvitations, acceptGroupInvitation, rejectGroupInvitation, fetchSem5Data } = useGroupManagement();
@@ -118,6 +122,36 @@ const StudentDashboard = () => {
       fetchSem8Data();
     }
   }, [user, roleData, fetchSem8Data]);
+
+  // Load group size limits from admin config (for Sem 5)
+  useEffect(() => {
+    const loadGroupConfig = async () => {
+      const currentSemester = roleData?.semester || user?.semester;
+      // Only load config for Sem 5 students
+      if (currentSemester !== 5) return;
+      
+      try {
+        // Fetch min and max group members from config
+        const [minResponse, maxResponse] = await Promise.all([
+          studentAPI.getSystemConfig('sem5.minGroupMembers'),
+          studentAPI.getSystemConfig('sem5.maxGroupMembers')
+        ]);
+        
+        if (minResponse.success && minResponse.data?.value) {
+          setMinGroupMembers(parseInt(minResponse.data.value));
+        }
+        
+        if (maxResponse.success && maxResponse.data?.value) {
+          setMaxGroupMembers(parseInt(maxResponse.data.value));
+        }
+      } catch (error) {
+        console.error('Error loading group config:', error);
+        // Keep default values (4, 5) if config fails to load
+      }
+    };
+    
+    loadGroupConfig();
+  }, [user, roleData]);
 
   // Show loading screen if authentication is loading or no user data yet
   if (authLoading || !user) {
@@ -450,7 +484,8 @@ const StudentDashboard = () => {
 
     if (currentSemester === 4) {
       // Sem 4 actions
-      if (!sem4Project && canRegisterSem4()) {
+      // Note: B.Tech Sem 4 registration is handled in the B.Tech flows section above
+      if (!sem4Project && canRegisterSem4() && degree !== 'B.Tech') {
         actions.push({
           title: 'Register for Minor Project 1',
           description: 'Register your Minor Project 1',
@@ -3483,7 +3518,7 @@ const StudentDashboard = () => {
                   {/* Warning for incomplete groups */}
                   {(
                     sem5Group?.activeMemberCount ?? (sem5Group.members?.filter?.(m => m.isActive).length || 0)
-                  ) < (sem5Group?.minMembers || 4) && (
+                  ) < (sem5Group?.minMembers || minGroupMembers) && (
                     <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
                       <div className="flex items-center">
                         <div className="text-yellow-400 mr-3">
@@ -3493,7 +3528,7 @@ const StudentDashboard = () => {
                         </div>
                         <div>
                           <p className="text-sm font-medium text-yellow-800">Group Not Complete</p>
-                          <p className="text-xs text-yellow-700">You need at least {sem5Group?.minMembers || 4} members to register your project</p>
+                          <p className="text-xs text-yellow-700">You need at least {sem5Group?.minMembers || minGroupMembers} members to register your project</p>
                         </div>
                       </div>
                     </div>
@@ -3506,7 +3541,7 @@ const StudentDashboard = () => {
                         <span>Group Formation Progress</span>
                         <span>{(() => {
                           const current = sem5Group?.activeMemberCount ?? (sem5Group.members?.filter?.(m => m.isActive).length || 0);
-                          const max = sem5Group?.maxMembers || getGroupStats().maxMembers || 5;
+                          const max = sem5Group?.maxMembers || getGroupStats().maxMembers || maxGroupMembers;
                           return `${Math.round((current / max) * 100)}%`;
                         })()}</span>
                       </div>
@@ -3516,7 +3551,7 @@ const StudentDashboard = () => {
                           style={{ 
                             width: (() => {
                               const current = sem5Group?.activeMemberCount ?? (sem5Group.members?.filter?.(m => m.isActive).length || 0);
-                              const max = sem5Group?.maxMembers || getGroupStats().maxMembers || 5;
+                              const max = sem5Group?.maxMembers || getGroupStats().maxMembers || maxGroupMembers;
                               return `${Math.round((current / max) * 100)}%`;
                             })()
                           }}
@@ -3688,7 +3723,7 @@ const StudentDashboard = () => {
         <div className="text-blue-800 space-y-2">
           {isSem6 ? (
             <>
-              <p>• Group project continuation from Semester 5 (4-5 members)</p>
+              <p>• Group project continuation from Semester 5 ({minGroupMembers}-{maxGroupMembers} members)</p>
               <p>• Continue your Sem 5 project OR start a new project</p>
               <p>• Same group members and faculty supervisor from Sem 5</p>
               <p>• Advanced features and project continuation</p>
@@ -3696,7 +3731,7 @@ const StudentDashboard = () => {
             </>
           ) : isSem5 ? (
             <>
-              <p>• Group project for B.Tech 5th semester students (4-5 members)</p>
+              <p>• Group project for B.Tech 5th semester students ({minGroupMembers}-{maxGroupMembers} members)</p>
               <p>• Focus on advanced programming concepts and team collaboration</p>
               <p>• Includes group formation, faculty allocation, and project management</p>
               <p>• Duration: 4-5 months</p>

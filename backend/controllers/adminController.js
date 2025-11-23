@@ -2033,66 +2033,201 @@ const getSystemConfig = async (req, res) => {
   }
 };
 
+// Helper function to update existing groups when min/max members config changes
+const updateGroupsForConfigChange = async (configKey, newValue, oldValue) => {
+  // Extract semester from config key (e.g., 'sem5.minGroupMembers' -> 5)
+  const semesterMatch = configKey.match(/sem(\d+)\.(min|max)GroupMembers/);
+  if (!semesterMatch) return;
+  
+  const semester = parseInt(semesterMatch[1]);
+  const configType = semesterMatch[2]; // 'min' or 'max'
+  const fieldName = configType === 'min' ? 'minMembers' : 'maxMembers';
+  
+  // Get current academic year (same logic as fallback in registerMinorProject2)
+  // Groups use student.academicYear, but for current year filtering,
+  // we use the simple calculation: currentYear-nextYear
+  const currentYear = new Date().getFullYear();
+  const nextYear = currentYear + 1;
+  const currentAcademicYear = `${currentYear}-${nextYear.toString().slice(-2)}`;
+  
+  // Find all non-finalized groups for this semester and academic year
+  const groups = await Group.find({
+    semester: semester,
+    academicYear: currentAcademicYear,
+    status: { $nin: ['finalized', 'locked'] }, // Only update non-finalized groups
+    isActive: true
+  });
+  
+  if (groups.length === 0) {
+    return;
+  }
+  
+  let updatedCount = 0;
+  let skippedCount = 0;
+  const errors = [];
+  
+  for (const group of groups) {
+    try {
+      const activeMemberCount = group.members.filter(m => m.isActive).length;
+      
+      // Safety checks before updating
+      if (configType === 'max') {
+        // If new max is less than current members, skip this group
+        if (newValue < activeMemberCount) {
+          skippedCount++;
+          continue;
+        }
+      } else if (configType === 'min') {
+        // If new min is greater than current members and group is complete, skip
+        // But allow update if group is still forming (status is not 'complete')
+        if (newValue > activeMemberCount && group.status === 'complete') {
+          skippedCount++;
+          continue;
+        }
+      }
+      
+      // Update the field
+      group[fieldName] = newValue;
+      await group.save();
+      updatedCount++;
+    } catch (error) {
+      errors.push({ groupId: group._id, error: error.message });
+    }
+  }
+  
+  return { updatedCount, skippedCount, errors };
+};
+
+// Get safe minimum faculty preference limit for a semester
+const getSafeMinimumFacultyLimit = async (req, res) => {
+  try {
+    const { semester, projectType } = req.query;
+    
+    if (!semester || !projectType) {
+      return res.status(400).json({
+        success: false,
+        message: 'Semester and projectType are required'
+      });
+    }
+
+    // Get current academic year (same logic as fallback in registerMinorProject2)
+    // Projects use student.academicYear or group.academicYear, but for current year filtering,
+    // we use the simple calculation: currentYear-nextYear
+    const currentYear = new Date().getFullYear();
+    const nextYear = currentYear + 1;
+    const currentAcademicYear = `${currentYear}-${nextYear.toString().slice(-2)}`;
+
+    // Get projects with faculty preferences for current academic year only
+    const allProjectsWithPrefs = await Project.find({
+      semester: parseInt(semester),
+      projectType: projectType,
+      academicYear: currentAcademicYear,
+      'facultyPreferences': { $exists: true }
+    }).select('facultyPreferences academicYear');
+
+    // Calculate the maximum number of preferences in any existing project (safe minimum limit)
+    let maxPreferencesInProjects = 0;
+    if (allProjectsWithPrefs.length > 0) {
+      const preferenceCounts = allProjectsWithPrefs.map(p => p.facultyPreferences?.length || 0);
+      maxPreferencesInProjects = Math.max(...preferenceCounts);
+    }
+
+    // Debug: Log the query results (can be removed in production)
+    if (allProjectsWithPrefs.length === 0) {
+      // Check if there are any projects at all for this semester/projectType (for debugging)
+      const allProjectsCount = await Project.countDocuments({
+        semester: parseInt(semester),
+        projectType: projectType,
+        'facultyPreferences': { $exists: true }
+      });
+      const projectsWithDifferentYear = await Project.find({
+        semester: parseInt(semester),
+        projectType: projectType,
+        'facultyPreferences': { $exists: true }
+      }).select('academicYear').limit(5);
+      
+      if (allProjectsCount > 0) {
+        console.log(`[Safe Limit Debug] Found ${allProjectsCount} projects for sem ${semester} ${projectType}, but none for academic year ${currentAcademicYear}. Sample academic years:`, 
+          projectsWithDifferentYear.map(p => p.academicYear));
+      }
+    }
+
+    res.json({
+      success: true,
+      data: {
+        safeMinimumLimit: maxPreferencesInProjects,
+        totalProjects: allProjectsWithPrefs.length,
+        academicYear: currentAcademicYear,
+        semester: parseInt(semester),
+        projectType: projectType
+      }
+    });
+  } catch (error) {
+    console.error('Error getting safe minimum faculty limit:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching safe minimum limit',
+      error: error.message
+    });
+  }
+};
+
 // Update system configuration
 const updateSystemConfig = async (req, res) => {
   try {
     const { key } = req.params;
     const { value, description, force } = req.body;
     
-    const config = await SystemConfig.findOne({ configKey: key });
+    let config = await SystemConfig.findOne({ configKey: key });
     
+    // If config doesn't exist, create it
     if (!config) {
-      return res.status(404).json({
-        success: false,
-        message: 'Configuration not found'
+      // Determine configType based on value
+      let configType = 'string';
+      if (typeof value === 'number') {
+        configType = 'number';
+      } else if (typeof value === 'boolean') {
+        configType = 'boolean';
+      } else if (Array.isArray(value)) {
+        configType = 'array';
+      } else if (typeof value === 'object' && value !== null) {
+        configType = 'object';
+      }
+      
+      // Determine category from key
+      let category = 'general';
+      if (key.startsWith('sem5.')) {
+        category = 'sem5';
+      } else if (key.startsWith('sem7.')) {
+        category = 'sem7';
+      } else if (key.startsWith('sem8.')) {
+        category = 'sem8';
+      } else if (key.startsWith('sem3.')) {
+        category = 'sem3';
+      } else if (key.startsWith('sem4.')) {
+        category = 'sem4';
+      } else if (key.startsWith('sem6.')) {
+        category = 'sem6';
+      } else if (key.startsWith('academic.')) {
+        category = 'academic';
+      }
+      
+      // Create new config (don't save yet, will save after validation)
+      config = new SystemConfig({
+        configKey: key,
+        configValue: value,
+        configType: configType,
+        description: description || `Configuration for ${key}`,
+        category: category,
+        updatedBy: req.user.id
       });
     }
 
-    // Special validation for faculty preference limit
-    if (key === 'sem5.facultyPreferenceLimit') {
-      const oldValue = config.configValue;
-      const newValue = value;
-      
-      // If reducing the limit, check for existing registrations
-      if (newValue < oldValue && !force) {
-        // Check if any projects have more preferences than the new limit
-        const projectsWithMorePrefs = await Project.find({
-          semester: 5,
-          projectType: 'minor2',
-          'facultyPreferences': { $exists: true }
-        }).select('facultyPreferences title student');
-        
-        const affectedProjects = projectsWithMorePrefs.filter(project => 
-          project.facultyPreferences && project.facultyPreferences.length > newValue
-        );
-        
-        if (affectedProjects.length > 0) {
-          // Populate student details for affected projects
-          await Project.populate(affectedProjects, { 
-            path: 'student', 
-            select: 'fullName misNumber' 
-          });
-          
-          return res.status(400).json({
-            success: false,
-            message: 'Cannot reduce faculty preference limit',
-            warning: {
-              type: 'EXISTING_REGISTRATIONS_AFFECTED',
-              oldLimit: oldValue,
-              newLimit: newValue,
-              affectedCount: affectedProjects.length,
-              affectedProjects: affectedProjects.map(p => ({
-                projectId: p._id,
-                title: p.title,
-                studentName: p.student?.fullName,
-                currentPreferences: p.facultyPreferences.length
-              })),
-              suggestion: 'Some groups have already submitted more preferences than the new limit. You can force update, but existing registrations will remain unchanged.'
-            }
-          });
-        }
-      }
-    }
+    // Note: Faculty preference limit validation removed
+    // Since existing projects keep their original preference count and the UI handles
+    // variable preference counts dynamically, there's no need to block reducing the limit.
+    // The limit only affects NEW registrations going forward.
+    // The safe minimum limit is still calculated and shown to admins for informational purposes.
 
     // Update config
     const oldValue = config.configValue;
@@ -2104,6 +2239,21 @@ const updateSystemConfig = async (req, res) => {
     config.updatedAt = Date.now();
     
     await config.save();
+
+    // If updating min/max group members config, update existing non-finalized groups
+    if (key.includes('.minGroupMembers') || key.includes('.maxGroupMembers')) {
+      try {
+        await updateGroupsForConfigChange(key, parseInt(value), oldValue);
+      } catch (groupUpdateError) {
+        // Don't fail the config update if group update fails
+      }
+    }
+
+    // Note: For faculty preference limit changes, we do NOT modify existing projects
+    // Existing projects keep their original preference count, which is acceptable
+    // Admin views handle variable preference counts dynamically
+    // The validation above (lines 2114-2158) prevents reducing the limit if it would
+    // cause issues, but existing projects remain unchanged
 
     res.json({
       success: true,
@@ -2550,6 +2700,7 @@ module.exports = {
   // System Configuration functions
   getSystemConfigurations,
   getSystemConfig,
+  getSafeMinimumFacultyLimit,
   updateSystemConfig,
   initializeSystemConfigs,
   // Semester Management functions

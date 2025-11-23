@@ -15,6 +15,9 @@ const SystemConfiguration = () => {
   const [facultyPreferenceLimit, setFacultyPreferenceLimit] = useState(7);
   const [minGroupMembers, setMinGroupMembers] = useState(4);
   const [maxGroupMembers, setMaxGroupMembers] = useState(5);
+  const [allowedFacultyTypes, setAllowedFacultyTypes] = useState(['Regular', 'Adjunct', 'On Lien']);
+  const [safeMinimumLimit, setSafeMinimumLimit] = useState(null);
+  const [loadingSafeLimit, setLoadingSafeLimit] = useState(false);
   
   // Sem 7 configs
   const [sem7Configs, setSem7Configs] = useState([]);
@@ -102,6 +105,7 @@ const SystemConfiguration = () => {
       const facultyPrefConfig = configData.find(c => c.configKey === 'sem5.facultyPreferenceLimit');
       const minMembersConfig = configData.find(c => c.configKey === 'sem5.minGroupMembers');
       const maxMembersConfig = configData.find(c => c.configKey === 'sem5.maxGroupMembers');
+      const allowedFacultyTypesConfig = configData.find(c => c.configKey === 'sem5.minor2.allowedFacultyTypes');
       
       if (facultyPrefConfig) {
         setFacultyPreferenceLimit(facultyPrefConfig.configValue);
@@ -112,12 +116,16 @@ const SystemConfiguration = () => {
       if (maxMembersConfig) {
         setMaxGroupMembers(maxMembersConfig.configValue);
       }
+      if (allowedFacultyTypesConfig && Array.isArray(allowedFacultyTypesConfig.configValue)) {
+        setAllowedFacultyTypes(allowedFacultyTypesConfig.configValue);
+      }
       
       // Store original values
       setOriginalValues({
         facultyPreferenceLimit: facultyPrefConfig?.configValue || 7,
         minGroupMembers: minMembersConfig?.configValue || 4,
-        maxGroupMembers: maxMembersConfig?.configValue || 5
+        maxGroupMembers: maxMembersConfig?.configValue || 5,
+        allowedFacultyTypes: allowedFacultyTypesConfig?.configValue || ['Regular', 'Adjunct', 'On Lien']
       });
     };
 
@@ -162,6 +170,32 @@ const SystemConfiguration = () => {
     loadConfig();
   }, []);
 
+  // Load safe minimum faculty preference limit for Sem 5
+  useEffect(() => {
+    const loadSafeMinimumLimit = async () => {
+      if (activeTab === 'sem5') {
+        try {
+          setLoadingSafeLimit(true);
+          const response = await adminAPI.getSafeMinimumFacultyLimit(5, 'minor2');
+          if (response.success && response.data) {
+            setSafeMinimumLimit(response.data.safeMinimumLimit);
+          } else {
+            setSafeMinimumLimit(0);
+          }
+        } catch (error) {
+          // Log error for debugging but set safe limit to 0
+          console.error('Error loading safe minimum limit:', error);
+          setSafeMinimumLimit(0);
+        } finally {
+          setLoadingSafeLimit(false);
+        }
+      } else {
+        setSafeMinimumLimit(null);
+      }
+    };
+
+    loadSafeMinimumLimit();
+  }, [activeTab]);
 
   const handleSaveClick = () => {
     if (activeTab === 'sem5') {
@@ -221,6 +255,7 @@ const SystemConfiguration = () => {
             setSaving(false);
             return;
           }
+          // Error already handled by warning modal, just throw to prevent further execution
           throw error;
         }
         
@@ -232,11 +267,16 @@ const SystemConfiguration = () => {
         await adminAPI.updateSystemConfigByKey('sem5.maxGroupMembers', maxGroupMembers,
           'Maximum number of members allowed in a Sem 5 group');
         
+        // Update allowed faculty types
+        await adminAPI.updateSystemConfigByKey('sem5.minor2.allowedFacultyTypes', allowedFacultyTypes,
+          'Faculty types allowed in dropdown for Sem 5 Minor Project 2 preferences (Regular, Adjunct, On Lien)');
+        
         // Update original values to current values
         setOriginalValues({
           facultyPreferenceLimit,
           minGroupMembers,
-          maxGroupMembers
+          maxGroupMembers,
+          allowedFacultyTypes
         });
         
         // Reload configs to confirm changes
@@ -279,9 +319,23 @@ const SystemConfiguration = () => {
       }
       
       toast.success('Configuration saved successfully!');
+      // Reload safe minimum limit after successful save
+      if (activeTab === 'sem5') {
+        try {
+          const response = await adminAPI.getSafeMinimumFacultyLimit(5, 'minor2');
+          if (response.success && response.data) {
+            setSafeMinimumLimit(response.data.safeMinimumLimit);
+          }
+        } catch (error) {
+          // Ignore errors when reloading safe limit
+        }
+      }
     } catch (error) {
       console.error('Error saving configuration:', error);
+      // Only show toast if warning modal is not being shown
+      if (error.response?.data?.warning?.type !== 'EXISTING_REGISTRATIONS_AFFECTED') {
       toast.error(error.response?.data?.message || 'Failed to save configuration');
+      }
     } finally {
       setSaving(false);
     }
@@ -297,6 +351,7 @@ const SystemConfiguration = () => {
       setFacultyPreferenceLimit(originalValues.facultyPreferenceLimit || 7);
       setMinGroupMembers(originalValues.minGroupMembers || 4);
       setMaxGroupMembers(originalValues.maxGroupMembers || 5);
+      setAllowedFacultyTypes(originalValues.allowedFacultyTypes || ['Regular', 'Adjunct', 'On Lien']);
     } else if (activeTab === 'sem7') {
       setSem7Major1FacultyLimit(sem7OriginalValues.major1FacultyLimit || 5);
       setSem7Internship1FacultyLimit(sem7OriginalValues.internship1FacultyLimit || 5);
@@ -310,7 +365,8 @@ const SystemConfiguration = () => {
   const hasChanges = activeTab === 'sem5' 
     ? ((typeof facultyPreferenceLimit === 'number' && facultyPreferenceLimit !== (originalValues.facultyPreferenceLimit || 7)) ||
        (typeof minGroupMembers === 'number' && minGroupMembers !== (originalValues.minGroupMembers || 4)) ||
-       (typeof maxGroupMembers === 'number' && maxGroupMembers !== (originalValues.maxGroupMembers || 5)))
+       (typeof maxGroupMembers === 'number' && maxGroupMembers !== (originalValues.maxGroupMembers || 5)) ||
+       (Array.isArray(allowedFacultyTypes) && JSON.stringify(allowedFacultyTypes.sort()) !== JSON.stringify((originalValues.allowedFacultyTypes || ['Regular', 'Adjunct', 'On Lien']).sort())))
     : activeTab === 'sem7'
     ? ((typeof sem7Major1FacultyLimit === 'number' && sem7Major1FacultyLimit !== (sem7OriginalValues.major1FacultyLimit || 5)) ||
        (typeof sem7Internship1FacultyLimit === 'number' && sem7Internship1FacultyLimit !== (sem7OriginalValues.internship1FacultyLimit || 5)))
@@ -467,11 +523,47 @@ const SystemConfiguration = () => {
                           setFacultyPreferenceLimit(10);
                         }
                       }}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 ${
+                        safeMinimumLimit !== null && safeMinimumLimit > 0 && facultyPreferenceLimit < safeMinimumLimit
+                          ? 'border-red-300 focus:ring-red-500 bg-red-50'
+                          : 'border-gray-300 focus:ring-indigo-500'
+                      }`}
                     />
-                    <p className="text-xs text-gray-500 mt-1">
+                    <div className="mt-2 space-y-1">
+                      <p className="text-xs text-gray-500">
                       Range: 1-10 preferences
                     </p>
+                      {safeMinimumLimit !== null && safeMinimumLimit > 0 && 
+                       facultyPreferenceLimit !== originalValues.facultyPreferenceLimit && (
+                        <div className="flex items-start space-x-2 p-2 rounded-md bg-blue-50 border border-blue-200">
+                          <svg className="h-4 w-4 mt-0.5 flex-shrink-0 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                          <div className="flex-1">
+                            <p className="text-xs font-medium text-blue-800">
+                              <strong>Current Projects:</strong> Some registered projects are using <strong>{safeMinimumLimit}</strong> faculty preferences.
+                            </p>
+                            <p className="text-xs mt-1 text-blue-700">
+                              <strong>This will not affect currently registered projects</strong> - they will keep their original preference counts. Only new registrations will be required to use the new limit.
+                            </p>
+                            {facultyPreferenceLimit !== safeMinimumLimit && (
+                              <button
+                                type="button"
+                                onClick={() => setFacultyPreferenceLimit(safeMinimumLimit)}
+                                className="mt-2 text-xs px-2 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+                              >
+                                Use Current Maximum ({safeMinimumLimit})
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                      {safeMinimumLimit === 0 && !loadingSafeLimit && (
+                        <p className="text-xs text-gray-500 italic">
+                          No existing registrations found. You can set any value between 1-10.
+                        </p>
+                      )}
+                    </div>
                   </div>
                 </div>
 
@@ -555,6 +647,57 @@ const SystemConfiguration = () => {
                     />
                     <p className="text-xs text-gray-500 mt-1">
                       Range: 1-10 members
+                    </p>
+                  </div>
+                </div>
+
+                {/* Allowed Faculty Types */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-start">
+                  <div className="md:col-span-1">
+                    <label className="block text-sm font-medium text-gray-700">
+                      Allowed Faculty Types
+                    </label>
+                    <p className="text-xs text-gray-500 mt-1">
+                      Select which faculty types should appear in the preferences dropdown
+                    </p>
+                    <p className="text-xs text-gray-400 mt-1">
+                      Selected: {allowedFacultyTypes.length}/3 types
+                    </p>
+                  </div>
+                  <div className="md:col-span-2">
+                    <div className="space-y-3">
+                      {['Regular', 'Adjunct', 'On Lien'].map((type) => (
+                        <label key={type} className="flex items-center space-x-3 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={allowedFacultyTypes.includes(type)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setAllowedFacultyTypes([...allowedFacultyTypes, type]);
+                              } else {
+                                // Ensure at least one type is selected
+                                if (allowedFacultyTypes.length > 1) {
+                                  setAllowedFacultyTypes(allowedFacultyTypes.filter(t => t !== type));
+                                } else {
+                                  toast.error('At least one faculty type must be selected');
+                                }
+                              }
+                            }}
+                            className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                          />
+                          <span className="text-sm text-gray-700">{type}</span>
+                          <span className={`px-2 py-1 text-xs rounded-full ${
+                            type === 'Regular' ? 'bg-green-100 text-green-800' :
+                            type === 'Adjunct' ? 'bg-blue-100 text-blue-800' :
+                            'bg-orange-100 text-orange-800'
+                          }`}>
+                            {type === 'Regular' ? 'Full-time' : type === 'Adjunct' ? 'Part-time' : 'Temporary'}
+                          </span>
+                        </label>
+                      ))}
+                    </div>
+                    <p className="text-xs text-gray-500 mt-2">
+                      Only selected faculty types will appear in the faculty preferences dropdown during registration.
                     </p>
                   </div>
                 </div>
@@ -881,6 +1024,7 @@ const SystemConfiguration = () => {
                           <li>Faculty Preferences: {originalValues.facultyPreferenceLimit || 7} → <strong>{facultyPreferenceLimit}</strong></li>
                           <li>Min Group Members: {originalValues.minGroupMembers || 4} → <strong>{minGroupMembers}</strong></li>
                           <li>Max Group Members: {originalValues.maxGroupMembers || 5} → <strong>{maxGroupMembers}</strong></li>
+                          <li>Allowed Faculty Types: {originalValues.allowedFacultyTypes?.join(', ') || 'Regular, Adjunct, On Lien'} → <strong>{allowedFacultyTypes.join(', ')}</strong></li>
                         </>
                       ) : (
                         <>
@@ -934,30 +1078,75 @@ const SystemConfiguration = () => {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4">
             <div className="px-6 py-4 border-b border-gray-200 bg-red-50">
-              <h3 className="text-lg font-semibold text-red-900">⚠️ Warning: Existing Registrations Affected</h3>
+              <h3 className="text-lg font-semibold text-red-900">⚠️ Cannot Reduce Faculty Preference Limit</h3>
             </div>
             <div className="px-6 py-4">
+              {/* Safe Minimum Limit Highlight */}
+              {warningData?.safeMinimumLimit !== undefined && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+                  <div className="flex items-start">
+                    <div className="flex-shrink-0">
+                      <svg className="h-6 w-6 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                    </div>
+                    <div className="ml-3 flex-1">
+                      <h4 className="text-sm font-semibold text-blue-900 mb-1">Safe Minimum Limit</h4>
+                      <p className="text-sm text-blue-800">
+                        Based on existing registrations, the minimum safe limit for this semester is{' '}
+                        <strong className="text-lg font-bold text-blue-900">{warningData.safeMinimumLimit}</strong>.
+                      </p>
+                      <p className="text-xs text-blue-700 mt-2">
+                        You can set the limit to <strong>{warningData.safeMinimumLimit}</strong> or higher without affecting existing projects.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+              
               <p className="text-sm text-gray-700 mb-4">
-                Reducing the faculty preference limit will affect <strong>{warningData?.affectedCount}</strong> existing project registration(s).
+                You're trying to set the limit to <strong>{warningData?.newLimit}</strong>, but{' '}
+                <strong>{warningData?.affectedCount}</strong> existing project registration(s) have more preferences than this limit.
               </p>
+              
               <div className="bg-gray-50 rounded-lg p-4 mb-4 max-h-64 overflow-y-auto">
-                <h4 className="text-sm font-semibold text-gray-900 mb-2">Affected Projects:</h4>
+                <h4 className="text-sm font-semibold text-gray-900 mb-2">Affected Projects ({warningData?.affectedProjects?.length || 0}):</h4>
                 <ul className="space-y-2">
-                  {warningData?.affectedProjects?.map((project) => (
-                    <li key={project._id} className="text-sm text-gray-700 border-b border-gray-200 pb-2">
+                  {warningData?.affectedProjects?.slice(0, 10).map((project, index) => (
+                    <li key={project.projectId || index} className="text-sm text-gray-700 border-b border-gray-200 pb-2">
                       <p className="font-medium">{project.title || 'Untitled Project'}</p>
                       <p className="text-xs text-gray-500">
-                        Group: {project.group?.name || 'N/A'} | Current preferences: {project.currentPreferences}
+                        Group: {project.groupName || 'N/A'} | Current preferences: <strong>{project.currentPreferences}</strong>
                       </p>
                     </li>
                   ))}
+                  {warningData?.affectedProjects?.length > 10 && (
+                    <li className="text-xs text-gray-500 italic">
+                      ... and {warningData.affectedProjects.length - 10} more project(s)
+                    </li>
+                  )}
                 </ul>
               </div>
-              <p className="text-sm text-red-600">
-                Do you want to proceed with this change? This action cannot be undone automatically.
+              
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-4">
+                <p className="text-sm text-yellow-800">
+                  <strong>Note:</strong> {warningData?.suggestion || 'If you proceed, existing projects will keep their original preference count, but new registrations will be limited to the new value.'}
               </p>
+              </div>
             </div>
             <div className="px-6 py-4 bg-gray-50 rounded-b-lg flex justify-end space-x-3">
+              <button
+                onClick={() => {
+                  setShowWarningModal(false);
+                  // Auto-fill the safe minimum limit
+                  if (warningData?.safeMinimumLimit !== undefined && activeTab === 'sem5') {
+                    setFacultyPreferenceLimit(warningData.safeMinimumLimit);
+                  }
+                }}
+                className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                {warningData?.safeMinimumLimit !== undefined ? `Use Safe Limit (${warningData.safeMinimumLimit})` : 'Cancel'}
+              </button>
               <button
                 onClick={() => setShowWarningModal(false)}
                 className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"

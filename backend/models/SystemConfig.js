@@ -139,6 +139,13 @@ systemConfigSchema.statics.initializeDefaults = async function() {
       category: 'sem5'
     },
     {
+      configKey: 'sem5.minor2.allowedFacultyTypes',
+      configValue: ['Regular', 'Adjunct', 'On Lien'],
+      configType: 'array',
+      description: 'Faculty types allowed in dropdown for Sem 5 Minor Project 2 preferences (Regular, Adjunct, On Lien)',
+      category: 'sem5'
+    },
+    {
       configKey: 'academic.currentYear',
       configValue: '2025-26',
       configType: 'string',

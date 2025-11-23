@@ -162,8 +162,9 @@ const Navbar = ({ userRole: propUserRole = null, user: propUser = null, roleData
     }
 
     // Semester 5: Minor Project 2 (group)
+    // Only show in Project Dashboard after student has registered for the project
     const sem5Project = getProjectBySemester(5);
-    if (sem5Project || currentSemester === 5) {
+    if (sem5Project) {
       const projectId = sem5Project?.project;
       items.push({
         name: 'Minor Project 2',

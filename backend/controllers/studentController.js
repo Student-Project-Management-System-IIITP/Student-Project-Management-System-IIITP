@@ -2324,6 +2324,19 @@ const submitPPT = async (req, res) => {
       });
     }
 
+    // Prevent modifications to previous semester projects
+    // Exception: Sem 6 students can continue their Sem 5 project
+    const isSem6ContinuingSem5 = student.semester === 6 && 
+                                  project.semester === 5 && 
+                                  project.isContinuation === true;
+    
+    if (student.semester > project.semester && !isSem6ContinuingSem5) {
+      return res.status(403).json({
+        success: false,
+        message: 'Cannot modify previous semester projects. This project belongs to a previous semester.'
+      });
+    }
+
     // Submit PPT with comprehensive metadata
     await project.submitPPT({
       filePath,
@@ -2385,6 +2398,19 @@ const removePPT = async (req, res) => {
       return res.status(404).json({
         success: false,
         message: 'Sem 4 Minor Project 1 not found'
+      });
+    }
+
+    // Prevent modifications to previous semester projects
+    // Exception: Sem 6 students can continue their Sem 5 project
+    const isSem6ContinuingSem5 = student.semester === 6 && 
+                                  project.semester === 5 && 
+                                  project.isContinuation === true;
+    
+    if (student.semester > project.semester && !isSem6ContinuingSem5) {
+      return res.status(403).json({
+        success: false,
+        message: 'Cannot modify previous semester projects. This project belongs to a previous semester.'
       });
     }
 
@@ -2698,17 +2724,48 @@ const createGroup = async (req, res) => {
     // Creator is always the leader in the new approach
     // No external leader selection - creator becomes leader automatically
 
+    // Fetch min/max group members from admin config based on semester
+    let configMinMembers = 4; // Default fallback
+    let configMaxMembers = 5; // Default fallback
+    
+    // Determine config key prefix based on semester
+    // Use sem5, sem7, sem8 pattern (sem7 and sem8 configs may not exist yet, will fallback to defaults)
+    const configPrefix = student.semester === 7 ? 'sem7' : 
+                        student.semester === 8 ? 'sem8' : 
+                        'sem5';
+    
+    try {
+      const [minConfig, maxConfig] = await Promise.all([
+        SystemConfig.getConfigValue(`${configPrefix}.minGroupMembers`, 4),
+        SystemConfig.getConfigValue(`${configPrefix}.maxGroupMembers`, 5)
+      ]);
+      
+      configMinMembers = parseInt(minConfig) || 4;
+      configMaxMembers = parseInt(maxConfig) || 5;
+    } catch (configError) {
+      console.error('Error fetching group size config, using defaults:', configError);
+      // Use defaults if config fetch fails
+    }
+    
+    // Use provided maxMembers from request, or config value, or default
+    const finalMaxMembers = maxMembers || configMaxMembers;
+    const finalMinMembers = configMinMembers;
+
     // Create new group using transaction
     const session = await mongoose.startSession();
     session.startTransaction();
 
     try {
+    // Generate default name if not provided: "Group - [Leader Name] - Sem [Semester]"
+    const groupName = name && name.trim() ? name.trim() : `Group - ${student.fullName} - Sem ${student.semester}`;
+    const groupDescription = description && description.trim() ? description.trim() : '';
+    
     // Create group with creator as leader
     const group = new Group({
-      name,
-      description,
-      maxMembers,
-      minMembers: 4,
+      name: groupName,
+      description: groupDescription,
+      maxMembers: finalMaxMembers,
+      minMembers: finalMinMembers,
       semester: student.semester,
       academicYear: generateAcademicYear(),
       createdBy: student._id,
@@ -4374,10 +4431,22 @@ const submitFacultyPreferences = async (req, res) => {
       });
     }
 
-    if (preferences.length > 7) {
+    // Get faculty preference limit from system config based on group semester
+    let facultyPreferenceLimit;
+    if (group.semester === 5) {
+      facultyPreferenceLimit = await SystemConfig.getConfigValue('sem5.facultyPreferenceLimit', 7);
+    } else if (group.semester === 7) {
+      facultyPreferenceLimit = await SystemConfig.getConfigValue('sem7.major1.facultyPreferenceLimit') || 
+                               await SystemConfig.getConfigValue('sem5.facultyPreferenceLimit', 7);
+    } else {
+      // Default fallback
+      facultyPreferenceLimit = 7;
+    }
+
+    if (preferences.length > facultyPreferenceLimit) {
       return res.status(400).json({
         success: false,
-        message: 'Maximum 7 faculty preferences allowed'
+        message: `Maximum ${facultyPreferenceLimit} faculty preferences allowed`
       });
     }
 

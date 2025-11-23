@@ -21,6 +21,27 @@ const Sem4ProjectDashboard = () => {
   const [projectStatus, setProjectStatus] = useState(null);
   const [isRemoving, setIsRemoving] = useState(false);
   const [showReplaceUpload, setShowReplaceUpload] = useState(false);
+
+  // Check if student can modify this project
+  // Students cannot modify previous semester projects
+  // Exception: Sem 6 students can continue their Sem 5 project
+  const canModifyProject = () => {
+    if (!project || !roleData) return false;
+    
+    const currentSemester = roleData.semester || user?.semester;
+    const projectSemester = project.semester;
+    
+    // Exception: Sem 6 students can continue their Sem 5 project
+    const isSem6ContinuingSem5 = currentSemester === 6 && 
+                                   projectSemester === 5 && 
+                                   project.isContinuation === true;
+    
+    // Allow modifications only if:
+    // 1. Student is in the same semester as the project, OR
+    // 2. Student is in a lower semester (shouldn't happen but allow), OR
+    // 3. Sem 6 continuing Sem 5 project
+    return currentSemester <= projectSemester || isSem6ContinuingSem5;
+  };
   
   // File upload hook
   const {
@@ -227,6 +248,24 @@ const Sem4ProjectDashboard = () => {
               <h2 className="text-lg font-semibold text-gray-900">Presentation Upload</h2>
             </div>
             <div className="px-6 py-4">
+              {/* Warning banner for previous semester projects */}
+              {!canModifyProject() && (
+                <div className="mb-6 bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                  <div className="flex items-start">
+                    <div className="flex-shrink-0">
+                      <svg className="h-5 w-5 text-yellow-400" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                      </svg>
+                    </div>
+                    <div className="ml-3">
+                      <h3 className="text-sm font-medium text-yellow-800">View-Only Mode</h3>
+                      <div className="mt-2 text-sm text-yellow-700">
+                        <p>This project belongs to a previous semester (Semester {project.semester}). You are currently in Semester {roleData?.semester || user?.semester}. Modifications to previous semester projects are not allowed.</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
               {/* Current Uploaded PPT */}
               {projectStatus && projectStatus.pptSubmitted && (
                 <div className="bg-green-50 border border-green-200 rounded-lg p-6 mb-6">
@@ -262,36 +301,45 @@ const Sem4ProjectDashboard = () => {
                   </div>
                   
                   <div className="flex items-center space-x-3">
-                    <button
-                      onClick={() => setShowReplaceUpload(true)}
-                      disabled={isUploading || isRemoving}
-                      className="px-4 py-2 text-sm font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded-md hover:bg-blue-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      📝 Replace PPT
-                    </button>
-                    <button
-                      onClick={handleRemovePPT}
-                      disabled={isUploading || isRemoving}
-                      className="px-4 py-2 text-sm font-medium text-red-700 bg-red-50 border border-red-200 rounded-md hover:bg-red-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      {isRemoving ? (
-                        <span className="flex items-center">
-                          <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-red-700" fill="none" viewBox="0 0 24 24">
-                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                          </svg>
-                          Removing...
-                        </span>
-                      ) : (
-                        '🗑️ Remove PPT'
-                      )}
-                    </button>
+                    {canModifyProject() ? (
+                      <>
+                        <button
+                          onClick={() => setShowReplaceUpload(true)}
+                          disabled={isUploading || isRemoving}
+                          className="px-4 py-2 text-sm font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded-md hover:bg-blue-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          📝 Replace PPT
+                        </button>
+                        <button
+                          onClick={handleRemovePPT}
+                          disabled={isUploading || isRemoving}
+                          className="px-4 py-2 text-sm font-medium text-red-700 bg-red-50 border border-red-200 rounded-md hover:bg-red-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {isRemoving ? (
+                            <span className="flex items-center">
+                              <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-red-700" fill="none" viewBox="0 0 24 24">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                              </svg>
+                              Removing...
+                            </span>
+                          ) : (
+                            '🗑️ Remove PPT'
+                          )}
+                        </button>
+                      </>
+                    ) : (
+                      <div className="text-sm text-gray-500 italic">
+                        This project belongs to a previous semester and cannot be modified.
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
 
               {/* Upload Section - Show if no PPT uploaded OR user clicked Replace */}
-              {(project.status === 'active' || project.status === 'registered') && 
+              {/* Only show if student can modify the project */}
+              {canModifyProject() && (project.status === 'active' || project.status === 'registered') && 
                (!projectStatus?.pptSubmitted || showReplaceUpload) && (
                 <div>
                   <div className="mb-4 flex items-center justify-between">
@@ -321,7 +369,7 @@ const Sem4ProjectDashboard = () => {
                     acceptedTypes={['.ppt', '.pptx', '.pdf']}
                     maxSize={50 * 1024 * 1024}
                     maxFiles={1}
-                    disabled={isUploading}
+                    disabled={isUploading || !canModifyProject()}
                     showPreview={false}
                     title={projectStatus && projectStatus.pptSubmitted ? "Choose New PPT File" : "Upload Your PPT"}
                     description="Drag and drop your presentation file here, or click to select"
