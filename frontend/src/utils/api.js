@@ -418,6 +418,14 @@ export const adminAPI = {
     return api.get(`/internships/applications${queryString ? '?' + queryString : ''}`);
   },
   reviewInternshipApplication: (applicationId, data) => api.patch(`/internships/applications/${applicationId}/review`, data),
+  
+  // Group Management (Sem 5, 6, 7)
+  getFinalizedGroupsForManagement: (params = {}) => {
+    const queryString = new URLSearchParams(params).toString();
+    return api.get(`/admin/groups/finalized${queryString ? '?' + queryString : ''}`);
+  },
+  addMemberToGroup: (groupId, studentId) => api.post('/admin/groups/add-member', { groupId, studentId }),
+  removeMemberFromGroup: (groupId, studentId) => api.post('/admin/groups/remove-member', { groupId, studentId }),
 };
 
 // Project APIs (shared)

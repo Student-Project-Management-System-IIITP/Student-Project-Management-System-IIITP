@@ -177,7 +177,8 @@ const groupSchema = new mongoose.Schema({
   updatedAt: {
     type: Date,
     default: Date.now
-  }
+  },
+  isRemovingMember: { type: Boolean, default: false }
 }, {
   timestamps: true
 });
@@ -197,9 +198,29 @@ groupSchema.pre('save', function(next) {
 
 // Pre-save middleware to validate group
 groupSchema.pre('save', function(next) {
-  // Ensure leader is in members array
-  if (this.leader && !this.members.some(member => member.student.toString() === this.leader.toString())) {
-    return next(new Error('Group leader must be a member of the group'));
+  // Skip validation if we're in the process of removing a member
+  if (this.isRemovingMember) {
+  return next();
+}
+
+  // Ensure leader is in members array and is active
+    // Ensure leader is in members array and is active
+  if (this.leader) {
+    const activeLeader = this.members.find(member =>
+      member.student.toString() === this.leader.toString() && member.isActive
+    );
+
+    if (!activeLeader) {
+      // Try to auto-fix by promoting the first active member as leader
+      const replacement = this.members.find(member => member.isActive);
+      if (replacement) {
+        this.leader = replacement.student;
+        replacement.role = 'leader';
+      } else {
+        // No active members at all – nothing to validate here
+        return next();
+      }
+    }
   }
   
   // Validate member count
@@ -736,7 +757,7 @@ groupSchema.methods.finalizeGroup = async function(leaderId, session = null) {
     throw new Error('Cannot finalize locked or disbanded groups');
   }
 
-  // Verify all members have accepted their invites
+  // Verify all members have accepted their invitations
   const pendingMembers = this.members.filter(member => 
     member.isActive && 
     member.inviteStatus !== 'accepted'
@@ -860,4 +881,3 @@ groupSchema.set('toJSON', {
 // The model is created here
 const Group = mongoose.model('Group', groupSchema);
 module.exports = Group;
-

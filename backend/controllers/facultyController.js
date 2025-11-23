@@ -1,4 +1,4 @@
-const Faculty = require('../models/Faculty');
+﻿const Faculty = require('../models/Faculty');
 const Student = require('../models/Student');
 const Project = require('../models/Project');
 const Group = require('../models/Group');
@@ -588,7 +588,7 @@ const getUnallocatedGroups = async (req, res) => {
               misNumber: student.misNumber || 'N/A',
               role: 'leader'
             }] : [])
-          : (pref.group?.members?.map(member => ({
+          : (pref.group?.members?.filter(member => member.isActive)?.map(member => ({
         name: member.student?.fullName || 'Unknown',
         misNumber: member.student?.misNumber || 'N/A',
         role: member.role || 'member'
@@ -652,13 +652,15 @@ const getAllocatedGroups = async (req, res) => {
     }
 
     // Method 2: Get groups directly allocated to faculty (for Sem 6+ where no FacultyPreference exists)
+    // Note: Do NOT filter by academicYear or isActive here. We rely on the project status
+    // filter below to hide only groups whose current project is already completed.
+    // This ensures Sem 6 continuation groups remain visible even if their isActive
+    // flag was previously toggled during semester promotion.
     const groupQuery = {
       allocatedFaculty: faculty._id,
-      isActive: true,
       semester: { $in: semestersToFetch },
-      academicYear: academicYear
     };
-    
+
     const directlyAllocatedGroups = await Group.find(groupQuery)
       .populate('members.student', 'fullName misNumber collegeEmail branch')
       .populate('project', 'title description projectType status _id')
@@ -688,7 +690,7 @@ const getAllocatedGroups = async (req, res) => {
               misNumber: student.misNumber || 'N/A',
               role: 'leader'
             }] : [])
-          : (pref.group?.members?.map(member => ({
+          : (pref.group?.members?.filter(member => member.isActive)?.map(member => ({
         name: member.student?.fullName || 'Unknown',
         misNumber: member.student?.misNumber || 'N/A',
         role: member.role || 'member'
@@ -706,7 +708,7 @@ const getAllocatedGroups = async (req, res) => {
       groupName: group.name || 'Unnamed Group',
       projectTitle: group.project?.title || 'No Project',
       projectType: group.project?.projectType || (group.semester === 7 ? 'major1' : group.semester === 5 ? 'minor2' : group.semester === 4 ? 'minor1' : group.semester === 6 ? 'minor3' : 'unknown'),
-      members: group.members?.map(member => ({
+      members: group.members?.filter(member => member.isActive)?.map(member => ({
         name: member.student?.fullName || 'Unknown',
         misNumber: member.student?.misNumber || 'N/A',
         role: member.role || 'member'

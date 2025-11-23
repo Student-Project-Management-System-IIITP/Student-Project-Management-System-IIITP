@@ -598,6 +598,10 @@ const GroupDashboard = () => {
   // Check if current user can leave the group
   const canLeaveGroup = useCallback(() => {
     if (!groupDetails || !roleData) return false;
+
+    if (groupDetails.semester === 6) {
+      return false;
+    }
     
     // Cannot leave if group is finalized
     if (groupDetails.status === 'finalized' || groupDetails.status === 'locked') {

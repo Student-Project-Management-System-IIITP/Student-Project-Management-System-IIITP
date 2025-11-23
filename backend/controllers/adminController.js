@@ -1,26 +1,27 @@
-const Student = require('../models/Student');
-const Faculty = require('../models/Faculty');
-const Admin = require('../models/Admin');
-const User = require('../models/User');
-const Project = require('../models/Project');
-const Group = require('../models/Group');
-const FacultyPreference = require('../models/FacultyPreference');
-const SystemConfig = require('../models/SystemConfig');
+const mongoose = require("mongoose");
+const Student = require("../models/Student");
+const Faculty = require("../models/Faculty");
+const Admin = require("../models/Admin");
+const User = require("../models/User");
+const Project = require("../models/Project");
+const Group = require("../models/Group");
+const FacultyPreference = require("../models/FacultyPreference");
+const SystemConfig = require("../models/SystemConfig");
 
 // Get admin profile data
 const getAdminProfile = async (req, res) => {
   try {
     const userId = req.user.id;
-    
+
     // Get admin details with populated user data
     const admin = await Admin.findOne({ user: userId })
-      .populate('user', 'email role isActive lastLogin createdAt')
+      .populate("user", "email role isActive lastLogin createdAt")
       .lean();
 
     if (!admin) {
       return res.status(404).json({
         success: false,
-        message: 'Admin profile not found'
+        message: "Admin profile not found",
       });
     }
 
@@ -36,7 +37,7 @@ const getAdminProfile = async (req, res) => {
           designation: admin.designation,
           isSuperAdmin: admin.isSuperAdmin,
           createdAt: admin.createdAt,
-          updatedAt: admin.updatedAt
+          updatedAt: admin.updatedAt,
         },
         user: {
           id: admin.user._id,
@@ -44,16 +45,16 @@ const getAdminProfile = async (req, res) => {
           role: admin.user.role,
           isActive: admin.user.isActive,
           lastLogin: admin.user.lastLogin,
-          createdAt: admin.user.createdAt
-        }
-      }
+          createdAt: admin.user.createdAt,
+        },
+      },
     });
   } catch (error) {
-    console.error('Error getting admin profile:', error);
+    console.error("Error getting admin profile:", error);
     res.status(500).json({
       success: false,
-      message: 'Error fetching admin profile',
-      error: error.message
+      message: "Error fetching admin profile",
+      error: error.message,
     });
   }
 };
@@ -68,7 +69,7 @@ const updateAdminProfile = async (req, res) => {
     if (!fullName || !phone) {
       return res.status(400).json({
         success: false,
-        message: 'Full name and phone are required'
+        message: "Full name and phone are required",
       });
     }
 
@@ -77,32 +78,32 @@ const updateAdminProfile = async (req, res) => {
     if (!phoneRegex.test(phone)) {
       return res.status(400).json({
         success: false,
-        message: 'Please enter a valid 10-digit phone number'
+        message: "Please enter a valid 10-digit phone number",
       });
     }
 
     // Update admin profile
     const admin = await Admin.findOneAndUpdate(
       { user: userId },
-      { 
+      {
         fullName: fullName.trim(),
         phone: phone.trim(),
         ...(department && { department }),
-        ...(designation && { designation })
+        ...(designation && { designation }),
       },
       { new: true, runValidators: true }
-    ).populate('user', 'email role isActive lastLogin createdAt');
+    ).populate("user", "email role isActive lastLogin createdAt");
 
     if (!admin) {
       return res.status(404).json({
         success: false,
-        message: 'Admin profile not found'
+        message: "Admin profile not found",
       });
     }
 
     res.json({
       success: true,
-      message: 'Profile updated successfully',
+      message: "Profile updated successfully",
       data: {
         admin: {
           id: admin._id,
@@ -112,23 +113,23 @@ const updateAdminProfile = async (req, res) => {
           department: admin.department,
           designation: admin.designation,
           isSuperAdmin: admin.isSuperAdmin,
-          updatedAt: admin.updatedAt
+          updatedAt: admin.updatedAt,
         },
         user: {
           id: admin.user._id,
           email: admin.user.email,
           role: admin.user.role,
           isActive: admin.user.isActive,
-          lastLogin: admin.user.lastLogin
-        }
-      }
+          lastLogin: admin.user.lastLogin,
+        },
+      },
     });
   } catch (error) {
-    console.error('Error updating admin profile:', error);
+    console.error("Error updating admin profile:", error);
     res.status(500).json({
       success: false,
-      message: 'Error updating profile',
-      error: error.message
+      message: "Error updating profile",
+      error: error.message,
     });
   }
 };
@@ -142,47 +143,51 @@ const getDashboardData = async (req, res) => {
     const totalUsers = await User.countDocuments();
     const totalProjects = await Project.countDocuments();
     const totalGroups = await Group.countDocuments();
-    
+
     // Get project statistics
     const projectStats = {
       total: totalProjects,
-      registered: await Project.countDocuments({ status: 'registered' }),
-      faculty_allocated: await Project.countDocuments({ status: 'faculty_allocated' }),
-      active: await Project.countDocuments({ status: 'active' }),
-      completed: await Project.countDocuments({ status: 'completed' }),
-      cancelled: await Project.countDocuments({ status: 'cancelled' })
+      registered: await Project.countDocuments({ status: "registered" }),
+      faculty_allocated: await Project.countDocuments({
+        status: "faculty_allocated",
+      }),
+      active: await Project.countDocuments({ status: "active" }),
+      completed: await Project.countDocuments({ status: "completed" }),
+      cancelled: await Project.countDocuments({ status: "cancelled" }),
     };
 
     // Get group statistics
     const groupStats = {
       total: totalGroups,
-      forming: await Group.countDocuments({ status: 'forming' }),
-      complete: await Group.countDocuments({ status: 'complete' }),
-      locked: await Group.countDocuments({ status: 'locked' }),
-      disbanded: await Group.countDocuments({ status: 'disbanded' })
+      forming: await Group.countDocuments({ status: "forming" }),
+      complete: await Group.countDocuments({ status: "complete" }),
+      locked: await Group.countDocuments({ status: "locked" }),
+      disbanded: await Group.countDocuments({ status: "disbanded" }),
     };
 
     // Get allocation statistics
     const allocationStats = {
-      pending: await FacultyPreference.countDocuments({ status: 'pending' }),
-      allocated: await FacultyPreference.countDocuments({ status: 'allocated' }),
-      rejected: await FacultyPreference.countDocuments({ status: 'rejected' })
+      pending: await FacultyPreference.countDocuments({ status: "pending" }),
+      allocated: await FacultyPreference.countDocuments({
+        status: "allocated",
+      }),
+      rejected: await FacultyPreference.countDocuments({ status: "rejected" }),
     };
 
     // Get recent activities
     const recentStudents = await Student.find()
-      .populate('user', 'email role isActive lastLogin')
+      .populate("user", "email role isActive lastLogin")
       .sort({ createdAt: -1 })
       .limit(5);
 
     const recentFaculty = await Faculty.find()
-      .populate('user', 'email role isActive lastLogin')
+      .populate("user", "email role isActive lastLogin")
       .sort({ createdAt: -1 })
       .limit(5);
 
     const recentProjects = await Project.find()
-      .populate('student', 'fullName misNumber')
-      .populate('faculty', 'fullName department')
+      .populate("student", "fullName misNumber")
+      .populate("faculty", "fullName department")
       .sort({ createdAt: -1 })
       .limit(5);
 
@@ -194,22 +199,22 @@ const getDashboardData = async (req, res) => {
           totalFaculty,
           totalUsers,
           totalProjects,
-          totalGroups
+          totalGroups,
         },
         projectStats,
         groupStats,
         allocationStats,
         recentStudents,
         recentFaculty,
-        recentProjects
-      }
+        recentProjects,
+      },
     });
   } catch (error) {
-    console.error('Error getting admin dashboard data:', error);
+    console.error("Error getting admin dashboard data:", error);
     res.status(500).json({
       success: false,
-      message: 'Error fetching dashboard data',
-      error: error.message
+      message: "Error fetching dashboard data",
+      error: error.message,
     });
   }
 };
@@ -217,20 +222,18 @@ const getDashboardData = async (req, res) => {
 // Get all users
 const getUsers = async (req, res) => {
   try {
-    const users = await User.find()
-      .select('-password')
-      .sort({ createdAt: -1 });
+    const users = await User.find().select("-password").sort({ createdAt: -1 });
 
     res.json({
       success: true,
-      data: users
+      data: users,
     });
   } catch (error) {
-    console.error('Error getting users:', error);
+    console.error("Error getting users:", error);
     res.status(500).json({
       success: false,
-      message: 'Error fetching users',
-      error: error.message
+      message: "Error fetching users",
+      error: error.message,
     });
   }
 };
@@ -239,19 +242,19 @@ const getUsers = async (req, res) => {
 const getStudents = async (req, res) => {
   try {
     const students = await Student.find({ isActive: true })
-      .populate('user', 'name email phone')
+      .populate("user", "name email phone")
       .sort({ createdAt: -1 });
 
     res.json({
       success: true,
-      data: students
+      data: students,
     });
   } catch (error) {
-    console.error('Error getting students:', error);
+    console.error("Error getting students:", error);
     res.status(500).json({
       success: false,
-      message: 'Error fetching students',
-      error: error.message
+      message: "Error fetching students",
+      error: error.message,
     });
   }
 };
@@ -260,19 +263,19 @@ const getStudents = async (req, res) => {
 const getFaculty = async (req, res) => {
   try {
     const faculty = await Faculty.find({ isActive: true })
-      .populate('user', 'name email phone')
+      .populate("user", "name email phone")
       .sort({ createdAt: -1 });
 
     res.json({
       success: true,
-      data: faculty
+      data: faculty,
     });
   } catch (error) {
-    console.error('Error getting faculty:', error);
+    console.error("Error getting faculty:", error);
     res.status(500).json({
       success: false,
-      message: 'Error fetching faculty',
-      error: error.message
+      message: "Error fetching faculty",
+      error: error.message,
     });
   }
 };
@@ -281,75 +284,81 @@ const getFaculty = async (req, res) => {
 const getProjects = async (req, res) => {
   try {
     const { semester, status, projectType, faculty } = req.query;
-    
+
     // Build query
     const query = {};
-    
-    if (semester !== undefined && semester !== null && semester !== '') {
+
+    if (semester !== undefined && semester !== null && semester !== "") {
       const semesterNumber = parseInt(semester, 10);
       if (!Number.isNaN(semesterNumber)) {
         query.semester = semesterNumber;
       }
     }
-    
+
     if (status) {
       query.status = status;
     }
-    
+
     if (projectType) {
       query.projectType = projectType;
     }
-    
+
     if (faculty) {
       query.faculty = faculty;
     }
 
     // Get projects with populated data
     const projects = await Project.find(query)
-      .populate('student', 'fullName misNumber collegeEmail semester degree branch contactNumber')
-      .populate('faculty', 'fullName department designation')
+      .populate(
+        "student",
+        "fullName misNumber collegeEmail semester degree branch contactNumber"
+      )
+      .populate("faculty", "fullName department designation")
       .populate({
-        path: 'facultyPreferences.faculty',
-        select: 'fullName department designation'
+        path: "facultyPreferences.faculty",
+        select: "fullName department designation",
       })
       .populate({
-        path: 'group',
-        select: 'name members allocatedFaculty',
+        path: "group",
+        select: "name members allocatedFaculty",
         populate: [
           {
-            path: 'members.student',
-            select: 'fullName misNumber collegeEmail semester degree branch contactNumber'
+            path: "members.student",
+            select:
+              "fullName misNumber collegeEmail semester degree branch contactNumber",
           },
           {
-            path: 'allocatedFaculty',
-            select: 'fullName department designation'
-          }
-        ]
+            path: "allocatedFaculty",
+            select: "fullName department designation",
+          },
+        ],
       })
       .sort({ createdAt: -1 });
 
     // Get project statistics
     const stats = {
       total: projects.length,
-      registered: projects.filter(p => p.status === 'registered').length,
-      faculty_allocated: projects.filter(p => p.status === 'faculty_allocated').length,
-      active: projects.filter(p => p.status === 'active').length,
-      completed: projects.filter(p => p.status === 'completed').length,
-      cancelled: projects.filter(p => p.status === 'cancelled').length
+      registered: projects.filter((p) => p.status === "registered").length,
+      faculty_allocated: projects.filter(
+        (p) => p.status === "faculty_allocated"
+      ).length,
+      active: projects.filter((p) => p.status === "active").length,
+      completed: projects.filter((p) => p.status === "completed").length,
+      cancelled: projects.filter((p) => p.status === "cancelled").length,
     };
 
     res.json({
       success: true,
       data: projects,
       stats,
-      message: `Found ${projects.length} projects`
+      message: `Found ${projects.length} projects`,
     });
   } catch (error) {
-    console.error('Error getting projects:', error);
+    console.error("Error getting projects:", error);
     res.status(500).json({
       success: false,
-      message: 'Error fetching projects',
-      error: error.message
+      message: "Error fetching projects",
+      error: error.message,
     });
   }
 };
@@ -358,53 +367,53 @@ const getProjects = async (req, res) => {
 const getGroups = async (req, res) => {
   try {
     const { semester, status, faculty } = req.query;
-    
+
     // Build query
     const query = {};
-    
+
     if (semester) {
       query.semester = parseInt(semester);
     }
-    
+
     if (status) {
       query.status = status;
     }
-    
+
     if (faculty) {
       query.allocatedFaculty = faculty;
     }
 
     // Get groups with populated data
     const groups = await Group.find(query)
-      .populate('members.student', 'fullName misNumber collegeEmail')
-      .populate('leader', 'fullName misNumber collegeEmail')
-      .populate('allocatedFaculty', 'fullName department designation')
-      .populate('project', 'title description projectType status')
+      .populate("members.student", "fullName misNumber collegeEmail")
+      .populate("leader", "fullName misNumber collegeEmail")
+      .populate("allocatedFaculty", "fullName department designation")
+      .populate("project", "title description projectType status")
       .sort({ createdAt: -1 });
 
     // Get group statistics
     const stats = {
       total: groups.length,
-      forming: groups.filter(g => g.status === 'forming').length,
-      complete: groups.filter(g => g.status === 'complete').length,
-      locked: groups.filter(g => g.status === 'locked').length,
-      disbanded: groups.filter(g => g.status === 'disbanded').length,
-      withFaculty: groups.filter(g => g.allocatedFaculty).length,
-      withProject: groups.filter(g => g.project).length
+      forming: groups.filter((g) => g.status === "forming").length,
+      complete: groups.filter((g) => g.status === "complete").length,
+      locked: groups.filter((g) => g.status === "locked").length,
+      disbanded: groups.filter((g) => g.status === "disbanded").length,
+      withFaculty: groups.filter((g) => g.allocatedFaculty).length,
+      withProject: groups.filter((g) => g.project).length,
     };
 
     res.json({
       success: true,
       data: groups,
       stats,
-      message: `Found ${groups.length} groups`
+      message: `Found ${groups.length} groups`,
     });
   } catch (error) {
-    console.error('Error getting groups:', error);
+    console.error("Error getting groups:", error);
     res.status(500).json({
       success: false,
-      message: 'Error fetching groups',
-      error: error.message
+      message: "Error fetching groups",
+      error: error.message,
     });
   }
 };
@@ -416,20 +425,23 @@ const getSystemStats = async (req, res) => {
       totalStudents: await Student.countDocuments({ isActive: true }),
       totalFaculty: await Faculty.countDocuments({ isActive: true }),
       totalUsers: await User.countDocuments(),
-      activeStudents: await Student.countDocuments({ isActive: true, isGraduated: false }),
-      graduatedStudents: await Student.countDocuments({ isGraduated: true })
+      activeStudents: await Student.countDocuments({
+        isActive: true,
+        isGraduated: false,
+      }),
+      graduatedStudents: await Student.countDocuments({ isGraduated: true }),
     };
 
     res.json({
       success: true,
-      data: stats
+      data: stats,
     });
   } catch (error) {
-    console.error('Error getting system stats:', error);
+    console.error("Error getting system stats:", error);
     res.status(500).json({
       success: false,
-      message: 'Error fetching system statistics',
-      error: error.message
+      message: "Error fetching system statistics",
+      error: error.message,
     });
   }
 };
@@ -438,52 +450,55 @@ const getSystemStats = async (req, res) => {
 const getAllocations = async (req, res) => {
   try {
     const { status, semester, faculty } = req.query;
-    
+
     // Build query
     const query = {};
-    
+
     if (status) {
       query.status = status;
     }
-    
+
     if (semester) {
       query.semester = parseInt(semester);
     }
-    
+
     if (faculty) {
       query.allocatedFaculty = faculty;
     }
 
     // Get allocations with populated data
     const allocations = await FacultyPreference.find(query)
-      .populate('student', 'fullName misNumber collegeEmail semester degree branch')
-      .populate('project', 'title description projectType')
-      .populate('group', 'name members')
-      .populate('preferences.faculty', 'fullName department designation')
-      .populate('allocatedFaculty', 'fullName department designation')
+      .populate(
+        "student",
+        "fullName misNumber collegeEmail semester degree branch"
+      )
+      .populate("project", "title description projectType")
+      .populate("group", "name members")
+      .populate("preferences.faculty", "fullName department designation")
+      .populate("allocatedFaculty", "fullName department designation")
       .sort({ createdAt: -1 });
 
     // Get allocation statistics
     const stats = {
       total: allocations.length,
-      pending: allocations.filter(a => a.status === 'pending').length,
-      allocated: allocations.filter(a => a.status === 'allocated').length,
-      rejected: allocations.filter(a => a.status === 'rejected').length,
-      cancelled: allocations.filter(a => a.status === 'cancelled').length
+      pending: allocations.filter((a) => a.status === "pending").length,
+      allocated: allocations.filter((a) => a.status === "allocated").length,
+      rejected: allocations.filter((a) => a.status === "rejected").length,
+      cancelled: allocations.filter((a) => a.status === "cancelled").length,
     };
 
     res.json({
       success: true,
       data: allocations,
       stats,
-      message: `Found ${allocations.length} allocations`
+      message: `Found ${allocations.length} allocations`,
     });
   } catch (error) {
-    console.error('Error getting allocations:', error);
+    console.error("Error getting allocations:", error);
     res.status(500).json({
       success: false,
-      message: 'Error fetching allocations',
-      error: error.message
+      message: "Error fetching allocations",
+      error: error.message,
     });
   }
 };
@@ -492,36 +507,36 @@ const getAllocations = async (req, res) => {
 const getUnallocatedGroups = async (req, res) => {
   try {
     const { semester } = req.query;
-    
+
     // Build query for groups without faculty allocation
     const query = {
       allocatedFaculty: { $exists: false },
       isActive: true,
-      status: { $in: ['complete', 'locked'] }
+      status: { $in: ["complete", "locked"] },
     };
-    
+
     if (semester) {
       query.semester = parseInt(semester);
     }
 
     // Get unallocated groups
     const groups = await Group.find(query)
-      .populate('members.student', 'fullName misNumber collegeEmail')
-      .populate('leader', 'fullName misNumber collegeEmail')
-      .populate('project', 'title description projectType')
+      .populate("members.student", "fullName misNumber collegeEmail")
+      .populate("leader", "fullName misNumber collegeEmail")
+      .populate("project", "title description projectType")
       .sort({ createdAt: 1 });
 
     res.json({
       success: true,
       data: groups,
-      message: `Found ${groups.length} unallocated groups`
+      message: `Found ${groups.length} unallocated groups`,
     });
   } catch (error) {
-    console.error('Error getting unallocated groups:', error);
+    console.error("Error getting unallocated groups:", error);
     res.status(500).json({
       success: false,
-      message: 'Error fetching unallocated groups',
-      error: error.message
+      message: "Error fetching unallocated groups",
+      error: error.message,
     });
   }
 };
@@ -530,13 +545,13 @@ const getUnallocatedGroups = async (req, res) => {
 const forceAllocateFaculty = async (req, res) => {
   try {
     const { allocationId, facultyId } = req.body;
-    
+
     // Find allocation
     const allocation = await FacultyPreference.findById(allocationId);
     if (!allocation) {
       return res.status(404).json({
         success: false,
-        message: 'Allocation not found'
+        message: "Allocation not found",
       });
     }
 
@@ -545,7 +560,7 @@ const forceAllocateFaculty = async (req, res) => {
     if (!faculty) {
       return res.status(404).json({
         success: false,
-        message: 'Faculty not found'
+        message: "Faculty not found",
       });
     }
 
@@ -560,9 +575,11 @@ const forceAllocateFaculty = async (req, res) => {
       if (group) {
         group.allocatedFaculty = facultyId;
         await group.save();
-        
+
         // Get populated version for member updates below
-        group = await Group.findById(allocation.group).populate('members.student');
+        group = await Group.findById(allocation.group).populate(
+          "members.student"
+        );
       }
     }
 
@@ -570,21 +587,21 @@ const forceAllocateFaculty = async (req, res) => {
       const project = await Project.findById(allocation.project);
       if (project) {
         project.faculty = facultyId;
-        project.status = 'faculty_allocated';
-        project.allocatedBy = 'admin_allocation';
+        project.status = "faculty_allocated";
+        project.allocatedBy = "admin_allocation";
         await project.save();
-        
+
         // Update all group members' currentProjects status
         if (group && group.members) {
-          const activeMembers = group.members.filter(m => m.isActive);
+          const activeMembers = group.members.filter((m) => m.isActive);
           for (const member of activeMembers) {
             const memberStudent = await Student.findById(member.student);
             if (memberStudent) {
-              const currentProject = memberStudent.currentProjects.find(cp => 
-                cp.project.toString() === project._id.toString()
+              const currentProject = memberStudent.currentProjects.find(
+                (cp) => cp.project.toString() === project._id.toString()
               );
               if (currentProject) {
-                currentProject.status = 'active'; // Update status when faculty is allocated
+                currentProject.status = "active"; // Update status when faculty is allocated
               }
               await memberStudent.save();
             }
@@ -595,14 +612,14 @@ const forceAllocateFaculty = async (req, res) => {
 
     res.json({
       success: true,
-      message: 'Faculty allocated successfully'
+      message: "Faculty allocated successfully",
     });
   } catch (error) {
-    console.error('Error force allocating faculty:', error);
+    console.error("Error force allocating faculty:", error);
     res.status(500).json({
       success: false,
-      message: 'Error force allocating faculty',
-      error: error.message
+      message: "Error force allocating faculty",
+      error: error.message,
     });
   }
 };
@@ -612,13 +629,13 @@ const updateProjectStatus = async (req, res) => {
   try {
     const { projectId } = req.params;
     const { status, grade, feedback } = req.body;
-    
+
     // Find project
     const project = await Project.findById(projectId);
     if (!project) {
       return res.status(404).json({
         success: false,
-        message: 'Project not found'
+        message: "Project not found",
       });
     }
 
@@ -626,8 +643,8 @@ const updateProjectStatus = async (req, res) => {
     if (status) project.status = status;
     if (grade) project.grade = grade;
     if (feedback) project.feedback = feedback;
-    
-    if (status === 'completed' || grade) {
+
+    if (status === "completed" || grade) {
       project.evaluatedBy = req.user.id;
       project.evaluatedAt = new Date();
     }
@@ -637,14 +654,14 @@ const updateProjectStatus = async (req, res) => {
     res.json({
       success: true,
       data: project,
-      message: 'Project status updated successfully'
+      message: "Project status updated successfully",
     });
   } catch (error) {
-    console.error('Error updating project status:', error);
+    console.error("Error updating project status:", error);
     res.status(500).json({
       success: false,
-      message: 'Error updating project status',
-      error: error.message
+      message: "Error updating project status",
+      error: error.message,
     });
   }
 };
@@ -659,20 +676,30 @@ const getAllocationStatistics = async (req, res) => {
     if (academicYear) query.academicYear = academicYear;
 
     const totalGroups = await Group.countDocuments(query);
-    const allocatedGroups = await Group.countDocuments({ ...query, allocatedFaculty: { $exists: true } });
+    const allocatedGroups = await Group.countDocuments({
+      ...query,
+      allocatedFaculty: { $exists: true },
+    });
     const unallocatedGroups = totalGroups - allocatedGroups;
 
     const groupsByStatus = await Group.aggregate([
       { $match: query },
-      { $group: { _id: '$status', count: { $sum: 1 } } }
+      { $group: { _id: "$status", count: { $sum: 1 } } },
     ]);
 
     const groupsByFaculty = await Group.aggregate([
       { $match: { ...query, allocatedFaculty: { $exists: true } } },
-      { $group: { _id: '$allocatedFaculty', count: { $sum: 1 } } },
-      { $lookup: { from: 'faculties', localField: '_id', foreignField: '_id', as: 'faculty' } },
-      { $unwind: '$faculty' },
-      { $project: { facultyName: '$faculty.fullName', count: 1 } }
+      { $group: { _id: "$allocatedFaculty", count: { $sum: 1 } } },
+      {
+        $lookup: {
+          from: "faculties",
+          localField: "_id",
+          foreignField: "_id",
+          as: "faculty",
+        },
+      },
+      { $unwind: "$faculty" },
+      { $project: { facultyName: "$faculty.fullName", count: 1 } },
     ]);
 
     res.json({
@@ -681,18 +708,21 @@ const getAllocationStatistics = async (req, res) => {
         totalGroups,
         allocatedGroups,
         unallocatedGroups,
-        allocationRate: totalGroups > 0 ? (allocatedGroups / totalGroups * 100).toFixed(2) : 0,
+        allocationRate:
+          totalGroups > 0
+            ? ((allocatedGroups / totalGroups) * 100).toFixed(2)
+            : 0,
         groupsByStatus,
-        groupsByFaculty
+        groupsByFaculty,
       },
-      message: 'Allocation statistics retrieved successfully'
+      message: "Allocation statistics retrieved successfully",
     });
   } catch (error) {
-    console.error('Error getting allocation statistics:', error);
+    console.error("Error getting allocation statistics:", error);
     res.status(500).json({
       success: false,
-      message: 'Error getting allocation statistics',
-      error: error.message
+      message: "Error getting allocation statistics",
+      error: error.message,
     });
   }
 };
@@ -701,25 +731,27 @@ const getAllocationStatistics = async (req, res) => {
 const getSem4MinorProject1Registrations = async (req, res) => {
   try {
     const { batch, currentYear } = req.query;
-    
+
     let query = {
-      projectType: 'minor1',
-      semester: 4
+      projectType: "minor1",
+      semester: 4,
     };
 
     // Add academic year filter based on batch
     if (batch || currentYear) {
       if (batch) {
         // Convert batch (e.g., "2024-2028") to academicYear format
-        const startYear = batch.split('-')[0];
+        const startYear = batch.split("-")[0];
         const academicYear = `${startYear}-${parseInt(startYear) + 4}`;
         query.academicYear = academicYear;
-      } else if (currentYear === 'true') {
+      } else if (currentYear === "true") {
         // Get current academic year
         const currentDate = new Date();
         const currentYearNum = currentDate.getFullYear();
         const isPreMid = currentDate.getMonth() < 6; // July = month index 6
-        const academicStartYear = isPreMid ? currentYearNum - 1 : currentYearNum;
+        const academicStartYear = isPreMid
+          ? currentYearNum - 1
+          : currentYearNum;
         const academicYear = `${academicStartYear}-${academicStartYear + 4}`;
         query.academicYear = academicYear;
       }
@@ -728,42 +760,41 @@ const getSem4MinorProject1Registrations = async (req, res) => {
     // Get projects with populated student data
     const projects = await Project.find(query)
       .populate({
-        path: 'student',
+        path: "student",
         populate: {
-          path: 'user',
-          select: 'email'
-        }
+          path: "user",
+          select: "email",
+        },
       })
       .sort({ createdAt: -1 });
 
     // Format the response with required columns
-    const formattedRegistrations = projects.map(project => ({
+    const formattedRegistrations = projects.map((project) => ({
       _id: project._id,
       timestamp: project.createdAt,
-      email: project.student?.user?.email || 'N/A',
-      name: project.student?.fullName || 'N/A',
-      misNumber: project.student?.misNumber || 'N/A',
-      contact: project.student?.contactNumber || 'N/A',
-      branch: project.student?.branch || 'N/A',
+      email: project.student?.user?.email || "N/A",
+      name: project.student?.fullName || "N/A",
+      misNumber: project.student?.misNumber || "N/A",
+      contact: project.student?.contactNumber || "N/A",
+      branch: project.student?.branch || "N/A",
       projectTitle: project.title,
       status: project.status,
       academicYear: project.academicYear,
       projectType: project.projectType,
-      semester: project.semester
+      semester: project.semester,
     }));
 
     res.json({
       success: true,
       data: formattedRegistrations,
-      total: formattedRegistrations.length
+      total: formattedRegistrations.length,
     });
-
   } catch (error) {
-    console.error('Error getting Sem 4 Minor Project 1 registrations:', error);
+    console.error("Error getting Sem 4 Minor Project 1 registrations:", error);
     res.status(500).json({
       success: false,
-      message: 'Error fetching registrations',
-      error: error.message
+      message: "Error fetching registrations",
+      error: error.message,
     });
   }
 };
@@ -772,38 +803,39 @@ const getSem4MinorProject1Registrations = async (req, res) => {
 const getUnregisteredSem4Students = async (req, res) => {
   try {
     // Find all Semester 4 students
-    const allSem4Students = await Student.find({ 
+    const allSem4Students = await Student.find({
       semester: 4,
-      degree: 'B.Tech'
+      degree: "B.Tech",
     })
-    .populate('user', 'email')
-    .lean();
+      .populate("user", "email")
+      .lean();
 
     // Find all students who have registered for Minor Project 1
     const registeredProjects = await Project.find({
-      projectType: 'minor1',
-      semester: 4
-    }).distinct('student');
+      projectType: "minor1",
+      semester: 4,
+    }).distinct("student");
 
     // Filter out students who have already registered
     const unregisteredStudents = allSem4Students.filter(
-      student => !registeredProjects.some(
-        registeredId => registeredId.toString() === student._id.toString()
-      )
+      (student) =>
+        !registeredProjects.some(
+          (registeredId) => registeredId.toString() === student._id.toString()
+        )
     );
 
     res.json({
       success: true,
       data: unregisteredStudents,
       count: unregisteredStudents.length,
-      message: 'Unregistered Sem 4 students retrieved successfully'
+      message: "Unregistered Sem 4 students retrieved successfully",
     });
   } catch (error) {
-    console.error('Error getting unregistered Sem 4 students:', error);
+    console.error("Error getting unregistered Sem 4 students:", error);
     res.status(500).json({
       success: false,
-      message: 'Error fetching unregistered students',
-      error: error.message
+      message: "Error fetching unregistered students",
+      error: error.message,
     });
   }
 };
@@ -812,9 +844,9 @@ const getUnregisteredSem4Students = async (req, res) => {
 const getSem5NonRegisteredStudents = async (req, res) => {
   try {
     const { batch, currentYear, academicYear } = req.query;
-    
+
     let query = {
-      semester: 5
+      semester: 5,
     };
 
     // Add academic year filter
@@ -822,56 +854,60 @@ const getSem5NonRegisteredStudents = async (req, res) => {
       query.academicYear = academicYear;
     } else if (batch || currentYear) {
       if (batch) {
-        const startYear = batch.split('-')[0];
-        // Academic year format should be "2024-25" not "2024-2028"
-        const acYear = `${startYear}-${(parseInt(startYear) + 1).toString().slice(-2)}`;
-        query.academicYear = acYear;
-      } else if (currentYear === 'true') {
+        const startYear = batch.split("-")[0];
+        const academicYear = `${startYear}-${parseInt(startYear) + 4}`;
+        query.academicYear = academicYear;
+      } else if (currentYear === "true") {
         const currentDate = new Date();
         const currentYearNum = currentDate.getFullYear();
         const isPreMid = currentDate.getMonth() < 6;
-        const academicStartYear = isPreMid ? currentYearNum - 1 : currentYearNum;
-        // Academic year format should be "2024-25" not "2024-2028"
-        const acYear = `${academicStartYear}-${(academicStartYear + 1).toString().slice(-2)}`;
-        query.academicYear = acYear;
+        const academicStartYear = isPreMid
+          ? currentYearNum - 1
+          : currentYearNum;
+        const academicYear = `${academicStartYear}-${academicStartYear + 4}`;
+        query.academicYear = academicYear;
       }
     }
 
     // Get all Sem 5 students
     const students = await Student.find(query)
-      .populate('user', 'email')
-      .populate('groupId', 'name status allocatedFaculty')
+      .populate("user", "email")
+      .populate("groupId", "name status allocatedFaculty")
       .sort({ fullName: 1 });
 
     // Get all Sem 5 projects (only from groups still in Sem 5)
     const projectQuery = {
-      projectType: 'minor2',
+      projectType: "minor2",
       semester: 5,
-      ...(query.academicYear && { academicYear: query.academicYear })
+      ...(query.academicYear && { academicYear: query.academicYear }),
     };
-    
+
     const projects = await Project.find(projectQuery)
-      .populate('group', 'semester')
-      .select('student group');
-    
+      .populate("group", "semester")
+      .select("student group");
+
     // Filter to only include projects where group is still in Sem 5
-    const sem5OnlyProjects = projects.filter(p => !p.group || p.group.semester === 5);
+    const sem5OnlyProjects = projects.filter(
+      (p) => !p.group || p.group.semester === 5
+    );
 
     // Create a set of students who have registered
-    const registeredStudentIds = new Set(sem5OnlyProjects.map(p => p.student.toString()));
+    const registeredStudentIds = new Set(
+      sem5OnlyProjects.map((p) => p.student.toString())
+    );
 
     // Get all groups with allocated faculty for Sem 5 (only groups still in Sem 5)
     const allocatedGroups = await Group.find({
       semester: 5,
       allocatedFaculty: { $exists: true, $ne: null },
       isActive: true,
-      ...(query.academicYear && { academicYear: query.academicYear })
-    }).select('members');
+      ...(query.academicYear && { academicYear: query.academicYear }),
+    }).select("members");
 
     // Create a set of students who are in groups with allocated faculty
     const studentsInAllocatedGroups = new Set();
-    allocatedGroups.forEach(group => {
-      group.members.forEach(member => {
+    allocatedGroups.forEach((group) => {
+      group.members.forEach((member) => {
         if (member.isActive) {
           studentsInAllocatedGroups.add(member.student.toString());
         }
@@ -881,45 +917,45 @@ const getSem5NonRegisteredStudents = async (req, res) => {
     // Filter students who:
     // 1. Haven't registered for minor2 project
     // 2. Are NOT in a group that has allocated faculty
-    const nonRegisteredStudents = students.filter(student => 
-      !registeredStudentIds.has(student._id.toString()) &&
-      !studentsInAllocatedGroups.has(student._id.toString())
+    const nonRegisteredStudents = students.filter(
+      (student) =>
+        !registeredStudentIds.has(student._id.toString()) &&
+        !studentsInAllocatedGroups.has(student._id.toString())
     );
 
     // Format the response
-    const formattedStudents = nonRegisteredStudents.map(student => ({
+    const formattedStudents = nonRegisteredStudents.map((student) => ({
       _id: student._id,
       fullName: student.fullName,
       misNumber: student.misNumber,
-      email: student.user?.email || 'N/A',
+      email: student.user?.email || "N/A",
       contactNumber: student.contactNumber,
       branch: student.branch,
       academicYear: student.academicYear,
-      groupStatus: student.groupId ? 'In Group' : 'Not in Group',
-      groupName: student.groupId?.name || 'N/A',
-      groupId: student.groupId?._id || null
+      groupStatus: student.groupId ? "In Group" : "Not in Group",
+      groupName: student.groupId?.name || "N/A",
+      groupId: student.groupId?._id || null,
     }));
 
     // Calculate statistics
     const stats = {
       totalNotRegistered: formattedStudents.length,
-      inGroup: formattedStudents.filter(s => s.groupId).length,
-      notInGroup: formattedStudents.filter(s => !s.groupId).length
+      inGroup: formattedStudents.filter((s) => s.groupId).length,
+      notInGroup: formattedStudents.filter((s) => !s.groupId).length,
     };
 
     res.json({
       success: true,
       data: formattedStudents,
       stats,
-      total: formattedStudents.length
+      total: formattedStudents.length,
     });
-
   } catch (error) {
-    console.error('Error getting non-registered students:', error);
+    console.error("Error getting non-registered students:", error);
     res.status(500).json({
       success: false,
-      message: 'Error fetching non-registered students',
-      error: error.message
+      message: "Error fetching non-registered students",
+      error: error.message,
     });
   }
 };
@@ -928,10 +964,10 @@ const getSem5NonRegisteredStudents = async (req, res) => {
 const getSem5Groups = async (req, res) => {
   try {
     const { academicYear } = req.query;
-    
+
     const query = {
       semester: 5,
-      isActive: true
+      isActive: true,
     };
 
     if (academicYear) {
@@ -942,26 +978,28 @@ const getSem5Groups = async (req, res) => {
       const currentYearNum = currentDate.getFullYear();
       const isPreMid = currentDate.getMonth() < 6;
       const academicStartYear = isPreMid ? currentYearNum - 1 : currentYearNum;
-      query.academicYear = `${academicStartYear}-${(academicStartYear + 1).toString().slice(-2)}`;
+      query.academicYear = `${academicStartYear}-${(academicStartYear + 1)
+        .toString()
+        .slice(-2)}`;
     }
 
     const groups = await Group.find(query)
-      .populate('members.student', 'fullName misNumber')
-      .populate('allocatedFaculty', 'fullName department')
-      .populate('project', 'title status')
+      .populate("members.student", "fullName misNumber")
+      .populate("allocatedFaculty", "fullName department")
+      .populate("project", "title status")
       .sort({ createdAt: -1 });
 
     res.json({
       success: true,
       data: groups,
-      total: groups.length
+      total: groups.length,
     });
   } catch (error) {
-    console.error('Error getting Sem 5 groups:', error);
+    console.error("Error getting Sem 5 groups:", error);
     res.status(500).json({
       success: false,
-      message: 'Error fetching Sem 5 groups',
-      error: error.message
+      message: "Error fetching Sem 5 groups",
+      error: error.message,
     });
   }
 };
@@ -970,9 +1008,9 @@ const getSem5Groups = async (req, res) => {
 const getSem5Statistics = async (req, res) => {
   try {
     const { academicYear } = req.query;
-    
+
     const query = {
-      semester: 5
+      semester: 5,
     };
 
     if (academicYear) {
@@ -983,20 +1021,48 @@ const getSem5Statistics = async (req, res) => {
       const currentYearNum = currentDate.getFullYear();
       const isPreMid = currentDate.getMonth() < 6;
       const academicStartYear = isPreMid ? currentYearNum - 1 : currentYearNum;
-      query.academicYear = `${academicStartYear}-${(academicStartYear + 1).toString().slice(-2)}`;
+      query.academicYear = `${academicStartYear}-${(academicStartYear + 1)
+        .toString()
+        .slice(-2)}`;
     }
 
     // Get group statistics
-    const totalGroups = await Group.countDocuments({ ...query, isActive: true });
-    const formedGroups = await Group.countDocuments({ ...query, isActive: true, status: { $in: ['finalized', 'locked', 'open'] } });
-    const allocatedGroups = await Group.countDocuments({ ...query, isActive: true, allocatedFaculty: { $exists: true } });
+    const totalGroups = await Group.countDocuments({
+      ...query,
+      isActive: true,
+    });
+    const formedGroups = await Group.countDocuments({
+      ...query,
+      isActive: true,
+      status: { $in: ["finalized", "locked", "open"] },
+    });
+    const allocatedGroups = await Group.countDocuments({
+      ...query,
+      isActive: true,
+      allocatedFaculty: { $exists: true },
+    });
     const unallocatedGroups = totalGroups - allocatedGroups;
 
     // Get project statistics
-    const totalProjects = await Project.countDocuments({ ...query, projectType: 'minor2' });
-    const registeredProjects = await Project.countDocuments({ ...query, projectType: 'minor2', status: 'registered' });
-    const allocatedProjects = await Project.countDocuments({ ...query, projectType: 'minor2', status: 'faculty_allocated' });
-    const activeProjects = await Project.countDocuments({ ...query, projectType: 'minor2', status: 'active' });
+    const totalProjects = await Project.countDocuments({
+      ...query,
+      projectType: "minor2",
+    });
+    const registeredProjects = await Project.countDocuments({
+      ...query,
+      projectType: "minor2",
+      status: "registered",
+    });
+    const allocatedProjects = await Project.countDocuments({
+      ...query,
+      projectType: "minor2",
+      status: "faculty_allocated",
+    });
+    const activeProjects = await Project.countDocuments({
+      ...query,
+      projectType: "minor2",
+      status: "active",
+    });
 
     res.json({
       success: true,
@@ -1009,15 +1075,18 @@ const getSem5Statistics = async (req, res) => {
         registeredProjects,
         allocatedProjects,
         activeProjects,
-        allocationRate: totalGroups > 0 ? ((allocatedGroups / totalGroups) * 100).toFixed(2) : 0
-      }
+        allocationRate:
+          totalGroups > 0
+            ? ((allocatedGroups / totalGroups) * 100).toFixed(2)
+            : 0,
+      },
     });
   } catch (error) {
-    console.error('Error getting Sem 5 statistics:', error);
+    console.error("Error getting Sem 5 statistics:", error);
     res.status(500).json({
       success: false,
-      message: 'Error fetching Sem 5 statistics',
-      error: error.message
+      message: "Error fetching Sem 5 statistics",
+      error: error.message,
     });
   }
 };
@@ -1026,10 +1095,10 @@ const getSem5Statistics = async (req, res) => {
 const getSem5AllocatedFaculty = async (req, res) => {
   try {
     const { batch, currentYear, academicYear } = req.query;
-    
+
     let query = {
       semester: 5,
-      isActive: true
+      isActive: true,
     };
 
     // Add academic year filter
@@ -1037,17 +1106,23 @@ const getSem5AllocatedFaculty = async (req, res) => {
       query.academicYear = academicYear;
     } else if (batch || currentYear) {
       if (batch) {
-        const startYear = batch.split('-')[0];
+        const startYear = batch.split("-")[0];
         // Academic year format should be "2024-25" not "2024-2028"
-        const acYear = `${startYear}-${(parseInt(startYear) + 1).toString().slice(-2)}`;
+        const acYear = `${startYear}-${(parseInt(startYear) + 1)
+          .toString()
+          .slice(-2)}`;
         query.academicYear = acYear;
-      } else if (currentYear === 'true') {
+      } else if (currentYear === "true") {
         const currentDate = new Date();
         const currentYearNum = currentDate.getFullYear();
         const isPreMid = currentDate.getMonth() < 6;
-        const academicStartYear = isPreMid ? currentYearNum - 1 : currentYearNum;
+        const academicStartYear = isPreMid
+          ? currentYearNum - 1
+          : currentYearNum;
         // Academic year format should be "2024-25" not "2024-2028"
-        const acYear = `${academicStartYear}-${(academicStartYear + 1).toString().slice(-2)}`;
+        const acYear = `${academicStartYear}-${(academicStartYear + 1)
+          .toString()
+          .slice(-2)}`;
         query.academicYear = acYear;
       }
     }
@@ -1056,59 +1131,61 @@ const getSem5AllocatedFaculty = async (req, res) => {
     // This will only get groups that are CURRENTLY in semester 5 (not migrated to sem 6)
     const groups = await Group.find(query)
       .populate({
-        path: 'members.student',
-        select: 'fullName misNumber contactNumber branch user semester',
+        path: "members.student",
+        select: "fullName misNumber contactNumber branch user semester",
         populate: {
-          path: 'user',
-          select: 'email'
-        }
+          path: "user",
+          select: "email",
+        },
       })
       .populate({
-        path: 'allocatedFaculty',
-        select: 'fullName department designation'
+        path: "allocatedFaculty",
+        select: "fullName department designation",
       })
       .populate({
-        path: 'project',
-        select: 'title status semester'
+        path: "project",
+        select: "title status semester",
       })
       .sort({ allocatedFaculty: 1, createdAt: -1 }); // Sort by faculty first, then by creation date
 
     // Format the response with group members and allocated faculty
-    const formattedGroups = groups.map(group => {
-      const members = group.members?.filter(m => m.isActive) || [];
-      
+    const formattedGroups = groups.map((group) => {
+      const members = group.members?.filter((m) => m.isActive) || [];
+
       const groupData = {
         _id: group._id,
-        groupName: group.name || 'Unnamed Group',
+        groupName: group.name || "Unnamed Group",
         status: group.status,
         createdAt: group.createdAt,
-        projectTitle: group.project?.title || 'Not registered yet',
-        projectStatus: group.project?.status || 'N/A',
-        allocatedFaculty: group.allocatedFaculty?.fullName || 'Not Allocated',
-        facultyDepartment: group.allocatedFaculty?.department || '',
-        facultyDesignation: group.allocatedFaculty?.designation || '',
+        projectTitle: group.project?.title || "Not registered yet",
+        projectStatus: group.project?.status || "N/A",
+        allocatedFaculty: group.allocatedFaculty?.fullName || "Not Allocated",
+        facultyDepartment: group.allocatedFaculty?.department || "",
+        facultyDesignation: group.allocatedFaculty?.designation || "",
         isAllocated: !!group.allocatedFaculty,
         memberCount: members.length,
-        academicYear: group.academicYear
+        academicYear: group.academicYear,
       };
 
       // Add all group members (up to 5)
       for (let i = 0; i < 5; i++) {
         const member = members[i];
         const memberNum = i + 1;
-        
+
         if (member && member.student) {
-          groupData[`member${memberNum}Name`] = member.student.fullName || '';
-          groupData[`member${memberNum}MIS`] = member.student.misNumber || '';
-          groupData[`member${memberNum}Contact`] = member.student.contactNumber || '';
-          groupData[`member${memberNum}Branch`] = member.student.branch || '';
-          groupData[`member${memberNum}Email`] = member.student.user?.email || '';
+          groupData[`member${memberNum}Name`] = member.student.fullName || "";
+          groupData[`member${memberNum}MIS`] = member.student.misNumber || "";
+          groupData[`member${memberNum}Contact`] =
+            member.student.contactNumber || "";
+          groupData[`member${memberNum}Branch`] = member.student.branch || "";
+          groupData[`member${memberNum}Email`] =
+            member.student.user?.email || "";
         } else {
-          groupData[`member${memberNum}Name`] = '';
-          groupData[`member${memberNum}MIS`] = '';
-          groupData[`member${memberNum}Contact`] = '';
-          groupData[`member${memberNum}Branch`] = '';
-          groupData[`member${memberNum}Email`] = '';
+          groupData[`member${memberNum}Name`] = "";
+          groupData[`member${memberNum}MIS`] = "";
+          groupData[`member${memberNum}Contact`] = "";
+          groupData[`member${memberNum}Branch`] = "";
+          groupData[`member${memberNum}Email`] = "";
         }
       }
 
@@ -1116,15 +1193,17 @@ const getSem5AllocatedFaculty = async (req, res) => {
     });
 
     // Sort: Allocated groups first (sorted by faculty name), then unallocated groups
-    const allocatedGroups = formattedGroups.filter(g => g.isAllocated);
+    const allocatedGroups = formattedGroups.filter((g) => g.isAllocated);
     // Unallocated groups should only include those who have registered (have a project)
-    const unallocatedGroups = formattedGroups.filter(g => 
-      !g.isAllocated && g.projectTitle !== 'Not registered yet'
+    const unallocatedGroups = formattedGroups.filter(
+      (g) => !g.isAllocated && g.projectTitle !== "Not registered yet"
     );
-    
+
     // Sort allocated groups by faculty name
-    allocatedGroups.sort((a, b) => a.allocatedFaculty.localeCompare(b.allocatedFaculty));
-    
+    allocatedGroups.sort((a, b) =>
+      a.allocatedFaculty.localeCompare(b.allocatedFaculty)
+    );
+
     const sortedGroups = [...allocatedGroups, ...unallocatedGroups];
 
     // Calculate statistics
@@ -1132,24 +1211,24 @@ const getSem5AllocatedFaculty = async (req, res) => {
       totalGroups: formattedGroups.length,
       allocatedGroups: allocatedGroups.length,
       unallocatedGroups: unallocatedGroups.length,
-      allocationRate: formattedGroups.length > 0 
-        ? ((allocatedGroups.length / formattedGroups.length) * 100).toFixed(2) 
-        : 0
+      allocationRate:
+        formattedGroups.length > 0
+          ? ((allocatedGroups.length / formattedGroups.length) * 100).toFixed(2)
+          : 0,
     };
 
     res.json({
       success: true,
       data: sortedGroups,
       stats,
-      total: sortedGroups.length
+      total: sortedGroups.length,
     });
-
   } catch (error) {
-    console.error('Error getting Sem 5 allocated faculty overview:', error);
+    console.error("Error getting Sem 5 allocated faculty overview:", error);
     res.status(500).json({
       success: false,
-      message: 'Error fetching allocated faculty data',
-      error: error.message
+      message: "Error fetching allocated faculty data",
+      error: error.message,
     });
   }
 };
@@ -1158,23 +1237,25 @@ const getSem5AllocatedFaculty = async (req, res) => {
 const getSem5MinorProject2Registrations = async (req, res) => {
   try {
     const { batch, currentYear } = req.query;
-    
+
     let query = {
-      projectType: 'minor2',
-      semester: 5
+      projectType: "minor2",
+      semester: 5,
     };
 
     // Add academic year filter based on batch
     if (batch || currentYear) {
       if (batch) {
-        const startYear = batch.split('-')[0];
+        const startYear = batch.split("-")[0];
         const academicYear = `${startYear}-${parseInt(startYear) + 4}`;
         query.academicYear = academicYear;
-      } else if (currentYear === 'true') {
+      } else if (currentYear === "true") {
         const currentDate = new Date();
         const currentYearNum = currentDate.getFullYear();
         const isPreMid = currentDate.getMonth() < 6;
-        const academicStartYear = isPreMid ? currentYearNum - 1 : currentYearNum;
+        const academicStartYear = isPreMid
+          ? currentYearNum - 1
+          : currentYearNum;
         const academicYear = `${academicStartYear}-${academicStartYear + 4}`;
         query.academicYear = academicYear;
       }
@@ -1183,70 +1264,74 @@ const getSem5MinorProject2Registrations = async (req, res) => {
     // Get projects with populated data
     const projects = await Project.find(query)
       .populate({
-        path: 'group',
-        select: 'name semester academicYear members',
+        path: "group",
+        select: "name semester academicYear members",
         populate: {
-          path: 'members.student',
-          select: 'fullName misNumber contactNumber branch user semester',
+          path: "members.student",
+          select: "fullName misNumber contactNumber branch user semester",
           populate: {
-            path: 'user',
-            select: 'email'
-          }
-        }
+            path: "user",
+            select: "email",
+          },
+        },
       })
       .populate({
-        path: 'facultyPreferences.faculty',
-        select: 'fullName'
+        path: "facultyPreferences.faculty",
+        select: "fullName",
       })
       .sort({ createdAt: -1 });
 
     // Filter out projects where the group has been migrated to Sem 6
     // (group.semester will be 6 if it was migrated for continuation)
-    const sem5OnlyProjects = projects.filter(project => {
+    const sem5OnlyProjects = projects.filter((project) => {
       if (!project.group) return true; // Keep if no group data
       return project.group.semester === 5; // Only keep if group is still in Sem 5
     });
 
     // Format the response with all group members and faculty preferences
-    const formattedRegistrations = sem5OnlyProjects.map(project => {
+    const formattedRegistrations = sem5OnlyProjects.map((project) => {
       const group = project.group;
-      const members = group?.members?.filter(m => m.isActive) || [];
-      
+      const members = group?.members?.filter((m) => m.isActive) || [];
+
       // Create a flat structure with all member details
       const registration = {
         _id: project._id,
         timestamp: project.createdAt,
-        email: members[0]?.student?.user?.email || 'N/A',
+        email: members[0]?.student?.user?.email || "N/A",
         projectTitle: project.title,
         academicYear: project.academicYear,
         status: project.status,
         groupId: group?._id,
-        groupName: group?.name || 'N/A'
+        groupName: group?.name || "N/A",
       };
 
       // Add all group members (up to 5)
       for (let i = 0; i < 5; i++) {
         const member = members[i];
         const memberNum = i + 1;
-        
+
         if (member && member.student) {
-          registration[`member${memberNum}Name`] = member.student.fullName || 'N/A';
-          registration[`member${memberNum}MIS`] = member.student.misNumber || 'N/A';
-          registration[`member${memberNum}Contact`] = member.student.contactNumber || 'N/A';
-          registration[`member${memberNum}Branch`] = member.student.branch || 'N/A';
+          registration[`member${memberNum}Name`] =
+            member.student.fullName || "N/A";
+          registration[`member${memberNum}MIS`] =
+            member.student.misNumber || "N/A";
+          registration[`member${memberNum}Contact`] =
+            member.student.contactNumber || "N/A";
+          registration[`member${memberNum}Branch`] =
+            member.student.branch || "N/A";
         } else {
-          registration[`member${memberNum}Name`] = '';
-          registration[`member${memberNum}MIS`] = '';
-          registration[`member${memberNum}Contact`] = '';
-          registration[`member${memberNum}Branch`] = '';
+          registration[`member${memberNum}Name`] = "";
+          registration[`member${memberNum}MIS`] = "";
+          registration[`member${memberNum}Contact`] = "";
+          registration[`member${memberNum}Branch`] = "";
         }
       }
 
       // Add faculty preferences (up to 10 to support any configuration)
       const facultyPrefs = project.facultyPreferences || [];
       for (let i = 0; i < 10; i++) {
-        const pref = facultyPrefs.find(p => p.priority === i + 1);
-        registration[`supervisor${i + 1}`] = pref?.faculty?.fullName || '';
+        const pref = facultyPrefs.find((p) => p.priority === i + 1);
+        registration[`supervisor${i + 1}`] = pref?.faculty?.fullName || "";
       }
 
       return registration;
@@ -1255,15 +1340,14 @@ const getSem5MinorProject2Registrations = async (req, res) => {
     res.json({
       success: true,
       data: formattedRegistrations,
-      total: formattedRegistrations.length
+      total: formattedRegistrations.length,
     });
-
   } catch (error) {
-    console.error('Error getting Sem 5 Minor Project 2 registrations:', error);
+    console.error("Error getting Sem 5 Minor Project 2 registrations:", error);
     res.status(500).json({
       success: false,
-      message: 'Error fetching registrations',
-      error: error.message
+      message: "Error fetching registrations",
+      error: error.message,
     });
   }
 };
@@ -1272,26 +1356,32 @@ const getSem5MinorProject2Registrations = async (req, res) => {
 const getSem6MajorProjectRegistrations = async (req, res) => {
   try {
     const { batch, currentYear } = req.query;
-    
+
     let query = {
-      projectType: 'minor3', // Sem 6 uses 'minor3' not 'major'
-      semester: 6
+      projectType: "minor3", // Sem 6 uses 'minor3' not 'major'
+      semester: 6,
     };
 
     // Add academic year filter based on batch
     if (batch || currentYear) {
       if (batch) {
-        const startYear = batch.split('-')[0];
+        const startYear = batch.split("-")[0];
         // Academic year format should be "2024-25" not "2024-2028"
-        const academicYear = `${startYear}-${(parseInt(startYear) + 1).toString().slice(-2)}`;
+        const academicYear = `${startYear}-${(parseInt(startYear) + 1)
+          .toString()
+          .slice(-2)}`;
         query.academicYear = academicYear;
-      } else if (currentYear === 'true') {
+      } else if (currentYear === "true") {
         const currentDate = new Date();
         const currentYearNum = currentDate.getFullYear();
         const isPreMid = currentDate.getMonth() < 6;
-        const academicStartYear = isPreMid ? currentYearNum - 1 : currentYearNum;
+        const academicStartYear = isPreMid
+          ? currentYearNum - 1
+          : currentYearNum;
         // Academic year format should be "2024-25" not "2024-2028"
-        const academicYear = `${academicStartYear}-${(academicStartYear + 1).toString().slice(-2)}`;
+        const academicYear = `${academicStartYear}-${(academicStartYear + 1)
+          .toString()
+          .slice(-2)}`;
         query.academicYear = academicYear;
       }
     }
@@ -1299,71 +1389,84 @@ const getSem6MajorProjectRegistrations = async (req, res) => {
     // Get projects with populated data
     const projects = await Project.find(query)
       .populate({
-        path: 'group',
-        select: 'name semester academicYear members allocatedFaculty',
+        path: "group",
+        select: "name semester academicYear members allocatedFaculty",
         populate: [
           {
-            path: 'members.student',
-            select: 'fullName misNumber contactNumber branch user semester',
+            path: "members.student",
+            select: "fullName misNumber contactNumber branch user semester",
             populate: {
-              path: 'user',
-              select: 'email'
-            }
+              path: "user",
+              select: "email",
+            },
           },
           {
-            path: 'allocatedFaculty',
-            select: 'fullName department designation'
-          }
-        ]
+            path: "allocatedFaculty",
+            select: "fullName department designation",
+          },
+        ],
       })
       .populate({
-        path: 'faculty',
-        select: 'fullName department designation'
+        path: "faculty",
+        select: "fullName department designation",
       })
       .sort({ createdAt: -1 });
 
     // Filter to only include projects where group is actually in Sem 6 (or no group for new projects)
-    const validProjects = projects.filter(project => {
+    const validProjects = projects.filter((project) => {
       if (!project.group) return true; // Include if no group (edge case)
       return project.group.semester === 6; // Only include if group is in Sem 6
     });
 
-    const formattedRegistrations = validProjects.map(project => {
+    const formattedRegistrations = validProjects.map((project) => {
       const group = project.group;
-      const members = group?.members?.filter(m => m.isActive) || [];
-      
+      const members = group?.members?.filter((m) => m.isActive) || [];
+
       // Create a flat structure with all member details
       const registration = {
         _id: project._id,
         timestamp: project.createdAt,
-        email: members[0]?.student?.user?.email || 'N/A',
+        email: members[0]?.student?.user?.email || "N/A",
         projectTitle: project.title,
         academicYear: project.academicYear,
         status: project.status,
         groupId: group?._id,
-        groupName: group?.name || 'N/A',
+        groupName: group?.name || "N/A",
         isContinuation: project.isContinuation || false,
         // Add allocated faculty information
-        allocatedFaculty: group?.allocatedFaculty?.fullName || project.faculty?.fullName || 'Not Allocated',
-        facultyDepartment: group?.allocatedFaculty?.department || project.faculty?.department || 'N/A',
-        facultyDesignation: group?.allocatedFaculty?.designation || project.faculty?.designation || 'N/A'
+        allocatedFaculty:
+          group?.allocatedFaculty?.fullName ||
+          project.faculty?.fullName ||
+          "Not Allocated",
+        facultyDepartment:
+          group?.allocatedFaculty?.department ||
+          project.faculty?.department ||
+          "N/A",
+        facultyDesignation:
+          group?.allocatedFaculty?.designation ||
+          project.faculty?.designation ||
+          "N/A",
       };
 
       // Add all group members (up to 5)
       for (let i = 0; i < 5; i++) {
         const member = members[i];
         const memberNum = i + 1;
-        
+
         if (member && member.student) {
-          registration[`member${memberNum}Name`] = member.student.fullName || 'N/A';
-          registration[`member${memberNum}MIS`] = member.student.misNumber || 'N/A';
-          registration[`member${memberNum}Contact`] = member.student.contactNumber || 'N/A';
-          registration[`member${memberNum}Branch`] = member.student.branch || 'N/A';
+          registration[`member${memberNum}Name`] =
+            member.student.fullName || "N/A";
+          registration[`member${memberNum}MIS`] =
+            member.student.misNumber || "N/A";
+          registration[`member${memberNum}Contact`] =
+            member.student.contactNumber || "N/A";
+          registration[`member${memberNum}Branch`] =
+            member.student.branch || "N/A";
         } else {
-          registration[`member${memberNum}Name`] = '';
-          registration[`member${memberNum}MIS`] = '';
-          registration[`member${memberNum}Contact`] = '';
-          registration[`member${memberNum}Branch`] = '';
+          registration[`member${memberNum}Name`] = "";
+          registration[`member${memberNum}MIS`] = "";
+          registration[`member${memberNum}Contact`] = "";
+          registration[`member${memberNum}Branch`] = "";
         }
       }
 
@@ -1373,15 +1476,14 @@ const getSem6MajorProjectRegistrations = async (req, res) => {
     res.json({
       success: true,
       data: formattedRegistrations,
-      total: formattedRegistrations.length
+      total: formattedRegistrations.length,
     });
-
   } catch (error) {
-    console.error('Error getting Sem 6 Major Project registrations:', error);
+    console.error("Error getting Sem 6 Major Project registrations:", error);
     res.status(500).json({
       success: false,
-      message: 'Error fetching registrations',
-      error: error.message
+      message: "Error fetching registrations",
+      error: error.message,
     });
   }
 };
@@ -1390,10 +1492,10 @@ const getSem6MajorProjectRegistrations = async (req, res) => {
 const getSem6NonRegisteredGroups = async (req, res) => {
   try {
     const { batch, currentYear, academicYear } = req.query;
-    
+
     let query = {
       semester: 5, // Looking at Sem 5 groups that should continue to Sem 6
-      isActive: true
+      isActive: true,
     };
 
     // Add academic year filter
@@ -1401,17 +1503,23 @@ const getSem6NonRegisteredGroups = async (req, res) => {
       query.academicYear = academicYear;
     } else if (batch || currentYear) {
       if (batch) {
-        const startYear = batch.split('-')[0];
+        const startYear = batch.split("-")[0];
         // For Sem 5 groups, academic year is in format "2024-25" not "2024-2028"
-        const acYear = `${startYear}-${(parseInt(startYear) + 1).toString().slice(-2)}`;
+        const acYear = `${startYear}-${(parseInt(startYear) + 1)
+          .toString()
+          .slice(-2)}`;
         query.academicYear = acYear;
-      } else if (currentYear === 'true') {
+      } else if (currentYear === "true") {
         const currentDate = new Date();
         const currentYearNum = currentDate.getFullYear();
         const isPreMid = currentDate.getMonth() < 6;
-        const academicStartYear = isPreMid ? currentYearNum - 1 : currentYearNum;
+        const academicStartYear = isPreMid
+          ? currentYearNum - 1
+          : currentYearNum;
         // For Sem 5 groups, academic year is in format "2024-25" not "2024-2028"
-        const acYear = `${academicStartYear}-${(academicStartYear + 1).toString().slice(-2)}`;
+        const acYear = `${academicStartYear}-${(academicStartYear + 1)
+          .toString()
+          .slice(-2)}`;
         query.academicYear = acYear;
       }
     }
@@ -1419,28 +1527,28 @@ const getSem6NonRegisteredGroups = async (req, res) => {
     // Get all Sem 5 groups that are still in semester 5 (not migrated)
     const sem5Groups = await Group.find(query)
       .populate({
-        path: 'members.student',
-        select: 'fullName misNumber contactNumber branch user semester',
+        path: "members.student",
+        select: "fullName misNumber contactNumber branch user semester",
         populate: {
-          path: 'user',
-          select: 'email'
-        }
+          path: "user",
+          select: "email",
+        },
       })
-      .populate('leader', 'fullName misNumber')
-      .populate('allocatedFaculty', 'fullName department')
+      .populate("leader", "fullName misNumber")
+      .populate("allocatedFaculty", "fullName department")
       .sort({ createdAt: -1 });
 
     // Get all Sem 6 projects
     const sem6Projects = await Project.find({
-      projectType: 'minor3', // Sem 6 uses 'minor3' not 'major'
-      semester: 6
+      projectType: "minor3", // Sem 6 uses 'minor3' not 'major'
+      semester: 6,
     })
-    .populate('student', 'semester')
-    .select('group student');
+      .populate("student", "semester")
+      .select("group student");
 
     // Create a set of group IDs that have registered for Sem 6 (and group is actually in Sem 6)
     const registeredGroupIds = new Set();
-    sem6Projects.forEach(project => {
+    sem6Projects.forEach((project) => {
       // Only count if the student is CURRENTLY in semester 6
       if (project.group && project.student && project.student.semester === 6) {
         registeredGroupIds.add(project.group.toString());
@@ -1449,66 +1557,71 @@ const getSem6NonRegisteredGroups = async (req, res) => {
 
     // Get student IDs who are CURRENTLY in Sem 6 and have projects
     const sem6StudentIds = new Set();
-    sem6Projects.forEach(project => {
+    sem6Projects.forEach((project) => {
       if (project.student && project.student.semester === 6) {
         sem6StudentIds.add(project.student._id.toString());
       }
     });
 
     // Filter out groups where at least one member has registered for Sem 6 AND is currently in Sem 6
-    const nonRegisteredGroups = sem5Groups.filter(group => {
+    const nonRegisteredGroups = sem5Groups.filter((group) => {
       const groupId = group._id.toString();
-      
+
       // Check if group itself is registered (by a student currently in Sem 6)
       if (registeredGroupIds.has(groupId)) {
         return false;
       }
-      
+
       // Check if any member of this group is CURRENTLY in Sem 6
-      const hasCurrentSem6Member = group.members.some(member => {
+      const hasCurrentSem6Member = group.members.some((member) => {
         if (!member.student || !member.student._id) return false;
         // Check both: has Sem 6 project AND currently in semester 6
         const hasProject = sem6StudentIds.has(member.student._id.toString());
         const isCurrentlySem6 = member.student.semester === 6;
         return hasProject && isCurrentlySem6;
       });
-      
+
       return !hasCurrentSem6Member;
     });
 
     // Format the response
-    const formattedGroups = nonRegisteredGroups.map(group => {
-      const members = group.members.filter(m => m.isActive) || [];
-      
+    const formattedGroups = nonRegisteredGroups.map((group) => {
+      const members = group.members.filter((m) => m.isActive) || [];
+
       const groupData = {
         _id: group._id,
-        groupName: group.name || 'N/A',
-        leaderName: group.leader?.fullName || 'N/A',
-        leaderMIS: group.leader?.misNumber || 'N/A',
-        allocatedFaculty: group.allocatedFaculty?.fullName || 'Not Allocated',
-        facultyDepartment: group.allocatedFaculty?.department || 'N/A',
+        groupName: group.name || "N/A",
+        leaderName: group.leader?.fullName || "N/A",
+        leaderMIS: group.leader?.misNumber || "N/A",
+        allocatedFaculty: group.allocatedFaculty?.fullName || "Not Allocated",
+        facultyDepartment: group.allocatedFaculty?.department || "N/A",
         memberCount: members.length,
         createdAt: group.createdAt,
-        academicYear: group.academicYear
+        academicYear: group.academicYear,
       };
 
       // Add all group members (up to 5)
       for (let i = 0; i < 5; i++) {
         const member = members[i];
         const memberNum = i + 1;
-        
+
         if (member && member.student) {
-          groupData[`member${memberNum}Name`] = member.student.fullName || 'N/A';
-          groupData[`member${memberNum}MIS`] = member.student.misNumber || 'N/A';
-          groupData[`member${memberNum}Contact`] = member.student.contactNumber || 'N/A';
-          groupData[`member${memberNum}Branch`] = member.student.branch || 'N/A';
-          groupData[`member${memberNum}Email`] = member.student.user?.email || 'N/A';
+          groupData[`member${memberNum}Name`] =
+            member.student.fullName || "N/A";
+          groupData[`member${memberNum}MIS`] =
+            member.student.misNumber || "N/A";
+          groupData[`member${memberNum}Contact`] =
+            member.student.contactNumber || "N/A";
+          groupData[`member${memberNum}Branch`] =
+            member.student.branch || "N/A";
+          groupData[`member${memberNum}Email`] =
+            member.student.user?.email || "N/A";
         } else {
-          groupData[`member${memberNum}Name`] = '';
-          groupData[`member${memberNum}MIS`] = '';
-          groupData[`member${memberNum}Contact`] = '';
-          groupData[`member${memberNum}Branch`] = '';
-          groupData[`member${memberNum}Email`] = '';
+          groupData[`member${memberNum}Name`] = "";
+          groupData[`member${memberNum}MIS`] = "";
+          groupData[`member${memberNum}Contact`] = "";
+          groupData[`member${memberNum}Branch`] = "";
+          groupData[`member${memberNum}Email`] = "";
         }
       }
 
@@ -1522,16 +1635,15 @@ const getSem6NonRegisteredGroups = async (req, res) => {
       stats: {
         totalSem5Groups: sem5Groups.length,
         registeredForSem6: sem5Groups.length - nonRegisteredGroups.length,
-        notRegisteredForSem6: nonRegisteredGroups.length
-      }
+        notRegisteredForSem6: nonRegisteredGroups.length,
+      },
     });
-
   } catch (error) {
-    console.error('Error getting Sem 6 non-registered groups:', error);
+    console.error("Error getting Sem 6 non-registered groups:", error);
     res.status(500).json({
       success: false,
-      message: 'Error fetching non-registered groups',
-      error: error.message
+      message: "Error fetching non-registered groups",
+      error: error.message,
     });
   }
 };
@@ -1540,9 +1652,9 @@ const getSem6NonRegisteredGroups = async (req, res) => {
 const getSem6Statistics = async (req, res) => {
   try {
     const { academicYear } = req.query;
-    
+
     const query = {
-      semester: 6
+      semester: 6,
     };
 
     if (academicYear) {
@@ -1553,24 +1665,41 @@ const getSem6Statistics = async (req, res) => {
       const currentYearNum = currentDate.getFullYear();
       const isPreMid = currentDate.getMonth() < 6;
       const academicStartYear = isPreMid ? currentYearNum - 1 : currentYearNum;
-      query.academicYear = `${academicStartYear}-${(academicStartYear + 1).toString().slice(-2)}`;
+      query.academicYear = `${academicStartYear}-${(academicStartYear + 1)
+        .toString()
+        .slice(-2)}`;
     }
 
     // Get Sem 5 groups (potential Sem 6 groups)
     const sem5Query = {
       semester: 5,
       isActive: true,
-      academicYear: query.academicYear
+      academicYear: query.academicYear,
     };
     const totalSem5Groups = await Group.countDocuments(sem5Query);
 
     // Get project statistics
-    const totalProjects = await Project.countDocuments({ ...query, projectType: 'minor3' });
-    const registeredProjects = await Project.countDocuments({ ...query, projectType: 'minor3', status: 'registered' });
-    const activeProjects = await Project.countDocuments({ ...query, projectType: 'minor3', status: 'active' });
-    
+    const totalProjects = await Project.countDocuments({
+      ...query,
+      projectType: "minor3",
+    });
+    const registeredProjects = await Project.countDocuments({
+      ...query,
+      projectType: "minor3",
+      status: "registered",
+    });
+    const activeProjects = await Project.countDocuments({
+      ...query,
+      projectType: "minor3",
+      status: "active",
+    });
+
     // Get continuation vs new projects
-    const continuationProjects = await Project.countDocuments({ ...query, projectType: 'minor3', isContinuation: true });
+    const continuationProjects = await Project.countDocuments({
+      ...query,
+      projectType: "minor3",
+      isContinuation: true,
+    });
     const newProjects = totalProjects - continuationProjects;
 
     res.json({
@@ -1583,15 +1712,18 @@ const getSem6Statistics = async (req, res) => {
         notRegistered: totalSem5Groups - totalProjects,
         continuationProjects,
         newProjects,
-        registrationRate: totalSem5Groups > 0 ? ((totalProjects / totalSem5Groups) * 100).toFixed(2) : 0
-      }
+        registrationRate:
+          totalSem5Groups > 0
+            ? ((totalProjects / totalSem5Groups) * 100).toFixed(2)
+            : 0,
+      },
     });
   } catch (error) {
-    console.error('Error getting Sem 6 statistics:', error);
+    console.error("Error getting Sem 6 statistics:", error);
     res.status(500).json({
       success: false,
-      message: 'Error fetching Sem 6 statistics',
-      error: error.message
+      message: "Error fetching Sem 6 statistics",
+      error: error.message,
     });
   }
 };
@@ -1600,25 +1732,28 @@ const getSem6Statistics = async (req, res) => {
 const getSystemConfigurations = async (req, res) => {
   try {
     const { category } = req.query;
-    
+
     let configs;
     if (category) {
       configs = await SystemConfig.getConfigsByCategory(category);
     } else {
-      configs = await SystemConfig.find({ isActive: true }).sort({ category: 1, configKey: 1 });
+      configs = await SystemConfig.find({ isActive: true }).sort({
+        category: 1,
+        configKey: 1,
+      });
     }
 
     res.json({
       success: true,
       data: configs,
-      total: configs.length
+      total: configs.length,
     });
   } catch (error) {
-    console.error('Error getting system configurations:', error);
+    console.error("Error getting system configurations:", error);
     res.status(500).json({
       success: false,
-      message: 'Error fetching system configurations',
-      error: error.message
+      message: "Error fetching system configurations",
+      error: error.message,
     });
   }
 };
@@ -1627,26 +1762,29 @@ const getSystemConfigurations = async (req, res) => {
 const getSystemConfig = async (req, res) => {
   try {
     const { key } = req.params;
-    
-    const config = await SystemConfig.findOne({ configKey: key, isActive: true });
-    
+
+    const config = await SystemConfig.findOne({
+      configKey: key,
+      isActive: true,
+    });
+
     if (!config) {
       return res.status(404).json({
         success: false,
-        message: 'Configuration not found'
+        message: "Configuration not found",
       });
     }
 
     res.json({
       success: true,
-      data: config
+      data: config,
     });
   } catch (error) {
-    console.error('Error getting system configuration:', error);
+    console.error("Error getting system configuration:", error);
     res.status(500).json({
       success: false,
-      message: 'Error fetching system configuration',
-      error: error.message
+      message: "Error fetching system configuration",
+      error: error.message,
     });
   }
 };
@@ -1656,57 +1794,60 @@ const updateSystemConfig = async (req, res) => {
   try {
     const { key } = req.params;
     const { value, description, force } = req.body;
-    
+
     const config = await SystemConfig.findOne({ configKey: key });
-    
+
     if (!config) {
       return res.status(404).json({
         success: false,
-        message: 'Configuration not found'
+        message: "Configuration not found",
       });
     }
 
     // Special validation for faculty preference limit
-    if (key === 'sem5.facultyPreferenceLimit') {
+    if (key === "sem5.facultyPreferenceLimit") {
       const oldValue = config.configValue;
       const newValue = value;
-      
+
       // If reducing the limit, check for existing registrations
       if (newValue < oldValue && !force) {
         // Check if any projects have more preferences than the new limit
         const projectsWithMorePrefs = await Project.find({
           semester: 5,
-          projectType: 'minor2',
-          'facultyPreferences': { $exists: true }
-        }).select('facultyPreferences title student');
-        
-        const affectedProjects = projectsWithMorePrefs.filter(project => 
-          project.facultyPreferences && project.facultyPreferences.length > newValue
+          projectType: "minor2",
+          facultyPreferences: { $exists: true },
+        }).select("facultyPreferences title student");
+
+        const affectedProjects = projectsWithMorePrefs.filter(
+          (project) =>
+            project.facultyPreferences &&
+            project.facultyPreferences.length > newValue
         );
-        
+
         if (affectedProjects.length > 0) {
           // Populate student details for affected projects
-          await Project.populate(affectedProjects, { 
-            path: 'student', 
-            select: 'fullName misNumber' 
+          await Project.populate(affectedProjects, {
+            path: "student",
+            select: "fullName misNumber",
           });
-          
+
           return res.status(400).json({
             success: false,
-            message: 'Cannot reduce faculty preference limit',
+            message: "Cannot reduce faculty preference limit",
             warning: {
-              type: 'EXISTING_REGISTRATIONS_AFFECTED',
+              type: "EXISTING_REGISTRATIONS_AFFECTED",
               oldLimit: oldValue,
               newLimit: newValue,
               affectedCount: affectedProjects.length,
-              affectedProjects: affectedProjects.map(p => ({
+              affectedProjects: affectedProjects.map((p) => ({
                 projectId: p._id,
                 title: p.title,
                 studentName: p.student?.fullName,
-                currentPreferences: p.facultyPreferences.length
+                currentPreferences: p.facultyPreferences.length,
               })),
-              suggestion: 'Some groups have already submitted more preferences than the new limit. You can force update, but existing registrations will remain unchanged.'
-            }
+              suggestion:
+                "Some groups have already submitted more preferences than the new limit. You can force update, but existing registrations will remain unchanged.",
+            },
           });
         }
       }
@@ -1720,21 +1861,24 @@ const updateSystemConfig = async (req, res) => {
     }
     config.updatedBy = req.user.id;
     config.updatedAt = Date.now();
-    
+
     await config.save();
 
     res.json({
       success: true,
       data: config,
-      message: 'System configuration updated successfully',
-      note: oldValue !== value ? `Changed from ${oldValue} to ${value}` : 'No change in value'
+      message: "System configuration updated successfully",
+      note:
+        oldValue !== value
+          ? `Changed from ${oldValue} to ${value}`
+          : "No change in value",
     });
   } catch (error) {
-    console.error('Error updating system configuration:', error);
+    console.error("Error updating system configuration:", error);
     res.status(500).json({
       success: false,
-      message: 'Error updating system configuration',
-      error: error.message
+      message: "Error updating system configuration",
+      error: error.message,
     });
   }
 };
@@ -1743,18 +1887,18 @@ const updateSystemConfig = async (req, res) => {
 const initializeSystemConfigs = async (req, res) => {
   try {
     const count = await SystemConfig.initializeDefaults();
-    
+
     res.json({
       success: true,
       message: `Initialized ${count} default configurations`,
-      count: count
+      count: count,
     });
   } catch (error) {
-    console.error('Error initializing system configurations:', error);
+    console.error("Error initializing system configurations:", error);
     res.status(500).json({
       success: false,
-      message: 'Error initializing system configurations',
-      error: error.message
+      message: "Error initializing system configurations",
+      error: error.message,
     });
   }
 };
@@ -1762,45 +1906,49 @@ const initializeSystemConfigs = async (req, res) => {
 // Update Student Semesters (for testing and semester progression)
 const updateStudentSemesters = async (req, res) => {
   try {
-    const { fromSemester, toSemester, studentIds, degree, validatePrerequisites } = req.body;
+    const {
+      fromSemester,
+      toSemester,
+      studentIds,
+      degree,
+      validatePrerequisites,
+    } = req.body;
 
     // Validation
     if (!fromSemester || !toSemester) {
       return res.status(400).json({
         success: false,
-        message: 'Both fromSemester and toSemester are required'
+        message: "Both fromSemester and toSemester are required",
       });
     }
 
     if (toSemester < 1 || toSemester > 8) {
       return res.status(400).json({
         success: false,
-        message: 'toSemester must be between 1 and 8'
+        message: "toSemester must be between 1 and 8",
       });
     }
 
     // Build query
     let query = { semester: fromSemester };
-    
+
     // If specific students are provided
     if (studentIds && studentIds.length > 0) {
       query._id = { $in: studentIds };
     }
-    
+
     // Filter by degree if provided
     if (degree) {
       query.degree = degree;
     }
 
     // Find students matching criteria
-    const students = await Student.find(query)
-      .populate('user', 'email')
-      .lean();
+    const students = await Student.find(query).populate("user", "email").lean();
 
     if (students.length === 0) {
       return res.status(404).json({
         success: false,
-        message: 'No students found matching the criteria'
+        message: "No students found matching the criteria",
       });
     }
 
@@ -1819,46 +1967,43 @@ const updateStudentSemesters = async (req, res) => {
           email: student.user?.email,
           currentSemester: student.semester,
           eligible: true,
-          issues: []
+          issues: [],
         };
 
         // For Sem 5 to Sem 6 progression - check if they have a finalized group and project
         if (fromSemester === 5 && toSemester === 6) {
           // Check for Sem 5 group
           const sem5Group = await Group.findOne({
-            'members.student': student._id,
+            "members.student": student._id,
             semester: 5,
-            status: 'finalized'
+            status: "finalized",
           });
 
           if (!sem5Group) {
             validation.eligible = false;
-            validation.issues.push('No finalized Sem 5 group found');
+            validation.issues.push("No finalized Sem 5 group found");
           }
 
           // Check for Sem 5 project
           const sem5Project = await Project.findOne({
             semester: 5,
-            $or: [
-              { student: student._id },
-              { group: sem5Group?._id }
-            ]
+            $or: [{ student: student._id }, { group: sem5Group?._id }],
           });
 
           if (!sem5Project) {
             validation.eligible = false;
-            validation.issues.push('No Sem 5 project found');
+            validation.issues.push("No Sem 5 project found");
           }
 
           // Check if faculty is allocated
           if (sem5Group && !sem5Group.allocatedFaculty) {
             validation.eligible = false;
-            validation.issues.push('No faculty allocated to Sem 5 group');
+            validation.issues.push("No faculty allocated to Sem 5 group");
           }
         }
 
         validationResults.push(validation);
-        
+
         if (validation.eligible) {
           eligibleStudents.push(student._id);
         } else {
@@ -1877,32 +2022,60 @@ const updateStudentSemesters = async (req, res) => {
           eligibleStudents: eligibleStudents,
           ineligibleStudents: ineligibleStudents,
           message: `${eligibleStudents.length} students eligible for semester update, ${ineligibleStudents.length} ineligible`,
-          validationResults: validationResults
+          validationResults: validationResults,
         });
       }
     }
 
     // Update students
-    const updateQuery = validatePrerequisites && eligibleStudents.length > 0
-      ? { _id: { $in: eligibleStudents } }
-      : query;
-    
-    const updateResult = await Student.updateMany(
-      updateQuery,
-      { 
-        $set: { 
-          semester: toSemester,
-          updatedAt: new Date()
-        } 
+    const updateQuery =
+      validatePrerequisites && eligibleStudents.length > 0
+        ? { _id: { $in: eligibleStudents } }
+        : query;
+
+    const updateResult = await Student.updateMany(updateQuery, {
+      $set: {
+        semester: toSemester,
+        updatedAt: new Date(),
+      },
+    });
+
+    // NEW: Deactivate groups for promoted students
+    const updatedStudentIds =
+      validatePrerequisites && eligibleStudents.length > 0
+        ? eligibleStudents
+        : students.map((s) => s._id);
+
+    const groupsToDeactivate = await Group.find({
+      semester: fromSemester,
+      "members.student": { $in: updatedStudentIds },
+      "members.isActive": true,
+      isActive: true,
+    });
+
+    for (const group of groupsToDeactivate) {
+      group.isActive = false;
+      // Mark previous-semester groups as finalized to indicate completion
+      if (
+        ["invitations_sent", "open", "forming", "complete", "locked"].includes(
+          group.status
+        )
+      ) {
+        group.status = "finalized";
       }
-    );
+      await group.save();
+    }
 
     // Get updated students for confirmation
-    const updatedStudents = await Student.find({ 
-      _id: { $in: validatePrerequisites ? eligibleStudents : students.map(s => s._id) }
+    const updatedStudents = await Student.find({
+      _id: {
+        $in: validatePrerequisites
+          ? eligibleStudents
+          : students.map((s) => s._id),
+      },
     })
-      .populate('user', 'email')
-      .select('fullName misNumber semester degree')
+      .populate("user", "email")
+      .select("fullName misNumber semester degree")
       .lean();
 
     res.json({
@@ -1916,15 +2089,15 @@ const updateStudentSemesters = async (req, res) => {
         matchedCount: updateResult.matchedCount,
         validated: validatePrerequisites || false,
         updatedStudents: updatedStudents,
-        ineligibleStudents: validatePrerequisites ? ineligibleStudents : []
-      }
+        ineligibleStudents: validatePrerequisites ? ineligibleStudents : [],
+      },
     });
   } catch (error) {
-    console.error('Error updating student semesters:', error);
+    console.error("Error updating student semesters:", error);
     res.status(500).json({
       success: false,
-      message: 'Error updating student semesters',
-      error: error.message
+      message: "Error updating student semesters",
+      error: error.message,
     });
   }
 };
@@ -1935,62 +2108,815 @@ const getStudentsBySemester = async (req, res) => {
     const { semester, degree } = req.query;
 
     let query = {};
-    
+
     if (semester) {
       query.semester = parseInt(semester);
     }
-    
+
     if (degree) {
       query.degree = degree;
     }
 
     const students = await Student.find(query)
-      .populate('user', 'email')
-      .select('fullName misNumber semester degree branch collegeEmail contactNumber')
+      .populate("user", "email")
+      .select(
+        "fullName misNumber semester degree branch collegeEmail contactNumber"
+      )
       .sort({ misNumber: 1 })
       .lean();
 
     // Get group and project info for each student
-    const studentsWithInfo = await Promise.all(students.map(async (student) => {
-      // Check for current semester group
-      const group = await Group.findOne({
-        'members.student': student._id,
-        semester: student.semester
-      }).select('name status allocatedFaculty').populate('allocatedFaculty', 'fullName');
+    const studentsWithInfo = await Promise.all(
+      students.map(async (student) => {
+        // Check for current semester group where this student is an ACTIVE member in an ACTIVE group
+        const group = await Group.findOne({
+          semester: student.semester,
+          isActive: true,
+          members: {
+            $elemMatch: {
+              student: student._id,
+              isActive: true,
+            },
+          },
+        })
+          .select("name status allocatedFaculty")
+          .populate("allocatedFaculty", "fullName");
 
-      // Check for current semester project
-      const project = await Project.findOne({
-        semester: student.semester,
-        $or: [
-          { student: student._id },
-          { group: group?._id }
-        ]
-      }).select('title status projectType');
+        // Check for current semester project
+        const project = await Project.findOne({
+          semester: student.semester,
+          $or: [{ student: student._id }, { group: group?._id }],
+        }).select("title status projectType");
 
-      return {
-        ...student,
-        hasGroup: !!group,
-        groupStatus: group?.status,
-        hasFaculty: !!group?.allocatedFaculty,
-        facultyName: group?.allocatedFaculty?.fullName,
-        hasProject: !!project,
-        projectTitle: project?.title,
-        projectStatus: project?.status
-      };
-    }));
+        return {
+          ...student,
+          hasGroup: !!group,
+          groupStatus: group?.status,
+          hasFaculty: !!group?.allocatedFaculty,
+          facultyName: group?.allocatedFaculty?.fullName,
+          hasProject: !!project,
+          projectTitle: project?.title,
+          projectStatus: project?.status,
+        };
+      })
+    );
 
     res.json({
       success: true,
       data: studentsWithInfo,
       count: studentsWithInfo.length,
-      filters: { semester, degree }
+      filters: { semester, degree },
     });
   } catch (error) {
-    console.error('Error getting students by semester:', error);
+    console.error("Error getting students by semester:", error);
     res.status(500).json({
       success: false,
-      message: 'Error fetching students',
-      error: error.message
+      message: "Error fetching students",
+      error: error.message,
+    });
+  }
+};
+
+// Get finalized groups with allocated faculty for group management (Sem 5, 6, 7)
+const getFinalizedGroupsForManagement = async (req, res) => {
+  try {
+    const { semester } = req.query;
+
+    // Build query for finalized groups with allocated faculty
+    // Don't filter by semester in query - we'll determine current active semester based on project status
+    const query = {
+      semester: { $in: [5, 6, 7] },
+      allocatedFaculty: { $exists: true, $ne: null },
+      $or: [
+        {
+          // Sem 5: only include active finalized/locked/complete groups
+          semester: 5,
+          status: { $in: ["finalized", "locked", "complete"] },
+          isActive: true,
+        },
+        {
+          // Sem 6 and 7: include all groups with allocated faculty
+          // (continuation/new groups may still have status 'open' or inactive flags)
+          semester: { $in: [6, 7] },
+        },
+      ],
+    };
+
+    // Get groups with populated data
+    let groups = await Group.find(query)
+      .populate(
+        "members.student",
+        "fullName misNumber collegeEmail branch semester"
+      )
+      .populate("leader", "fullName misNumber collegeEmail")
+      .populate("allocatedFaculty", "fullName department designation")
+      .populate("project", "title description projectType status semester")
+      .sort({ semester: 1, createdAt: -1 });
+
+    // Determine current active semester for each group based on their active/registered projects
+    // Check all projects for the group, not just the one linked in group.project
+    const groupsWithActiveSemester = await Promise.all(
+      groups.map(async (group) => {
+        let currentActiveSemester = group.semester;
+        let isUnregistered = false;
+        let registrationStatus = "registered"; // 'registered', 'unregistered', 'active'
+
+        // Find all projects for this group across all semesters
+        const allGroupProjects = await Project.find({
+          group: group._id,
+          semester: { $in: [5, 6, 7] },
+        }).sort({ semester: -1 }); // Sort by semester descending to get latest first
+
+        // PRIORITY 1: If group.semester is 6 or 7, the group has been migrated - use that semester
+        // Only override if there's an active project in a higher semester
+        if (group.semester >= 6) {
+          // Check if there's an active project in a higher semester (shouldn't happen, but check)
+          const activeProjects = allGroupProjects.filter(
+            (p) =>
+              (p.status === "active" ||
+                p.status === "registered" ||
+                p.status === "faculty_allocated" ||
+                p.status === "in_progress") &&
+              p.semester > group.semester
+          );
+
+          if (activeProjects.length > 0) {
+            // Has active project in higher semester (unlikely but handle it)
+            currentActiveSemester = activeProjects[0].semester;
+            registrationStatus = "active";
+          } else {
+            // Use group's semester (6 or 7)
+            currentActiveSemester = group.semester;
+
+            // Check if they have a project in this semester
+            const projectInGroupSemester = allGroupProjects.find(
+              (p) => p.semester === group.semester
+            );
+            if (projectInGroupSemester) {
+              // Group has a project in their current semester - they are registered
+              isUnregistered = false;
+
+              if (
+                projectInGroupSemester.status === "active" ||
+                projectInGroupSemester.status === "registered" ||
+                projectInGroupSemester.status === "faculty_allocated" ||
+                projectInGroupSemester.status === "in_progress"
+              ) {
+                registrationStatus = "active";
+              } else if (projectInGroupSemester.status === "completed") {
+                // Completed project in sem 6/7 - check if they should register for next
+                if (group.semester < 7) {
+                  const nextSemester = group.semester + 1;
+
+                  // Check if there's any project (even cancelled) in next semester
+                  const nextSemesterProject = allGroupProjects.find(
+                    (p) => p.semester === nextSemester
+                  );
+
+                  if (!nextSemesterProject) {
+                    // No project in next semester - they're unregistered
+                    isUnregistered = true;
+                    currentActiveSemester = completedSemester; // Keep in original semester for management
+                    registrationStatus = "unregistered";
+                  } else if (nextSemesterProject.status === "cancelled") {
+                    // Project was cancelled - still unregistered
+                    isUnregistered = true;
+                    currentActiveSemester = completedSemester;
+                    registrationStatus = "unregistered";
+                  } else {
+                    // Has project in next semester but it's not active (might be pending or other status)
+                    // Still consider them as registered for that semester
+                    currentActiveSemester = nextSemester;
+                    registrationStatus = "registered";
+                    isUnregistered = false; // Has project in next semester, so registered
+                  }
+                } else {
+                  // Sem 7 completed - no next semester
+                  isUnregistered = false;
+                  registrationStatus = "completed";
+                }
+              } else {
+                // Project exists but status is something else (pending, etc.) - still registered
+                isUnregistered = false;
+                registrationStatus = "registered";
+              }
+            } else {
+              // No project in group's semester - check if they should be registered
+              if (group.semester < 7) {
+                // Check if they completed previous semester
+                const prevSemProject = allGroupProjects.find(
+                  (p) => p.semester === group.semester - 1
+                );
+                if (prevSemProject && prevSemProject.status === "completed") {
+                  // Completed previous semester but no project in current semester - unregistered
+                  isUnregistered = true;
+                  registrationStatus = "unregistered";
+                } else {
+                  // No previous project or not completed - might be newly migrated, consider as registered
+                  isUnregistered = false;
+                  registrationStatus = "no_project";
+                }
+              } else {
+                // Sem 7 with no project - might be newly migrated
+                isUnregistered = false;
+                registrationStatus = "no_project";
+              }
+            }
+          }
+        } else {
+          // PRIORITY 2: Group is in Sem 5 - check projects to determine current status
+          // Find the highest semester with an active/registered project
+          const activeProjects = allGroupProjects.filter(
+            (p) =>
+              p.status === "active" ||
+              p.status === "registered" ||
+              p.status === "faculty_allocated" ||
+              p.status === "in_progress"
+          );
+
+          if (activeProjects.length > 0) {
+            // Group has active projects - use the highest semester with active project
+            const highestActiveProject = activeProjects[0]; // Already sorted by semester desc
+            currentActiveSemester = highestActiveProject.semester;
+            registrationStatus = "active";
+            isUnregistered = false; // Has active project, so registered
+          } else {
+            // No active project - check if they have a completed project
+            const completedProjects = allGroupProjects.filter(
+              (p) => p.status === "completed"
+            );
+
+            if (completedProjects.length > 0) {
+              // Find the highest semester with completed project
+              const latestCompleted = completedProjects[0]; // Already sorted by semester desc
+              const completedSemester = latestCompleted.semester;
+
+              // Check if they should have registered for next semester
+              if (completedSemester < 7) {
+                const nextSemester = completedSemester + 1;
+
+                // Check if there's any project (even cancelled) in next semester
+                const nextSemesterProject = allGroupProjects.find(
+                  (p) => p.semester === nextSemester
+                );
+
+                if (!nextSemesterProject) {
+                  // No project in next semester - they're unregistered
+                  isUnregistered = true;
+                  currentActiveSemester = completedSemester; // Keep in original semester for management
+                  registrationStatus = "unregistered";
+                } else if (nextSemesterProject.status === "cancelled") {
+                  // Project was cancelled - still unregistered
+                  isUnregistered = true;
+                  currentActiveSemester = completedSemester;
+                  registrationStatus = "unregistered";
+                } else {
+                  // Has project in next semester but it's not active (might be pending or other status)
+                  // Still consider them as registered for that semester
+                  currentActiveSemester = nextSemester;
+                  registrationStatus = "registered";
+                  isUnregistered = false; // Has project in next semester, so registered
+                }
+              } else {
+                // Already in Sem 7, no next semester
+                currentActiveSemester = completedSemester;
+                registrationStatus = "completed";
+              }
+            } else {
+              // No projects at all - use group's semester (should be 5)
+              currentActiveSemester = group.semester;
+              registrationStatus = "no_project";
+            }
+          }
+        }
+
+        return {
+          ...group.toObject(),
+          currentActiveSemester: currentActiveSemester,
+          isUnregistered: isUnregistered,
+          registrationStatus: registrationStatus,
+        };
+      })
+    );
+
+    // Filter by requested semester (if provided) based on currentActiveSemester
+    // Also separate registered and unregistered groups
+    let filteredGroups = groupsWithActiveSemester;
+    if (semester) {
+      const requestedSem = parseInt(semester);
+      filteredGroups = groupsWithActiveSemester.filter((g) => {
+        // Show groups in requested semester
+        // For unregistered groups, show them in their completed semester (e.g., Sem 5 groups unregistered for Sem 6)
+        if (g.isUnregistered && requestedSem === g.currentActiveSemester) {
+          return true; // Show unregistered groups in their current semester
+        }
+        // For registered/active groups, show in their active semester
+        return g.currentActiveSemester === requestedSem && !g.isUnregistered;
+      });
+    }
+
+    // Separate registered and unregistered groups
+    const registeredGroups = filteredGroups.filter((g) => !g.isUnregistered);
+    const unregisteredGroups = filteredGroups.filter((g) => g.isUnregistered);
+
+    res.json({
+      success: true,
+      data: filteredGroups,
+      registered: registeredGroups,
+      unregistered: unregisteredGroups,
+      message: `Found ${filteredGroups.length} finalized groups with allocated faculty (${registeredGroups.length} registered, ${unregisteredGroups.length} unregistered)`,
+    });
+  } catch (error) {
+    console.error("Error getting finalized groups for management:", error);
+    res.status(500).json({
+      success: false,
+      message: "Error fetching finalized groups",
+      error: error.message,
+    });
+  }
+};
+
+// Add member to finalized group (admin function)
+const addMemberToGroup = async (req, res) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
+  try {
+    const { groupId, studentId } = req.body;
+
+    // Validate inputs
+    if (!groupId || !studentId) {
+      await session.abortTransaction();
+      return res.status(400).json({
+        success: false,
+        message: "groupId and studentId are required",
+      });
+    }
+
+    // Get group
+    const group = await Group.findById(groupId).session(session);
+    if (!group) {
+      await session.abortTransaction();
+      return res.status(404).json({
+        success: false,
+        message: "Group not found",
+      });
+    }
+
+    // Verify group is finalized/locked and has allocated faculty
+    if (!group.allocatedFaculty) {
+      await session.abortTransaction();
+      return res.status(400).json({
+        success: false,
+        message: "Group must have allocated faculty to manage members",
+      });
+    }
+
+    // For Sem 5 and Sem 7, require finalized/locked/complete to manage members.
+    // For Sem 6, allow member management even if status is still 'open' or similar.
+    if (
+      group.semester !== 6 &&
+      !["finalized", "locked", "complete"].includes(group.status)
+    ) {
+      await session.abortTransaction();
+      return res.status(400).json({
+        success: false,
+        message:
+          "Group must be finalized, locked, or complete to manage members",
+      });
+    }
+
+    // Verify semester is 5, 6, or 7
+    if (![5, 6, 7].includes(group.semester)) {
+      await session.abortTransaction();
+      return res.status(400).json({
+        success: false,
+        message: "Group management is only available for semesters 5, 6, and 7",
+      });
+    }
+
+    // Get student
+    const student = await Student.findById(studentId).session(session);
+    if (!student) {
+      await session.abortTransaction();
+      return res.status(404).json({
+        success: false,
+        message: "Student not found",
+      });
+    }
+
+    // Sem 6 integrity cleanup: ensure the student is not active in any other Sem 6 group
+    if (group.semester === 6) {
+      const staleGroups = await Group.find({
+        semester: group.semester,
+        _id: { $ne: groupId },
+        members: {
+          $elemMatch: {
+            student: student._id,
+            isActive: true,
+          },
+        },
+      }).session(session);
+
+      if (staleGroups.length > 0) {
+        // Deactivate membership in other groups for this semester
+        for (const sg of staleGroups) {
+          const idx = sg.members.findIndex(
+            (m) => m.student.toString() === student._id.toString() && m.isActive
+          );
+          if (idx !== -1) {
+            sg.members[idx].isActive = false;
+            sg.members[idx].leftAt = new Date();
+            await sg.save({ session });
+          }
+        }
+
+        // Cancel student's currentProjects associated with those groups' projects
+        const otherGroupIds = staleGroups.map((g) => g._id);
+        const otherProjects = await Project.find({
+          semester: group.semester,
+          group: { $in: otherGroupIds },
+        })
+          .select("_id")
+          .session(session);
+        const otherProjectIds = new Set(otherProjects.map((p) => p._id.toString()));
+
+        // Deactivate student's memberships for those groups and cancel related projects
+        student.groupMemberships.forEach((membership) => {
+          if (
+            membership.semester === group.semester &&
+            otherGroupIds.some((id) => id.toString() === membership.group.toString()) &&
+            membership.isActive
+          ) {
+            membership.isActive = false;
+            membership.leftAt = new Date();
+          }
+        });
+        student.currentProjects.forEach((cp) => {
+          if (
+            cp.semester === group.semester &&
+            otherProjectIds.has(cp.project.toString()) &&
+            cp.status === "active"
+          ) {
+            cp.status = "cancelled";
+          }
+        });
+      }
+    }
+
+    // Check if student is already a member
+    const existingMember = group.members.find(
+      (member) =>
+        member.student.toString() === studentId.toString() && member.isActive
+    );
+
+    if (existingMember) {
+      await session.abortTransaction();
+      return res.status(400).json({
+        success: false,
+        message: "Student is already an active member of this group",
+      });
+    }
+
+    // Check if group has available slots
+    const activeMembers = group.members.filter((m) => m.isActive);
+    if (activeMembers.length >= group.maxMembers) {
+      await session.abortTransaction();
+      return res.status(400).json({
+        success: false,
+        message: `Group is full (max ${group.maxMembers} members)`,
+      });
+    }
+
+    // Check if student is already in another group for this semester
+    const existingMembership = student.groupMemberships.find(
+      (gm) => gm.semester === group.semester && gm.isActive
+    );
+
+    if (
+      group.semester !== 6 &&
+      existingMembership &&
+      existingMembership.group.toString() !== groupId.toString()
+    ) {
+      await session.abortTransaction();
+      return res.status(400).json({
+        success: false,
+        message: `Student is already in another group for semester ${group.semester}`,
+      });
+    }
+
+    // Add member to group
+    const isReactivation = group.members.some(
+      (member) =>
+        member.student.toString() === studentId.toString() && !member.isActive
+    );
+
+    if (isReactivation) {
+      // Reactivate existing member
+      const member = group.members.find(
+        (m) => m.student.toString() === studentId.toString()
+      );
+      member.isActive = true;
+      member.joinedAt = new Date();
+    } else {
+      // Add new member
+      group.members.push({
+        student: studentId,
+        role: "member",
+        joinedAt: new Date(),
+        isActive: true,
+        inviteStatus: "accepted",
+      });
+    }
+
+    // Update group status if needed (but keep it finalized/locked if it was)
+    if (
+      group.status === "complete" &&
+      activeMembers.length + 1 >= group.minMembers
+    ) {
+      // Keep as complete or finalized
+      if (group.status === "finalized") {
+        // Keep finalized
+      } else if (group.status === "locked") {
+        // Keep locked
+      }
+    }
+
+    await group.save({ session });
+
+    
+
+
+    // Update student's group membership (semester-aware)
+    const existingStudentMembership = student.groupMemberships.find(
+      (gm) =>
+        gm.group.toString() === groupId.toString() &&
+        gm.semester === group.semester
+    );
+
+    if (existingStudentMembership) {
+      // Reactivate membership for this semester
+      existingStudentMembership.isActive = true;
+      existingStudentMembership.joinedAt = new Date();
+    } else {
+      // Add new membership
+      student.groupMemberships.push({
+        group: groupId,
+        role: "member",
+        semester: group.semester,
+        isActive: true,
+        joinedAt: new Date(),
+      });
+    }
+
+    // Special handling for Sem 6 continued groups: also reactivate Sem 5 membership
+    if (group.semester === 6) {
+      // Check if this is a continued group (has a project with isContinuation: true)
+      let isContinuedGroup = false;
+      try {
+        const groupProject = await Project.findOne({
+          group: groupId,
+          semester: 6,
+          projectType: "minor3"
+        }).select("isContinuation").session(session);
+        isContinuedGroup = groupProject?.isContinuation === true;
+      } catch (e) {
+        // If project lookup fails, assume it's not a continued group
+      }
+
+      if (isContinuedGroup) {
+        const sem5Membership = student.groupMemberships.find(
+          (gm) => gm.group.toString() === groupId.toString() && gm.semester === 5
+        );
+        if (sem5Membership) {
+          sem5Membership.isActive = true;
+          sem5Membership.joinedAt = new Date();
+        }
+      }
+    }
+
+    // Update student's groupId reference
+    student.groupId = groupId;
+
+    // If group has a project, add it to student's currentProjects
+    if (group.project) {
+      const existingProject = student.currentProjects.find(
+        (cp) => cp.project.toString() === group.project.toString()
+      );
+
+      if (!existingProject) {
+        student.currentProjects.push({
+          project: group.project,
+          role: "member",
+          semester: group.semester,
+          status: "active",
+          joinedAt: new Date(),
+        });
+      } else if (existingProject.status === "cancelled") {
+        // Reactivate cancelled project
+        existingProject.status = "active";
+        existingProject.joinedAt = new Date();
+      }
+    }
+
+    await student.save({ session });
+
+    await session.commitTransaction();
+
+    // Get updated group with populated data
+    const updatedGroup = await Group.findById(groupId)
+      .populate(
+        "members.student",
+        "fullName misNumber collegeEmail branch semester"
+      )
+      .populate("leader", "fullName misNumber collegeEmail")
+      .populate("allocatedFaculty", "fullName department designation")
+      .populate("project", "title description projectType status");
+
+    res.json({
+      success: true,
+      message: "Member added to group successfully",
+      data: updatedGroup,
+    });
+  } catch (error) {
+    await session.abortTransaction();
+    console.error("Error adding member to group:", error);
+    res.status(500).json({
+      success: false,
+      message: "Error adding member to group",
+      error: error.message,
+    });
+  } finally {
+    session.endSession();
+  }
+};
+
+// Remove a member from a group (admin action)
+const removeMemberFromGroup = async (req, res) => {
+  try {
+    const { groupId, studentId } = req.body;
+
+    // Validate inputs
+    if (!groupId || !studentId) {
+      return res.status(400).json({
+        success: false,
+        message: "groupId and studentId are required",
+      });
+    }
+
+    // Find the group
+    const group = await Group.findById(groupId).populate("members.student");
+    if (!group) {
+      return res.status(404).json({
+        success: false,
+        message: "Group not found",
+      });
+    }
+
+    // If removing the leader, assign new leader first
+    if (group.leader.toString() === studentId.toString()) {
+      const remainingMembers = group.members.filter(
+        (member) =>
+          member.student.toString() !== studentId.toString() && member.isActive
+      );
+
+      if (remainingMembers.length === 0) {
+        return res.status(400).json({
+          success: false,
+          message: "Cannot remove the last member of the group",
+        });
+      }
+
+      // Assign new leader (first remaining member)
+      const newLeader = remainingMembers[0].student;
+      group.leader = newLeader;
+
+      // Update the role of the new leader
+      const leaderMember = group.members.find(
+        (m) => m.student.toString() === newLeader.toString()
+      );
+      if (leaderMember) {
+        leaderMember.role = "leader";
+      }
+    }
+
+    // Find the member in the group
+    const memberIndex = group.members.findIndex((member) => {
+      return (
+        (member.student._id.toString() === studentId ||
+          member.student.toString() === studentId) &&
+        member.isActive
+      );
+    });
+
+    if (memberIndex === -1) {
+      return res.status(404).json({
+        success: false,
+        message: "Active member not found in group",
+      });
+    }
+
+    // Mark member as inactive
+
+    // Mark member as inactive
+    group.members[memberIndex].isActive = false;
+    group.members[memberIndex].leftAt = new Date();
+
+    // If active members fall below minimum and group was complete, move back to 'forming'
+    const activeMembers = group.members.filter((m) => m.isActive);
+    if (
+      activeMembers.length < group.minMembers &&
+      group.status === "complete"
+    ) {
+      group.status = "forming";
+    }
+
+    await group.save();
+
+    // Update student record to remove group association
+    const student = await Student.findById(studentId);
+    if (student) {
+      // Update group membership status (semester-aware)
+      student.groupMemberships.forEach((m) => {
+        if (
+          m.group.toString() === groupId.toString() &&
+          m.semester === group.semester &&
+          m.isActive
+        ) {
+          m.isActive = false;
+          m.leftAt = new Date();
+        }
+      });
+
+      // Special handling for Sem 6 continued groups: also deactivate Sem 5 membership to prevent fallback
+      if (group.semester === 6) {
+        // Check if this is a continued group (has a project with isContinuation: true)
+        let isContinuedGroup = false;
+        try {
+          const groupProject = await Project.findOne({
+            group: groupId,
+            semester: 6,
+            projectType: "minor3"
+          }).select("isContinuation").session(session);
+          isContinuedGroup = groupProject?.isContinuation === true;
+        } catch (e) {
+          // If project lookup fails, assume it's not a continued group
+        }
+
+        if (isContinuedGroup) {
+          student.groupMemberships.forEach((m) => {
+            if (
+              m.group.toString() === groupId.toString() &&
+              m.semester === 5 &&
+              m.isActive
+            ) {
+              m.isActive = false;
+              m.leftAt = new Date();
+            }
+          });
+        }
+      }
+
+      // Cancel student's active currentProjects tied to this group's projects (for this semester)
+      try {
+        const groupProjects = await Project.find({
+          group: groupId,
+          semester: group.semester,
+        }).select("_id");
+        const groupProjectIds = new Set(groupProjects.map((p) => p._id.toString()));
+
+        student.currentProjects.forEach((cp) => {
+          if (
+            cp.semester === group.semester &&
+            groupProjectIds.has(cp.project.toString()) &&
+            cp.status === "active"
+          ) {
+            cp.status = "cancelled";
+          }
+        });
+      } catch (e) {
+        // Non-fatal: if project lookup fails, proceed with membership removal
+      }
+
+      // Update top-level fields
+      student.currentGroup = null;
+      student.groupStatus = "available";
+      student.groupId = null;
+
+      await student.save();
+    }
+
+    res.json({
+      success: true,
+      message: "Member removed successfully",
+      data: group,
+    });
+  } catch (error) {
+    console.error("Error removing member from group:", error);
+    res.status(500).json({
+      success: false,
+      message: "Error removing member from group",
+      error: error.message,
     });
   }
 };
@@ -2030,5 +2956,9 @@ module.exports = {
   initializeSystemConfigs,
   // Semester Management functions
   updateStudentSemesters,
-  getStudentsBySemester
+  getStudentsBySemester,
+  // Group Management functions
+  getFinalizedGroupsForManagement,
+  addMemberToGroup,
+  removeMemberFromGroup,
 };

@@ -27,6 +27,9 @@ router.put('/projects/:id/status', adminController.updateProjectStatus);
 // Group management routes
 router.get('/groups', adminController.getGroups);
 router.get('/unallocated-groups', adminController.getUnallocatedGroups);
+router.get('/groups/finalized', adminController.getFinalizedGroupsForManagement);
+router.post('/groups/add-member', adminController.addMemberToGroup);
+router.post('/groups/remove-member', adminController.removeMemberFromGroup);
 
 // Allocation management routes
 router.get('/allocations', adminController.getAllocations);

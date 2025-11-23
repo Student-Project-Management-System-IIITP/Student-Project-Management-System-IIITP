@@ -127,7 +127,8 @@ const GroupCard = ({
             </p>
           )}
         </div>
-        <StatusBadge status={group.status} />
+        {/* Display: show inactive groups as Completed, keep active groups as-is */}
+        <StatusBadge status={group.isActive === false ? 'completed' : group.status} />
       </div>
 
       {/* Group Details */}

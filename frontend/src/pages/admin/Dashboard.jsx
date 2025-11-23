@@ -333,6 +333,12 @@ const AdminDashboard = () => {
           >
             🔄 Semester Management
           </Link>
+          <Link
+            to="/admin/groups/management"
+            className="inline-flex items-center px-4 py-2 rounded-md bg-blue-600 text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            👥 Group Management
+          </Link>
           <button
             onClick={() => setIsAddOpen(true)}
             className="inline-flex items-center px-4 py-2 rounded-md bg-gray-600 text-white hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-500"

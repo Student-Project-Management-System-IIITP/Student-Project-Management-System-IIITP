@@ -1,4 +1,4 @@
-import React from 'react';
+   import React from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useSem4Project } from '../../hooks/useSem4Project';
@@ -189,49 +189,111 @@ const StudentDashboard = () => {
     try {
       setSem6ProjectLoading(true);
       
-      // Get all projects to find Sem 6 project
-      const response = await studentAPI.getProjects({ allSemesters: true });
+      // Get all projects and find the active Sem 6 project for this student
+      const projectsResponse = await studentAPI.getProjects({ allSemesters: true });
+      console.log('All projects response:', projectsResponse);
       
-      if (response.success && response.data) {
-        const sem6ProjectData = response.data.find(
-          p => p.semester === 6 && p.projectType === 'minor3'
-        );
-        setSem6Project(sem6ProjectData || null);
+      if (projectsResponse.success && projectsResponse.data) {
+        // Find projects where this student is either the main project student OR an active group member
+        const studentId = roleData?._id;
+        console.log('Student ID from auth:', studentId);
+        console.log('User ID:', user?._id);
+        console.log('RoleData ID:', roleData?._id);
+        console.log('Full user object:', user);
+        console.log('Full roleData object:', roleData);
         
-        // Load Sem 6 group
-        if (sem6ProjectData?.group) {
-          // Get all groups (not filtered by semester)
-          const groupsResponse = await studentAPI.getGroups({ allSemesters: true });
-          
-          if (groupsResponse.success && groupsResponse.data) {
-            // The group field might be an ObjectId string or a populated object
-            const groupId = typeof sem6ProjectData.group === 'string' 
-              ? sem6ProjectData.group 
-              : sem6ProjectData.group._id;
-            
-            const sem6GroupData = groupsResponse.data.find(
-              g => g._id === groupId || g._id.toString() === groupId.toString()
+        const studentSem6Projects = projectsResponse.data.filter(
+          p => {
+            console.log('Checking project:', p._id, 'student:', p.student, 'title:', p.title, 'status:', p.status);
+            console.log('Main student match:', p.student === studentId);
+            const groupMembers = p.group?.members?.map(m => ({id: m.student, active: m.isActive}));
+            console.log('Group members:', groupMembers);
+            console.log('Looking for student ID:', studentId);
+            const isGroupMember = p.group?.members?.some(member => {
+              console.log('Comparing:', member.student, 'with', studentId, 'match:', member.student === studentId, 'active:', member.isActive);
+              return member.student === studentId && member.isActive;
+            });
+            console.log('Group member match:', isGroupMember);
+            return p.semester === 6 && p.projectType === 'minor3' && (
+              p.student === studentId || 
+              isGroupMember
             );
-            
-            setSem6Group(sem6GroupData || null);
           }
-        } else {
-          // If no Sem 6 project registered yet, check for Sem 5 group
-          const groupsResponse = await studentAPI.getGroups({ allSemesters: true });
-          if (groupsResponse.success && groupsResponse.data) {
-            const sem5GroupData = groupsResponse.data.find(g => g.semester === 5);
-            if (sem5GroupData) {
-              // Store Sem 5 group info so we can display it
-              setSem6Group(sem5GroupData);
-            } else {
-              // No Sem 5 group found - student cannot proceed with Sem 6 registration
+        );
+        console.log('Student Sem 6 projects:', studentSem6Projects);
+        
+        // Log all project statuses to see what we have
+        studentSem6Projects.forEach(p => {
+          console.log(`Project ${p._id} status: "${p.status}"`);
+        });
+        
+        // Find the active one (should only be one active project per student per semester)
+        // For Sem 6, both 'registered' and 'active' are considered valid statuses
+        const activeSem6Project = studentSem6Projects.find(p => p.status === 'active' || p.status === 'registered');
+        console.log('Active Sem 6 project found:', activeSem6Project);
+        
+        if (activeSem6Project) {
+          setSem6Project(activeSem6Project);
+          
+          // Load Sem 6 group from the project
+          if (activeSem6Project.group) {
+            // The group field might be an ObjectId string or a populated object
+            const groupId = typeof activeSem6Project.group === 'string' 
+              ? activeSem6Project.group 
+              : activeSem6Project.group._id;
+
+            try {
+              const groupResponse = await studentAPI.getGroupDetails(groupId);
+              if (groupResponse.success && groupResponse.data?.group) {
+                setSem6Group(groupResponse.data.group);
+              } else {
+                setSem6Group(null);
+              }
+            } catch (groupError) {
+              console.error('Error loading Sem 6 group:', groupError);
               setSem6Group(null);
             }
+          } else {
+            setSem6Group(null);
+          }
+        } else {
+          // No active Sem 6 project found, fall back to Sem 5 group logic
+          setSem6Project(null);
+          
+          // If no Sem 6 project registered, only show Sem 5 group if student is still active in it
+          // This prevents showing old groups after member exchange/removal
+          try {
+            const preRegResponse = await studentAPI.getSem5GroupForSem6();
+            if (preRegResponse.success && preRegResponse.data?.group) {
+              // Check if student is still active in the Sem 5 group
+              const group = preRegResponse.data.group;
+              const studentId = user?.id || roleData?.id;
+              const isStudentActive = group.members?.some(
+                member => member.student?.user === studentId && member.isActive
+              );
+              
+              if (isStudentActive) {
+                setSem6Group(group);
+              } else {
+                setSem6Group(null);
+              }
+            } else {
+              setSem6Group(null);
+            }
+          } catch (preRegError) {
+            // If backend reports no Sem 5 group, treat as no group for Sem 6
+            console.error('Error loading Sem 5 group for Sem 6:', preRegError);
+            setSem6Group(null);
           }
         }
+      } else {
+        setSem6Project(null);
+        setSem6Group(null);
       }
     } catch (error) {
       console.error('Error loading Sem 6 project:', error);
+      setSem6Project(null);
+      setSem6Group(null);
     } finally {
       setSem6ProjectLoading(false);
     }
@@ -272,27 +334,11 @@ const StudentDashboard = () => {
   };
   
 
-  // Get quick actions based on semester (B.Tech only currently)
+  // Get quick actions based on semester
   const getQuickActions = () => {
-      const actions = [];
-      const degree = (roleData?.degree || user?.degree) || 'B.Tech';
-      const currentSemester = (roleData?.semester || user?.semester) || 4;
-
-    // B.Tech flows
-    if (degree === 'B.Tech') {
-      if (currentSemester === 4) {
-        if (!sem4Project && canRegisterSem4()) {
-          actions.push({
-            title: 'Register for Minor Project 1',
-            description: 'Register your Minor Project 1',
-            icon: '📝',
-            link: '/student/projects/register',
-            color: 'bg-blue-50 border-blue-200 hover:bg-blue-100',
-            textColor: 'text-blue-800',
-          });
-        }
-      }
-    }
+    const actions = [];
+    const degree = (roleData?.degree || user?.degree) || 'B.Tech';
+    const currentSemester = (roleData?.semester || user?.semester) || 4;
 
     // M.Tech Sem 1 registration
     if (degree === 'M.Tech' && currentSemester === 1) {
@@ -2053,7 +2099,7 @@ const StudentDashboard = () => {
                       </div>
                     )}
                     
-                    {sem6Project && (
+                    {sem6Project && sem6Project.isContinuation && (
                       <div className="bg-green-50 border border-green-200 rounded-lg p-3 mb-4">
                         <p className="text-sm text-green-800">
                           <strong>✓ Same Group:</strong> Your group from Semester 5 continues in Semester 6
@@ -2486,6 +2532,6 @@ const StudentDashboard = () => {
       )}
     </div>
   );
-};
+}
 
 export default StudentDashboard;

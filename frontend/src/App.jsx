@@ -28,6 +28,7 @@ import Sem6RegistrationsTable from './pages/admin/Sem6RegistrationsTable';
 import Sem7Review from './pages/admin/Sem7Review';
 import Sem7TrackFinalization from './pages/admin/Sem7TrackFinalization';
 import SystemConfiguration from './pages/admin/SystemConfiguration';
+import GroupManagement from './pages/admin/GroupManagement';
 import NotFound from './pages/NotFound';
 import AdminProfile from './pages/admin/Profile';
 import ToastDemo from './components/common/ToastDemo';
@@ -363,6 +364,13 @@ function AppContent() {
           <Route path="/admin/semester-management" element={
             <ProtectedRoute allowedRoles={['admin']}>
               <SemesterManagement />
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/groups/management" element={
+            <ProtectedRoute allowedRoles={['admin']}>
+              <Layout>
+                <GroupManagement />
+              </Layout>
             </ProtectedRoute>
           } />
           {/* Shared Routes - Accessible by all authenticated users */}

@@ -49,6 +49,7 @@ const migrateGroupToSem6 = async (groupId, newAcademicYear, session = null) => {
     // Update group semester and academic year
     group.semester = 6;
     group.academicYear = newAcademicYear;
+    group.isActive = true; // Reactivate group for Sem 6
     group.status = 'open'; // Reset status for Sem 6
     group.project = null; // Clear Sem 5 project reference
     group.updatedAt = new Date();
@@ -134,6 +135,14 @@ const createNewGroupForSem6 = async (sem5GroupId, newAcademicYear, session = nul
     // Validate academic year
     if (!newAcademicYear || !/^\d{4}-\d{2}$/.test(newAcademicYear)) {
       newAcademicYear = generateAcademicYear();
+    }
+    
+    // Mark original Sem 5 group as inactive once it is promoted to Sem 6
+    sem5Group.isActive = false;
+    if (session) {
+      await sem5Group.save({ session });
+    } else {
+      await sem5Group.save();
     }
     
     // Create new group with Sem 5 data
