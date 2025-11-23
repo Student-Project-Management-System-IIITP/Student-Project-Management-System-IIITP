@@ -33,6 +33,10 @@ const MinorProject2Registration = () => {
     return saved || '';
   });
   const [facultyPreferenceLimit, setFacultyPreferenceLimit] = useState(7); // Default to 7
+  const [minGroupMembers, setMinGroupMembers] = useState(4); // Default fallback
+  const [maxGroupMembers, setMaxGroupMembers] = useState(5); // Default fallback
+  const [allowedFacultyTypes, setAllowedFacultyTypes] = useState(['Regular', 'Adjunct', 'On Lien']); // Default to all types
+  
   // Simple access validation - only redirect if we have group data and conditions are not met
   useEffect(() => {
     try {
@@ -64,16 +68,16 @@ const MinorProject2Registration = () => {
         }
         
         const groupStats = sem5Group ? getGroupStats() : { memberCount: 0 };
-        if (groupStats.memberCount < 2) {
-          toast.error('Your group must have at least 2 members before registering your project');
+        if (groupStats.memberCount < minGroupMembers) {
+          toast.error(`Your group must have at least ${minGroupMembers} members before registering your project`);
           navigate('/dashboard/student');
           return;
         }
       }
       
       const groupStats = sem5Group ? getGroupStats() : { memberCount: 0 };
-      if (groupStats.memberCount < 2) {
-        toast.error('Your group must have at least 2 members before registering your project');
+      if (groupStats.memberCount < minGroupMembers) {
+        toast.error(`Your group must have at least ${minGroupMembers} members before registering your project`);
         navigate('/dashboard/student');
         return;
       }
@@ -82,24 +86,41 @@ const MinorProject2Registration = () => {
       toast.error('An error occurred while loading your group information');
       navigate('/student/dashboard');
     }
-  }, [groupLoading, sem5Group, isGroupLeader, getGroupStats, navigate]);
+  }, [groupLoading, sem5Group, isGroupLeader, getGroupStats, navigate, minGroupMembers]);
 
-  // Load faculty preference limit from system config
+  // Load faculty preference limit and group size limits from system config
   useEffect(() => {
-    const loadFacultyPreferenceLimit = async () => {
+    const loadConfigs = async () => {
       try {
-        const response = await studentAPI.getSystemConfig('sem5.facultyPreferenceLimit');
-        if (response.success && response.data) {
-          setFacultyPreferenceLimit(response.data.value);
-          console.log('Loaded faculty preference limit:', response.data.value);
+        const [facultyLimitResponse, minMembersResponse, maxMembersResponse, allowedTypesResponse] = await Promise.all([
+          studentAPI.getSystemConfig('sem5.facultyPreferenceLimit'),
+          studentAPI.getSystemConfig('sem5.minGroupMembers'),
+          studentAPI.getSystemConfig('sem5.maxGroupMembers'),
+          studentAPI.getSystemConfig('sem5.minor2.allowedFacultyTypes')
+        ]);
+        
+        if (facultyLimitResponse.success && facultyLimitResponse.data) {
+          setFacultyPreferenceLimit(facultyLimitResponse.data.value);
+        }
+        
+        if (minMembersResponse.success && minMembersResponse.data?.value) {
+          setMinGroupMembers(parseInt(minMembersResponse.data.value));
+        }
+        
+        if (maxMembersResponse.success && maxMembersResponse.data?.value) {
+          setMaxGroupMembers(parseInt(maxMembersResponse.data.value));
+        }
+        
+        if (allowedTypesResponse.success && allowedTypesResponse.data?.value && Array.isArray(allowedTypesResponse.data.value)) {
+          setAllowedFacultyTypes(allowedTypesResponse.data.value);
         }
       } catch (error) {
-        console.error('Failed to load faculty preference limit, using default:', error);
-        // Keep default value of 7
+        console.error('Failed to load configs, using defaults:', error);
+        // Keep default values
       }
     };
-
-    loadFacultyPreferenceLimit();
+    
+    loadConfigs();
   }, []);
 
   // Load faculty list for preferences
@@ -301,17 +322,19 @@ const MinorProject2Registration = () => {
     return facultyList.filter(faculty => {
       const matchesSearch = faculty.fullName.toLowerCase().includes(searchTerm.toLowerCase());
       const matchesDepartment = selectedDepartment === 'all' || faculty.department === selectedDepartment;
+      const matchesType = allowedFacultyTypes.includes(faculty.mode);
       const notSelected = !facultyPreferences.some(p => p.faculty._id === faculty._id);
       
-      return matchesSearch && matchesDepartment && notSelected;
+      return matchesSearch && matchesDepartment && matchesType && notSelected;
     });
   };
 
   const getGroupMembers = () => {
     if (!sem5Group || !sem5Group.members) return [];
     
-    // Sort members: leader first, then members
-    const sortedMembers = [...sem5Group.members].sort((a, b) => {
+    // Filter to only active members and sort: leader first, then members
+    const activeMembers = sem5Group.members.filter(member => member.isActive !== false);
+    const sortedMembers = [...activeMembers].sort((a, b) => {
       if (a.role === 'leader') return -1;
       if (b.role === 'leader') return 1;
       return 0;
@@ -320,12 +343,47 @@ const MinorProject2Registration = () => {
     return sortedMembers;
   };
 
-  const renderStep3 = () => (
+  const renderStep3 = () => {
+    const groupMembers = getGroupMembers();
+    const memberCount = groupMembers.length;
+    
+    return (
     <div className="space-y-6">
       <div className="text-center mb-6">
         <h2 className="text-2xl font-bold text-gray-900 mb-2">Step 3: Group Member Verification</h2>
         <p className="text-gray-600">Please verify the details of all group members. These details will be forwarded to the admin.</p>
             </div>
+
+      {/* Group Size Summary */}
+      <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-sm font-medium text-gray-700">Group Size</p>
+            <p className="text-lg font-semibold text-gray-900">
+              {memberCount} member{memberCount !== 1 ? 's' : ''} 
+              {memberCount >= minGroupMembers && memberCount <= maxGroupMembers && (
+                <span className="ml-2 text-sm text-green-600">✓ Valid</span>
+              )}
+            </p>
+          </div>
+          <div className="text-right">
+            <p className="text-sm text-gray-600">Required Range</p>
+            <p className="text-sm font-semibold text-gray-900">
+              {minGroupMembers}-{maxGroupMembers} members
+            </p>
+          </div>
+        </div>
+        {memberCount < minGroupMembers && (
+          <div className="mt-3 p-2 bg-yellow-50 border border-yellow-200 rounded text-sm text-yellow-800">
+            ⚠️ Your group has {memberCount} member{memberCount !== 1 ? 's' : ''}, but at least {minGroupMembers} {minGroupMembers !== 1 ? 'are' : 'is'} required.
+          </div>
+        )}
+        {memberCount > maxGroupMembers && (
+          <div className="mt-3 p-2 bg-red-50 border border-red-200 rounded text-sm text-red-800">
+            ⚠️ Your group has {memberCount} members, but the maximum allowed is {maxGroupMembers}.
+          </div>
+        )}
+      </div>
 
       <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
         <div className="flex items-start">
@@ -344,7 +402,7 @@ const MinorProject2Registration = () => {
         </div>
 
       <div className="space-y-4">
-        {getGroupMembers().map((member, index) => (
+        {groupMembers.map((member, index) => (
           <div key={member._id} className="bg-white border border-gray-200 rounded-lg p-4">
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-lg font-semibold text-gray-900">
@@ -407,7 +465,8 @@ const MinorProject2Registration = () => {
         </button>
             </div>
           </div>
-  );
+    );
+  };
 
   const renderStep4 = () => (
     <div className="space-y-6">
@@ -443,6 +502,9 @@ const MinorProject2Registration = () => {
               {errors.title && (
                 <p className="mt-1 text-sm text-red-600">{errors.title.message}</p>
               )}
+              <p className="mt-2 text-sm text-gray-600">
+                💡 <strong>Not decided yet?</strong> You can write "TBD" (To Be Determined) as the project title. The title can be changed later from your project dashboard.
+              </p>
             </div>
 
             <div>

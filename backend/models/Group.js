@@ -4,14 +4,15 @@ const groupSchema = new mongoose.Schema({
   // Basic Information
   name: {
     type: String,
-    required: true,
+    required: false, // Made optional - will be auto-generated if not provided
     trim: true,
     maxlength: 100
   },
   description: {
     type: String,
     trim: true,
-    maxlength: 500
+    maxlength: 500,
+    default: '' // Default to empty string
   },
   
   // Members
@@ -110,7 +111,7 @@ const groupSchema = new mongoose.Schema({
     type: Number,
     default: 5,
     min: 2,
-    max: 5
+    max: 10 // Allow up to 10 members (matches admin config UI limit)
   },
   minMembers: {
     type: Number,
@@ -192,6 +193,21 @@ groupSchema.index({ createdBy: 1 });
 // Pre-save middleware to update timestamps
 groupSchema.pre('save', function(next) {
   this.updatedAt = Date.now();
+  next();
+});
+
+// Pre-save middleware to generate default name if not provided
+groupSchema.pre('save', function(next) {
+  // Generate default name if not provided: "Group - [Leader Name] - [Semester]"
+  if (!this.name || this.name.trim() === '') {
+    if (this.isNew && this.leader) {
+      // Will be populated later, use a temporary name
+      this.name = `Group - Semester ${this.semester}`;
+    } else if (!this.isNew && this.name === '') {
+      // Keep existing name if updating
+      return next();
+    }
+  }
   next();
 });
 
