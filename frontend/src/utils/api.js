@@ -477,6 +477,10 @@ export const adminAPI = {
     return api.get(url);
   },
   getSystemConfigByKey: (key) => api.get(`/admin/system-config/${key}`),
+  getSafeMinimumFacultyLimit: (semester, projectType) => {
+    const params = new URLSearchParams({ semester, projectType });
+    return api.get(`/admin/system-config/safe-minimum-faculty-limit?${params}`);
+  },
   updateSystemConfigByKey: (key, value, description, force = false) => api.put(`/admin/system-config/${key}`, { value, description, force }),
   initializeSystemConfigs: () => api.post('/admin/system-config/initialize'),
   

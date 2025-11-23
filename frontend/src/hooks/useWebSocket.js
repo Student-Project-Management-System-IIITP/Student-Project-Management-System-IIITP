@@ -1,10 +1,35 @@
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef, useCallback, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import websocketManager from '../utils/websocket';
 
 export const useWebSocket = () => {
   const { user, token } = useAuth();
   const isConnectedRef = useRef(false);
+  const [isConnected, setIsConnected] = useState(false);
+
+  // Update connection state when websocket manager state changes
+  useEffect(() => {
+    // Subscribe to connection events to update state
+    const handleConnected = () => {
+      setIsConnected(true);
+    };
+    
+    const handleDisconnected = () => {
+      setIsConnected(false);
+    };
+
+    // Subscribe to connection events
+    websocketManager.subscribe('connected', handleConnected);
+    websocketManager.subscribe('disconnected', handleDisconnected);
+
+    // Set initial state
+    setIsConnected(websocketManager.isConnected);
+
+    return () => {
+      websocketManager.unsubscribe('connected', handleConnected);
+      websocketManager.unsubscribe('disconnected', handleDisconnected);
+    };
+  }, []);
 
   const connect = useCallback(() => {
     if (token && !isConnectedRef.current) {
@@ -43,7 +68,7 @@ export const useWebSocket = () => {
   }, [user, token, connect, disconnect]);
 
   return {
-    isConnected: websocketManager.isConnected,
+    isConnected,
     connect,
     disconnect,
     subscribe,

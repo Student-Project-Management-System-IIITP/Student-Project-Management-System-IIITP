@@ -71,6 +71,7 @@ router.patch('/sem8/finalize/:studentId', sem8Controller.finalizeSem8Track);
 
 // System Configuration routes
 router.get('/system-config', adminController.getSystemConfigurations);
+router.get('/system-config/safe-minimum-faculty-limit', adminController.getSafeMinimumFacultyLimit); // Must be before /:key route
 router.get('/system-config/:key', adminController.getSystemConfig);
 router.put('/system-config/:key', adminController.updateSystemConfig);
 router.post('/system-config/initialize', adminController.initializeSystemConfigs);

@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useForm } from 'react-hook-form';
 import { useSem5Project } from '../../hooks/useSem5Project';
 import { useGroupManagement } from '../../hooks/useGroupManagement';
 import { useSem7 } from '../../context/Sem7Context';
@@ -49,7 +48,8 @@ const GroupFormation = () => {
                        currentSemester === 8 ? sem8Group : 
                        sem5Group;
 
-  // WebSocket for real-time updates
+  // WebSocket for real-time updates (optional - not critical for group formation)
+  // Note: WebSocket connection status is hidden as it's not required for basic functionality
   const { isConnected } = useWebSocket();
 
   // Initialize state from localStorage or defaults
@@ -66,8 +66,14 @@ const GroupFormation = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [currentStep, setCurrentStep] = useState(() => {
     const saved = localStorage.getItem('groupFormation_currentStep');
+    // Start at step 1 (which is now member invitation, previously step 2)
     return saved ? parseInt(saved) : 1;
   });
+  
+  // Group size limits from admin config
+  const [minGroupMembers, setMinGroupMembers] = useState(4); // Default fallback
+  const [maxGroupMembers, setMaxGroupMembers] = useState(5); // Default fallback
+  const [configLoading, setConfigLoading] = useState(true);
   
   // Pagination and search optimization
   const [currentPage, setCurrentPage] = useState(1);
@@ -78,22 +84,8 @@ const GroupFormation = () => {
   const [invitationResults, setInvitationResults] = useState(null);
   const [groupData, setGroupData] = useState(null);
 
-  const {
-    register,
-    handleSubmit,
-    formState: { errors },
-    reset,
-    watch
-  } = useForm({
-    defaultValues: {
-      name: localStorage.getItem('groupFormation_name') || '',
-      description: localStorage.getItem('groupFormation_description') || ''
-    }
-  });
-
-  // Watch form fields for persistence
-  const watchedName = watch('name');
-  const watchedDescription = watch('description');
+  // Removed form for name/description - no longer needed
+  // Group name will be auto-generated on backend
 
   // Persist state changes to localStorage
   useEffect(() => {
@@ -110,18 +102,40 @@ const GroupFormation = () => {
     localStorage.setItem('groupFormation_currentStep', currentStep.toString());
   }, [currentStep]);
 
-  // Persist form data 
+  // Load group size limits from admin config
   useEffect(() => {
-    if (watchedName !== undefined) {
-      localStorage.setItem('groupFormation_name', watchedName || '');
+    const loadGroupConfig = async () => {
+      try {
+        setConfigLoading(true);
+        // Determine config key based on semester
+        // Use sem5, sem7, sem8 pattern (sem7 and sem8 configs may not exist yet, will fallback to defaults)
+        const configPrefix = currentSemester === 7 ? 'sem7' : 
+                            currentSemester === 8 ? 'sem8' : 
+                            'sem5';
+        
+        // Fetch min and max group members from config
+        const [minResponse, maxResponse] = await Promise.all([
+          studentAPI.getSystemConfig(`${configPrefix}.minGroupMembers`),
+          studentAPI.getSystemConfig(`${configPrefix}.maxGroupMembers`)
+        ]);
+        
+        if (minResponse.success && minResponse.data?.value) {
+          setMinGroupMembers(parseInt(minResponse.data.value));
+        }
+        
+        if (maxResponse.success && maxResponse.data?.value) {
+          setMaxGroupMembers(parseInt(maxResponse.data.value));
+        }
+      } catch (error) {
+        console.error('Error loading group config:', error);
+        // Keep default values (4, 5) if config fails to load
+      } finally {
+        setConfigLoading(false);
     }
-  }, [watchedName]);
-
-  useEffect(() => {
-    if (watchedDescription !== undefined) {
-      localStorage.setItem('groupFormation_description', watchedDescription || '');
-    }
-  }, [watchedDescription]);
+    };
+    
+    loadGroupConfig();
+  }, [currentSemester]);
 
   // WebSocket event listeners for real-time updates
   useEffect(() => {
@@ -183,10 +197,10 @@ const GroupFormation = () => {
 
   // Removed redundant useEffect - search is handled by the debounced search useEffect below
 
-  // Real-time search with debouncing - only on step 2
+  // Real-time search with debouncing - only on step 1 (invite members)
   useEffect(() => {
-    // Only trigger search when on step 2
-    if (currentStep !== 2) return;
+    // Only trigger search when on step 1 (invite members step)
+    if (currentStep !== 1) return;
 
     const timeoutId = setTimeout(() => {
       if (searchTerm && searchTerm.length >= 2) {
@@ -264,15 +278,15 @@ const GroupFormation = () => {
       return { status: 'pending_invites', message: 'Has pending invites' };
     }
     
-    // Check if we've reached max group size (4-5 members)
+    // Check if we've reached max group size (from config)
     const currentGroupSize = selectedStudents.length + 1; // +1 for creator
-    if (currentGroupSize >= 5) {
+    if (currentGroupSize >= maxGroupMembers) {
       return { status: 'group_full', message: 'Group is full' };
     }
     
     // Student is available
     return { status: 'available', message: 'Available' };
-  }, [selectedStudents, currentSemester]);
+  }, [selectedStudents, currentSemester, maxGroupMembers]);
 
   // Memoize invite status to avoid excessive recalculations
   const inviteStatusCache = useMemo(() => {
@@ -335,73 +349,13 @@ const GroupFormation = () => {
   // Removed excessive debug logging
 
   // Enhanced multi-step group creation workflow
-  const onSubmit = async (data) => {
-    try {
-      setIsSubmitting(true);
-      
-      const groupData = {
-        ...data,
-        semester: currentSemester, // Use dynamic semester (5 for Sem 5, 7 for Sem 7)
-        academicYear: user.academicYear || '2024-25',
-        // Removed leaderId - creator is always the leader
-        memberIds: selectedStudents.map(student => student._id) // Include selected members for invitation
-      };
-
-      // STEP 1: Just advance to step 2 for member invitation
-      if (currentStep === 1) {
-        setCurrentStep(2);
-        toast.success('Group details saved. Now invite members.');
-        return;
-      }
-
-      // STEP 2: Just proceed to confirmation (don't create group yet)
-      // Pre-validation checks (similar to Group Dashboard)
-      if (selectedStudents.length === 0) {
-        toast.error('Please select at least one student to invite');
-        return;
-      }
-      
-      const currentGroupSize = selectedStudents.length + 1; // +1 for creator
-      if (currentGroupSize > 5) {
-        toast.error('Group cannot have more than 5 members');
-        return;
-      }
-      
-      // Check if any selected students are unavailable or disabled
-      const unavailableStudents = selectedStudents.filter(student => {
-        const status = getInviteStatus(student);
-        // Check if student is disabled (for Sem 7 track restrictions or Sem 8 Type 1 restrictions)
-        if (status.disabled) {
-          return true;
-        }
-        return status.status !== 'available' && status.status !== 'selected' && status.status !== 'rejected_from_current_group';
-      });
-      
-      if (unavailableStudents.length > 0) {
-        toast.error(`Cannot proceed: Some selected students are unavailable or not eligible (${unavailableStudents.map(s => s.fullName).join(', ')})`);
-        return;
-      }
-      
-      // Just proceed to step 3 (confirmation page) - group will be created when sending invitations
-      setCurrentStep(3);
-      setInvitationResults(null);
-      toast.success('Ready to create group and send invitations!');
-    } catch (error) {
-      toast.error(`Group creation failed: ${error.message}`);
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
+  // Note: Step 1 (name/description) removed - now starts directly with member invitation
 
   const onCancel = () => {
-    reset();
     // Clear localStorage persistence
     localStorage.removeItem('groupFormation_selectedStudents');
-    // Removed selectedLeader localStorage cleanup
     localStorage.removeItem('groupFormation_searchTerm');
     localStorage.removeItem('groupFormation_currentStep');
-    localStorage.removeItem('groupFormation_name');
-    localStorage.removeItem('groupFormation_description');
     navigate('/dashboard/student');
   };
 
@@ -432,8 +386,8 @@ const GroupFormation = () => {
   } else {
     // Check if we're at max group size
     const currentGroupSize = selectedStudents.length + 1; // +1 for creator
-    if (currentGroupSize >= 5) {
-      toast.error('Group is full (maximum 5 members)');
+    if (currentGroupSize >= maxGroupMembers) {
+      toast.error(`Group is full (maximum ${maxGroupMembers} members)`);
       return;
     }
     setSelectedStudents(prev => [...prev, student]);
@@ -515,7 +469,7 @@ const GroupFormation = () => {
         toast.error(`Bulk invitation failed: ${response.message}`);
       }
       
-      setCurrentStep(3);
+      setCurrentStep(2);
     } catch (error) {
       console.error('Failed to send bulk invitations:', error);
       toast.error(`Failed to send invitations: ${error.message}`);
@@ -525,16 +479,53 @@ const GroupFormation = () => {
   };
 
   const handleNextStep = () => {
+    // Validation before proceeding to confirmation step
+    if (selectedStudents.length === 0) {
+      toast.error('Please select at least one student to invite');
+      return;
+    }
+    
+    const currentGroupSize = selectedStudents.length + 1; // +1 for creator
+    if (currentGroupSize > maxGroupMembers) {
+      toast.error(`Group cannot have more than ${maxGroupMembers} members`);
+      return;
+    }
+    
+    // Check minimum requirement
+    if (currentGroupSize < minGroupMembers) {
+      toast.warning(`Group should have at least ${minGroupMembers} members. You can add more members later.`);
+      // Allow proceeding but warn the user
+    }
+    
+    // Check if any selected students are unavailable or disabled
+    const unavailableStudents = selectedStudents.filter(student => {
+      const status = getInviteStatus(student);
+      // Check if student is disabled (for Sem 7 track restrictions or Sem 8 Type 1 restrictions)
+      if (status.disabled) {
+        return true;
+      }
+      return status.status !== 'available' && status.status !== 'selected' && status.status !== 'rejected_from_current_group';
+    });
+    
+    if (unavailableStudents.length > 0) {
+      toast.error(`Cannot proceed: Some selected students are unavailable or not eligible (${unavailableStudents.map(s => s.fullName).join(', ')})`);
+      return;
+    }
+    
+    // Proceed to step 2 (confirmation page)
     if (currentStep === 1) {
       setCurrentStep(2);
-    } else if (currentStep === 2) {
-      setCurrentStep(3);
+      setInvitationResults(null);
+      toast.success('Ready to create group and send invitations!');
     }
   };
 
   const handlePreviousStep = () => {
     if (currentStep > 1) {
       setCurrentStep(currentStep - 1);
+    } else if (currentStep === 1) {
+      // On step 1, go back to dashboard
+      onCancel();
     }
   };
 
@@ -545,13 +536,13 @@ const GroupFormation = () => {
   const handleSendInvitations = async () => {
     setIsSubmitting(true);
     try {
-      // First, create the group
+      // First, create the group (name/description will be auto-generated if not provided)
       const groupData = {
-        name: watch('name'),
-        description: watch('description'),
         semester: currentSemester, // Use dynamic semester (5 for Sem 5, 7 for Sem 7)
         academicYear: user.academicYear || '2024-25',
-        memberIds: selectedStudents.map(student => student._id)
+        memberIds: selectedStudents.map(student => student._id),
+        maxMembers: maxGroupMembers, // Use config value
+        minMembers: minGroupMembers // Use config value
       };
 
       console.log('Creating group with data:', groupData);
@@ -613,8 +604,6 @@ const GroupFormation = () => {
           localStorage.removeItem('groupFormation_selectedStudents');
           localStorage.removeItem('groupFormation_searchTerm');
           localStorage.removeItem('groupFormation_currentStep');
-          localStorage.removeItem('groupFormation_name');
-          localStorage.removeItem('groupFormation_description');
         }, 3000);
       
       // Refresh context data again after sending invitations (if any)
@@ -802,16 +791,11 @@ const GroupFormation = () => {
                 <p className="mt-2 text-gray-600">
                   {currentSemester === 7 
                     ? 'Form a new group for your Major Project 1 (coursework students only)'
-                    : 'Form a group for your Minor Project 2 (4-5 members)'
+                    : `Form a group for your Minor Project 2 (${minGroupMembers}-${maxGroupMembers} members)`
                   }
                 </p>
-                {/* Real-time status indicator */}
-                <div className="mt-2 flex items-center space-x-2">
-                  <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`}></div>
-                  <span className="text-xs text-gray-500">
-                    {isConnected ? 'Real-time updates enabled' : 'Connecting...'}
-                  </span>
-                </div>
+                {/* Real-time status indicator - Hidden since WebSocket isn't critical for group formation */}
+                {/* WebSocket connection is optional and not required for basic group creation functionality */}
               </div>
               <button
                 onClick={onCancel}
@@ -824,7 +808,7 @@ const GroupFormation = () => {
             </div>
           </div>
 
-          {/* Progress Indicator */}
+          {/* Progress Indicator - Now 2 steps instead of 3 */}
           <div className="mb-8">
             <div className="flex items-center space-x-4">
               <div className="flex items-center">
@@ -836,7 +820,7 @@ const GroupFormation = () => {
                 <span className={`ml-2 text-sm ${
                   currentStep >= 1 ? 'font-medium text-blue-600' : 'text-gray-500'
                 }`}>
-                  Create Group
+                  Invite Members
                 </span>
               </div>
               <div className={`flex-1 h-0.5 ${currentStep > 1 ? 'bg-blue-600' : 'bg-gray-200'}`}></div>
@@ -844,133 +828,25 @@ const GroupFormation = () => {
                 <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
                   currentStep >= 2 ? 'bg-blue-600 text-white' : 'bg-gray-300 text-gray-600'
                 }`}>
-                  {currentStep > 2 ? '✓' : '2'}
+                  {currentStep >= 2 ? '2' : '2'}
                 </div>
                 <span className={`ml-2 text-sm ${
                   currentStep >= 2 ? 'font-medium text-blue-600' : 'text-gray-500'
                 }`}>
-                  Invite Members
-                </span>
-              </div>
-              <div className={`flex-1 h-0.5 ${currentStep > 2 ? 'bg-blue-600' : 'bg-gray-200'}`}></div>
-              <div className="flex items-center">
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
-                  currentStep >= 3 ? 'bg-blue-600 text-white' : 'bg-gray-300 text-gray-600'
-                }`}>
-                  {currentStep > 3 ? '✓' : '3'}
-                </div>
-                <span className={`ml-2 text-sm ${
-                  currentStep >= 3 ? 'font-medium text-blue-600' : 'text-gray-500'
-                }`}>
-                  Complete Group
+                  Create Group
                 </span>
               </div>
             </div>
           </div>
 
           {/* Multi-Step Group Creation Workflow */}
+          {/* Step 1: Member Invitation (previously Step 2) */}
           {currentStep === 1 && (
           <div className="bg-white rounded-lg shadow-lg">
             <div className="px-6 py-4 border-b border-gray-200">
-                <h2 className="text-xl font-semibold text-gray-900">Step 1: Group Details</h2>
+                  <h2 className="text-xl font-semibold text-gray-900">Step 1: Invite Members</h2>
               <p className="text-gray-600 mt-1">
-                  Set basic group information and optional leadership assignment.
-              </p>
-            </div>
-
-            <form onSubmit={handleSubmit(onSubmit)} className="p-6 space-y-6">
-              {/* Group Name */}
-              <div>
-                <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-2">
-                  Group Name *
-                </label>
-                <input
-                  type="text"
-                  id="name"
-                  {...register('name', {
-                    required: 'Group name is required',
-                    minLength: {
-                      value: 3,
-                      message: 'Group name must be at least 3 characters long'
-                    },
-                    maxLength: {
-                      value: 50,
-                      message: 'Group name cannot exceed 50 characters'
-                    }
-                  })}
-                  className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-                    errors.name ? 'border-red-500' : 'border-gray-300'
-                  }`}
-                  placeholder="Enter your group name"
-                />
-                {errors.name && (
-                  <p className="mt-1 text-sm text-red-600">{errors.name.message}</p>
-                )}
-              </div>
-
-              {/* Group Description */}
-              <div>
-                <label htmlFor="description" className="block text-sm font-medium text-gray-700 mb-2">
-                  Group Description
-                </label>
-                <textarea
-                  id="description"
-                  rows={3}
-                  {...register('description', {
-                    maxLength: {
-                      value: 300,
-                      message: 'Description cannot exceed 300 characters'
-                    }
-                  })}
-                  className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none ${
-                    errors.description ? 'border-red-500' : 'border-gray-300'
-                  }`}
-                  placeholder="Briefly describe your group's focus and objectives..."
-                />
-                {errors.description && (
-                  <p className="mt-1 text-sm text-red-600">{errors.description.message}</p>
-                )}
-              </div>
-
-              {/* Form Actions */}
-              <div className="flex items-center justify-end space-x-4 pt-6 border-t border-gray-200">
-                <button
-                  type="button"
-                  onClick={onCancel}
-                  className="px-6 py-3 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-500 transition-colors"
-                  disabled={isSubmitting}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSubmitting || groupLoading}
-                  className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center"
-                >
-                  {isSubmitting ? (
-                    <>
-                      <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                      </svg>
-                      Creating...
-                    </>
-                  ) : (
-                    currentStep === 1 ? 'Next' : 'Create Group'
-                  )}
-                </button>
-              </div>
-            </form>
-          </div>
-          )}
-
-          {/* Step 2: Leader Selection & Member Search */}
-          {currentStep === 2 && (
-            <div className="bg-white rounded-lg shadow-lg">
-              <div className="px-6 py-4 border-b border-gray-200">
-                  <h2 className="text-xl font-semibold text-gray-900">Step 2: Invite Members</h2>
-                  <p className="text-gray-600 mt-1">
-                    Select members to invite to your group. As the group creator, you will be the group leader. This will first create your group, then send invitations.
+                    Select members to invite to your group. As the group creator, you will be the group leader. Group name will be auto-generated.
                   </p>
               </div>
 
@@ -1355,13 +1231,13 @@ const GroupFormation = () => {
             </div>
           )}
 
-          {/* Step 3: Invitation Results & Summary */}
-          {currentStep === 3 && (
+          {/* Step 2: Invitation Results & Summary (previously Step 3) */}
+          {currentStep === 2 && (
             <div className="bg-white rounded-lg shadow-lg">
               <div className="px-6 py-4 border-b border-gray-200">
-                <h2 className="text-xl font-semibold text-gray-900">Step 3: Create Group & Send Invitations</h2>
+                <h2 className="text-xl font-semibold text-gray-900">Step 2: Create Group & Send Invitations</h2>
                 <p className="text-gray-600 mt-1">
-                  Review your group details and create the group with invitations to selected members.
+                  Review your group details and create the group with invitations to selected members. Group name will be auto-generated.
                 </p>
               </div>
 
@@ -1372,20 +1248,20 @@ const GroupFormation = () => {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
                     <div>
                       <span className="font-medium text-blue-800">Group Name:</span>
-                      <span className="ml-2 text-blue-700">{watchedName}</span>
-                    </div>
-                    <div>
-                      <span className="font-medium text-blue-800">Description:</span>
-                      <span className="ml-2 text-blue-700">{watchedDescription}</span>
+                      <span className="ml-2 text-blue-700 italic">Will be auto-generated</span>
                     </div>
                     <div>
                       <span className="font-medium text-blue-800">Leader:</span>
-                      <span className="ml-2 text-blue-700">{user.fullName || user.name}</span>
+                      <span className="ml-2 text-blue-700">{roleData?.fullName || user?.fullName || user?.name}</span>
                     </div>
                     <div>
                       <span className="font-medium text-blue-800">Total Members:</span>
                       <span className="ml-2 text-blue-700">{selectedStudents.length + 1}</span>
                       <span className="ml-1 text-xs text-blue-600">(You + {selectedStudents.length} invites)</span>
+                    </div>
+                    <div>
+                      <span className="font-medium text-blue-800">Semester:</span>
+                      <span className="ml-2 text-blue-700">Semester {currentSemester}</span>
                     </div>
                   </div>
                 </div>
@@ -1477,7 +1353,7 @@ const GroupFormation = () => {
                 {/* Action Buttons */}
                 <div className="flex justify-between">
                   <button
-                    onClick={() => setCurrentStep(2)}
+                      onClick={() => setCurrentStep(1)}
                     className="px-6 py-3 bg-gray-500 text-white rounded-lg hover:bg-gray-600 font-medium"
                   >
                     Back to Edit
@@ -1498,11 +1374,11 @@ const GroupFormation = () => {
 
           {/* Enhanced Information Card */}
           <div className="mt-8 bg-blue-50 rounded-lg p-6">
-            <h3 className="text-lg font-semibold text-blue-900 mb-4">🏗️ Enhanced Group Formation Process</h3>
+            <h3 className="text-lg font-semibold text-blue-900 mb-4">🏗️ Group Formation Process</h3>
             <div className="text-blue-800 space-y-2">
-              <p>• <strong>Step 1:</strong> Basic group details and optional leadership assignment</p>
-              <p>• <strong>Step 2:</strong> Member selection with live student search functionality</p>
-              <p>• <strong>Step 3:</strong> Automated bulk invitation sending with results tracking</p>
+              <p>• <strong>Step 1:</strong> Member selection with live student search functionality</p>
+              <p>• <strong>Step 2:</strong> Automated bulk invitation sending with results tracking</p>
+              <p>• <strong>Auto-generated:</strong> Group name is automatically created based on leader name and semester</p>
               <p>• <strong>Real-time:</strong> WebSocket notifications for invitation responses</p>
               <p>• <strong>Management:</strong> Advanced leader transfer and group finalization controls</p>
             </div>

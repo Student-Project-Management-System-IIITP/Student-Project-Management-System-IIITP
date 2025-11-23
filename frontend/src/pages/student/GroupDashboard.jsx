@@ -27,6 +27,10 @@ const GroupDashboard = () => {
   const [inviteLoading, setInviteLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   
+  // Group size limits from admin config
+  const [minGroupMembers, setMinGroupMembers] = useState(4); // Default fallback
+  const [maxGroupMembers, setMaxGroupMembers] = useState(5); // Default fallback
+  
   // Get group management data (mainly for Sem 5, but keep for backward compatibility)
   const { 
     sem5Group, 
@@ -64,6 +68,41 @@ const GroupDashboard = () => {
     }
   }, [sem5Group?.status, groupId]);
 
+  // Load group size limits from admin config
+  useEffect(() => {
+    const loadGroupConfig = async () => {
+      if (!groupDetails) return;
+      
+      const groupSemester = groupDetails.semester || roleData?.semester || user?.semester || 5;
+      
+      // Determine config key based on semester
+      const configPrefix = groupSemester === 7 ? 'sem7' : 
+                          groupSemester === 8 ? 'sem8' : 
+                          'sem5';
+      
+      try {
+        // Fetch min and max group members from config
+        const [minResponse, maxResponse] = await Promise.all([
+          studentAPI.getSystemConfig(`${configPrefix}.minGroupMembers`),
+          studentAPI.getSystemConfig(`${configPrefix}.maxGroupMembers`)
+        ]);
+        
+        if (minResponse.success && minResponse.data?.value) {
+          setMinGroupMembers(parseInt(minResponse.data.value));
+        }
+        
+        if (maxResponse.success && maxResponse.data?.value) {
+          setMaxGroupMembers(parseInt(maxResponse.data.value));
+        }
+      } catch (error) {
+        console.error('Error loading group config:', error);
+        // Keep default values (4, 5) if config fails to load
+      }
+    };
+    
+    loadGroupConfig();
+  }, [groupDetails, roleData, user]);
+
   // Finalize group state
   const [finalizeLoading, setFinalizeLoading] = useState(false);
 
@@ -82,9 +121,9 @@ const GroupDashboard = () => {
       return false;
     }
     
-    // Check if group has minimum required members (4)
+    // Check if group has minimum required members (prioritize config over stored value)
     const activeMembers = groupDetails.members?.filter(member => member.isActive) || [];
-    const minMembers = groupDetails.minMembers || 4;
+    const minMembers = minGroupMembers || groupDetails.minMembers;
     
     if (activeMembers.length < minMembers) {
       return false;
@@ -1724,11 +1763,11 @@ const GroupDashboard = () => {
                          </div>
                          <div className="text-center">
                            <p className="text-xs text-gray-500 mb-1">Min Required</p>
-                           <p className="text-lg font-semibold text-orange-600">{groupDetails?.minMembers || 4}</p>
+                            <p className="text-lg font-semibold text-orange-600">{minGroupMembers || groupDetails?.minMembers}</p>
                          </div>
                          <div className="text-center">
                            <p className="text-xs text-gray-500 mb-1">Max Allowed</p>
-                           <p className="text-lg font-semibold text-blue-600">{groupDetails?.maxMembers || 5}</p>
+                            <p className="text-lg font-semibold text-blue-600">{maxGroupMembers || groupDetails?.maxMembers}</p>
                          </div>
                        </div>
                        
@@ -1740,12 +1779,12 @@ const GroupDashboard = () => {
                            <div 
                              className="h-3 rounded-full transition-all duration-500 ease-out relative"
                            style={{ 
-                               width: `${Math.min(100, (((groupDetails?.activeMemberCount ?? (groupDetails.members?.filter?.(m => m.isActive).length || 0)) / (groupDetails.maxMembers || 5)) * 100))}%`,
+                               width: `${Math.min(100, (((groupDetails?.activeMemberCount ?? (groupDetails.members?.filter?.(m => m.isActive).length || 0)) / (maxGroupMembers || groupDetails.maxMembers)) * 100))}%`,
                                background: `linear-gradient(90deg, 
                                  ${(() => {
                                    const current = groupDetails?.activeMemberCount ?? (groupDetails.members?.filter?.(m => m.isActive).length || 0);
-                                   const min = groupDetails?.minMembers || 4;
-                                   const max = groupDetails?.maxMembers || 5;
+                                   const min = minGroupMembers || groupDetails?.minMembers;
+                                   const max = maxGroupMembers || groupDetails?.maxMembers;
                                    const progress = (current / max) * 100;
                                    const minProgress = (min / max) * 100;
                                    
@@ -1772,11 +1811,11 @@ const GroupDashboard = () => {
                            </div>
                            <div className="flex items-center space-x-2">
                              <div className="w-3 h-3 rounded-full bg-amber-500"></div>
-                             <span className="text-amber-700 font-semibold">Min: {groupDetails?.minMembers || 4}</span>
+                             <span className="text-amber-700 font-semibold">Min: {minGroupMembers || groupDetails?.minMembers}</span>
                            </div>
                            <div className="flex items-center space-x-2">
                              <div className="w-3 h-3 rounded-full bg-blue-500"></div>
-                             <span className="text-blue-700 font-semibold">Max: {groupDetails?.maxMembers || 5}</span>
+                             <span className="text-blue-700 font-semibold">Max: {maxGroupMembers || groupDetails?.maxMembers}</span>
                            </div>
                          </div>
                          
@@ -1785,12 +1824,12 @@ const GroupDashboard = () => {
                            <span className="text-lg font-bold text-gray-800">
                             {(() => {
                               const current = groupDetails?.activeMemberCount ?? (groupDetails.members?.filter?.(m => m.isActive).length || 0);
-                              const max = groupDetails?.maxMembers || 5;
+                              const max = maxGroupMembers || groupDetails?.maxMembers;
                               return Math.round((current / max) * 100);
                             })()}%
                           </span>
                           <span className="text-sm text-gray-600 ml-2">
-                            ({(groupDetails?.activeMemberCount ?? (groupDetails.members?.filter?.(m => m.isActive).length || 0))} of {groupDetails?.maxMembers || 5} members)
+                            ({(groupDetails?.activeMemberCount ?? (groupDetails.members?.filter?.(m => m.isActive).length || 0))} of {maxGroupMembers || groupDetails?.maxMembers} members)
                           </span>
                          </div>
                        </div>
@@ -1799,8 +1838,8 @@ const GroupDashboard = () => {
                        <div className="mt-3 text-center">
                          {(() => {
                            const current = groupDetails?.activeMemberCount ?? (groupDetails.members?.filter?.(m => m.isActive).length || 0);
-                          const min = groupDetails?.minMembers || 4;
-                           const max = groupDetails?.maxMembers || 5;
+                          const min = minGroupMembers || groupDetails?.minMembers;
+                           const max = maxGroupMembers || groupDetails?.maxMembers;
                            
                            if (current < min) {
                              return (
@@ -1926,7 +1965,7 @@ const GroupDashboard = () => {
                               : isGroupLeader
                                 ? (() => {
                                     const current = groupDetails?.activeMemberCount ?? (groupDetails.members?.filter?.(m => m.isActive).length || 0);
-                                    const min = groupDetails?.minMembers || 4;
+                                    const min = minGroupMembers || groupDetails?.minMembers;
                                     const needed = Math.max(0, min - current);
                                     return `Need ${needed} more member${needed !== 1 ? 's' : ''} to finalize`;
                                   })()
