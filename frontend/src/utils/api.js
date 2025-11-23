@@ -175,6 +175,7 @@ export const studentAPI = {
   
   // Sem 5 Group Management
   createGroup: (groupData) => api.post('/student/groups', groupData),
+  updateGroupName: (groupId, name) => api.put(`/student/groups/${groupId}`, { name }),
   getMyGroups: () => api.get('/student/groups'),
   getGroupDetails: (groupId) => api.get(`/student/groups/${groupId}`),
   // Test endpoint
@@ -590,6 +591,7 @@ export const projectAPI = {
   getFileUrl: (projectId, filename) => `${API_BASE_URL}/projects/${projectId}/files/${filename}`,
   scheduleMeeting: (projectId, data) => api.post(`/projects/${projectId}/meeting`, data),
   completeMeeting: (projectId, data) => api.post(`/projects/${projectId}/meeting/complete`, data),
+  getProjectMedia: (projectId) => api.get(`/projects/${projectId}/media`),
   
   // Message Reactions
   addReaction: (projectId, messageId, emoji) => api.post(`/projects/${projectId}/messages/${messageId}/reactions`, { emoji }),

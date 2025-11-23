@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { projectAPI } from '../../utils/api';
+import { projectAPI, studentAPI } from '../../utils/api';
 import { toast } from 'react-hot-toast';
 import Layout from '../../components/common/Layout';
 import { io } from 'socket.io-client';
@@ -108,6 +108,20 @@ const ProjectDetails = () => {
   const [hasMoreMessages, setHasMoreMessages] = useState(false);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
 
+  // Media panel state
+  const [showMediaPanel, setShowMediaPanel] = useState(false);
+  const [mediaItems, setMediaItems] = useState([]);
+  const [isLoadingMedia, setIsLoadingMedia] = useState(false);
+
+  // Editable project/group details
+  const [isEditingProjectTitle, setIsEditingProjectTitle] = useState(false);
+  const [projectTitleInput, setProjectTitleInput] = useState('');
+  const [isSavingProjectTitle, setIsSavingProjectTitle] = useState(false);
+
+  const [isEditingGroupName, setIsEditingGroupName] = useState(false);
+  const [groupNameInput, setGroupNameInput] = useState('');
+  const [isSavingGroupName, setIsSavingGroupName] = useState(false);
+
   // Scroll to bottom of messages
   const scrollToBottom = (behavior = 'smooth') => {
     if (chatContainerRef.current) {
@@ -115,6 +129,86 @@ const ProjectDetails = () => {
         top: chatContainerRef.current.scrollHeight,
         behavior,
       });
+    }
+  };
+
+  // Load all media attachments for this project's chat (one shot, not paginated)
+  const handleToggleMediaPanel = async () => {
+    const next = !showMediaPanel;
+    setShowMediaPanel(next);
+
+    if (next && actualProjectId && mediaItems.length === 0 && !isLoadingMedia) {
+      setIsLoadingMedia(true);
+      try {
+        const response = await projectAPI.getProjectMedia(actualProjectId);
+        const items = response?.data || [];
+        setMediaItems(items);
+      } catch (error) {
+        console.error('Error loading media:', error);
+        toast.error('Failed to load media');
+      } finally {
+        setIsLoadingMedia(false);
+      }
+    }
+  };
+
+  // Sync editable fields when project changes
+  useEffect(() => {
+    if (project) {
+      setProjectTitleInput(project.title || '');
+      if (project.group) {
+        setGroupNameInput(project.group.name || '');
+      }
+    }
+  }, [project]);
+
+  const handleSaveProjectTitle = async () => {
+    if (userRole !== 'student' || !actualProjectId) return;
+    const trimmed = (projectTitleInput || '').trim();
+    if (!trimmed) {
+      toast.error('Project title cannot be empty');
+      return;
+    }
+    setIsSavingProjectTitle(true);
+    try {
+      const response = await studentAPI.updateProject(actualProjectId, { title: trimmed });
+      const updated = response?.data || {};
+      setProject((prev) => (prev ? { ...prev, title: updated.title || trimmed } : prev));
+      toast.success(response?.message || 'Project title updated');
+      setIsEditingProjectTitle(false);
+    } catch (error) {
+      console.error('Error updating project title:', error);
+      toast.error(error.message || 'Failed to update project title');
+    } finally {
+      setIsSavingProjectTitle(false);
+    }
+  };
+
+  const handleSaveGroupName = async () => {
+    if (userRole !== 'student' || !project?.group?._id) return;
+    const trimmed = (groupNameInput || '').trim();
+    if (!trimmed) {
+      toast.error('Group name cannot be empty');
+      return;
+    }
+    setIsSavingGroupName(true);
+    try {
+      const response = await studentAPI.updateGroupName(project.group._id, trimmed);
+      const updatedGroup = response?.data || {};
+      setProject((prev) => (prev ? {
+        ...prev,
+        group: {
+          ...prev.group,
+          name: updatedGroup.name || trimmed,
+        },
+      } : prev));
+      toast.success(response?.message || 'Group name updated');
+      setIsEditingGroupName(false);
+    } catch (error) {
+      console.error('Error updating group name:', error);
+      toast.error(error.message || 'Failed to update group name');
+    } finally {
+      setIsSavingGroupName(false);
     }
   };
 
@@ -854,6 +948,38 @@ const ProjectDetails = () => {
     }
   };
 
+  // Download deliverable with authentication
+  const handleDownloadDeliverable = async (filename, originalName) => {
+    try {
+      const token = localStorage.getItem('token');
+      const url = projectAPI.getDeliverableUrl(actualProjectId, filename);
+
+      const response = await fetch(url, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to download deliverable');
+      }
+
+      // Create blob and download
+      const blob = await response.blob();
+      const downloadUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = downloadUrl;
+      link.download = originalName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(downloadUrl);
+    } catch (error) {
+      console.error('Error downloading deliverable:', error);
+      toast.error('Failed to download deliverable');
+    }
+  };
+
   if (isLoading) {
     return (
       <Layout>
@@ -887,6 +1013,12 @@ const ProjectDetails = () => {
 
   const isFaculty = userType === 'faculty';
   const isStudent = userType === 'student';
+
+  const isProjectOwnerStudent =
+    isStudent && project.student && roleData && project.student._id === roleData._id;
+
+  const canEditGroupName =
+    isStudent && project.group && roleData && project.group.leader && project.group.leader === roleData._id;
 
   return (
     <Layout>
@@ -965,16 +1097,30 @@ const ProjectDetails = () => {
                       }
                     </p>
                   </div>
-                  {/* Search Button */}
-                  <button
-                    onClick={() => setShowSearch(!showSearch)}
-                    className="p-2 text-gray-600 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
-                    title="Search messages"
-                  >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                    </svg>
-                  </button>
+                  <div className="flex items-center gap-2">
+                    {/* Search Button */}
+                    <button
+                      onClick={() => setShowSearch(!showSearch)}
+                      className="p-2 text-gray-600 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                      title="Search messages"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                      </svg>
+                    </button>
+                    {/* Media Button */}
+                    <button
+                      onClick={handleToggleMediaPanel}
+                      className="p-2 text-gray-600 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                      title="Media gallery"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 5h16a1 1 0 011 1v12a1 1 0 01-1 1H4a1 1 0 01-1-1V6a1 1 0 011-1z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 15l4-4 4 4 4-4 4 4" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 9h.01" />
+                      </svg>
+                    </button>
+                  </div>
                 </div>
 
                 {/* Search Bar */}
@@ -1013,6 +1159,71 @@ const ProjectDetails = () => {
                     )}
                     {searchQuery && searchResults.length > 0 && (
                       <p className="text-xs text-gray-600 mt-2">{searchResults.length} result(s) found</p>
+                    )}
+                  </div>
+                )}
+
+                {/* Media Panel */}
+                {showMediaPanel && (
+                  <div className="border-b border-gray-200 p-3 bg-gray-50">
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="text-sm font-medium text-gray-700">Media, Docs &amp; Files</p>
+                      {isLoadingMedia && (
+                        <span className="text-xs text-gray-500">Loading...</span>
+                      )}
+                    </div>
+                    {mediaItems.length === 0 && !isLoadingMedia ? (
+                      <p className="text-xs text-gray-500">No media shared yet.</p>
+                    ) : (
+                      <div className="flex gap-3 overflow-x-auto pb-1">
+                        {mediaItems.map((item) => (
+                          <div
+                            key={`${item.messageId}-${item.filename}-${item.uploadedAt}`}
+                            className="flex-shrink-0 w-40 bg-white border border-gray-200 rounded-lg p-2"
+                          >
+                            <div className="mb-1">
+                              {item.mimeType?.startsWith('image/') ? (
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    handlePreviewFile({
+                                      filename: item.filename,
+                                      originalName: item.originalName,
+                                      mimeType: item.mimeType,
+                                    })
+                                  }
+                                  className="block w-full overflow-hidden rounded-md bg-gray-100"
+                                >
+                                  <ImageWithAuth
+                                    src={projectAPI.getFileUrl(actualProjectId, item.filename)}
+                                    alt={item.originalName}
+                                    className="w-full h-24 object-cover"
+                                  />
+                                </button>
+                              ) : (
+                                <div className="flex items-center justify-center w-full h-24 rounded-md bg-gray-50 border border-dashed border-gray-200">
+                                  <span className="text-3xl">
+                                    {getFileIcon(item.mimeType || '')}
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+                            <p className="text-xs font-medium text-gray-800 truncate">
+                              {item.originalName}
+                            </p>
+                            <p className="text-[11px] text-gray-500">
+                              {formatFileSize(item.fileSize || 0)}
+                            </p>
+                            <button
+                              type="button"
+                              onClick={() => handleDownloadFile(item.filename, item.originalName)}
+                              className="mt-1 w-full inline-flex justify-center items-center px-2 py-0.5 text-[11px] font-medium rounded bg-indigo-600 text-white hover:bg-indigo-700"
+                            >
+                              Download
+                            </button>
+                          </div>
+                        ))}
+                      </div>
                     )}
                   </div>
                 )}
@@ -1475,7 +1686,57 @@ const ProjectDetails = () => {
                 <div className="space-y-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Project Title</label>
-                    <p className="text-gray-900">{project.title}</p>
+                    {isStudent && isProjectOwnerStudent ? (
+                      isEditingProjectTitle ? (
+                        <div className="space-y-2">
+                          <input
+                            type="text"
+                            value={projectTitleInput}
+                            onChange={(e) => setProjectTitleInput(e.target.value)}
+                            className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                          />
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={handleSaveProjectTitle}
+                              disabled={isSavingProjectTitle}
+                              className="px-3 py-1 text-xs font-medium rounded-md bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50"
+                            >
+                              {isSavingProjectTitle ? 'Saving...' : 'Save'}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setIsEditingProjectTitle(false);
+                                setProjectTitleInput(project.title || '');
+                              }}
+                              className="px-3 py-1 text-xs font-medium rounded-md bg-gray-200 text-gray-700 hover:bg-gray-300"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="text-gray-900 break-words">{project.title}</p>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setIsEditingProjectTitle(true);
+                              setProjectTitleInput(project.title || '');
+                            }}
+                            className="text-gray-400 hover:text-indigo-600"
+                            title="Edit project title"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536M4 20h4l9.536-9.536a1.5 1.5 0 00-2.121-2.121L6 17.879V20z" />
+                            </svg>
+                          </button>
+                        </div>
+                      )
+                    ) : (
+                      <p className="text-gray-900">{project.title}</p>
+                    )}
                   </div>
                   
                   <div>
@@ -1624,7 +1885,60 @@ const ProjectDetails = () => {
               {/* Group Members */}
               {project.group && project.group.members && (
                 <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mt-6">
-                  <h2 className="text-lg font-semibold text-gray-900 mb-4">Group Members</h2>
+                  <div className="flex items-center justify-between mb-4">
+                    <h2 className="text-lg font-semibold text-gray-900">Group Members</h2>
+                    {project.group.name && (
+                      isStudent && canEditGroupName ? (
+                        isEditingGroupName ? (
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="text"
+                              value={groupNameInput}
+                              onChange={(e) => setGroupNameInput(e.target.value)}
+                              className="w-40 border border-gray-300 rounded-md px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                            />
+                            <button
+                              type="button"
+                              onClick={handleSaveGroupName}
+                              disabled={isSavingGroupName}
+                              className="px-2 py-1 text-[11px] font-medium rounded-md bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50"
+                            >
+                              {isSavingGroupName ? 'Saving' : 'Save'}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setIsEditingGroupName(false);
+                                setGroupNameInput(project.group.name || '');
+                              }}
+                              className="px-2 py-1 text-[11px] font-medium rounded-md bg-gray-200 text-gray-700 hover:bg-gray-300"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setIsEditingGroupName(true);
+                              setGroupNameInput(project.group.name || '');
+                            }}
+                            className="flex items-center gap-1 text-xs text-gray-600 hover:text-indigo-600"
+                            title="Edit group name"
+                          >
+                            <span className="truncate max-w-[120px]">Group: {project.group.name}</span>
+                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536M4 20h4l9.536-9.536a1.5 1.5 0 00-2.121-2.121L6 17.879V20z" />
+                            </svg>
+                          </button>
+                        )
+                      ) : (
+                        <span className="text-xs text-gray-600">
+                          Group: <span className="font-medium">{project.group.name}</span>
+                        </span>
+                      )
+                    )}
+                  </div>
                   
                   <div className="space-y-3">
                     {project.group.members

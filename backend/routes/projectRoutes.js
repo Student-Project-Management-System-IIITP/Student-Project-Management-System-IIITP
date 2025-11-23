@@ -39,6 +39,9 @@ router.delete('/:projectId/messages/:messageId', projectController.deleteMessage
 // Search messages
 router.get('/:projectId/messages/search', projectController.searchMessages);
 
+// Get all media attachments for a project's chat
+router.get('/:projectId/media', projectController.getProjectMedia);
+
 // Add reaction to message
 router.post('/:projectId/messages/:messageId/reactions', projectController.addReaction);
 

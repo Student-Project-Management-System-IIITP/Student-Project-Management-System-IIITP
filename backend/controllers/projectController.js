@@ -4,12 +4,107 @@ const Student = require('../models/Student');
 const Faculty = require('../models/Faculty');
 const Message = require('../models/Message');
 const { deliverableUploadDir } = require('../middleware/deliverableUpload');
+const { sendEmail } = require('../services/emailService');
 
 // Helper to check if project belongs to a student (covers populated and non-populated refs)
 // Helper to get a user ID from a populated or unpopulated field
 const getUserId = (field) => {
   if (!field) return null;
   return field._id ? field._id.toString() : field.toString();
+};
+
+// Get all media (attachments) for a project's chat
+const getProjectMedia = async (req, res) => {
+  try {
+    const { projectId } = req.params;
+    const userId = req.user.id;
+    const userRole = req.user.role;
+
+    // Verify access to project first
+    const project = await Project.findById(projectId);
+    if (!project) {
+      return res.status(404).json({
+        success: false,
+        message: 'Project not found'
+      });
+    }
+
+    // Access control (same as messages)
+    let hasAccess = false;
+
+    if (userRole === 'student') {
+      const student = await Student.findOne({ user: userId });
+      if (student) {
+        if (isProjectOwnedByStudent(project.student, student._id)) {
+          hasAccess = true;
+        } else if (project.group) {
+          const group = await Group.findById(project.group);
+          const isMember = group.members.some(
+            (member) => member.student.toString() === student._id.toString()
+          );
+          hasAccess = isMember;
+        }
+      }
+    } else if (userRole === 'faculty') {
+      const faculty = await Faculty.findOne({ user: userId });
+      if (faculty && project.faculty) {
+        hasAccess = project.faculty.toString() === faculty._id.toString();
+      }
+    } else if (userRole === 'admin') {
+      hasAccess = true;
+    }
+
+    if (!hasAccess) {
+      return res.status(403).json({
+        success: false,
+        message: 'You do not have access to this project'
+      });
+    }
+
+    // Find all messages that have at least one attachment
+    const messagesWithAttachments = await Message.find({
+      project: projectId,
+      'attachments.0': { $exists: true }
+    })
+      .sort({ createdAt: -1 })
+      .select('attachments senderName sender createdAt')
+      .lean();
+
+    // Flatten attachments into a media list
+    const media = [];
+    for (const msg of messagesWithAttachments) {
+      if (!msg.attachments || msg.attachments.length === 0) continue;
+      for (const att of msg.attachments) {
+        media.push({
+          messageId: msg._id,
+          projectId,
+          senderName: msg.senderName,
+          sender: msg.sender,
+          createdAt: msg.createdAt,
+          filename: att.filename,
+          originalName: att.originalName,
+          url: att.url,
+          fileType: att.fileType,
+          fileSize: att.fileSize,
+          mimeType: att.mimeType,
+          uploadedAt: att.uploadedAt,
+        });
+      }
+    }
+
+    res.json({
+      success: true,
+      data: media,
+      count: media.length,
+    });
+  } catch (error) {
+    console.error('Error fetching project media:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching project media',
+      error: error.message,
+    });
+  }
 };
 
 const isProjectOwnedByStudent = (projectStudent, studentId) => {
@@ -1050,6 +1145,74 @@ const scheduleMeeting = async (req, res) => {
 
     await project.save();
 
+    try {
+      let recipientEmails = [];
+
+      if (project.group) {
+        const group = await Group.findById(project.group).populate('members.student');
+        if (group && Array.isArray(group.members)) {
+          recipientEmails = group.members
+            .filter((m) => m.isActive && m.student && m.student.collegeEmail)
+            .map((m) => m.student.collegeEmail);
+        }
+      } else if (project.student) {
+        const student = await Student.findById(project.student);
+        if (student && student.collegeEmail) {
+          recipientEmails.push(student.collegeEmail);
+        }
+      }
+
+      recipientEmails = [...new Set(recipientEmails)];
+
+      if (recipientEmails.length > 0) {
+        const dateStr = new Date(project.nextMeeting.scheduledAt).toLocaleString();
+        const subject = `Meeting scheduled for project: ${project.title}`;
+
+        const lines = [];
+        lines.push('Dear Student,');
+        lines.push('');
+        lines.push(`A meeting has been scheduled for your project "${project.title}".`);
+        lines.push('');
+        lines.push(`Date & Time: ${dateStr}`);
+        lines.push(`Location: ${project.nextMeeting.location || 'To be decided'}`);
+        if (notes) {
+          lines.push(`Notes: ${notes}`);
+        }
+        if (project.faculty && project.faculty.fullName) {
+          lines.push('');
+          lines.push(`Supervisor: ${project.faculty.fullName}`);
+        }
+        lines.push('');
+        lines.push('Please be on time.');
+
+        const text = lines.join('\n');
+
+        const htmlParts = [];
+        htmlParts.push('<p>Dear Student,</p>');
+        htmlParts.push(`<p>A meeting has been scheduled for your project <strong>${project.title}</strong>.</p>`);
+        htmlParts.push('<p>');
+        htmlParts.push(`<strong>Date &amp; Time:</strong> ${dateStr}<br/>`);
+        htmlParts.push(`<strong>Location:</strong> ${project.nextMeeting.location || 'To be decided'}<br/>`);
+        if (notes) {
+          htmlParts.push(`<strong>Notes:</strong> ${notes}<br/>`);
+        }
+        if (project.faculty && project.faculty.fullName) {
+          htmlParts.push(`<strong>Supervisor:</strong> ${project.faculty.fullName}<br/>`);
+        }
+        htmlParts.push('</p>');
+        htmlParts.push('<p>Please be on time.</p>');
+
+        await sendEmail({
+          to: recipientEmails,
+          subject,
+          text,
+          html: htmlParts.join('\n'),
+        });
+      }
+    } catch (emailError) {
+      console.error('Error sending meeting notification email:', emailError);
+    }
+
     res.json({
       success: true,
       data: project.nextMeeting,
@@ -1223,5 +1386,6 @@ module.exports = {
   scheduleMeeting,
   completeMeeting,
   uploadDeliverable,
-  downloadDeliverable
+  downloadDeliverable,
+  getProjectMedia
 };

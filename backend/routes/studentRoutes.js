@@ -163,6 +163,7 @@ router.get('/projects/:id/uploads/type', studentController.getProjectUploadsByTy
 // Sem 5 specific routes - Group Management
 // Note: Group creation for Sem 7 will check window in controller
 router.post('/groups', studentController.createGroup);
+router.put('/groups/:groupId', studentController.updateGroupName);
 router.post('/groups/:groupId/send-invitations', studentController.sendGroupInvitations);
 router.get('/groups/available', studentController.getAvailableGroups);
 // Note: joinGroup removed - use invitation/accept pattern instead
