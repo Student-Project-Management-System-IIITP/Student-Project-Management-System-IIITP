@@ -2787,32 +2787,32 @@ const createGroup = async (req, res) => {
       }]
     });
 
-    await group.save({ session });
+      await group.save({ session });
 
-    // Add group membership to creator (who is the leader)
-    await student.addGroupMembershipAtomic(group._id, 'leader', student.semester, session);
+      // Add group membership to creator (who is the leader)
+      await student.addGroupMembershipAtomic(group._id, 'leader', student.semester, session);
 
-    // Note: Do NOT create invites here - they will be created by sendGroupInvitations endpoint
-    // This prevents the invites from being auto-rejected by cancelAllStudentInvitations below
+      // Note: Do NOT create invites here - they will be created by sendGroupInvitations endpoint
+      // This prevents the invites from being auto-rejected by cancelAllStudentInvitations below
 
-    await session.commitTransaction();
-    await session.endSession();
+      await session.commitTransaction();
+      await session.endSession();
 
-    // Cancel all invitations for this student (both sent and received) after group creation
-    // IMPORTANT: Only cancels invitations from the same semester
-    try {
-      const cancelSession = await mongoose.startSession();
-      cancelSession.startTransaction();
-      
-      const socketService = req.app.get('socketService');
-      await cancelAllStudentInvitations(student._id, cancelSession, socketService, 'Student created their own group', student.semester);
-      
-      await cancelSession.commitTransaction();
-      await cancelSession.endSession();
-    } catch (cancelError) {
-      console.error('Cancel student invitations error after group creation:', cancelError.message);
-      // Don't fail the group creation for this cleanup operation
-    }
+      // Cancel all invitations for this student (both sent and received) after group creation
+      // IMPORTANT: Only cancels invitations from the same semester
+      try {
+        const cancelSession = await mongoose.startSession();
+        cancelSession.startTransaction();
+        
+        const socketService = req.app.get('socketService');
+        await cancelAllStudentInvitations(student._id, cancelSession, socketService, 'Student created their own group', student.semester);
+        
+        await cancelSession.commitTransaction();
+        await cancelSession.endSession();
+      } catch (cancelError) {
+        console.error('Cancel student invitations error after group creation:', cancelError.message);
+        // Don't fail the group creation for this cleanup operation
+      }
 
       // Refresh group data with invites
       const updatedGroup = await Group.findById(group._id)
@@ -2829,11 +2829,11 @@ const createGroup = async (req, res) => {
           select: 'fullName misNumber collegeEmail branch'
         });
 
-    res.status(201).json({
-      success: true,
+      res.status(201).json({
+        success: true,
         data: updatedGroup,
-      message: 'Group created successfully'
-    });
+        message: 'Group created successfully'
+      });
     } catch (transactionError) {
       await session.abortTransaction();
       await session.endSession();
@@ -2849,6 +2849,65 @@ const createGroup = async (req, res) => {
   }
 };
 
+// Update group name (creator or leader only)
+const updateGroupName = async (req, res) => {
+  try {
+    const studentId = req.user.id;
+    const { groupId } = req.params;
+    const { name } = req.body;
+
+    if (!name || !name.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Group name is required'
+      });
+    }
+
+    const student = await Student.findOne({ user: studentId });
+    if (!student) {
+      return res.status(404).json({
+        success: false,
+        message: 'Student not found'
+      });
+    }
+
+    const group = await Group.findById(groupId);
+    if (!group) {
+      return res.status(404).json({
+        success: false,
+        message: 'Group not found'
+      });
+    }
+
+    const isCreator = group.createdBy && group.createdBy.toString() === student._id.toString();
+    const isLeader = group.leader && group.leader.toString() === student._id.toString();
+
+    if (!isCreator && !isLeader) {
+      return res.status(403).json({
+        success: false,
+        message: 'Only group creator or leader can update group name'
+      });
+    }
+
+    group.name = name.trim();
+    group.updatedAt = new Date();
+    await group.save();
+
+    res.json({
+      success: true,
+      data: group,
+      message: 'Group name updated successfully'
+    });
+  } catch (error) {
+    console.error('Error updating group name:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error updating group name',
+      error: error.message
+    });
+  }
+};
+
 // Sem 5 enhanced: Send invitations to selected members
 const sendGroupInvitations = async (req, res) => {
   try {
@@ -2856,6 +2915,7 @@ const sendGroupInvitations = async (req, res) => {
     const { memberIds = [] } = req.body;
     const studentId = req.user.id;
 
+    // ... (rest of the code remains the same)
     // Get the group and verify ownership
     const group = await Group.findById(groupId);
 
@@ -6851,6 +6911,7 @@ module.exports = {
   getSem4ProjectStatus,
   // Sem 5 specific functions
   createGroup,
+  updateGroupName,
   leaveGroup,
   submitFacultyPreferences,
   // Sem 5 enhanced functions
