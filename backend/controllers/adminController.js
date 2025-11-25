@@ -7,6 +7,7 @@ const Group = require('../models/Group');
 const FacultyPreference = require('../models/FacultyPreference');
 const SystemConfig = require('../models/SystemConfig');
 const InternshipApplication = require('../models/InternshipApplication');
+const crypto = require('crypto');
 
 // Get admin profile data
 const getAdminProfile = async (req, res) => {
@@ -273,6 +274,271 @@ const getFaculty = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error fetching faculty',
+      error: error.message
+    });
+  }
+};
+
+// Search faculties for admin manage-faculty page
+const searchFaculties = async (req, res) => {
+  try {
+    const { search, sort } = req.query;
+
+    // Base query: exclude retired faculty
+    let faculties = await Faculty.find({ isRetired: false })
+      .populate('user', 'email role isActive lastLogin createdAt')
+      .lean();
+
+    // Apply search filter on name, phone, or email (case-insensitive)
+    if (search && search.trim()) {
+      const regex = new RegExp(search.trim(), 'i');
+      faculties = faculties.filter(fac =>
+        regex.test(fac.fullName || '') ||
+        regex.test(fac.phone || '') ||
+        regex.test(fac.user?.email || '')
+      );
+    }
+
+    // Apply sort in-memory for simplicity
+    faculties.sort((a, b) => {
+      const field = sort === 'designation' ? 'designation' : sort === 'department' ? 'department' : 'fullName';
+      const aVal = (a[field] || '').toString();
+      const bVal = (b[field] || '').toString();
+      const primary = aVal.localeCompare(bVal, undefined, { sensitivity: 'base' });
+      if (primary !== 0) return primary;
+      return (a.fullName || '').localeCompare(b.fullName || '', undefined, { sensitivity: 'base' });
+    });
+
+    const formatted = faculties.map(fac => ({
+      _id: fac._id,
+      facultyId: fac.facultyId,
+      fullName: fac.fullName,
+      phone: fac.phone,
+      department: fac.department,
+      mode: fac.mode,
+      designation: fac.designation,
+      user: fac.user
+        ? {
+            email: fac.user.email,
+            role: fac.user.role
+          }
+        : null
+    }));
+
+    res.json({
+      success: true,
+      data: formatted,
+      count: formatted.length
+    });
+  } catch (error) {
+    console.error('Error searching faculties:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error searching faculties',
+      error: error.message
+    });
+  }
+};
+
+// Get single faculty details with assigned groups
+const getFacultyDetails = async (req, res) => {
+  try {
+    const { facultyId } = req.params;
+
+    const facultyDoc = await Faculty.findOne({ facultyId })
+      .populate('user', 'email role isActive lastLogin createdAt')
+      .lean();
+
+    if (!facultyDoc) {
+      return res.status(404).json({
+        success: false,
+        message: 'Faculty not found'
+      });
+    }
+
+    const groups = await Group.find({
+      allocatedFaculty: facultyDoc._id,
+      isActive: true
+    })
+      .populate({
+        path: 'members.student',
+        select: 'fullName misNumber'
+      })
+      .populate({
+        path: 'project',
+        select: 'title semester academicYear'
+      })
+      .sort({ createdAt: -1 })
+      .lean();
+
+    const formattedGroups = groups.map(group => ({
+      _id: group._id,
+      name: group.name,
+      semester: group.semester,
+      academicYear: group.academicYear,
+      project: group.project
+        ? {
+            _id: group.project._id,
+            title: group.project.title,
+            semester: group.project.semester,
+            academicYear: group.project.academicYear
+          }
+        : null,
+      members: (group.members || [])
+        .filter(m => m.isActive)
+        .map(m => ({
+          role: m.role,
+          student: m.student
+            ? {
+                _id: m.student._id,
+                fullName: m.student.fullName,
+                misNumber: m.student.misNumber
+              }
+            : null
+        }))
+    }));
+
+    const { user, ...facultyData } = facultyDoc;
+
+    res.json({
+      success: true,
+      data: {
+        faculty: facultyData,
+        user: user || null,
+        groups: formattedGroups
+      }
+    });
+  } catch (error) {
+    console.error('Error getting faculty details:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching faculty details',
+      error: error.message
+    });
+  }
+};
+
+// Update faculty profile (admin)
+const updateFacultyProfile = async (req, res) => {
+  try {
+    const { facultyId } = req.params;
+    const { fullName, phone, department, mode, designation, email } = req.body;
+
+    if (!fullName || !phone || !department || !mode || !designation || !email) {
+      return res.status(400).json({
+        success: false,
+        message: 'Full name, phone, department, mode, designation, and email are required'
+      });
+    }
+
+    const phoneRegex = /^[6-9]\d{9}$/;
+    if (!phoneRegex.test(phone)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please enter a valid 10-digit phone number'
+      });
+    }
+
+    const faculty = await Faculty.findOne({ facultyId }).populate('user');
+    if (!faculty || !faculty.user) {
+      return res.status(404).json({
+        success: false,
+        message: 'Faculty not found'
+      });
+    }
+
+    faculty.fullName = fullName.trim();
+    faculty.phone = phone.trim();
+    faculty.department = department;
+    faculty.mode = mode;
+    faculty.designation = designation;
+
+    const user = faculty.user;
+    const normalizedEmail = email.trim().toLowerCase();
+
+    if (user.email !== normalizedEmail) {
+      const existingUser = await User.findOne({ email: normalizedEmail, _id: { $ne: user._id } });
+      if (existingUser) {
+        return res.status(400).json({
+          success: false,
+          message: 'Email is already in use by another account'
+        });
+      }
+
+      user.email = normalizedEmail;
+      await user.save();
+    }
+
+    await faculty.save();
+
+    const updated = await Faculty.findOne({ facultyId })
+      .populate('user', 'email role isActive lastLogin createdAt')
+      .lean();
+
+    const { user: userData, ...facultyData } = updated;
+
+    res.json({
+      success: true,
+      message: 'Faculty profile updated successfully',
+      data: {
+        faculty: facultyData,
+        user: userData
+      }
+    });
+  } catch (error) {
+    console.error('Error updating faculty profile:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error updating faculty profile',
+      error: error.message
+    });
+  }
+};
+
+// Reset faculty password (admin)
+const resetFacultyPassword = async (req, res) => {
+  try {
+    const { facultyId } = req.params;
+
+    const faculty = await Faculty.findOne({ facultyId }).populate('user');
+    if (!faculty || !faculty.user) {
+      return res.status(404).json({
+        success: false,
+        message: 'Faculty not found'
+      });
+    }
+
+    const user = faculty.user;
+
+    // Generate a secure random password
+    const generatePassword = (length = 10) => {
+      const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%^&*';
+      const bytes = crypto.randomBytes(length);
+      let password = '';
+      for (let i = 0; i < length; i++) {
+        password += chars[bytes[i] % chars.length];
+      }
+      return password;
+    };
+
+    const newPassword = generatePassword(10);
+
+    // User schema pre-save hook will hash the password
+    user.password = newPassword;
+    await user.save();
+
+    res.json({
+      success: true,
+      message: 'Password reset successfully',
+      data: {
+        newPassword
+      }
+    });
+  } catch (error) {
+    console.error('Error resetting faculty password:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error resetting faculty password',
       error: error.message
     });
   }
@@ -2179,56 +2445,60 @@ const updateSystemConfig = async (req, res) => {
     const { key } = req.params;
     const { value, description, force } = req.body;
     
-    let config = await SystemConfig.findOne({ configKey: key });
+    const config = await SystemConfig.findOne({ configKey: key });
     
-    // If config doesn't exist, create it
     if (!config) {
-      // Determine configType based on value
-      let configType = 'string';
-      if (typeof value === 'number') {
-        configType = 'number';
-      } else if (typeof value === 'boolean') {
-        configType = 'boolean';
-      } else if (Array.isArray(value)) {
-        configType = 'array';
-      } else if (typeof value === 'object' && value !== null) {
-        configType = 'object';
-      }
-      
-      // Determine category from key
-      let category = 'general';
-      if (key.startsWith('sem5.')) {
-        category = 'sem5';
-      } else if (key.startsWith('sem7.')) {
-        category = 'sem7';
-      } else if (key.startsWith('sem8.')) {
-        category = 'sem8';
-      } else if (key.startsWith('sem3.')) {
-        category = 'sem3';
-      } else if (key.startsWith('sem4.')) {
-        category = 'sem4';
-      } else if (key.startsWith('sem6.')) {
-        category = 'sem6';
-      } else if (key.startsWith('academic.')) {
-        category = 'academic';
-      }
-      
-      // Create new config (don't save yet, will save after validation)
-      config = new SystemConfig({
-        configKey: key,
-        configValue: value,
-        configType: configType,
-        description: description || `Configuration for ${key}`,
-        category: category,
-        updatedBy: req.user.id
+      return res.status(404).json({
+        success: false,
+        message: 'Configuration not found'
       });
     }
 
-    // Note: Faculty preference limit validation removed
-    // Since existing projects keep their original preference count and the UI handles
-    // variable preference counts dynamically, there's no need to block reducing the limit.
-    // The limit only affects NEW registrations going forward.
-    // The safe minimum limit is still calculated and shown to admins for informational purposes.
+    // Special validation for faculty preference limit
+    if (key === 'sem5.facultyPreferenceLimit') {
+      const oldValue = config.configValue;
+      const newValue = value;
+      
+      // If reducing the limit, check for existing registrations
+      if (newValue < oldValue && !force) {
+        // Check if any projects have more preferences than the new limit
+        const projectsWithMorePrefs = await Project.find({
+          semester: 5,
+          projectType: 'minor2',
+          'facultyPreferences': { $exists: true }
+        }).select('facultyPreferences title student');
+        
+        const affectedProjects = projectsWithMorePrefs.filter(project => 
+          project.facultyPreferences && project.facultyPreferences.length > newValue
+        );
+        
+        if (affectedProjects.length > 0) {
+          // Populate student details for affected projects
+          await Project.populate(affectedProjects, { 
+            path: 'student', 
+            select: 'fullName misNumber' 
+          });
+          
+          return res.status(400).json({
+            success: false,
+            message: 'Cannot reduce faculty preference limit',
+            warning: {
+              type: 'EXISTING_REGISTRATIONS_AFFECTED',
+              oldLimit: oldValue,
+              newLimit: newValue,
+              affectedCount: affectedProjects.length,
+              affectedProjects: affectedProjects.map(p => ({
+                projectId: p._id,
+                title: p.title,
+                studentName: p.student?.fullName,
+                currentPreferences: p.facultyPreferences.length
+              })),
+              suggestion: 'Some groups have already submitted more preferences than the new limit. You can force update, but existing registrations will remain unchanged.'
+            }
+          });
+        }
+      }
+    }
 
     // Update config
     const oldValue = config.configValue;
@@ -2240,21 +2510,6 @@ const updateSystemConfig = async (req, res) => {
     config.updatedAt = Date.now();
     
     await config.save();
-
-    // If updating min/max group members config, update existing non-finalized groups
-    if (key.includes('.minGroupMembers') || key.includes('.maxGroupMembers')) {
-      try {
-        await updateGroupsForConfigChange(key, parseInt(value), oldValue);
-      } catch (groupUpdateError) {
-        // Don't fail the config update if group update fails
-      }
-    }
-
-    // Note: For faculty preference limit changes, we do NOT modify existing projects
-    // Existing projects keep their original preference count, which is acceptable
-    // Admin views handle variable preference counts dynamically
-    // The validation above (lines 2114-2158) prevents reducing the limit if it would
-    // cause issues, but existing projects remain unchanged
 
     res.json({
       success: true,
@@ -2705,6 +2960,10 @@ module.exports = {
   getUsers,
   getStudents,
   getFaculty,
+  searchFaculties,
+  getFacultyDetails,
+  updateFacultyProfile,
+  resetFacultyPassword,
   getProjects,
   getGroups,
   getSystemStats,
@@ -2737,7 +2996,6 @@ module.exports = {
   // System Configuration functions
   getSystemConfigurations,
   getSystemConfig,
-  getSafeMinimumFacultyLimit,
   updateSystemConfig,
   initializeSystemConfigs,
   // Semester Management functions

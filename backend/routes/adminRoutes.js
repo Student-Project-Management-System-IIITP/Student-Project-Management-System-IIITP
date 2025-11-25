@@ -19,6 +19,10 @@ router.get('/stats', adminController.getSystemStats);
 router.get('/users', adminController.getUsers);
 router.get('/students', adminController.getStudents);
 router.get('/faculty', adminController.getFaculty);
+router.get('/faculties', adminController.searchFaculties);
+router.get('/faculties/:facultyId', adminController.getFacultyDetails);
+router.put('/faculties/:facultyId', adminController.updateFacultyProfile);
+router.post('/faculties/:facultyId/reset-password', adminController.resetFacultyPassword);
 
 // Project management routes
 router.get('/projects', adminController.getProjects);
@@ -71,7 +75,6 @@ router.patch('/sem8/finalize/:studentId', sem8Controller.finalizeSem8Track);
 
 // System Configuration routes
 router.get('/system-config', adminController.getSystemConfigurations);
-router.get('/system-config/safe-minimum-faculty-limit', adminController.getSafeMinimumFacultyLimit); // Must be before /:key route
 router.get('/system-config/:key', adminController.getSystemConfig);
 router.put('/system-config/:key', adminController.updateSystemConfig);
 router.post('/system-config/initialize', adminController.initializeSystemConfigs);

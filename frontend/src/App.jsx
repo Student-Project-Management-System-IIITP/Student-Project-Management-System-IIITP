@@ -21,6 +21,7 @@ import EvaluationInterface from './pages/faculty/EvaluationInterface';
 import GroupAllocation from './pages/faculty/GroupAllocation';
 import AllocatedGroups from './pages/faculty/AllocatedGroups';
 import AdminDashboard from './pages/admin/Dashboard';
+import ManageFaculty from './pages/admin/ManageFaculty';
 import Sem4RegistrationsTable from './pages/admin/Sem4RegistrationsTable';
 import Sem4UnregisteredStudents from './pages/admin/Sem4UnregisteredStudents';
 import Sem5RegistrationsTable from './pages/admin/Sem5RegistrationsTable';
@@ -384,6 +385,13 @@ function AppContent() {
             <ProtectedRoute allowedRoles={['admin']}>
               <Layout>
                 <AdminDashboard />
+              </Layout>
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/manage-faculty" element={
+            <ProtectedRoute allowedRoles={['admin']}>
+              <Layout>
+                <ManageFaculty />
               </Layout>
             </ProtectedRoute>
           } />
