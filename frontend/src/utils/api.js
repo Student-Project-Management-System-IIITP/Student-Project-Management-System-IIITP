@@ -43,23 +43,34 @@ const apiRequest = async (endpoint, options = {}) => {
     },
   };
 
+  // Check if this is a system config endpoint that might return 404
+  const isSystemConfigEndpoint = endpoint.includes('/system-config/');
+
   try {
     const response = await fetch(url, config);
-    // Don't log 404 errors for system config endpoints (expected when configs aren't initialized)
-    const isSystemConfig404 = endpoint.includes('/system-config/') && response.status === 404;
-    if (isSystemConfig404) {
-      // For system config 404s, return a structured error response instead of throwing
-      const errorData = await response.json().catch(() => ({ message: 'Configuration not found' }));
-      throw new Error(errorData.message || 'Configuration not found');
+    
+    // Handle 404 errors for system config endpoints silently (expected when configs aren't initialized)
+    if (isSystemConfigEndpoint && response.status === 404) {
+      // For system config 404s, suppress console errors and return structured error
+      // Don't read the response body to avoid additional console errors
+      const error = new Error('Configuration not found');
+      error.isConfig404 = true; // Mark as config 404 for handling
+      error.silent = true; // Mark as silent to prevent console logging
+      error.status = 404;
+      throw error;
     }
+    
     return await handleApiResponse(response);
   } catch (error) {
-    // Don't log 404 errors for system config endpoints (expected when configs aren't initialized)
-    const isSystemConfig404 = endpoint.includes('/system-config/') && 
-                              (error.message?.includes('404') || error.message?.includes('not found'));
-    if (!isSystemConfig404) {
+    // Suppress console errors for system config 404s (expected when configs aren't initialized)
+    const isSystemConfig404 = isSystemConfigEndpoint && 
+                              (error.isConfig404 || error.status === 404 || error.silent || 
+                               error.message?.includes('404') || error.message?.includes('not found'));
+    
+    if (!isSystemConfig404 && !error.silent) {
       console.error('API Request Error:', error);
     }
+    
     throw error;
   }
 };
@@ -160,7 +171,8 @@ export const studentAPI = {
     } catch (error) {
       // Return a structured response for 404s instead of throwing
       // This allows components to handle missing configs gracefully
-      if (error.message && (error.message.includes('404') || error.message.includes('not found'))) {
+      // 404s are expected when configs haven't been initialized yet by admin
+      if (error.isConfig404 || error.silent || (error.message && (error.message.includes('404') || error.message.includes('not found')))) {
         return {
           success: false,
           data: null,

@@ -478,6 +478,21 @@ const ProjectDetails = () => {
 
   // Handle file selection
   const handleFileSelect = (e) => {
+    // Block file selection for previous semester projects
+    // Check if this is a previous semester project
+    const currentStudentSemester = isStudent && roleData ? (roleData.semester || user?.semester) : null;
+    const isPrevSemProject = isStudent && currentStudentSemester && project?.semester && 
+                             project.semester < currentStudentSemester;
+    
+    if (isPrevSemProject) {
+      e.preventDefault();
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+      toast.error('File upload is not allowed for previous semester projects');
+      return;
+    }
+    
     const files = Array.from(e.target.files);
     
     // Validate file count (max 3)
@@ -1020,6 +1035,11 @@ const ProjectDetails = () => {
   const canEditGroupName =
     isStudent && project.group && roleData && project.group.leader && project.group.leader === roleData._id;
 
+  // Check if this is a previous semester project (for students)
+  const currentStudentSemester = isStudent && roleData ? (roleData.semester || user?.semester) : null;
+  const isPreviousSemesterProject = isStudent && currentStudentSemester && project?.semester && 
+                                    project.semester < currentStudentSemester;
+
   return (
     <Layout>
       <div className="min-h-screen bg-gray-50">
@@ -1078,6 +1098,25 @@ const ProjectDetails = () => {
             </div>
           )}
 
+          {/* Previous Semester Project Notice */}
+          {isPreviousSemesterProject && (
+            <div className="bg-blue-50 border-l-4 border-blue-400 p-4 mb-6">
+              <div className="flex">
+                <div className="flex-shrink-0">
+                  <svg className="h-5 w-5 text-blue-400" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                  </svg>
+                </div>
+                <div className="ml-3">
+                  <h3 className="text-sm font-medium text-blue-800">Previous Semester Project</h3>
+                  <div className="mt-2 text-sm text-blue-700">
+                    <p>This project is from Semester {project.semester}. Chat functionality is disabled for previous semester projects. You can view project details and history, but cannot send new messages.</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Chat Section */}
             <div className="lg:col-span-2">
@@ -1089,11 +1128,13 @@ const ProjectDetails = () => {
                       {isFaculty ? 'Chat with Group' : 'Chat with Supervisor'}
                     </h2>
                     <p className="text-sm text-gray-500">
-                      {isFaculty 
-                        ? `Communicate with ${project.group?.name || 'your group'}`
-                        : project.faculty 
-                          ? `Communicate with ${project.faculty.fullName}`
-                          : 'Chat will be available once faculty is allocated'
+                      {isPreviousSemesterProject 
+                        ? 'Chat disabled for previous semester projects'
+                        : isFaculty 
+                          ? `Communicate with ${project.group?.name || 'your group'}`
+                          : project.faculty 
+                            ? `Communicate with ${project.faculty.fullName}`
+                            : 'Chat will be available once faculty is allocated'
                       }
                     </p>
                   </div>
@@ -1167,7 +1208,12 @@ const ProjectDetails = () => {
                 {showMediaPanel && (
                   <div className="border-b border-gray-200 p-3 bg-gray-50">
                     <div className="flex items-center justify-between mb-2">
-                      <p className="text-sm font-medium text-gray-700">Media, Docs &amp; Files</p>
+                      <div>
+                        <p className="text-sm font-medium text-gray-700">Media, Docs &amp; Files</p>
+                        {isPreviousSemesterProject && (
+                          <p className="text-xs text-gray-500 mt-0.5">Read-only: Files from previous semester</p>
+                        )}
+                      </div>
                       {isLoadingMedia && (
                         <span className="text-xs text-gray-500">Loading...</span>
                       )}
@@ -1556,8 +1602,17 @@ const ProjectDetails = () => {
 
                 {/* Message Input */}
                 <div className="border-t border-gray-200 p-4">
+                  {/* Previous Semester Project Message */}
+                  {isPreviousSemesterProject && (
+                    <div className="mb-3 p-3 bg-gray-50 border border-gray-200 rounded-lg">
+                      <p className="text-sm text-gray-600 text-center">
+                        <strong>🔒 Chat Disabled:</strong> This project is from a previous semester. Chat functionality is not available for viewing historical projects.
+                      </p>
+                    </div>
+                  )}
+                  
                   {/* Faculty Not Allocated Message */}
-                  {!project.faculty && project.status === 'registered' && !isFaculty && (
+                  {!isPreviousSemesterProject && !project.faculty && project.status === 'registered' && !isFaculty && (
                     <div className="mb-3 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
                       <p className="text-sm text-yellow-800">
                         <strong>Note:</strong> Chat will be enabled once a faculty supervisor is allocated to your project.
@@ -1594,7 +1649,13 @@ const ProjectDetails = () => {
                     </div>
                   )}
                   
-                  <form onSubmit={handleSendMessage} className="flex items-end space-x-2">
+                  <form onSubmit={(e) => {
+                    if (isPreviousSemesterProject) {
+                      e.preventDefault();
+                      return;
+                    }
+                    handleSendMessage(e);
+                  }} className="flex items-end space-x-2">
                     {/* File Upload Button */}
                     <input
                       ref={fileInputRef}
@@ -1609,7 +1670,7 @@ const ProjectDetails = () => {
                       onClick={() => fileInputRef.current?.click()}
                       className="p-2 text-gray-600 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                       title="Attach files (max 3 files, 10MB each)"
-                      disabled={isSending || (!project.faculty && project.status === 'registered' && !isFaculty)}
+                      disabled={isSending || isPreviousSemesterProject || (!project.faculty && project.status === 'registered' && !isFaculty)}
                     >
                       <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
@@ -1624,12 +1685,14 @@ const ProjectDetails = () => {
                         value={newMessage}
                         onChange={handleTyping}
                         placeholder={
-                          !project.faculty && project.status === 'registered' && !isFaculty
+                          isPreviousSemesterProject
+                            ? 'Chat disabled for previous semester projects'
+                            : !project.faculty && project.status === 'registered' && !isFaculty
                             ? 'Waiting for faculty allocation...'
                             : 'Type your message...'
                         }
                         className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
-                        disabled={isSending || (!project.faculty && project.status === 'registered' && !isFaculty)}
+                        disabled={isSending || isPreviousSemesterProject || (!project.faculty && project.status === 'registered' && !isFaculty)}
                       />
                       
                       {/* Emoji Picker Button */}
@@ -1638,7 +1701,7 @@ const ProjectDetails = () => {
                         onClick={() => setShowMessageEmojiPicker(!showMessageEmojiPicker)}
                         className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-indigo-600 p-1 disabled:text-gray-300"
                         title="Add emoji"
-                        disabled={isSending || (!project.faculty && project.status === 'registered' && !isFaculty)}
+                        disabled={isSending || isPreviousSemesterProject || (!project.faculty && project.status === 'registered' && !isFaculty)}
                       >
                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -1668,7 +1731,7 @@ const ProjectDetails = () => {
                     {/* Send Button */}
                     <button
                       type="submit"
-                      disabled={isSending || (!newMessage.trim() && selectedFiles.length === 0) || (!project.faculty && project.status === 'registered' && !isFaculty)}
+                      disabled={isSending || isPreviousSemesterProject || (!newMessage.trim() && selectedFiles.length === 0) || (!project.faculty && project.status === 'registered' && !isFaculty)}
                       className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                     >
                       {isSending ? 'Sending...' : 'Send'}
@@ -2025,7 +2088,21 @@ const ProjectDetails = () => {
       {/* Deliverables Section */}
       {project && (
         <div className="mt-8 px-4">
-          <h2 className="text-xl font-semibold text-gray-900 mb-4">Project Deliverables</h2>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xl font-semibold text-gray-900">Project Deliverables</h2>
+            {isPreviousSemesterProject && (
+              <span className="text-xs text-gray-500 bg-gray-100 px-3 py-1 rounded-full">
+                🔒 Read-only (Previous Semester)
+              </span>
+            )}
+          </div>
+          {isPreviousSemesterProject && (
+            <div className="mb-4 p-3 bg-blue-50 border-l-4 border-blue-400 rounded">
+              <p className="text-sm text-blue-700">
+                <strong>Note:</strong> File uploads are disabled for previous semester projects. You can view and download existing deliverables, but cannot upload new files.
+              </p>
+            </div>
+          )}
           {(() => {
             const isGroupProject = project.group && project.group.members && project.group.members.length > 1;
             const requiredDeliverables = isGroupProject
@@ -2051,6 +2128,16 @@ const ProjectDetails = () => {
             };
 
             const handleFileUpload = async (deliverableType, event) => {
+              // Block file upload for previous semester projects
+              if (isPreviousSemesterProject) {
+                event.preventDefault();
+                if (event.target) {
+                  event.target.value = '';
+                }
+                toast.error('File upload is not allowed for previous semester projects');
+                return;
+              }
+
               const file = event.target.files[0];
               if (!file) return;
 
@@ -2125,13 +2212,20 @@ const ProjectDetails = () => {
                               className="hidden"
                               accept=".pdf,.ppt,.pptx,application/pdf,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation"
                               onChange={(e) => handleFileUpload(d.key, e)}
+                              disabled={isPreviousSemesterProject}
                             />
-                            <label 
-                              htmlFor={`file-upload-${d.key}`}
-                              className="w-full text-center cursor-pointer rounded-md px-3 py-1.5 text-sm font-medium border border-gray-300 hover:bg-gray-50 text-gray-700"
-                            >
-                              {existing ? 'Replace File' : 'Upload File'}
-                            </label>
+                            {isPreviousSemesterProject ? (
+                              <div className="w-full text-center rounded-md px-3 py-1.5 text-sm font-medium border border-gray-300 bg-gray-100 text-gray-500 cursor-not-allowed">
+                                Upload Disabled (Previous Semester)
+                              </div>
+                            ) : (
+                              <label 
+                                htmlFor={`file-upload-${d.key}`}
+                                className="w-full text-center cursor-pointer rounded-md px-3 py-1.5 text-sm font-medium border border-gray-300 hover:bg-gray-50 text-gray-700"
+                              >
+                                {existing ? 'Replace File' : 'Upload File'}
+                              </label>
+                            )}
                           </div>
                         )}
                       </div>

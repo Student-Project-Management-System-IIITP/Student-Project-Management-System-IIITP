@@ -24,7 +24,8 @@ const Sem8Review = () => {
   const [sixMonthApplications, setSixMonthApplications] = useState([]);
   const [summerApplications, setSummerApplications] = useState([]); // Summer internship applications for Sem 8
   const [facultyPreferences, setFacultyPreferences] = useState([]); // FacultyPreference documents for group projects
-  const [facultyPreferenceLimit, setFacultyPreferenceLimit] = useState(5); // Dynamic number of faculty preferences (default 5)
+  const [facultyPreferenceLimit, setFacultyPreferenceLimit] = useState(5); // Default from config (will be overridden by calculated max)
+  const [maxFacultyPreferences, setMaxFacultyPreferences] = useState(5); // Dynamic max calculated from actual project data
   
   // Common State
   const [loading, setLoading] = useState(true);
@@ -81,17 +82,31 @@ const Sem8Review = () => {
         setTrackChoices(trackChoicesResponse.data || []);
       }
 
-      if (majorProjectsResponse.success) {
-        setMajorProject2Projects(majorProjectsResponse.data || []);
-      } else {
+      const major2Data = majorProjectsResponse.success ? (majorProjectsResponse.data || []) : [];
+      const internship2Data = internship2Response.success ? (internship2Response.data || []) : [];
+      
+      setMajorProject2Projects(major2Data);
+      setInternship2Projects(internship2Data);
+      
+      // Calculate maximum number of faculty preferences actually present in all projects
+      let maxPrefs = 0;
+      [...major2Data, ...internship2Data].forEach(project => {
+        const prefs = project.facultyPreferences || [];
+        if (prefs.length > maxPrefs) {
+          maxPrefs = prefs.length;
+        }
+      });
+      
+      // Use the maximum found in data, or config limit (whichever is higher)
+      // This ensures we show all preferences even if some projects have more than the current config limit
+      const configLimit = (systemConfigResponse.success && systemConfigResponse.data?.value) 
+        ? parseInt(systemConfigResponse.data.value, 10) || 5 
+        : 5;
+      setFacultyPreferenceLimit(configLimit);
+      setMaxFacultyPreferences(Math.max(maxPrefs || 0, configLimit, 5)); // At least 5, or max found in data
+      
+      if (majorProjectsResponse.success === false) {
         console.warn('Failed to load Major Project 2:', majorProjectsResponse.message);
-      }
-
-      if (internship2Response.success) {
-        const internship2Data = internship2Response.data || [];
-        setInternship2Projects(internship2Data);
-      } else {
-        setInternship2Projects([]);
       }
 
       if (applicationsResponse.success) {
@@ -99,12 +114,6 @@ const Sem8Review = () => {
         // Separate 6-month and summer applications
         setSixMonthApplications(allApps.filter(app => app.type === '6month'));
         setSummerApplications(allApps.filter(app => app.type === 'summer'));
-      }
-
-      // Load faculty preference limit from system config (if available)
-      if (systemConfigResponse.success && systemConfigResponse.data?.value) {
-        const limit = parseInt(systemConfigResponse.data.value, 10) || 5;
-        setFacultyPreferenceLimit(limit);
       }
     } catch (error) {
       console.error('Failed to load data:', error);
@@ -1021,7 +1030,7 @@ const Sem8Review = () => {
                         ))}
                         <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                         {/* Dynamic columns for faculty preferences */}
-                        {Array.from({ length: facultyPreferenceLimit }, (_, i) => i + 1).map((num) => (
+                        {Array.from({ length: maxFacultyPreferences }, (_, i) => i + 1).map((num) => (
                           <th key={num} className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Supervisor {num}
                           </th>
@@ -1034,7 +1043,7 @@ const Sem8Review = () => {
                     <tbody className="bg-white divide-y divide-gray-200">
                       {filteredMajorProject2Group.length === 0 ? (
                         <tr>
-                          <td colSpan={6 + (5 * 4) + facultyPreferenceLimit} className="px-4 py-8 text-center text-gray-500">
+                          <td colSpan={6 + (5 * 4) + maxFacultyPreferences} className="px-4 py-8 text-center text-gray-500">
                             No Major Project 2 (Group) projects found
                           </td>
                         </tr>
@@ -1092,8 +1101,8 @@ const Sem8Review = () => {
                               <td className="px-3 py-2 text-sm text-gray-900">
                                 {getProjectStatusBadge(project.status)}
                               </td>
-                              {/* Render faculty preferences */}
-                              {Array.from({ length: facultyPreferenceLimit }, (_, i) => i + 1).map((num) => {
+                              {/* Render faculty preferences - use calculated max to show all available columns */}
+                              {Array.from({ length: maxFacultyPreferences }, (_, i) => i + 1).map((num) => {
                                 const pref = sortedPrefs[num - 1];
                                 return (
                                   <td key={num} className="px-3 py-2 text-sm text-gray-900">
@@ -1130,7 +1139,7 @@ const Sem8Review = () => {
                         <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Branch</th>
                         <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                         {/* Dynamic columns for faculty preferences */}
-                        {Array.from({ length: facultyPreferenceLimit }, (_, i) => i + 1).map((num) => (
+                        {Array.from({ length: maxFacultyPreferences }, (_, i) => i + 1).map((num) => (
                           <th key={num} className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Supervisor {num}
                           </th>
@@ -1143,7 +1152,7 @@ const Sem8Review = () => {
                     <tbody className="bg-white divide-y divide-gray-200">
                       {filteredMajorProject2Solo.length === 0 ? (
                         <tr>
-                          <td colSpan={11 + facultyPreferenceLimit} className="px-4 py-8 text-center text-gray-500">
+                          <td colSpan={11 + maxFacultyPreferences} className="px-4 py-8 text-center text-gray-500">
                             No Major Project 2 (Solo) projects found
                           </td>
                         </tr>
@@ -1193,8 +1202,8 @@ const Sem8Review = () => {
                               <td className="px-3 py-2 text-sm text-gray-900">
                                 {getProjectStatusBadge(project.status)}
                               </td>
-                              {/* Render faculty preferences */}
-                              {Array.from({ length: facultyPreferenceLimit }, (_, i) => i + 1).map((num) => {
+                              {/* Render faculty preferences - use calculated max to show all available columns */}
+                              {Array.from({ length: maxFacultyPreferences }, (_, i) => i + 1).map((num) => {
                                 const pref = sortedPrefs[num - 1];
                                 return (
                                   <td key={num} className="px-3 py-2 text-sm text-gray-900">
@@ -1231,7 +1240,7 @@ const Sem8Review = () => {
                         <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Branch</th>
                         <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                         {/* Dynamic columns for faculty preferences */}
-                        {Array.from({ length: facultyPreferenceLimit }, (_, i) => i + 1).map((num) => (
+                        {Array.from({ length: maxFacultyPreferences }, (_, i) => i + 1).map((num) => (
                           <th key={num} className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Supervisor {num}
                           </th>
@@ -1241,7 +1250,7 @@ const Sem8Review = () => {
                     <tbody className="bg-white divide-y divide-gray-200">
                       {filteredInternship2Faculty.length === 0 ? (
                         <tr>
-                          <td colSpan={10 + facultyPreferenceLimit} className="px-4 py-8 text-center text-gray-500">
+                          <td colSpan={10 + maxFacultyPreferences} className="px-4 py-8 text-center text-gray-500">
                             No Internship 2 (Project under Faculty) found
                           </td>
                         </tr>
@@ -1291,8 +1300,8 @@ const Sem8Review = () => {
                               <td className="px-3 py-2 text-sm text-gray-900">
                                 {getProjectStatusBadge(project.status)}
                               </td>
-                              {/* Render faculty preferences */}
-                              {Array.from({ length: facultyPreferenceLimit }, (_, i) => i + 1).map((num) => {
+                              {/* Render faculty preferences - use calculated max to show all available columns */}
+                              {Array.from({ length: maxFacultyPreferences }, (_, i) => i + 1).map((num) => {
                                 const pref = sortedPrefs[num - 1];
                                 return (
                                   <td key={num} className="px-3 py-2 text-sm text-gray-900">

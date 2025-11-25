@@ -227,10 +227,38 @@ systemConfigSchema.statics.initializeDefaults = async function() {
       category: 'sem7'
     },
     {
+      configKey: 'sem7.major1.minGroupMembers',
+      configValue: 4,
+      configType: 'number',
+      description: 'Minimum number of members required in a Sem 7 Major Project 1 group',
+      category: 'sem7'
+    },
+    {
+      configKey: 'sem7.major1.maxGroupMembers',
+      configValue: 5,
+      configType: 'number',
+      description: 'Maximum number of members allowed in a Sem 7 Major Project 1 group',
+      category: 'sem7'
+    },
+    {
+      configKey: 'sem7.major1.allowedFacultyTypes',
+      configValue: ['Regular', 'Adjunct', 'On Lien'],
+      configType: 'array',
+      description: 'Faculty types allowed in dropdown for Sem 7 Major Project 1 preferences (Regular, Adjunct, On Lien)',
+      category: 'sem7'
+    },
+    {
       configKey: 'sem7.internship1.facultyPreferenceLimit',
       configValue: 5,
       configType: 'number',
       description: 'Number of faculty preferences required for Sem 7 Internship 1 registration',
+      category: 'sem7'
+    },
+    {
+      configKey: 'sem7.internship1.allowedFacultyTypes',
+      configValue: ['Regular', 'Adjunct', 'On Lien'],
+      configType: 'array',
+      description: 'Faculty types allowed in dropdown for Sem 7 Internship 1 preferences (Regular, Adjunct, On Lien)',
       category: 'sem7'
     },
     // Sem 8 windows (B.Tech)

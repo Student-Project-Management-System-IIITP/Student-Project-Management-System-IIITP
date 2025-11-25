@@ -2299,6 +2299,146 @@ const getSystemConfig = async (req, res) => {
   }
 };
 
+// Helper function to update existing groups when min/max members config changes
+const updateGroupsForConfigChange = async (configKey, newValue, oldValue) => {
+  // Extract semester from config key
+  // Supports formats: 'sem5.minGroupMembers', 'sem7.major1.minGroupMembers', 'sem8.major2.minGroupMembers'
+  const semesterMatch = configKey.match(/sem(\d+)(?:\.\w+)?\.(min|max)GroupMembers/);
+  if (!semesterMatch) return;
+  
+  const semester = parseInt(semesterMatch[1]);
+  const configType = semesterMatch[2]; // 'min' or 'max'
+  const fieldName = configType === 'min' ? 'minMembers' : 'maxMembers';
+  
+  // Get current academic year (same logic as fallback in registerMinorProject2)
+  // Groups use student.academicYear, but for current year filtering,
+  // we use the simple calculation: currentYear-nextYear
+  const currentYear = new Date().getFullYear();
+  const nextYear = currentYear + 1;
+  const currentAcademicYear = `${currentYear}-${nextYear.toString().slice(-2)}`;
+  
+  // Find all non-finalized groups for this semester and academic year
+  const groups = await Group.find({
+    semester: semester,
+    academicYear: currentAcademicYear,
+    status: { $nin: ['finalized', 'locked'] }, // Only update non-finalized groups
+    isActive: true
+  });
+  
+  if (groups.length === 0) {
+    return;
+  }
+  
+  let updatedCount = 0;
+  let skippedCount = 0;
+  const errors = [];
+  
+  for (const group of groups) {
+    try {
+      const activeMemberCount = group.members.filter(m => m.isActive).length;
+      
+      // Safety checks before updating
+      if (configType === 'max') {
+        // If new max is less than current members, skip this group
+        if (newValue < activeMemberCount) {
+          skippedCount++;
+          continue;
+        }
+      } else if (configType === 'min') {
+        // If new min is greater than current members and group is complete, skip
+        // But allow update if group is still forming (status is not 'complete')
+        if (newValue > activeMemberCount && group.status === 'complete') {
+          skippedCount++;
+          continue;
+        }
+      }
+      
+      // Update the field
+      group[fieldName] = newValue;
+      await group.save();
+      updatedCount++;
+    } catch (error) {
+      errors.push({ groupId: group._id, error: error.message });
+    }
+  }
+  
+  return { updatedCount, skippedCount, errors };
+};
+
+// Get safe minimum faculty preference limit for a semester
+const getSafeMinimumFacultyLimit = async (req, res) => {
+  try {
+    const { semester, projectType } = req.query;
+    
+    if (!semester || !projectType) {
+      return res.status(400).json({
+        success: false,
+        message: 'Semester and projectType are required'
+      });
+    }
+
+    // Get current academic year (same logic as fallback in registerMinorProject2)
+    // Projects use student.academicYear or group.academicYear, but for current year filtering,
+    // we use the simple calculation: currentYear-nextYear
+    const currentYear = new Date().getFullYear();
+    const nextYear = currentYear + 1;
+    const currentAcademicYear = `${currentYear}-${nextYear.toString().slice(-2)}`;
+
+    // Get projects with faculty preferences for current academic year only
+    const allProjectsWithPrefs = await Project.find({
+      semester: parseInt(semester),
+      projectType: projectType,
+      academicYear: currentAcademicYear,
+      'facultyPreferences': { $exists: true }
+    }).select('facultyPreferences academicYear');
+
+    // Calculate the maximum number of preferences in any existing project (safe minimum limit)
+    let maxPreferencesInProjects = 0;
+    if (allProjectsWithPrefs.length > 0) {
+      const preferenceCounts = allProjectsWithPrefs.map(p => p.facultyPreferences?.length || 0);
+      maxPreferencesInProjects = Math.max(...preferenceCounts);
+    }
+
+    // Debug: Log the query results (can be removed in production)
+    if (allProjectsWithPrefs.length === 0) {
+      // Check if there are any projects at all for this semester/projectType (for debugging)
+      const allProjectsCount = await Project.countDocuments({
+        semester: parseInt(semester),
+        projectType: projectType,
+        'facultyPreferences': { $exists: true }
+      });
+      const projectsWithDifferentYear = await Project.find({
+        semester: parseInt(semester),
+        projectType: projectType,
+        'facultyPreferences': { $exists: true }
+      }).select('academicYear').limit(5);
+      
+      if (allProjectsCount > 0) {
+        console.log(`[Safe Limit Debug] Found ${allProjectsCount} projects for sem ${semester} ${projectType}, but none for academic year ${currentAcademicYear}. Sample academic years:`, 
+          projectsWithDifferentYear.map(p => p.academicYear));
+      }
+    }
+
+    res.json({
+      success: true,
+      data: {
+        safeMinimumLimit: maxPreferencesInProjects,
+        totalProjects: allProjectsWithPrefs.length,
+        academicYear: currentAcademicYear,
+        semester: parseInt(semester),
+        projectType: projectType
+      }
+    });
+  } catch (error) {
+    console.error('Error getting safe minimum faculty limit:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching safe minimum limit',
+      error: error.message
+    });
+  }
+};
+
 // Update system configuration
 const updateSystemConfig = async (req, res) => {
   try {
@@ -2615,6 +2755,42 @@ const updateStudentSemesters = async (req, res) => {
       .populate('user', 'email')
       .select('fullName misNumber semester degree academicYear')
       .lean();
+
+    // Post-update processing: Update project status for previous semester projects
+    // When students move to next semester, mark their projects from previous semesters as 'completed'
+    if (toSemester > fromSemester) {
+      try {
+        // First, get all group IDs where these students are members
+        const groupIds = await Group.find({ 
+          'members.student': { $in: updatedStudentIds },
+          'members.isActive': true 
+        }).distinct('_id');
+        
+        // Find all projects for these students from previous semesters (semester < toSemester)
+        // Only update projects that are not already completed or cancelled
+        const projectUpdateResult = await Project.updateMany(
+          {
+            $or: [
+              { student: { $in: updatedStudentIds } },
+              { group: { $in: groupIds } }
+            ],
+            semester: { $lt: toSemester },
+            status: { $nin: ['completed', 'cancelled'] }
+          },
+          {
+            $set: {
+              status: 'completed',
+              updatedAt: new Date()
+            }
+          }
+        );
+        
+        console.log(`Updated ${projectUpdateResult.modifiedCount} projects to 'completed' status for students moving from semester ${fromSemester} to ${toSemester}`);
+      } catch (error) {
+        console.error('Error updating project statuses:', error);
+        // Don't fail the entire operation if project update fails
+      }
+    }
 
     // Post-update processing: Auto-initialize Sem 8 for Type 1 students (Sem 7 → Sem 8)
     if (fromSemester === 7 && toSemester === 8) {

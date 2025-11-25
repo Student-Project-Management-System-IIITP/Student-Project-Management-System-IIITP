@@ -98,25 +98,25 @@ const FacultyDashboard = () => {
         let displayName = projectType;
         switch (projectType.toLowerCase()) {
           case 'minor1':
-            displayName = 'Minor Project 1';
+            displayName = 'Minor Project I';
             break;
           case 'minor2':
-            displayName = 'Minor Project 2';
+            displayName = 'Minor Project II';
             break;
           case 'minor3':
-            displayName = 'Minor Project 3';
+            displayName = 'Minor Project III';
             break;
           case 'major1':
-            displayName = 'Major Project 1';
+            displayName = 'Major Project I';
             break;
           case 'major2':
-            displayName = 'Major Project 2';
+            displayName = 'Major Project II';
             break;
           case 'internship1':
-            displayName = 'Internship (2 Month)';
+            displayName = 'Internship I Project (2 Month)';
             break;
           case 'internship2':
-            displayName = 'Internship (6 Month)';
+            displayName = 'Internship II Project (2 Month)';
             break;
           default:
             displayName = projectType || 'Unknown';
@@ -126,7 +126,7 @@ const FacultyDashboard = () => {
         if (projectType === 'major2') {
           // Use a composite key to separate group and solo
           const subType = group.isMajor2Solo ? 'major2-solo' : 'major2-group';
-          const subDisplayName = group.isMajor2Solo ? 'Solo Major Project 2' : 'Group Major Project 2';
+          const subDisplayName = group.isMajor2Solo ? 'Solo Major Project II' : 'Group Major Project II';
           
           if (!acc[subType]) {
             acc[subType] = {
@@ -160,7 +160,7 @@ const FacultyDashboard = () => {
       // If we have Major Project 2 subsections, create a parent section
       if (major2Subsections.length > 0) {
         const major2Parent = {
-          displayName: 'Major Project 2',
+          displayName: 'Major Project II',
           projectType: 'major2',
           isSubsection: false,
           isParent: true,
