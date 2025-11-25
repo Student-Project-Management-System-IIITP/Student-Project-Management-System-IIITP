@@ -175,7 +175,6 @@ export const studentAPI = {
   
   // Sem 5 Group Management
   createGroup: (groupData) => api.post('/student/groups', groupData),
-  updateGroupName: (groupId, name) => api.put(`/student/groups/${groupId}`, { name }),
   getMyGroups: () => api.get('/student/groups'),
   getGroupDetails: (groupId) => api.get(`/student/groups/${groupId}`),
   // Test endpoint
@@ -351,6 +350,18 @@ export const facultyAPI = {
   getSem5Statistics: () => api.get('/faculty/statistics/sem5'),
   getProfile: () => api.get('/faculty/profile'),
   updateProfile: (data) => api.put('/faculty/profile', data),
+
+  // Admin-side faculty management helpers (used from admin UI)
+  searchFaculty: (query, sort) => {
+    const params = {};
+    if (query) params.search = query;
+    if (sort) params.sort = sort;
+    const queryString = new URLSearchParams(params).toString();
+    return api.get(`/admin/faculties${queryString ? '?' + queryString : ''}`);
+  },
+  getFacultyDetails: (id) => api.get(`/admin/faculties/${id}`),
+  updateFaculty: (id, data) => api.put(`/admin/faculties/${id}`, data),
+  resetPassword: (id) => api.post(`/admin/faculties/${id}/reset-password`, {}),
 };
 
 export const adminAPI = {
@@ -438,7 +449,6 @@ export const adminAPI = {
     }
     return apiRequest(url.href.replace(API_BASE_URL, ''));
   },
-
   getSem6Statistics: () => api.get('/admin/statistics/sem6'),
 
   getMTechSem1Statistics: (params) => {
@@ -477,10 +487,6 @@ export const adminAPI = {
     return api.get(url);
   },
   getSystemConfigByKey: (key) => api.get(`/admin/system-config/${key}`),
-  getSafeMinimumFacultyLimit: (semester, projectType) => {
-    const params = new URLSearchParams({ semester, projectType });
-    return api.get(`/admin/system-config/safe-minimum-faculty-limit?${params}`);
-  },
   updateSystemConfigByKey: (key, value, description, force = false) => api.put(`/admin/system-config/${key}`, { value, description, force }),
   initializeSystemConfigs: () => api.post('/admin/system-config/initialize'),
   
@@ -523,7 +529,6 @@ export const adminAPI = {
   finalizeSem8Track: (studentId, data) => api.patch(`/admin/sem8/finalize/${studentId}`, data),
   listInternshipApplications: (params = {}) => {
     const queryString = new URLSearchParams(params).toString();
-    // Backend route is under /internships/applications (admin protected)
     return api.get(`/internships/applications${queryString ? '?' + queryString : ''}`);
   },
 
@@ -595,7 +600,6 @@ export const projectAPI = {
   getFileUrl: (projectId, filename) => `${API_BASE_URL}/projects/${projectId}/files/${filename}`,
   scheduleMeeting: (projectId, data) => api.post(`/projects/${projectId}/meeting`, data),
   completeMeeting: (projectId, data) => api.post(`/projects/${projectId}/meeting/complete`, data),
-  getProjectMedia: (projectId) => api.get(`/projects/${projectId}/media`),
   
   // Message Reactions
   addReaction: (projectId, messageId, emoji) => api.post(`/projects/${projectId}/messages/${messageId}/reactions`, { emoji }),
