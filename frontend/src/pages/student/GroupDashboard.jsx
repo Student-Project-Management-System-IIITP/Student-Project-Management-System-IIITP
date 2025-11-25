@@ -76,15 +76,23 @@ const GroupDashboard = () => {
       const groupSemester = groupDetails.semester || roleData?.semester || user?.semester || 5;
       
       // Determine config key based on semester
-      const configPrefix = groupSemester === 7 ? 'sem7' : 
-                          groupSemester === 8 ? 'sem8' : 
-                          'sem5';
+      let minConfigKey, maxConfigKey;
+      if (groupSemester === 7) {
+        minConfigKey = 'sem7.major1.minGroupMembers';
+        maxConfigKey = 'sem7.major1.maxGroupMembers';
+      } else if (groupSemester === 8) {
+        minConfigKey = 'sem8.major2.minGroupMembers';
+        maxConfigKey = 'sem8.major2.maxGroupMembers';
+      } else {
+        minConfigKey = 'sem5.minGroupMembers';
+        maxConfigKey = 'sem5.maxGroupMembers';
+      }
       
       try {
         // Fetch min and max group members from config
         const [minResponse, maxResponse] = await Promise.all([
-          studentAPI.getSystemConfig(`${configPrefix}.minGroupMembers`),
-          studentAPI.getSystemConfig(`${configPrefix}.maxGroupMembers`)
+          studentAPI.getSystemConfig(minConfigKey),
+          studentAPI.getSystemConfig(maxConfigKey)
         ]);
         
         if (minResponse.success && minResponse.data?.value) {

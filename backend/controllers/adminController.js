@@ -2035,8 +2035,9 @@ const getSystemConfig = async (req, res) => {
 
 // Helper function to update existing groups when min/max members config changes
 const updateGroupsForConfigChange = async (configKey, newValue, oldValue) => {
-  // Extract semester from config key (e.g., 'sem5.minGroupMembers' -> 5)
-  const semesterMatch = configKey.match(/sem(\d+)\.(min|max)GroupMembers/);
+  // Extract semester from config key
+  // Supports formats: 'sem5.minGroupMembers', 'sem7.major1.minGroupMembers', 'sem8.major2.minGroupMembers'
+  const semesterMatch = configKey.match(/sem(\d+)(?:\.\w+)?\.(min|max)GroupMembers/);
   if (!semesterMatch) return;
   
   const semester = parseInt(semesterMatch[1]);
@@ -2499,6 +2500,42 @@ const updateStudentSemesters = async (req, res) => {
       .populate('user', 'email')
       .select('fullName misNumber semester degree academicYear')
       .lean();
+
+    // Post-update processing: Update project status for previous semester projects
+    // When students move to next semester, mark their projects from previous semesters as 'completed'
+    if (toSemester > fromSemester) {
+      try {
+        // First, get all group IDs where these students are members
+        const groupIds = await Group.find({ 
+          'members.student': { $in: updatedStudentIds },
+          'members.isActive': true 
+        }).distinct('_id');
+        
+        // Find all projects for these students from previous semesters (semester < toSemester)
+        // Only update projects that are not already completed or cancelled
+        const projectUpdateResult = await Project.updateMany(
+          {
+            $or: [
+              { student: { $in: updatedStudentIds } },
+              { group: { $in: groupIds } }
+            ],
+            semester: { $lt: toSemester },
+            status: { $nin: ['completed', 'cancelled'] }
+          },
+          {
+            $set: {
+              status: 'completed',
+              updatedAt: new Date()
+            }
+          }
+        );
+        
+        console.log(`Updated ${projectUpdateResult.modifiedCount} projects to 'completed' status for students moving from semester ${fromSemester} to ${toSemester}`);
+      } catch (error) {
+        console.error('Error updating project statuses:', error);
+        // Don't fail the entire operation if project update fails
+      }
+    }
 
     // Post-update processing: Auto-initialize Sem 8 for Type 1 students (Sem 7 → Sem 8)
     if (fromSemester === 7 && toSemester === 8) {

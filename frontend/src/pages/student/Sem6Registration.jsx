@@ -25,6 +25,8 @@ const Sem6Registration = () => {
   const [isContinuing, setIsContinuing] = useState(null);
   const [projectChoice, setProjectChoice] = useState(null);
   
+  const [customDomain, setCustomDomain] = useState('');
+
   const {
     register,
     handleSubmit,
@@ -33,12 +35,38 @@ const Sem6Registration = () => {
   } = useForm({
     defaultValues: {
       title: '',
-      description: ''
+      domain: ''
     }
   });
 
   const watchedTitle = watch('title');
-  const watchedDescription = watch('description');
+  const watchedDomain = watch('domain');
+
+  // Check if already registered for Sem 6 project
+  useEffect(() => {
+    const checkExistingProject = async () => {
+      try {
+        // Check if student has a Sem 6 project in currentProjects
+        const currentProjects = roleData?.currentProjects || [];
+        const sem6Project = currentProjects.find(p => p.semester === 6 && p.projectType === 'minor3');
+        
+        if (sem6Project) {
+          const projectId = sem6Project.project || sem6Project._id || sem6Project.projectId;
+          if (projectId) {
+            toast.success('You have already registered for Minor Project 3');
+            navigate(`/projects/${projectId}`, { replace: true });
+            return;
+          }
+        }
+      } catch (error) {
+        console.error('Error checking existing project:', error);
+      }
+    };
+    
+    if (roleData) {
+      checkExistingProject();
+    }
+  }, [roleData, navigate]);
 
   // Load Sem 5 group and faculty data
   useEffect(() => {
@@ -52,12 +80,41 @@ const Sem6Registration = () => {
         if (!isMounted) return; // Component unmounted, don't update state
         
         if (response.success) {
+          // Check if already registered (backend returns this in response)
+          if (response.alreadyRegistered || response.data?.alreadyRegistered) {
+            // Try to find project ID from response or currentProjects
+            const currentProjects = roleData?.currentProjects || [];
+            const sem6Project = currentProjects.find(p => p.semester === 6 && p.projectType === 'minor3');
+            const projectId = response.data?.projectId || sem6Project?.project || sem6Project?._id || sem6Project?.projectId;
+            
+            if (projectId) {
+              toast.success('You have already registered for Minor Project 3');
+              navigate(`/projects/${projectId}`, { replace: true });
+              return;
+            } else {
+              navigate('/dashboard/student', { replace: true });
+              return;
+            }
+          }
+          
           setGroupData(response.data.group);
           setFacultyData(response.data.faculty);
           setSem5Project(response.data.sem5Project);
           setCanContinue(response.data.canContinue);
           setIsGroupLeader(response.data.isGroupLeader || false);
         } else {
+          // Check if error is due to already registered
+          if (response.message && response.message.includes('already registered')) {
+            const currentProjects = roleData?.currentProjects || [];
+            const sem6Project = currentProjects.find(p => p.semester === 6 && p.projectType === 'minor3');
+            const projectId = sem6Project?.project || sem6Project?._id || sem6Project?.projectId;
+            
+            if (projectId) {
+              navigate(`/projects/${projectId}`, { replace: true });
+              return;
+            }
+          }
+          
           toast.error(response.message || 'Failed to load Sem 5 data');
           navigate('/dashboard/student');
         }
@@ -65,6 +122,19 @@ const Sem6Registration = () => {
         if (!isMounted) return; // Component unmounted, don't show error
         
         console.error('Error loading Sem 5 data:', error);
+        
+        // Check if error is due to already registered
+        if (error.message && error.message.includes('already registered')) {
+          const currentProjects = roleData?.currentProjects || [];
+          const sem6Project = currentProjects.find(p => p.semester === 6 && p.projectType === 'minor3');
+          const projectId = sem6Project?.project || sem6Project?._id || sem6Project?.projectId;
+          
+          if (projectId) {
+            navigate(`/projects/${projectId}`, { replace: true });
+            return;
+          }
+        }
+        
         toast.error(error.message || 'Failed to load Sem 5 group data');
         setTimeout(() => navigate('/dashboard/student'), 100);
       } finally {
@@ -79,7 +149,7 @@ const Sem6Registration = () => {
     return () => {
       isMounted = false; // Cleanup: prevent state updates after unmount
     };
-  }, [navigate]);
+  }, [navigate, roleData]);
 
   // Validation: Check if student is in Sem 6
   useEffect(() => {
@@ -334,8 +404,7 @@ const Sem6Registration = () => {
               <p className="text-xs text-gray-500 mb-1">You will need to:</p>
               <ul className="text-xs text-gray-700 space-y-1">
                 <li>• Enter project title</li>
-                <li>• Enter project description</li>
-                <li>• Define project scope</li>
+                <li>• Select project domain</li>
               </ul>
             </div>
           </div>
@@ -355,8 +424,8 @@ const Sem6Registration = () => {
               {...register('title', {
                 required: 'Project title is required',
                 minLength: {
-                  value: 5,
-                  message: 'Title must be at least 5 characters long'
+                  value: 3,
+                  message: 'Title must be at least 3 characters long'
                 },
                 maxLength: {
                   value: 200,
@@ -371,33 +440,63 @@ const Sem6Registration = () => {
             {errors.title && (
               <p className="mt-1 text-sm text-red-600">{errors.title.message}</p>
             )}
+            <p className="mt-2 text-sm text-gray-600">
+              💡 <strong>Not decided yet?</strong> You can write "TBD" (To Be Determined) as the project title. The title can be changed later from your project dashboard.
+            </p>
           </div>
 
           <div>
-            <label htmlFor="description" className="block text-sm font-medium text-gray-700 mb-2">
-              Project Description *
+            <label htmlFor="domain" className="block text-sm font-medium text-gray-700 mb-2">
+              Project Domain *
             </label>
-            <textarea
-              id="description"
-              {...register('description', {
-                required: 'Project description is required',
-                minLength: {
-                  value: 20,
-                  message: 'Description must be at least 20 characters long'
-                },
-                maxLength: {
-                  value: 2000,
-                  message: 'Description cannot exceed 2000 characters'
-                }
+            <select
+              id="domain"
+              {...register('domain', {
+                required: 'Please select a project domain'
               })}
-              rows={6}
               className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-                errors.description ? 'border-red-500' : 'border-gray-300'
+                errors.domain ? 'border-red-500' : 'border-gray-300'
               }`}
-              placeholder="Describe your project objectives, methodology, and expected outcomes..."
-            />
-            {errors.description && (
-              <p className="mt-1 text-sm text-red-600">{errors.description.message}</p>
+            >
+              <option value="">Select a domain</option>
+              <option value="Web Development">Web Development</option>
+              <option value="Mobile App Development">Mobile App Development</option>
+              <option value="Data Science & Analytics">Data Science & Analytics</option>
+              <option value="Machine Learning & AI">Machine Learning & AI</option>
+              <option value="Cybersecurity">Cybersecurity</option>
+              <option value="Cloud Computing">Cloud Computing</option>
+              <option value="IoT & Embedded Systems">IoT & Embedded Systems</option>
+              <option value="Blockchain">Blockchain</option>
+              <option value="Game Development">Game Development</option>
+              <option value="Software Engineering">Software Engineering</option>
+              <option value="Database Systems">Database Systems</option>
+              <option value="Computer Networks">Computer Networks</option>
+              <option value="Operating Systems">Operating Systems</option>
+              <option value="Other">Other</option>
+            </select>
+            {errors.domain && (
+              <p className="mt-1 text-sm text-red-600">{errors.domain.message}</p>
+            )}
+          
+            {/* Custom domain input - only show when "Other" is selected */}
+            {watchedDomain === 'Other' && (
+              <div className="mt-3">
+                <label htmlFor="customDomain" className="block text-sm font-medium text-gray-700 mb-2">
+                  Specify Domain *
+                </label>
+                <input
+                  type="text"
+                  id="customDomain"
+                  value={customDomain}
+                  onChange={(e) => setCustomDomain(e.target.value)}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  placeholder="Enter your custom domain"
+                  required={watchedDomain === 'Other'}
+                />
+                {watchedDomain === 'Other' && !customDomain.trim() && (
+                  <p className="mt-1 text-sm text-red-600">Please specify the domain</p>
+                )}
+              </div>
             )}
           </div>
 
@@ -448,9 +547,9 @@ const Sem6Registration = () => {
         <button
           type="button"
           onClick={handleSubmit(onSubmit)}
-          disabled={!projectChoice || submitting || (projectChoice === 'new' && (!watchedTitle || !watchedDescription))}
+          disabled={!projectChoice || submitting || (projectChoice === 'new' && (!watchedTitle || !watchedDomain || (watchedDomain === 'Other' && !customDomain.trim())))}
           className={`px-6 py-3 rounded-lg transition-colors ${
-            !projectChoice || submitting || (projectChoice === 'new' && (!watchedTitle || !watchedDescription))
+            !projectChoice || submitting || (projectChoice === 'new' && (!watchedTitle || !watchedDomain || (watchedDomain === 'Other' && !customDomain.trim())))
               ? 'bg-gray-400 text-gray-600 cursor-not-allowed'
               : 'bg-blue-600 text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500'
           }`}
@@ -473,19 +572,30 @@ const Sem6Registration = () => {
       return;
     }
 
-    if (projectChoice === 'new' && (!data.title || !data.description)) {
-      toast.error('Please fill in all required fields');
-      return;
+    if (projectChoice === 'new') {
+      if (!data.title || !data.domain) {
+        toast.error('Please fill in all required fields');
+        return;
+      }
+      if (data.domain === 'Other' && !customDomain.trim()) {
+        toast.error('Please specify the custom domain');
+        return;
+      }
     }
 
     try {
       setSubmitting(true);
 
+      // Determine the final domain value
+      const finalDomain = projectChoice === 'new' 
+        ? (data.domain === 'Other' ? customDomain.trim() : data.domain)
+        : undefined;
+
       const registrationData = {
         isContinuing: isContinuing,
         previousProjectId: isContinuing && sem5Project ? sem5Project._id : null,
         title: !isContinuing ? data.title : undefined,
-        description: !isContinuing ? data.description : undefined
+        domain: !isContinuing ? finalDomain : undefined
       };
 
       const response = await studentAPI.registerSem6Project(registrationData);

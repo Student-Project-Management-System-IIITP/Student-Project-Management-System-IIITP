@@ -27,7 +27,10 @@ const Sem7Review = () => {
   const [trackChoices, setTrackChoices] = useState([]);
   const [majorProjectProjects, setMajorProjectProjects] = useState([]);
   const [internship1Projects, setInternship1Projects] = useState([]);
-  const [facultyPreferenceLimit, setFacultyPreferenceLimit] = useState(5); // Dynamic number of faculty preferences (default 5)
+  const [facultyPreferenceLimit, setFacultyPreferenceLimit] = useState(5); // Default from config (will be overridden by calculated max)
+  const [maxInternship1Preferences, setMaxInternship1Preferences] = useState(5); // Dynamic max calculated from actual project data
+  const [major1FacultyPreferenceLimit, setMajor1FacultyPreferenceLimit] = useState(5); // Config limit for Major Project 1
+  const [maxMajor1Preferences, setMaxMajor1Preferences] = useState(5); // Dynamic max calculated from actual Major Project 1 data
   
   // Common State
   const [loading, setLoading] = useState(true);
@@ -70,14 +73,16 @@ const Sem7Review = () => {
         majorProjectsResponse,
         internshipProjectsResponse,
         trackChoicesResponse,
-        systemConfigResponse
+        internshipConfigResponse,
+        major1ConfigResponse
       ] = await Promise.all([
         adminAPI.getStudentsBySemester({ semester: 7 }),
         adminAPI.listInternshipApplications({ semester: 7 }),
         adminAPI.getProjects({ semester: 7, projectType: 'major1' }),
         adminAPI.getProjects({ semester: 7, projectType: 'internship1' }),
         adminAPI.listSem7TrackChoices(),
-        adminAPI.getSystemConfigByKey('sem7.internship1.facultyPreferenceLimit').catch(() => ({ success: false, data: null })) // Optional, don't fail if not available
+        adminAPI.getSystemConfigByKey('sem7.internship1.facultyPreferenceLimit').catch(() => ({ success: false, data: null })),
+        adminAPI.getSystemConfigByKey('sem7.major1.facultyPreferenceLimit').catch(() => ({ success: false, data: null }))
       ]);
       
       if (appResponse.success) {
@@ -93,17 +98,61 @@ const Sem7Review = () => {
       }
 
       if (majorProjectsResponse.success) {
-        setMajorProjectProjects(majorProjectsResponse.data || []);
+        const major1Data = majorProjectsResponse.data || [];
+        setMajorProjectProjects(major1Data);
+        
+        // Calculate maximum number of faculty preferences actually present in Major Project 1 data
+        let maxPrefs = 0;
+        major1Data.forEach(project => {
+          if (project.group && project.group._id) {
+            const prefs = project.facultyPreferences || [];
+            if (prefs.length > maxPrefs) {
+              maxPrefs = prefs.length;
+            }
+          }
+        });
+        // Use the maximum found in data, or config limit (whichever is higher)
+        // This ensures we show all preferences even if some projects have more than the current config limit
+        const configLimit = (major1ConfigResponse.success && major1ConfigResponse.data?.value) 
+          ? parseInt(major1ConfigResponse.data.value, 10) || 5 
+          : 5;
+        setMajor1FacultyPreferenceLimit(configLimit);
+        setMaxMajor1Preferences(Math.max(maxPrefs || 0, configLimit, 5)); // At least 5, or max found in data
+      } else {
+        // Load faculty preference limit from system config (if available) even if no projects
+        if (major1ConfigResponse.success && major1ConfigResponse.data?.value) {
+          const limit = parseInt(major1ConfigResponse.data.value, 10) || 5;
+          setMajor1FacultyPreferenceLimit(limit);
+          setMaxMajor1Preferences(limit);
+        }
       }
 
       if (internshipProjectsResponse.success) {
-        setInternship1Projects(internshipProjectsResponse.data || []);
-      }
-
-      // Load faculty preference limit from system config (if available)
-      if (systemConfigResponse.success && systemConfigResponse.data?.value) {
-        const limit = parseInt(systemConfigResponse.data.value, 10) || 5;
-        setFacultyPreferenceLimit(limit);
+        const internship1Data = internshipProjectsResponse.data || [];
+        setInternship1Projects(internship1Data);
+        
+        // Calculate maximum number of faculty preferences actually present in the data
+        let maxPrefs = 0;
+        internship1Data.forEach(project => {
+          const prefs = project.facultyPreferences || [];
+          if (prefs.length > maxPrefs) {
+            maxPrefs = prefs.length;
+          }
+        });
+        // Use the maximum found in data, or config limit (whichever is higher)
+        // This ensures we show all preferences even if some projects have more than the current config limit
+        const configLimit = (internshipConfigResponse.success && internshipConfigResponse.data?.value) 
+          ? parseInt(internshipConfigResponse.data.value, 10) || 5 
+          : 5;
+        setFacultyPreferenceLimit(configLimit);
+        setMaxInternship1Preferences(Math.max(maxPrefs || 0, configLimit, 5)); // At least 5, or max found in data
+      } else {
+        // Load faculty preference limit from system config (if available) even if no projects
+        if (internshipConfigResponse.success && internshipConfigResponse.data?.value) {
+          const limit = parseInt(internshipConfigResponse.data.value, 10) || 5;
+          setFacultyPreferenceLimit(limit);
+          setMaxInternship1Preferences(limit);
+        }
       }
     } catch (error) {
       console.error('Failed to load data:', error);
@@ -587,18 +636,6 @@ const Sem7Review = () => {
 
   // Transform Major Project 1 projects into groups format
   const majorProject1Groups = useMemo(() => {
-    // First, calculate the maximum number of supervisors across all projects
-    let maxSupervisors = 7; // Default to 7
-    majorProjectProjects.forEach(project => {
-      if (project.group && project.group._id) {
-        const facultyPrefs = project.facultyPreferences || [];
-        const actualSupervisors = facultyPrefs.length;
-        if (actualSupervisors > maxSupervisors) {
-          maxSupervisors = Math.min(actualSupervisors, 10); // Cap at 10
-        }
-      }
-    });
-    
     // Create a map to store unique groups by group._id
     const groupsMap = new Map();
     
@@ -697,18 +734,15 @@ const Sem7Review = () => {
       (a.groupName || '').localeCompare(b.groupName || '')
     );
     
-    // Store maxSupervisors as a property on the array
-    groupsArray.maxSupervisors = maxSupervisors;
-    
     return groupsArray;
   }, [majorProjectProjects]);
   
   // Calculate max supervisors for dynamic column rendering
+  // Use maxMajor1Preferences which is already calculated considering both config limit and actual data
   const maxSupervisors = useMemo(() => {
-    if (majorProject1Groups.length === 0) return 7;
-    // Access maxSupervisors property from the array
-    return majorProject1Groups.maxSupervisors || 7;
-  }, [majorProject1Groups]);
+    // maxMajor1Preferences is already the max of (data max, config limit, 5)
+    return maxMajor1Preferences;
+  }, [maxMajor1Preferences]);
 
   const internship1ByStudent = useMemo(() => {
     const map = new Map();
@@ -1238,8 +1272,8 @@ const Sem7Review = () => {
                           <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Contact</th>
                           <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Branch</th>
                           <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                          {/* Dynamic columns for faculty preferences */}
-                          {Array.from({ length: facultyPreferenceLimit }, (_, i) => i + 1).map((num) => (
+                          {/* Dynamic columns for faculty preferences - use calculated max to show all preferences */}
+                          {Array.from({ length: maxInternship1Preferences }, (_, i) => i + 1).map((num) => (
                             <th key={num} className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                               Supervisor {num}
                             </th>
@@ -1252,7 +1286,7 @@ const Sem7Review = () => {
                       <tbody className="bg-white divide-y divide-gray-200">
                         {internship1Projects.length === 0 ? (
                           <tr>
-                            <td colSpan={11 + facultyPreferenceLimit} className="px-4 py-8 text-center text-gray-500">
+                            <td colSpan={11 + maxInternship1Preferences} className="px-4 py-8 text-center text-gray-500">
                               No Internship 1 project registrations found
                             </td>
                           </tr>
@@ -1302,8 +1336,8 @@ const Sem7Review = () => {
                                 <td className="px-3 py-2 text-sm text-gray-900">
                                   {getProjectStatusBadge(project.status)}
                                 </td>
-                                {/* Render faculty preferences */}
-                                {Array.from({ length: facultyPreferenceLimit }, (_, i) => i + 1).map((num) => {
+                                {/* Render faculty preferences - use calculated max to show all available columns */}
+                                {Array.from({ length: maxInternship1Preferences }, (_, i) => i + 1).map((num) => {
                                   const pref = sortedPrefs[num - 1];
                                   return (
                                     <td key={num} className="px-3 py-2 text-sm text-gray-900">
