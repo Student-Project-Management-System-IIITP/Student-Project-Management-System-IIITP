@@ -1779,8 +1779,22 @@ const registerMajorProject2 = async (req, res) => {
         throw new Error('Unable to determine student type for Major Project 2 registration');
       }
 
-      // Get faculty preference limit from system config
-      const facultyPreferenceLimit = await SystemConfig.getConfigValue('sem8.major2.facultyPreferenceLimit') || 5;
+      // Get faculty preference limit from system config based on student type
+      let facultyPreferenceLimit;
+      let allowedFacultyTypes;
+      if (studentType === 'type1') {
+        // Type 1: Group-based project
+        facultyPreferenceLimit = await SystemConfig.getConfigValue('sem8.major2.group.facultyPreferenceLimit') || 5;
+        allowedFacultyTypes = await SystemConfig.getConfigValue('sem8.major2.group.allowedFacultyTypes') || ['Regular', 'Adjunct', 'On Lien'];
+      } else if (studentType === 'type2') {
+        // Type 2: Solo project
+        facultyPreferenceLimit = await SystemConfig.getConfigValue('sem8.major2.solo.facultyPreferenceLimit') || 5;
+        allowedFacultyTypes = await SystemConfig.getConfigValue('sem8.major2.solo.allowedFacultyTypes') || ['Regular', 'Adjunct', 'On Lien'];
+      } else {
+        // Fallback (should not reach here)
+        facultyPreferenceLimit = 5;
+        allowedFacultyTypes = ['Regular', 'Adjunct', 'On Lien'];
+      }
       
       // Validate faculty preferences
       if (!facultyPreferences || facultyPreferences.length !== facultyPreferenceLimit) {
@@ -1794,11 +1808,15 @@ const registerMajorProject2 = async (req, res) => {
         throw new Error('All faculty preferences must be unique');
       }
 
-      // Validate that all faculty exist
+      // Validate that all faculty exist and are of allowed types
       const facultyValidationPromises = facultyIds.map(async (facultyId) => {
         const faculty = await Faculty.findById(facultyId).session(session);
         if (!faculty) {
           throw new Error(`Faculty with ID ${facultyId} not found`);
+        }
+        // Validate faculty type is allowed
+        if (!allowedFacultyTypes.includes(faculty.mode)) {
+          throw new Error(`Faculty ${faculty.fullName} (${faculty.mode}) is not allowed. Only ${allowedFacultyTypes.join(', ')} faculty types are permitted for Major Project 2 ${studentType === 'type1' ? '(group)' : '(solo)'}.`);
         }
         return faculty;
       });
@@ -1984,11 +2002,18 @@ const registerInternship2 = async (req, res) => {
         throw new Error('All faculty preferences must be unique');
       }
 
-      // Validate that all faculty exist
+      // Get allowed faculty types from system config
+      const allowedFacultyTypes = await SystemConfig.getConfigValue('sem8.internship2.allowedFacultyTypes') || ['Regular', 'Adjunct', 'On Lien'];
+      
+      // Validate that all faculty exist and are of allowed types
       const facultyValidationPromises = facultyIds.map(async (facultyId) => {
         const faculty = await Faculty.findById(facultyId).session(session);
         if (!faculty) {
           throw new Error(`Faculty with ID ${facultyId} not found`);
+        }
+        // Validate faculty type is allowed
+        if (!allowedFacultyTypes.includes(faculty.mode)) {
+          throw new Error(`Faculty ${faculty.fullName} (${faculty.mode}) is not allowed. Only ${allowedFacultyTypes.join(', ')} faculty types are permitted for Internship 2.`);
         }
         return faculty;
       });
@@ -2756,9 +2781,9 @@ const createGroup = async (req, res) => {
       minConfigKey = 'sem7.major1.minGroupMembers';
       maxConfigKey = 'sem7.major1.maxGroupMembers';
     } else if (student.semester === 8) {
-      // Sem 8: Major Project 2 uses sem8.major2.minGroupMembers (if config exists, otherwise fallback to sem8)
-      minConfigKey = 'sem8.major2.minGroupMembers';
-      maxConfigKey = 'sem8.major2.maxGroupMembers';
+      // Sem 8: Major Project 2 uses sem8.major2.group.minGroupMembers (for Type 1 group-based projects)
+      minConfigKey = 'sem8.major2.group.minGroupMembers';
+      maxConfigKey = 'sem8.major2.group.maxGroupMembers';
     } else {
       // Sem 5: Minor Project 2 uses sem5.minGroupMembers
       minConfigKey = 'sem5.minGroupMembers';
@@ -6378,8 +6403,14 @@ const getSystemConfigForStudents = async (req, res) => {
         'sem7.major1.allowedFacultyTypes': { value: ['Regular', 'Adjunct', 'On Lien'], type: 'array', description: 'Faculty types allowed in dropdown for Sem 7 Major Project 1 preferences', category: 'sem7' },
         'sem7.internship1.facultyPreferenceLimit': { value: 5, type: 'number', description: 'Number of faculty preferences required for Sem 7 Internship 1 registration', category: 'sem7' },
         'sem7.internship1.allowedFacultyTypes': { value: ['Regular', 'Adjunct', 'On Lien'], type: 'array', description: 'Faculty types allowed in dropdown for Sem 7 Internship 1 preferences', category: 'sem7' },
-        'sem8.major2.minGroupMembers': { value: 4, type: 'number', description: 'Minimum number of members required in a Sem 8 Major Project 2 group', category: 'sem8' },
-        'sem8.major2.maxGroupMembers': { value: 5, type: 'number', description: 'Maximum number of members allowed in a Sem 8 Major Project 2 group', category: 'sem8' }
+        'sem8.major2.group.minGroupMembers': { value: 4, type: 'number', description: 'Minimum number of members required in a Sem 8 Type 1 Major Project 2 group', category: 'sem8' },
+        'sem8.major2.group.maxGroupMembers': { value: 5, type: 'number', description: 'Maximum number of members allowed in a Sem 8 Type 1 Major Project 2 group', category: 'sem8' },
+        'sem8.major2.group.facultyPreferenceLimit': { value: 5, type: 'number', description: 'Number of faculty preferences required for Sem 8 Type 1 Major Project 2 (group) registration', category: 'sem8' },
+        'sem8.major2.group.allowedFacultyTypes': { value: ['Regular', 'Adjunct', 'On Lien'], type: 'array', description: 'Faculty types allowed in dropdown for Sem 8 Type 1 Major Project 2 (group) preferences', category: 'sem8' },
+        'sem8.internship2.facultyPreferenceLimit': { value: 5, type: 'number', description: 'Number of faculty preferences required for Sem 8 Internship 2 registration', category: 'sem8' },
+        'sem8.internship2.allowedFacultyTypes': { value: ['Regular', 'Adjunct', 'On Lien'], type: 'array', description: 'Faculty types allowed in dropdown for Sem 8 Internship 2 preferences', category: 'sem8' },
+        'sem8.major2.solo.facultyPreferenceLimit': { value: 5, type: 'number', description: 'Number of faculty preferences required for Sem 8 Type 2 Major Project 2 (solo) registration', category: 'sem8' },
+        'sem8.major2.solo.allowedFacultyTypes': { value: ['Regular', 'Adjunct', 'On Lien'], type: 'array', description: 'Faculty types allowed in dropdown for Sem 8 Type 2 Major Project 2 (solo) preferences', category: 'sem8' }
       };
       
       // Check if we have a default for this key

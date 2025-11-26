@@ -2302,8 +2302,12 @@ const getSystemConfig = async (req, res) => {
 // Helper function to update existing groups when min/max members config changes
 const updateGroupsForConfigChange = async (configKey, newValue, oldValue) => {
   // Extract semester from config key
-  // Supports formats: 'sem5.minGroupMembers', 'sem7.major1.minGroupMembers', 'sem8.major2.minGroupMembers'
-  const semesterMatch = configKey.match(/sem(\d+)(?:\.\w+)?\.(min|max)GroupMembers/);
+  // Supports formats: 
+  // - 'sem5.minGroupMembers'
+  // - 'sem7.major1.minGroupMembers'
+  // - 'sem8.major2.group.minGroupMembers'
+  // The regex matches sem + digits, then zero or more segments (like .major2.group), then .min/maxGroupMembers
+  const semesterMatch = configKey.match(/sem(\d+)(?:\.\w+)*\.(min|max)GroupMembers/);
   if (!semesterMatch) return;
   
   const semester = parseInt(semesterMatch[1]);
@@ -2368,7 +2372,7 @@ const updateGroupsForConfigChange = async (configKey, newValue, oldValue) => {
 // Get safe minimum faculty preference limit for a semester
 const getSafeMinimumFacultyLimit = async (req, res) => {
   try {
-    const { semester, projectType } = req.query;
+    const { semester, projectType, variant } = req.query;
     
     if (!semester || !projectType) {
       return res.status(400).json({
@@ -2384,13 +2388,29 @@ const getSafeMinimumFacultyLimit = async (req, res) => {
     const nextYear = currentYear + 1;
     const currentAcademicYear = `${currentYear}-${nextYear.toString().slice(-2)}`;
 
-    // Get projects with faculty preferences for current academic year only
-    const allProjectsWithPrefs = await Project.find({
+    // Build query - for Major Project 2, filter by group presence based on variant
+    const query = {
       semester: parseInt(semester),
       projectType: projectType,
       academicYear: currentAcademicYear,
       'facultyPreferences': { $exists: true }
-    }).select('facultyPreferences academicYear');
+    };
+    
+    // For Major Project 2, filter by group presence if variant is specified
+    if (projectType === 'major2' && variant) {
+      if (variant === 'group') {
+        query.group = { $exists: true, $ne: null }; // Must have a group
+      } else if (variant === 'solo') {
+        // Solo projects: group field doesn't exist or is null
+        query.$or = [
+          { group: { $exists: false } },
+          { group: null }
+        ];
+      }
+    }
+
+    // Get projects with faculty preferences for current academic year only
+    const allProjectsWithPrefs = await Project.find(query).select('facultyPreferences academicYear group');
 
     // Calculate the maximum number of preferences in any existing project (safe minimum limit)
     let maxPreferencesInProjects = 0;
@@ -2445,63 +2465,94 @@ const updateSystemConfig = async (req, res) => {
     const { key } = req.params;
     const { value, description, force } = req.body;
     
-    const config = await SystemConfig.findOne({ configKey: key });
+    let config = await SystemConfig.findOne({ configKey: key });
     
+    // Capture oldValue BEFORE auto-creating config (if needed for validation)
+    const oldValueBeforeUpdate = config ? config.configValue : null;
+    
+    // If config doesn't exist, try to auto-create it from defaults or use provided values
     if (!config) {
-      return res.status(404).json({
-        success: false,
-        message: 'Configuration not found'
-      });
-    }
-
-    // Special validation for faculty preference limit
-    if (key === 'sem5.facultyPreferenceLimit') {
-      const oldValue = config.configValue;
-      const newValue = value;
+      // Define default values for known config keys (same as in getSystemConfigForStudents)
+      const defaultConfigs = {
+        'sem7.major1.minGroupMembers': { value: 4, type: 'number', description: 'Minimum number of members required in a Sem 7 Major Project 1 group', category: 'sem7' },
+        'sem7.major1.maxGroupMembers': { value: 5, type: 'number', description: 'Maximum number of members allowed in a Sem 7 Major Project 1 group', category: 'sem7' },
+        'sem7.major1.facultyPreferenceLimit': { value: 5, type: 'number', description: 'Number of faculty preferences required for Sem 7 Major Project 1 registration', category: 'sem7' },
+        'sem7.major1.allowedFacultyTypes': { value: ['Regular', 'Adjunct', 'On Lien'], type: 'array', description: 'Faculty types allowed in dropdown for Sem 7 Major Project 1 preferences', category: 'sem7' },
+        'sem7.internship1.facultyPreferenceLimit': { value: 5, type: 'number', description: 'Number of faculty preferences required for Sem 7 Internship 1 registration', category: 'sem7' },
+        'sem7.internship1.allowedFacultyTypes': { value: ['Regular', 'Adjunct', 'On Lien'], type: 'array', description: 'Faculty types allowed in dropdown for Sem 7 Internship 1 preferences', category: 'sem7' },
+        'sem8.major2.group.minGroupMembers': { value: 4, type: 'number', description: 'Minimum number of members required in a Sem 8 Type 1 Major Project 2 group', category: 'sem8' },
+        'sem8.major2.group.maxGroupMembers': { value: 5, type: 'number', description: 'Maximum number of members allowed in a Sem 8 Type 1 Major Project 2 group', category: 'sem8' },
+        'sem8.major2.group.facultyPreferenceLimit': { value: 5, type: 'number', description: 'Number of faculty preferences required for Sem 8 Type 1 Major Project 2 (group) registration', category: 'sem8' },
+        'sem8.major2.group.allowedFacultyTypes': { value: ['Regular', 'Adjunct', 'On Lien'], type: 'array', description: 'Faculty types allowed in dropdown for Sem 8 Type 1 Major Project 2 (group) preferences', category: 'sem8' },
+        'sem8.internship2.facultyPreferenceLimit': { value: 5, type: 'number', description: 'Number of faculty preferences required for Sem 8 Internship 2 registration', category: 'sem8' },
+        'sem8.internship2.allowedFacultyTypes': { value: ['Regular', 'Adjunct', 'On Lien'], type: 'array', description: 'Faculty types allowed in dropdown for Sem 8 Internship 2 preferences', category: 'sem8' },
+        'sem8.major2.solo.facultyPreferenceLimit': { value: 5, type: 'number', description: 'Number of faculty preferences required for Sem 8 Type 2 Major Project 2 (solo) registration', category: 'sem8' },
+        'sem8.major2.solo.allowedFacultyTypes': { value: ['Regular', 'Adjunct', 'On Lien'], type: 'array', description: 'Faculty types allowed in dropdown for Sem 8 Type 2 Major Project 2 (solo) preferences', category: 'sem8' }
+      };
       
-      // If reducing the limit, check for existing registrations
-      if (newValue < oldValue && !force) {
-        // Check if any projects have more preferences than the new limit
-        const projectsWithMorePrefs = await Project.find({
-          semester: 5,
-          projectType: 'minor2',
-          'facultyPreferences': { $exists: true }
-        }).select('facultyPreferences title student');
+      // Check if we have default config data for this key
+      const defaultConfig = defaultConfigs[key];
+      if (defaultConfig) {
+        // Auto-create using default values, but override with provided values
+        const configValue = value !== undefined ? value : defaultConfig.value;
+        const configDescription = description || defaultConfig.description;
+        const configType = Array.isArray(configValue) ? 'array' : typeof configValue === 'number' ? 'number' : typeof configValue === 'boolean' ? 'boolean' : typeof configValue === 'object' ? 'object' : 'string';
         
-        const affectedProjects = projectsWithMorePrefs.filter(project => 
-          project.facultyPreferences && project.facultyPreferences.length > newValue
+        config = await SystemConfig.setConfigValue(
+          key,
+          configValue,
+          configType,
+          configDescription,
+          defaultConfig.category,
+          req.user.id
         );
-        
-        if (affectedProjects.length > 0) {
-          // Populate student details for affected projects
-          await Project.populate(affectedProjects, { 
-            path: 'student', 
-            select: 'fullName misNumber' 
-          });
-          
-          return res.status(400).json({
+      } else {
+        // For unknown config keys, try to create with provided values
+        if (value === undefined) {
+          return res.status(404).json({
             success: false,
-            message: 'Cannot reduce faculty preference limit',
-            warning: {
-              type: 'EXISTING_REGISTRATIONS_AFFECTED',
-              oldLimit: oldValue,
-              newLimit: newValue,
-              affectedCount: affectedProjects.length,
-              affectedProjects: affectedProjects.map(p => ({
-                projectId: p._id,
-                title: p.title,
-                studentName: p.student?.fullName,
-                currentPreferences: p.facultyPreferences.length
-              })),
-              suggestion: 'Some groups have already submitted more preferences than the new limit. You can force update, but existing registrations will remain unchanged.'
-            }
+            message: 'Configuration not found and no default value available'
           });
         }
+        
+        // Determine config type and category from key
+        const configType = Array.isArray(value) ? 'array' : typeof value === 'number' ? 'number' : typeof value === 'boolean' ? 'boolean' : typeof value === 'object' ? 'object' : 'string';
+        let category = 'general';
+        if (key.startsWith('sem5')) category = 'sem5';
+        else if (key.startsWith('sem7')) category = 'sem7';
+        else if (key.startsWith('sem8')) category = 'sem8';
+        
+        config = await SystemConfig.setConfigValue(
+          key,
+          value,
+          configType,
+          description || `Configuration for ${key}`,
+          category,
+          req.user.id
+        );
       }
     }
 
+    // Special validation for faculty preference limits
+    // Use oldValueBeforeUpdate (captured before auto-creation) or current config value
+    const oldValue = oldValueBeforeUpdate !== null ? oldValueBeforeUpdate : config.configValue;
+    
+    const facultyPreferenceLimitKeys = [
+      'sem5.facultyPreferenceLimit',
+      'sem7.major1.facultyPreferenceLimit',
+      'sem7.internship1.facultyPreferenceLimit',
+      'sem8.major2.group.facultyPreferenceLimit',
+      'sem8.internship2.facultyPreferenceLimit',
+      'sem8.major2.solo.facultyPreferenceLimit'
+    ];
+    
+    // Note: We allow reducing faculty preference limits
+    // Existing projects will keep their original preference counts
+    // Only new registrations will be affected by the reduced limit
+    // Admin tables dynamically show all preferences regardless of the limit
+
     // Update config
-    const oldValue = config.configValue;
+    // oldValue already captured above for validation
     config.configValue = value;
     if (description) {
       config.description = description;
@@ -2510,6 +2561,20 @@ const updateSystemConfig = async (req, res) => {
     config.updatedAt = Date.now();
     
     await config.save();
+
+    // Update existing groups when min/max group members config changes
+    // This handles the edge case where existing groups need to be updated to reflect new config values
+    if (key.includes('minGroupMembers') || key.includes('maxGroupMembers')) {
+      try {
+        const updateResult = await updateGroupsForConfigChange(key, value, oldValue);
+        if (updateResult && (updateResult.updatedCount > 0 || updateResult.skippedCount > 0)) {
+          console.log(`Updated ${updateResult.updatedCount} groups, skipped ${updateResult.skippedCount} groups for config ${key}`);
+        }
+      } catch (updateError) {
+        // Log error but don't fail the config update
+        console.error(`Error updating groups for config change ${key}:`, updateError);
+      }
+    }
 
     res.json({
       success: true,
@@ -2998,6 +3063,7 @@ module.exports = {
   getSystemConfig,
   updateSystemConfig,
   initializeSystemConfigs,
+  getSafeMinimumFacultyLimit,
   // Semester Management functions
   updateStudentSemesters,
   getStudentsBySemester
