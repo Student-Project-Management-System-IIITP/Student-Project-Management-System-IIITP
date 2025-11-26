@@ -70,6 +70,9 @@ const MajorProject1Registration = () => {
   const [facultyPreferenceLimit, setFacultyPreferenceLimit] = useState(() => {
     return isSem8 ? 5 : 7;
   });
+  const [minGroupMembers, setMinGroupMembers] = useState(4);
+  const [maxGroupMembers, setMaxGroupMembers] = useState(5);
+  const [allowedFacultyTypes, setAllowedFacultyTypes] = useState(['Regular', 'Adjunct', 'On Lien']);
   const [groupLoading, setGroupLoading] = useState(true);
 
   // Validation: Check if student is in Sem 7 or Sem 8 and eligible
@@ -184,39 +187,63 @@ const MajorProject1Registration = () => {
         return;
       }
       
-      const memberCount = currentGroup.members?.length || 0;
-      if (memberCount < 2) {
-        toast.error('Your group must have at least 2 members before registering your project');
+      const memberCount = currentGroup.members?.filter(m => m.isActive !== false).length || 0;
+      if (memberCount < minGroupMembers) {
+        toast.error(`Your group must have at least ${minGroupMembers} members before registering your project`);
         navigate('/dashboard/student');
         return;
       }
     }
   }, [groupLoading, majorProjectGroup, roleData, navigate, isSem8, isType2]);
 
-  // Load faculty preference limit from system config
+  // Load system configs (faculty preference limit, min/max group members, allowed faculty types)
   useEffect(() => {
-    const loadFacultyPreferenceLimit = async () => {
+    const loadSystemConfigs = async () => {
       try {
-        const configKey = isSem8 ? 'sem8.major2.facultyPreferenceLimit' : 'sem7.major1.facultyPreferenceLimit';
-        const response = await studentAPI.getSystemConfig(configKey);
-        if (response.success && response.data) {
-          // Backend returns { key, value } structure
-          const limitValue = response.data.value || response.data.configValue;
-          if (limitValue !== undefined && limitValue !== null) {
-            setFacultyPreferenceLimit(limitValue);
-            return;
+        let configPrefix;
+        if (isSem8) {
+          // For Sem 8, differentiate between Type 1 (group) and Type 2 (solo)
+          if (isType2) {
+            configPrefix = 'sem8.major2.solo'; // Type 2: Solo project
+          } else {
+            configPrefix = 'sem8.major2.group'; // Type 1: Group project
           }
+        } else {
+          configPrefix = 'sem7.major1'; // Sem 7: Major Project 1
         }
         
-        // If primary config not found, try fallback for Sem 7 only
-        if (!isSem8) {
+        // Load configs based on prefix
+        // For solo projects (Type 2), we don't need min/max group members
+        const configPromises = isSem8 && isType2
+          ? [
+              studentAPI.getSystemConfig(`${configPrefix}.facultyPreferenceLimit`),
+              Promise.resolve({ success: false }), // minResponse (not needed)
+              Promise.resolve({ success: false }), // maxResponse (not needed)
+              studentAPI.getSystemConfig(`${configPrefix}.allowedFacultyTypes`)
+            ]
+          : [
+              studentAPI.getSystemConfig(`${configPrefix}.facultyPreferenceLimit`),
+              studentAPI.getSystemConfig(`${configPrefix}.minGroupMembers`),
+              studentAPI.getSystemConfig(`${configPrefix}.maxGroupMembers`),
+              studentAPI.getSystemConfig(`${configPrefix}.allowedFacultyTypes`)
+            ];
+        
+        const [limitResponse, minResponse, maxResponse, typesResponse] = await Promise.all(configPromises);
+        
+        // Set faculty preference limit
+        if (limitResponse.success && limitResponse.data) {
+          const limitValue = limitResponse.data.value || limitResponse.data.configValue;
+          if (limitValue !== undefined && limitValue !== null) {
+            setFacultyPreferenceLimit(limitValue);
+          }
+        } else if (!isSem8) {
+          // Fallback for Sem 7 only
           try {
-          const fallbackResponse = await studentAPI.getSystemConfig('sem5.facultyPreferenceLimit');
-          if (fallbackResponse.success && fallbackResponse.data) {
+            const fallbackResponse = await studentAPI.getSystemConfig('sem5.facultyPreferenceLimit');
+            if (fallbackResponse.success && fallbackResponse.data) {
               const fallbackValue = fallbackResponse.data.value || fallbackResponse.data.configValue;
               if (fallbackValue !== undefined && fallbackValue !== null) {
                 setFacultyPreferenceLimit(fallbackValue);
-                return;
               }
             }
           } catch (fallbackError) {
@@ -224,20 +251,36 @@ const MajorProject1Registration = () => {
           }
         }
         
-        // If all configs fail, keep the default (already set in useState)
-        // Sem 8: 5, Sem 7: 7
+        // Set min/max group members
+        if (minResponse.success && minResponse.data) {
+          const minValue = minResponse.data.value || minResponse.data.configValue;
+          if (minValue !== undefined && minValue !== null) {
+            setMinGroupMembers(parseInt(minValue));
+          }
+        }
+        
+        if (maxResponse.success && maxResponse.data) {
+          const maxValue = maxResponse.data.value || maxResponse.data.configValue;
+          if (maxValue !== undefined && maxValue !== null) {
+            setMaxGroupMembers(parseInt(maxValue));
+          }
+        }
+        
+        // Set allowed faculty types
+        if (typesResponse.success && typesResponse.data?.value && Array.isArray(typesResponse.data.value)) {
+          setAllowedFacultyTypes(typesResponse.data.value);
+        }
       } catch (error) {
         // Only log non-404 errors to avoid console noise
         if (error.message && !error.message.includes('404') && !error.message.includes('not found')) {
-        console.error('Failed to load faculty preference limit, using default:', error);
+          console.error('Failed to load system configs, using defaults:', error);
         }
-        // Keep default value (5 for Sem 8, 7 for Sem 7)
-        // This is already set in useState initialization
+        // Keep default values (already set in useState initialization)
       }
     };
 
-    loadFacultyPreferenceLimit();
-  }, [isSem8]);
+    loadSystemConfigs();
+  }, [isSem8, isType2]);
 
   // Load faculty list for preferences
   useEffect(() => {
@@ -456,17 +499,21 @@ const MajorProject1Registration = () => {
     return facultyList.filter(faculty => {
       const matchesSearch = faculty.fullName.toLowerCase().includes(searchTerm.toLowerCase());
       const matchesDepartment = selectedDepartment === 'all' || faculty.department === selectedDepartment;
+      const matchesType = allowedFacultyTypes.includes(faculty.mode);
       const notSelected = !facultyPreferences.some(p => p.faculty._id === faculty._id);
       
-      return matchesSearch && matchesDepartment && notSelected;
+      return matchesSearch && matchesDepartment && matchesType && notSelected;
     });
   };
 
   const getGroupMembers = () => {
     if (!majorProjectGroup || !majorProjectGroup.members) return [];
     
+    // Filter to only active members
+    const activeMembers = majorProjectGroup.members.filter(m => m.isActive !== false);
+    
     // Sort members: leader first, then members
-    const sortedMembers = [...majorProjectGroup.members].sort((a, b) => {
+    const sortedMembers = [...activeMembers].sort((a, b) => {
       if (a.role === 'leader') return -1;
       if (b.role === 'leader') return 1;
       return 0;
@@ -510,6 +557,38 @@ const MajorProject1Registration = () => {
             </div>
           </div>
         </div>
+      </div>
+
+      {/* Group Size Summary */}
+      <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-sm font-medium text-gray-700">Group Size</p>
+            <p className="text-xs text-gray-500 mt-1">
+              Current: <span className="font-semibold">{getGroupMembers().length}</span> member{getGroupMembers().length !== 1 ? 's' : ''}
+            </p>
+          </div>
+          <div className="text-right">
+            <p className="text-sm font-medium text-gray-700">Required Range</p>
+            <p className="text-xs text-gray-500 mt-1">
+              <span className="font-semibold">{minGroupMembers}-{maxGroupMembers}</span> members
+            </p>
+          </div>
+        </div>
+        {getGroupMembers().length < minGroupMembers && (
+          <div className="mt-3 p-2 bg-yellow-50 border border-yellow-200 rounded">
+            <p className="text-xs text-yellow-800">
+              ⚠️ Your group needs at least {minGroupMembers} members to proceed. Current: {getGroupMembers().length}
+            </p>
+          </div>
+        )}
+        {getGroupMembers().length >= minGroupMembers && getGroupMembers().length <= maxGroupMembers && (
+          <div className="mt-3 p-2 bg-green-50 border border-green-200 rounded">
+            <p className="text-xs text-green-800">
+              ✓ Your group size is within the required range ({minGroupMembers}-{maxGroupMembers} members)
+            </p>
+          </div>
+        )}
       </div>
 
       <div className="space-y-4">

@@ -51,6 +51,7 @@ const Internship1Registration = () => {
   const [selectedDepartment, setSelectedDepartment] = useState('all');
   const [windowStatus, setWindowStatus] = useState(null);
   const [facultyPreferenceLimit, setFacultyPreferenceLimit] = useState(5); // Default to 5
+  const [allowedFacultyTypes, setAllowedFacultyTypes] = useState(['Regular', 'Adjunct', 'On Lien']);
 
   const [customDomain, setCustomDomain] = useState('');
 
@@ -153,76 +154,93 @@ const Internship1Registration = () => {
     }
   }, [isSem7, isSem8, isType1, effectiveInternship1Status, effectiveInternship1Project, loading, navigate]);
 
-  // Load faculty preference limit from system config
+  // Load faculty preference limit and allowed faculty types from system config
   useEffect(() => {
-    const loadFacultyPreferenceLimit = async () => {
+    const loadSystemConfigs = async () => {
       try {
-        // Try semester-specific Internship limit first
+        // Try semester-specific Internship configs first
         if (isSem8) {
           if (isInternship2Route) {
-            // For Internship 2: Try Sem 8 Internship 2 config, then default to 5
-            try {
-              const response = await studentAPI.getSystemConfig('sem8.internship2.facultyPreferenceLimit');
-              if (response.success && response.data) {
-                setFacultyPreferenceLimit(response.data.value);
-                return;
-              }
-            } catch (error) {
-              // Config doesn't exist, use default
+            // For Internship 2: Try Sem 8 Internship 2 configs, then defaults
+            const [limitResponse, typesResponse] = await Promise.allSettled([
+              studentAPI.getSystemConfig('sem8.internship2.facultyPreferenceLimit').catch(() => ({ success: false })),
+              studentAPI.getSystemConfig('sem8.internship2.allowedFacultyTypes').catch(() => ({ success: false }))
+            ]);
+            
+            if (limitResponse.status === 'fulfilled' && limitResponse.value?.success && limitResponse.value?.data?.value) {
+              setFacultyPreferenceLimit(limitResponse.value.data.value);
+            } else {
+              setFacultyPreferenceLimit(5); // Default
             }
-            // Default to 5 for Sem 8 Internship 2
-            setFacultyPreferenceLimit(5);
+            
+            if (typesResponse.status === 'fulfilled' && typesResponse.value?.success && typesResponse.value?.data?.value && Array.isArray(typesResponse.value.data.value)) {
+              setAllowedFacultyTypes(typesResponse.value.data.value);
+            }
           } else {
-            // For Sem 8 Internship 1: Try Sem 8 specific config, then Sem 7 config, then default to 5
-            try {
-              const response = await studentAPI.getSystemConfig('sem8.internship1.facultyPreferenceLimit');
-              if (response.success && response.data) {
-                setFacultyPreferenceLimit(response.data.value);
-                return;
+            // For Sem 8 Internship 1: Try Sem 8 specific configs, then Sem 7 configs, then defaults
+            const [limitResponse, typesResponse] = await Promise.allSettled([
+              studentAPI.getSystemConfig('sem8.internship1.facultyPreferenceLimit').catch(() => ({ success: false })),
+              studentAPI.getSystemConfig('sem8.internship1.allowedFacultyTypes').catch(() => ({ success: false }))
+            ]);
+            
+            if (limitResponse.status === 'fulfilled' && limitResponse.value?.success && limitResponse.value?.data?.value) {
+              setFacultyPreferenceLimit(limitResponse.value.data.value);
+            } else {
+              // Fallback to Sem 7 Internship 1 limit
+              try {
+                const response = await studentAPI.getSystemConfig('sem7.internship1.facultyPreferenceLimit');
+                if (response.success && response.data?.value) {
+                  setFacultyPreferenceLimit(response.data.value);
+                } else {
+                  setFacultyPreferenceLimit(5);
+                }
+              } catch (error) {
+                setFacultyPreferenceLimit(5);
               }
-            } catch (error) {
-              // Config doesn't exist, continue to next check
             }
             
-            // Fallback to Sem 7 Internship 1 limit
-            try {
-              const response = await studentAPI.getSystemConfig('sem7.internship1.facultyPreferenceLimit');
-              if (response.success && response.data) {
-                setFacultyPreferenceLimit(response.data.value);
-                return;
+            if (typesResponse.status === 'fulfilled' && typesResponse.value?.success && typesResponse.value?.data?.value && Array.isArray(typesResponse.value.data.value)) {
+              setAllowedFacultyTypes(typesResponse.value.data.value);
+            } else {
+              // Fallback to Sem 7 Internship 1 types
+              try {
+                const response = await studentAPI.getSystemConfig('sem7.internship1.allowedFacultyTypes');
+                if (response.success && response.data?.value && Array.isArray(response.data.value)) {
+                  setAllowedFacultyTypes(response.data.value);
+                }
+              } catch (error) {
+                // Keep default
               }
-            } catch (error) {
-              // Config doesn't exist, use default
             }
-            
-            // Default to 5 for Sem 8 Internship 1
-            setFacultyPreferenceLimit(5);
           }
         } else {
-          // For Sem 7: Try Sem 7 specific config, then default to 5
-          // Note: We don't fallback to sem5.facultyPreferenceLimit (which is 7) for Internship 1
-          try {
-            const response = await studentAPI.getSystemConfig('sem7.internship1.facultyPreferenceLimit');
-            if (response.success && response.data) {
-              setFacultyPreferenceLimit(response.data.value);
-              return;
-            }
-          } catch (error) {
-            // Config doesn't exist, use default
+          // For Sem 7 Internship 1: Load Sem 7 specific configs
+          const [limitResponse, typesResponse] = await Promise.allSettled([
+            studentAPI.getSystemConfig('sem7.internship1.facultyPreferenceLimit').catch(() => ({ success: false })),
+            studentAPI.getSystemConfig('sem7.internship1.allowedFacultyTypes').catch(() => ({ success: false }))
+          ]);
+          
+          if (limitResponse.status === 'fulfilled' && limitResponse.value?.success && limitResponse.value?.data?.value) {
+            setFacultyPreferenceLimit(limitResponse.value.data.value);
+          } else {
+            setFacultyPreferenceLimit(5); // Default
           }
           
-          // Default to 5 for Sem 7 Internship 1
-          setFacultyPreferenceLimit(5);
+          if (typesResponse.status === 'fulfilled' && typesResponse.value?.success && typesResponse.value?.data?.value && Array.isArray(typesResponse.value.data.value)) {
+            setAllowedFacultyTypes(typesResponse.value.data.value);
+          }
         }
       } catch (error) {
-        console.error('Failed to load faculty preference limit, using default:', error);
-        // Keep default value of 5
-        setFacultyPreferenceLimit(5);
+        // Only log non-404 errors to avoid console noise
+        if (error.message && !error.message.includes('404') && !error.message.includes('not found')) {
+          console.error('Failed to load system configs, using defaults:', error);
+        }
+        // Keep default values
       }
     };
 
-    loadFacultyPreferenceLimit();
-  }, [isSem8]);
+    loadSystemConfigs();
+  }, [isSem8, isInternship2Route]);
 
   // Load window status
   useEffect(() => {
@@ -418,9 +436,10 @@ const Internship1Registration = () => {
     return facultyList.filter(faculty => {
       const matchesSearch = faculty.fullName.toLowerCase().includes(searchTerm.toLowerCase());
       const matchesDepartment = selectedDepartment === 'all' || faculty.department === selectedDepartment;
+      const matchesType = allowedFacultyTypes.includes(faculty.mode);
       const notSelected = !facultyPreferences.some(p => p.faculty._id === faculty._id);
       
-      return matchesSearch && matchesDepartment && notSelected;
+      return matchesSearch && matchesDepartment && matchesType && notSelected;
     });
   };
 

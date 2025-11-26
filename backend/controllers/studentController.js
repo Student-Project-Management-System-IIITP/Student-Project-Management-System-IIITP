@@ -989,6 +989,16 @@ const registerMajorProject1 = async (req, res) => {
         throw new Error('Student not found');
       }
 
+      // CRITICAL: Ensure this is B.Tech Semester 7 (M.Tech has separate Major Project 1 route)
+      if (student.degree !== 'B.Tech') {
+        throw new Error('This Major Project 1 registration is only available for B.Tech Semester 7 students. M.Tech students should use the M.Tech-specific route.');
+      }
+
+      // Check if student is in semester 7
+      if (student.semester !== 7) {
+        throw new Error('Major Project 1 is only available for Semester 7 students');
+      }
+
       // Check eligibility for coursework
       const eligibility = checkSem7CourseworkEligibility(student);
       if (!eligibility.eligible) {
@@ -1023,11 +1033,6 @@ const registerMajorProject1 = async (req, res) => {
         // Update student with determined academic year
         student.academicYear = studentAcademicYear;
         await student.save({ session });
-      }
-
-      // Check if student is in semester 7
-      if (student.semester !== 7) {
-        throw new Error('Major Project 1 is only available for Semester 7 students');
       }
 
       // Check if student is in a group (Sem 7 only - cannot use groups from previous semesters)
@@ -1774,8 +1779,22 @@ const registerMajorProject2 = async (req, res) => {
         throw new Error('Unable to determine student type for Major Project 2 registration');
       }
 
-      // Get faculty preference limit from system config
-      const facultyPreferenceLimit = await SystemConfig.getConfigValue('sem8.major2.facultyPreferenceLimit') || 5;
+      // Get faculty preference limit from system config based on student type
+      let facultyPreferenceLimit;
+      let allowedFacultyTypes;
+      if (studentType === 'type1') {
+        // Type 1: Group-based project
+        facultyPreferenceLimit = await SystemConfig.getConfigValue('sem8.major2.group.facultyPreferenceLimit') || 5;
+        allowedFacultyTypes = await SystemConfig.getConfigValue('sem8.major2.group.allowedFacultyTypes') || ['Regular', 'Adjunct', 'On Lien'];
+      } else if (studentType === 'type2') {
+        // Type 2: Solo project
+        facultyPreferenceLimit = await SystemConfig.getConfigValue('sem8.major2.solo.facultyPreferenceLimit') || 5;
+        allowedFacultyTypes = await SystemConfig.getConfigValue('sem8.major2.solo.allowedFacultyTypes') || ['Regular', 'Adjunct', 'On Lien'];
+      } else {
+        // Fallback (should not reach here)
+        facultyPreferenceLimit = 5;
+        allowedFacultyTypes = ['Regular', 'Adjunct', 'On Lien'];
+      }
       
       // Validate faculty preferences
       if (!facultyPreferences || facultyPreferences.length !== facultyPreferenceLimit) {
@@ -1789,11 +1808,15 @@ const registerMajorProject2 = async (req, res) => {
         throw new Error('All faculty preferences must be unique');
       }
 
-      // Validate that all faculty exist
+      // Validate that all faculty exist and are of allowed types
       const facultyValidationPromises = facultyIds.map(async (facultyId) => {
         const faculty = await Faculty.findById(facultyId).session(session);
         if (!faculty) {
           throw new Error(`Faculty with ID ${facultyId} not found`);
+        }
+        // Validate faculty type is allowed
+        if (!allowedFacultyTypes.includes(faculty.mode)) {
+          throw new Error(`Faculty ${faculty.fullName} (${faculty.mode}) is not allowed. Only ${allowedFacultyTypes.join(', ')} faculty types are permitted for Major Project 2 ${studentType === 'type1' ? '(group)' : '(solo)'}.`);
         }
         return faculty;
       });
@@ -1979,11 +2002,18 @@ const registerInternship2 = async (req, res) => {
         throw new Error('All faculty preferences must be unique');
       }
 
-      // Validate that all faculty exist
+      // Get allowed faculty types from system config
+      const allowedFacultyTypes = await SystemConfig.getConfigValue('sem8.internship2.allowedFacultyTypes') || ['Regular', 'Adjunct', 'On Lien'];
+      
+      // Validate that all faculty exist and are of allowed types
       const facultyValidationPromises = facultyIds.map(async (facultyId) => {
         const faculty = await Faculty.findById(facultyId).session(session);
         if (!faculty) {
           throw new Error(`Faculty with ID ${facultyId} not found`);
+        }
+        // Validate faculty type is allowed
+        if (!allowedFacultyTypes.includes(faculty.mode)) {
+          throw new Error(`Faculty ${faculty.fullName} (${faculty.mode}) is not allowed. Only ${allowedFacultyTypes.join(', ')} faculty types are permitted for Internship 2.`);
         }
         return faculty;
       });
@@ -2548,7 +2578,13 @@ const getSem4ProjectStatus = async (req, res) => {
 };
 
 // Helper: Check if student is eligible for coursework in Sem 7 or Sem 8
+// CRITICAL: This function is only for B.Tech students. M.Tech students have separate workflows.
 const checkCourseworkEligibility = (student, semester) => {
+  // CRITICAL: Ensure this is B.Tech (M.Tech has separate workflows)
+  if (student.degree !== 'B.Tech') {
+    return { eligible: false, reason: `Coursework eligibility check is only for B.Tech students. M.Tech students have separate workflows.` };
+  }
+  
   if (student.semester !== semester) {
     return { eligible: false, reason: `Not in semester ${semester}` };
   }
@@ -2600,6 +2636,15 @@ const createGroup = async (req, res) => {
       return res.status(404).json({
         success: false,
         message: 'Student not found'
+      });
+    }
+
+    // CRITICAL: Ensure degree is B.Tech for group formation (M.Tech students don't form groups in B.Tech workflows)
+    // M.Tech students have separate workflows and should not form groups through this route
+    if (student.degree !== 'B.Tech') {
+      return res.status(400).json({
+        success: false,
+        message: 'Group formation is only available for B.Tech students. M.Tech students have separate project workflows.'
       });
     }
 
@@ -2729,15 +2774,26 @@ const createGroup = async (req, res) => {
     let configMaxMembers = 5; // Default fallback
     
     // Determine config key prefix based on semester
-    // Use sem5, sem7, sem8 pattern (sem7 and sem8 configs may not exist yet, will fallback to defaults)
-    const configPrefix = student.semester === 7 ? 'sem7' : 
-                        student.semester === 8 ? 'sem8' : 
-                        'sem5';
+    // Use sem5, sem7.major1, sem8.major2 pattern (sem7 and sem8 configs may not exist yet, will fallback to defaults)
+    let minConfigKey, maxConfigKey;
+    if (student.semester === 7) {
+      // Sem 7: Major Project 1 uses sem7.major1.minGroupMembers
+      minConfigKey = 'sem7.major1.minGroupMembers';
+      maxConfigKey = 'sem7.major1.maxGroupMembers';
+    } else if (student.semester === 8) {
+      // Sem 8: Major Project 2 uses sem8.major2.group.minGroupMembers (for Type 1 group-based projects)
+      minConfigKey = 'sem8.major2.group.minGroupMembers';
+      maxConfigKey = 'sem8.major2.group.maxGroupMembers';
+    } else {
+      // Sem 5: Minor Project 2 uses sem5.minGroupMembers
+      minConfigKey = 'sem5.minGroupMembers';
+      maxConfigKey = 'sem5.maxGroupMembers';
+    }
     
     try {
       const [minConfig, maxConfig] = await Promise.all([
-        SystemConfig.getConfigValue(`${configPrefix}.minGroupMembers`, 4),
-        SystemConfig.getConfigValue(`${configPrefix}.maxGroupMembers`, 5)
+        SystemConfig.getConfigValue(minConfigKey, 4),
+        SystemConfig.getConfigValue(maxConfigKey, 5)
       ]);
       
       configMinMembers = parseInt(minConfig) || 4;
@@ -3275,6 +3331,14 @@ const getAvailableStudents = async (req, res) => {
       });
     }
 
+    // Validate student has degree field
+    if (!student.degree) {
+      return res.status(400).json({
+        success: false,
+        message: 'Student degree information is missing. Please contact admin.'
+      });
+    }
+
     // Enhanced search term handling - properly trim and validate
     const rawSearchTerm = query || search || '';
     const searchTerm = typeof rawSearchTerm === 'string' ? rawSearchTerm.trim() : '';
@@ -3287,20 +3351,22 @@ const getAvailableStudents = async (req, res) => {
     const skip = (pageNum - 1) * limitNum;
 
     // Enhanced search query with multiple filters
-    // For 5th semester BTech students, show both CSE and ECE students
-    // For 7th semester, show all students in the same branch
+    // CRITICAL: Always filter by degree to ensure B.Tech and M.Tech students are completely separated
+    // Students can form groups with students from ANY branch (Sem 5, 7, 8)
+    // Only filter by branch if explicitly specified in the search parameters
     const searchQuery = {
       _id: { $ne: student._id },
       semester: branch ? parseInt(semester) || student.semester : student.semester,
-      degree: student.degree,
-      // For 5th semester BTech, allow both CSE and ECE branches
-      ...(student.semester === 5 && student.degree === 'B.Tech' ? {
-        branch: { $in: ['CSE', 'ECE'] }
-      } : {
-        // For Sem 7 and other semesters, use same branch or specified branch
-        branch: branch || student.branch
-      })
+      degree: student.degree // CRITICAL: This ensures B.Tech and M.Tech students are separated
+      // Branch filtering: Only apply if explicitly requested via branch parameter
+      // Otherwise, show all students from all branches (allows cross-branch group formation)
     };
+    
+    // Only add branch filter if explicitly specified in query parameters
+    if (branch) {
+      searchQuery.branch = branch;
+    }
+    // No branch filter by default - allows students from any branch to see each other
     
     // Only add search filter if search term is provided and not empty
     if (hasSearchTerm && searchRegex) {
@@ -3330,15 +3396,20 @@ const getAvailableStudents = async (req, res) => {
     }
 
     // Get students with enhanced fields
+    // CRITICAL: Ensure degree is included in select to verify filtering
     const students = await Student.find(searchQuery)
-      .select('fullName misNumber collegeEmail contactNumber branch semester')
+      .select('fullName misNumber collegeEmail contactNumber branch semester degree')
       .limit(limitNum)
       .skip(skip)
       .sort(sortQuery);
+    
+    // Additional safety check: Filter out any students that don't match the degree
+    // This is a defensive measure in case the query somehow returns incorrect results
+    const filteredStudents = students.filter(s => s.degree === student.degree);
 
     // Check students' group status and invites
     const studentsWithStatus = await Promise.all(
-      students.map(async (s) => {
+      filteredStudents.map(async (s) => {
         // For Sem 7: Include track information instead of filtering
         let trackInfo = null;
         let isCourseworkEligible = true; // Default to true for non-Sem 7 students
@@ -6320,13 +6391,60 @@ const getSystemConfigForStudents = async (req, res) => {
   try {
     const { key } = req.params;
     
-    const config = await SystemConfig.findOne({ configKey: key, isActive: true });
+    let config = await SystemConfig.findOne({ configKey: key, isActive: true });
     
+    // If config doesn't exist, check if we have a default value and auto-create it
     if (!config) {
-      return res.status(404).json({
-        success: false,
-        message: 'Configuration not found'
-      });
+      // Define default values for known config keys
+      const defaultConfigs = {
+        'sem7.major1.minGroupMembers': { value: 4, type: 'number', description: 'Minimum number of members required in a Sem 7 Major Project 1 group', category: 'sem7' },
+        'sem7.major1.maxGroupMembers': { value: 5, type: 'number', description: 'Maximum number of members allowed in a Sem 7 Major Project 1 group', category: 'sem7' },
+        'sem7.major1.facultyPreferenceLimit': { value: 5, type: 'number', description: 'Number of faculty preferences required for Sem 7 Major Project 1 registration', category: 'sem7' },
+        'sem7.major1.allowedFacultyTypes': { value: ['Regular', 'Adjunct', 'On Lien'], type: 'array', description: 'Faculty types allowed in dropdown for Sem 7 Major Project 1 preferences', category: 'sem7' },
+        'sem7.internship1.facultyPreferenceLimit': { value: 5, type: 'number', description: 'Number of faculty preferences required for Sem 7 Internship 1 registration', category: 'sem7' },
+        'sem7.internship1.allowedFacultyTypes': { value: ['Regular', 'Adjunct', 'On Lien'], type: 'array', description: 'Faculty types allowed in dropdown for Sem 7 Internship 1 preferences', category: 'sem7' },
+        'sem8.major2.group.minGroupMembers': { value: 4, type: 'number', description: 'Minimum number of members required in a Sem 8 Type 1 Major Project 2 group', category: 'sem8' },
+        'sem8.major2.group.maxGroupMembers': { value: 5, type: 'number', description: 'Maximum number of members allowed in a Sem 8 Type 1 Major Project 2 group', category: 'sem8' },
+        'sem8.major2.group.facultyPreferenceLimit': { value: 5, type: 'number', description: 'Number of faculty preferences required for Sem 8 Type 1 Major Project 2 (group) registration', category: 'sem8' },
+        'sem8.major2.group.allowedFacultyTypes': { value: ['Regular', 'Adjunct', 'On Lien'], type: 'array', description: 'Faculty types allowed in dropdown for Sem 8 Type 1 Major Project 2 (group) preferences', category: 'sem8' },
+        'sem8.internship2.facultyPreferenceLimit': { value: 5, type: 'number', description: 'Number of faculty preferences required for Sem 8 Internship 2 registration', category: 'sem8' },
+        'sem8.internship2.allowedFacultyTypes': { value: ['Regular', 'Adjunct', 'On Lien'], type: 'array', description: 'Faculty types allowed in dropdown for Sem 8 Internship 2 preferences', category: 'sem8' },
+        'sem8.major2.solo.facultyPreferenceLimit': { value: 5, type: 'number', description: 'Number of faculty preferences required for Sem 8 Type 2 Major Project 2 (solo) registration', category: 'sem8' },
+        'sem8.major2.solo.allowedFacultyTypes': { value: ['Regular', 'Adjunct', 'On Lien'], type: 'array', description: 'Faculty types allowed in dropdown for Sem 8 Type 2 Major Project 2 (solo) preferences', category: 'sem8' }
+      };
+      
+      // Check if we have a default for this key
+      if (defaultConfigs[key]) {
+        const defaultConfig = defaultConfigs[key];
+        // Auto-create the config in the background (async, don't wait)
+        // This ensures it exists for future requests without blocking this response
+        SystemConfig.setConfigValue(
+          key,
+          defaultConfig.value,
+          defaultConfig.type,
+          defaultConfig.description,
+          defaultConfig.category
+        ).catch(err => {
+          // Silently handle creation errors - default value is still returned
+          console.error(`Failed to auto-create config ${key}:`, err.message);
+        });
+        
+        // Return the default value immediately with 200 status (prevents 404 console errors)
+        return res.json({
+          success: true,
+          data: {
+            key: key,
+            value: defaultConfig.value,
+            description: defaultConfig.description
+          }
+        });
+      } else {
+        // No default available, return 404
+        return res.status(404).json({
+          success: false,
+          message: 'Configuration not found'
+        });
+      }
     }
 
     res.json({
@@ -6413,10 +6531,25 @@ const getSem5GroupForSem6 = async (req, res) => {
     });
     
     if (existingSem6Project) {
-      return res.status(400).json({
-        success: false,
+      return res.json({
+        success: true,
+        alreadyRegistered: true,
         message: 'Group already registered for Semester 6 project',
-        alreadyRegistered: true
+        data: {
+          group: {
+            _id: sem5Group._id,
+            name: sem5Group.name,
+            description: sem5Group.description,
+            members: sem5Group.members,
+            leader: sem5Group.leader,
+            status: sem5Group.status,
+            academicYear: sem5Group.academicYear
+          },
+          faculty: sem5Group.allocatedFaculty,
+          sem5Project: sem5Group.project,
+          projectId: existingSem6Project._id,
+          isGroupLeader: isGroupLeader
+        }
       });
     }
     
@@ -6459,7 +6592,7 @@ const registerSem6Project = async (req, res) => {
         isContinuing, 
         previousProjectId, 
         title, 
-        description 
+        domain 
       } = req.body;
       
       const student = await Student.findOne({ user: studentId }).session(session);
@@ -6533,9 +6666,12 @@ const registerSem6Project = async (req, res) => {
         sem6Group = await migrateGroupToSem6(sem5Group._id, newAcademicYear, session);
         
         // Create continuation project
+        // Since Sem 6 uses the same faculty from Sem 5, status should be 'faculty_allocated'
+        const sem6Status = sem5Group.allocatedFaculty ? 'faculty_allocated' : 'registered';
         sem6Project = new Project({
           title: sem5Project.title, // Same title
           description: sem5Project.description, // Same description
+          domain: sem5Project.domain, // Same domain
           projectType: 'minor3',
           semester: 6,
           academicYear: newAcademicYear,
@@ -6544,7 +6680,7 @@ const registerSem6Project = async (req, res) => {
           faculty: sem5Group.allocatedFaculty, // Same faculty
           isContinuation: true,
           previousProject: sem5Project._id,
-          status: 'registered',
+          status: sem6Status,
           startDate: new Date()
         });
         
@@ -6557,17 +6693,20 @@ const registerSem6Project = async (req, res) => {
         
       } else {
         // Option B: New project
-        if (!title || !description) {
-          throw new Error('Title and description required for new project');
+        if (!title || !domain) {
+          throw new Error('Title and domain required for new project');
         }
         
         // Create new group for Sem 6 (don't migrate existing)
         sem6Group = await createNewGroupForSem6(sem5Group._id, newAcademicYear, session);
         
         // Create new project
+        // Since Sem 6 uses the same faculty from Sem 5, status should be 'faculty_allocated'
+        const sem6Status = sem5Group.allocatedFaculty ? 'faculty_allocated' : 'registered';
         sem6Project = new Project({
           title: title.trim(),
-          description: description.trim(),
+          // description is optional - not required for Sem 6 Minor Project 3 (using domain instead)
+          domain: domain.trim(),
           projectType: 'minor3',
           semester: 6,
           academicYear: newAcademicYear,
@@ -6576,7 +6715,7 @@ const registerSem6Project = async (req, res) => {
           faculty: sem5Group.allocatedFaculty, // Same faculty
           isContinuation: false,
           previousProject: null,
-          status: 'registered',
+          status: sem6Status,
           startDate: new Date()
         });
         

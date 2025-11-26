@@ -164,14 +164,15 @@ const Navbar = ({ userRole: propUserRole = null, user: propUser = null, roleData
     // Semester 5: Minor Project 2 (group)
     // Only show in Project Dashboard after student has registered for the project
     const sem5Project = getProjectBySemester(5);
-    if (sem5Project) {
-      const projectId = sem5Project?.project;
+    if (sem5Project || currentSemester === 5) {
+      // Check multiple possible fields for project ID
+      const projectId = sem5Project?.project || sem5Project?._id || sem5Project?.projectId;
       items.push({
         name: 'Minor Project 2',
         path: projectId ? `/projects/${projectId}` : '/student/sem5/register',
         semester: 5,
         type: 'minor2',
-        hasProject: !!sem5Project,
+        hasProject: !!sem5Project && !!projectId,
         projectId: projectId
       });
     }
@@ -179,13 +180,14 @@ const Navbar = ({ userRole: propUserRole = null, user: propUser = null, roleData
     // Semester 6: Minor Project 3 (continuation)
     const sem6Project = getProjectBySemester(6);
     if (sem6Project || currentSemester === 6) {
-      const projectId = sem6Project?.project;
+      // Check multiple possible fields for project ID
+      const projectId = sem6Project?.project || sem6Project?._id || sem6Project?.projectId;
       items.push({
         name: 'Minor Project 3',
         path: projectId ? `/projects/${projectId}` : '/student/sem6/register',
         semester: 6,
         type: 'minor3',
-        hasProject: !!sem6Project,
+        hasProject: !!sem6Project && !!projectId,
         projectId: projectId
       });
     }
@@ -238,13 +240,14 @@ const Navbar = ({ userRole: propUserRole = null, user: propUser = null, roleData
     // Semester 8: Major Project 2
     const sem8Project = getProjectBySemester(8);
     if (sem8Project || currentSemester === 8) {
-      const projectId = sem8Project?.project;
+      // Check multiple possible fields for project ID
+      const projectId = sem8Project?.project || sem8Project?._id || sem8Project?.projectId;
       items.push({
         name: 'Major Project 2',
         path: projectId ? `/projects/${projectId}` : '/student/sem8/register',
         semester: 8,
         type: 'major2',
-        hasProject: !!sem8Project,
+        hasProject: !!sem8Project && !!projectId,
         projectId: projectId
       });
     }

@@ -10,8 +10,9 @@ const projectSchema = new mongoose.Schema({
   },
   description: {
     type: String,
-    required: true,
-    trim: true
+    required: false,
+    trim: true,
+    default: ''
   },
   domain: {
     type: String,

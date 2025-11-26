@@ -108,27 +108,38 @@ const GroupFormation = () => {
       try {
         setConfigLoading(true);
         // Determine config key based on semester
-        // Use sem5, sem7, sem8 pattern (sem7 and sem8 configs may not exist yet, will fallback to defaults)
-        const configPrefix = currentSemester === 7 ? 'sem7' : 
-                            currentSemester === 8 ? 'sem8' : 
-                            'sem5';
+        // Use sem5, sem7.major1, sem8.major2 pattern
+        let minConfigKey, maxConfigKey;
+        if (currentSemester === 7) {
+          minConfigKey = 'sem7.major1.minGroupMembers';
+          maxConfigKey = 'sem7.major1.maxGroupMembers';
+        } else if (currentSemester === 8) {
+          minConfigKey = 'sem8.major2.group.minGroupMembers';
+          maxConfigKey = 'sem8.major2.group.maxGroupMembers';
+        } else {
+          minConfigKey = 'sem5.minGroupMembers';
+          maxConfigKey = 'sem5.maxGroupMembers';
+        }
         
         // Fetch min and max group members from config
-        const [minResponse, maxResponse] = await Promise.all([
-          studentAPI.getSystemConfig(`${configPrefix}.minGroupMembers`),
-          studentAPI.getSystemConfig(`${configPrefix}.maxGroupMembers`)
+        // Use Promise.allSettled to handle individual failures gracefully
+        const [minResult, maxResult] = await Promise.allSettled([
+          studentAPI.getSystemConfig(minConfigKey).catch(() => ({ success: false })),
+          studentAPI.getSystemConfig(maxConfigKey).catch(() => ({ success: false }))
         ]);
         
-        if (minResponse.success && minResponse.data?.value) {
-          setMinGroupMembers(parseInt(minResponse.data.value));
+        // Handle min config
+        if (minResult.status === 'fulfilled' && minResult.value?.success && minResult.value?.data?.value) {
+          setMinGroupMembers(parseInt(minResult.value.data.value));
         }
         
-        if (maxResponse.success && maxResponse.data?.value) {
-          setMaxGroupMembers(parseInt(maxResponse.data.value));
+        // Handle max config
+        if (maxResult.status === 'fulfilled' && maxResult.value?.success && maxResult.value?.data?.value) {
+          setMaxGroupMembers(parseInt(maxResult.value.data.value));
         }
       } catch (error) {
-        console.error('Error loading group config:', error);
-        // Keep default values (4, 5) if config fails to load
+        // Silently handle config loading errors - defaults are already set (4, 5)
+        // Configs may not exist yet if admin hasn't initialized them
       } finally {
         setConfigLoading(false);
     }
@@ -463,7 +474,10 @@ const GroupFormation = () => {
         toast.success(`Successfully sent ${result.successful.length}/${result.total} invitations!`);
         
         if (result.failed.length > 0) {
-          toast.warning(`${result.failed.length} invitations failed to send`);
+          toast(`${result.failed.length} invitations failed to send`, {
+            icon: '⚠️',
+            duration: 4000
+          });
         }
       } else {
         toast.error(`Bulk invitation failed: ${response.message}`);
@@ -493,7 +507,10 @@ const GroupFormation = () => {
     
     // Check minimum requirement
     if (currentGroupSize < minGroupMembers) {
-      toast.warning(`Group should have at least ${minGroupMembers} members. You can add more members later.`);
+      toast(`Group should have at least ${minGroupMembers} members. You can add more members later.`, {
+        icon: '⚠️',
+        duration: 4000
+      });
       // Allow proceeding but warn the user
     }
     

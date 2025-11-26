@@ -1265,6 +1265,14 @@ const uploadDeliverable = async (req, res) => {
       return res.status(403).json({ success: false, message: 'You do not have access to this project' });
     }
 
+    // Block uploads for previous semester projects
+    if (student && project.semester && student.semester && project.semester < student.semester) {
+      return res.status(403).json({ 
+        success: false, 
+        message: 'File upload is not allowed for previous semester projects' 
+      });
+    }
+
     const nameMap = {
       mid: 'Mid Sem Presentation',
       end: 'End Sem Presentation',

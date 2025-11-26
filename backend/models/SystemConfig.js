@@ -227,10 +227,38 @@ systemConfigSchema.statics.initializeDefaults = async function() {
       category: 'sem7'
     },
     {
+      configKey: 'sem7.major1.minGroupMembers',
+      configValue: 4,
+      configType: 'number',
+      description: 'Minimum number of members required in a Sem 7 Major Project 1 group',
+      category: 'sem7'
+    },
+    {
+      configKey: 'sem7.major1.maxGroupMembers',
+      configValue: 5,
+      configType: 'number',
+      description: 'Maximum number of members allowed in a Sem 7 Major Project 1 group',
+      category: 'sem7'
+    },
+    {
+      configKey: 'sem7.major1.allowedFacultyTypes',
+      configValue: ['Regular', 'Adjunct', 'On Lien'],
+      configType: 'array',
+      description: 'Faculty types allowed in dropdown for Sem 7 Major Project 1 preferences (Regular, Adjunct, On Lien)',
+      category: 'sem7'
+    },
+    {
       configKey: 'sem7.internship1.facultyPreferenceLimit',
       configValue: 5,
       configType: 'number',
       description: 'Number of faculty preferences required for Sem 7 Internship 1 registration',
+      category: 'sem7'
+    },
+    {
+      configKey: 'sem7.internship1.allowedFacultyTypes',
+      configValue: ['Regular', 'Adjunct', 'On Lien'],
+      configType: 'array',
+      description: 'Faculty types allowed in dropdown for Sem 7 Internship 1 preferences (Regular, Adjunct, On Lien)',
       category: 'sem7'
     },
     // Sem 8 windows (B.Tech)
@@ -283,18 +311,63 @@ systemConfigSchema.statics.initializeDefaults = async function() {
       description: 'Window for Internship 2 (solo project) registration and preferences',
       category: 'sem8'
     },
+    // Sem 8 Type 1 Major Project 2 (Group)
     {
-      configKey: 'sem8.major2.facultyPreferenceLimit',
+      configKey: 'sem8.major2.group.facultyPreferenceLimit',
       configValue: 5,
       configType: 'number',
-      description: 'Number of faculty preferences required for Sem 8 Major Project 2 registration',
+      description: 'Number of faculty preferences required for Sem 8 Type 1 Major Project 2 (group) registration',
       category: 'sem8'
     },
+    {
+      configKey: 'sem8.major2.group.minGroupMembers',
+      configValue: 4,
+      configType: 'number',
+      description: 'Minimum number of members required in a Sem 8 Type 1 Major Project 2 group',
+      category: 'sem8'
+    },
+    {
+      configKey: 'sem8.major2.group.maxGroupMembers',
+      configValue: 5,
+      configType: 'number',
+      description: 'Maximum number of members allowed in a Sem 8 Type 1 Major Project 2 group',
+      category: 'sem8'
+    },
+    {
+      configKey: 'sem8.major2.group.allowedFacultyTypes',
+      configValue: ['Regular', 'Adjunct', 'On Lien'],
+      configType: 'array',
+      description: 'Faculty types allowed in dropdown for Sem 8 Type 1 Major Project 2 (group) preferences (Regular, Adjunct, On Lien)',
+      category: 'sem8'
+    },
+    // Sem 8 Internship 2 (Type 1)
     {
       configKey: 'sem8.internship2.facultyPreferenceLimit',
       configValue: 5,
       configType: 'number',
       description: 'Number of faculty preferences required for Sem 8 Internship 2 registration',
+      category: 'sem8'
+    },
+    {
+      configKey: 'sem8.internship2.allowedFacultyTypes',
+      configValue: ['Regular', 'Adjunct', 'On Lien'],
+      configType: 'array',
+      description: 'Faculty types allowed in dropdown for Sem 8 Internship 2 preferences (Regular, Adjunct, On Lien)',
+      category: 'sem8'
+    },
+    // Sem 8 Type 2 Major Project 2 (Solo)
+    {
+      configKey: 'sem8.major2.solo.facultyPreferenceLimit',
+      configValue: 5,
+      configType: 'number',
+      description: 'Number of faculty preferences required for Sem 8 Type 2 Major Project 2 (solo) registration',
+      category: 'sem8'
+    },
+    {
+      configKey: 'sem8.major2.solo.allowedFacultyTypes',
+      configValue: ['Regular', 'Adjunct', 'On Lien'],
+      configType: 'array',
+      description: 'Faculty types allowed in dropdown for Sem 8 Type 2 Major Project 2 (solo) preferences (Regular, Adjunct, On Lien)',
       category: 'sem8'
     }
   ];

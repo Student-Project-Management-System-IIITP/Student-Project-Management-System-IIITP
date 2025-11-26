@@ -25,8 +25,10 @@ const StudentDashboard = () => {
   const [sem3InternshipApp, setSem3InternshipApp] = useState(null);
   const [sem3AppLoading, setSem3AppLoading] = useState(false);
   
+  // Only use M.Tech Sem 3 track hook for M.Tech Sem 3+ students
+  const isMTechSem3Plus = roleData?.degree === 'M.Tech' && (roleData?.semester >= 3);
   const { trackChoice: sem3TrackChoice, loading: sem3ChoiceLoading } = useMTechSem3Track();
-  const sem3SelectedTrack = sem3TrackChoice?.finalizedTrack || sem3TrackChoice?.chosenTrack || null;
+  const sem3SelectedTrack = isMTechSem3Plus ? (sem3TrackChoice?.finalizedTrack || sem3TrackChoice?.chosenTrack || null) : null;
 
   // Sem 4 hooks
   const { project: sem4Project, loading: sem4ProjectLoading, canRegisterProject: canRegisterSem4, canUploadPPT, getProjectTimeline } = useSem4Project();
@@ -3680,16 +3682,24 @@ const StudentDashboard = () => {
                       {project.description && (
                         <p className="text-sm text-gray-600 mb-3 line-clamp-2">{project.description}</p>
                       )}
-                      <div className="flex items-center justify-between text-xs text-gray-500">
-                        <div className="flex items-center space-x-4">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-4 text-xs text-gray-500">
                           <span>Registered: {new Date(project.createdAt).toLocaleDateString()}</span>
                           {project.faculty && (
                             <span>Faculty: {project.faculty?.fullName || 'N/A'}</span>
                           )}
                         </div>
-                        <div className="flex items-center space-x-2 text-gray-400">
-                          <span>🔒</span>
-                          <span>View Only</span>
+                        <div className="flex items-center space-x-2">
+                          <div className="flex items-center space-x-2 text-xs text-gray-400">
+                            <span>🔒</span>
+                            <span>View Only</span>
+                          </div>
+                          <Link 
+                            to={`/projects/${project._id}`}
+                            className="ml-4 inline-flex items-center px-3 py-1.5 bg-blue-600 text-white text-xs font-medium rounded-md hover:bg-blue-700 transition-colors"
+                          >
+                            View Dashboard
+                          </Link>
                         </div>
                       </div>
                     </div>
@@ -3710,8 +3720,8 @@ const StudentDashboard = () => {
       )}
 
 
-      {/* Information Section - Hide for Sem 7 */}
-      {!isSem7 && (
+      {/* Information Section - Hide for Sem 7 and Sem 8 */}
+      {!isSem7 && !isSem8 && (
       <div className="mt-8 bg-blue-50 rounded-lg p-6">
         <h2 className="text-lg font-semibold text-blue-900 mb-4">
           {isSem6 
