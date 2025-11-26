@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { facultyAPI } from '../../utils/api';
 import { handleApiError } from '../../utils/errorHandler';
+import { showError, showSuccess } from '../../utils/toast';
 
 const ManageFaculty = () => {
   const [search, setSearch] = useState('');
@@ -18,15 +19,38 @@ const ManageFaculty = () => {
     mode: '',
     designation: ''
   });
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const [totalCount, setTotalCount] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+  const listContainerRef = useRef(null);
+  const [isResetModalOpen, setIsResetModalOpen] = useState(false);
+  const [newPassword, setNewPassword] = useState('');
 
-  const loadFaculties = async () => {
+  const loadFaculties = async (overridePage, overridePageSize) => {
     try {
       setLoading(true);
-      const response = await facultyAPI.searchFaculty(search, sort);
-      setFaculties(response.data || []);
+      const currentPage = typeof overridePage === 'number' ? overridePage : page;
+      const currentPageSize = typeof overridePageSize === 'number' ? overridePageSize : pageSize;
+      const response = await facultyAPI.searchFaculty(search, sort, currentPage, currentPageSize);
+      const data = response.data || [];
+      setFaculties(data);
+      const total =
+        typeof response.totalCount === 'number'
+          ? response.totalCount
+          : typeof response.count === 'number'
+          ? response.count
+          : data.length;
+      setTotalCount(total);
+      const totalPagesValue =
+        typeof response.totalPages === 'number' && response.totalPages > 0
+          ? response.totalPages
+          : Math.max(1, Math.ceil(total / currentPageSize));
+      setTotalPages(totalPagesValue);
+      setPage(response.currentPage || currentPage || 1);
     } catch (error) {
       const message = handleApiError(error, false);
-      alert(message);
+      showError(message || 'Failed to load faculty list');
     } finally {
       setLoading(false);
     }
@@ -39,11 +63,27 @@ const ManageFaculty = () => {
       setSelectedFaculty(response.data || null);
     } catch (error) {
       const message = handleApiError(error, false);
-      alert(message);
+      showError(message || 'Failed to load faculty profile');
     } finally {
       setProfileLoading(false);
     }
   };
+
+  useEffect(() => {
+    const measurePageSize = () => {
+      if (!listContainerRef.current) return;
+      const containerHeight = listContainerRef.current.clientHeight || 400;
+      const rowHeight = 72;
+      const calculated = Math.max(5, Math.floor(containerHeight / rowHeight));
+      setPageSize(calculated);
+    };
+
+    measurePageSize();
+    window.addEventListener('resize', measurePageSize);
+    return () => {
+      window.removeEventListener('resize', measurePageSize);
+    };
+  }, []);
 
   useEffect(() => {
     loadFaculties();
@@ -51,14 +91,30 @@ const ManageFaculty = () => {
 
   const handleSearchSubmit = (e) => {
     e.preventDefault();
-    loadFaculties();
+    setPage(1);
+    loadFaculties(1);
   };
 
   const handleSortChange = (e) => {
     setSort(e.target.value);
     setTimeout(() => {
-      loadFaculties();
+      setPage(1);
+      loadFaculties(1);
     }, 0);
+  };
+
+  const handlePrevPage = () => {
+    if (page <= 1) return;
+    const newPage = page - 1;
+    setPage(newPage);
+    loadFaculties(newPage);
+  };
+
+  const handleNextPage = () => {
+    if (page >= totalPages) return;
+    const newPage = page + 1;
+    setPage(newPage);
+    loadFaculties(newPage);
   };
 
   const openEditModal = () => {
@@ -97,12 +153,11 @@ const ManageFaculty = () => {
       setIsEditOpen(false);
       await loadFacultyDetails(facultyId);
       await loadFaculties();
-      if (response.message) {
-        alert(response.message);
-      }
+      const message = response.message || 'Faculty profile updated successfully';
+      showSuccess(message);
     } catch (error) {
       const message = handleApiError(error, false);
-      alert(message);
+      showError(message || 'Failed to update faculty profile');
     }
   };
 
@@ -115,13 +170,23 @@ const ManageFaculty = () => {
       const response = await facultyAPI.resetPassword(facultyId);
       const newPassword = response.data?.newPassword || response.newPassword;
       if (newPassword) {
-        alert('New password: ' + newPassword);
-      } else {
-        alert('Password reset successfully');
+        setNewPassword(newPassword);
+        setIsResetModalOpen(true);
       }
+      showSuccess('Password reset successfully');
     } catch (error) {
       const message = handleApiError(error, false);
-      alert(message);
+      showError(message || 'Failed to reset faculty password');
+    }
+  };
+
+  const copyPassword = async () => {
+    if (!newPassword) return;
+    try {
+      await navigator.clipboard.writeText(newPassword);
+      showSuccess('Password copied to clipboard');
+    } catch (error) {
+      showError('Failed to copy password');
     }
   };
 
@@ -203,14 +268,17 @@ const ManageFaculty = () => {
             </form>
           </div>
 
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 max-h-[480px] overflow-y-auto">
+          <div
+            ref={listContainerRef}
+            className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 max-h-[480px] overflow-y-auto flex flex-col"
+          >
             <h2 className="text-sm font-semibold text-gray-900 mb-3">Faculty Results</h2>
             {loading ? (
               <div className="py-6 text-sm text-gray-500">Loading...</div>
             ) : faculties.length === 0 ? (
               <div className="py-6 text-sm text-gray-500">No faculty found.</div>
             ) : (
-              <ul className="divide-y divide-gray-200">
+              <ul className="divide-y divide-gray-200 flex-1">
                 {faculties.map((f) => (
                   <li
                     key={f._id || f.facultyId}
@@ -236,6 +304,37 @@ const ManageFaculty = () => {
                 ))}
               </ul>
             )}
+            <div className="pt-3 mt-3 border-t border-gray-200 flex items-center justify-between text-xs text-gray-600">
+              <button
+                type="button"
+                onClick={handlePrevPage}
+                disabled={page <= 1}
+                className={
+                  'px-3 py-1 rounded border text-xs font-medium ' +
+                  (page <= 1
+                    ? 'border-gray-200 text-gray-400 cursor-not-allowed'
+                    : 'border-gray-300 text-gray-700 hover:bg-gray-50')
+                }
+              >
+                Previous
+              </button>
+              <span>
+                Page {page} of {totalPages}
+              </span>
+              <button
+                type="button"
+                onClick={handleNextPage}
+                disabled={page >= totalPages}
+                className={
+                  'px-3 py-1 rounded border text-xs font-medium ' +
+                  (page >= totalPages
+                    ? 'border-gray-200 text-gray-400 cursor-not-allowed'
+                    : 'border-gray-300 text-gray-700 hover:bg-gray-50')
+                }
+              >
+                Next
+              </button>
+            </div>
           </div>
         </div>
 
@@ -463,6 +562,51 @@ const ManageFaculty = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+      {isResetModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-md p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold text-gray-900">New Password</h2>
+              <button
+                type="button"
+                onClick={() => setIsResetModalOpen(false)}
+                className="text-gray-400 hover:text-gray-600 text-xl leading-none"
+              >
+                ×
+              </button>
+            </div>
+            <div className="space-y-3">
+              <p className="text-sm text-gray-700">
+                Share this password securely with the faculty. They should change it after logging in.
+              </p>
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  readOnly
+                  value={newPassword}
+                  className="flex-1 px-3 py-2 border border-gray-300 rounded-md text-sm bg-gray-50"
+                />
+                <button
+                  type="button"
+                  onClick={copyPassword}
+                  className="px-3 py-1.5 rounded-md bg-indigo-600 text-white text-xs font-medium hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                >
+                  Copy
+                </button>
+              </div>
+              <div className="flex justify-end mt-4">
+                <button
+                  type="button"
+                  onClick={() => setIsResetModalOpen(false)}
+                  className="px-3 py-1.5 rounded-md border border-gray-300 text-xs font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-300"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

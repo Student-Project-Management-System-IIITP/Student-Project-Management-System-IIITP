@@ -252,6 +252,29 @@ export const studentAPI = {
   // Internship 2 status and registration
   checkInternship2Status: () => api.get('/student/projects/internship2/status'),
   registerInternship2: (projectData) => api.post('/student/projects/internship2/register', projectData),
+
+  searchStudents: (query, page, pageSize, sort) => {
+    const params = new URLSearchParams();
+    if (query) {
+      params.append('search', query);
+    }
+
+    if (page) {
+      params.append('page', page);
+    }
+    if (pageSize) {
+      params.append('pageSize', pageSize);
+    }
+    if (sort) {
+      params.append('sort', sort);
+    }
+
+    const queryString = params.toString();
+    return api.get(`/admin/students${queryString ? `?${queryString}` : ''}`);
+  },
+  getStudentDetails: (id) => api.get(`/admin/students/${id}`),
+  updateStudent: (id, data) => api.put(`/admin/students/${id}`, data),
+  resetPassword: (id) => api.post(`/admin/students/${id}/reset-password`, {}),
 };
 
 // Sem 7 API - Track selection and internship applications
@@ -352,10 +375,12 @@ export const facultyAPI = {
   updateProfile: (data) => api.put('/faculty/profile', data),
 
   // Admin-side faculty management helpers (used from admin UI)
-  searchFaculty: (query, sort) => {
+  searchFaculty: (query, sort, page, pageSize) => {
     const params = {};
     if (query) params.search = query;
     if (sort) params.sort = sort;
+    if (page) params.page = page;
+    if (pageSize) params.pageSize = pageSize;
     const queryString = new URLSearchParams(params).toString();
     return api.get(`/admin/faculties${queryString ? '?' + queryString : ''}`);
   },

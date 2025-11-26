@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const Student = require('../models/Student');
 const Faculty = require('../models/Faculty');
 const Admin = require('../models/Admin');
@@ -8,6 +9,7 @@ const FacultyPreference = require('../models/FacultyPreference');
 const SystemConfig = require('../models/SystemConfig');
 const InternshipApplication = require('../models/InternshipApplication');
 const crypto = require('crypto');
+const bcrypt = require('bcryptjs');
 
 // Get admin profile data
 const getAdminProfile = async (req, res) => {
@@ -258,6 +260,476 @@ const getStudents = async (req, res) => {
   }
 };
 
+const searchStudents = async (req, res) => {
+  try {
+    const { search, page, pageSize, sort } = req.query;
+
+    const pageNumber = Math.max(parseInt(page, 10) || 1, 1);
+    const limit = Math.min(Math.max(parseInt(pageSize, 10) || 20, 1), 100);
+    const skip = (pageNumber - 1) * limit;
+
+    const query = {};
+
+    if (search && search.trim()) {
+      const term = search.trim();
+      const regex = new RegExp(term, 'i');
+
+      // First find users by email
+      const matchedUsers = await User.find({ email: regex }).select('_id');
+      const userIds = matchedUsers.map(u => u._id);
+
+      const orConditions = [
+        { fullName: regex },
+        { misNumber: regex },
+        { contactNumber: regex },
+      ];
+
+      if (userIds.length > 0) {
+        orConditions.push({ user: { $in: userIds } });
+      }
+
+      query.$or = orConditions;
+    }
+
+    let sortOption;
+    if (sort === 'semester_asc') {
+      sortOption = { semester: 1, fullName: 1 };
+    } else if (sort === 'semester_desc') {
+      sortOption = { semester: -1, fullName: 1 };
+    } else {
+      sortOption = { fullName: 1 };
+    }
+
+    const [total, students] = await Promise.all([
+      Student.countDocuments(query),
+      Student.find(query)
+        .populate('user', 'email role lastLogin')
+        .sort(sortOption)
+        .skip(skip)
+        .limit(limit)
+        .lean()
+    ]);
+
+    const formatted = students.map(student => ({
+      _id: student._id,
+      fullName: student.fullName,
+      misNumber: student.misNumber,
+      branch: student.branch,
+      contactNumber: student.contactNumber,
+      semester: student.semester,
+      degree: student.degree,
+      academicYear: student.academicYear,
+      user: student.user
+        ? {
+            email: student.user.email,
+            role: student.user.role,
+            lastLogin: student.user.lastLogin,
+          }
+        : null,
+    }));
+
+    res.json({
+      success: true,
+      data: formatted,
+      total,
+      page: pageNumber,
+      pageSize: limit,
+      totalPages: Math.ceil(total / limit) || 1,
+    });
+  } catch (error) {
+    console.error('Error searching students:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error searching students',
+      error: error.message,
+    });
+  }
+};
+
+const getStudentDetails = async (req, res) => {
+  try {
+    const { studentId } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(studentId)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid student ID',
+      });
+    }
+
+    const student = await Student.findById(studentId)
+      .populate('user', 'email role lastLogin')
+      .populate({
+        path: 'groupMemberships.group',
+        populate: [
+          {
+            path: 'project',
+            select: 'title semester academicYear faculty',
+            populate: {
+              path: 'faculty',
+              select: 'fullName department designation',
+            },
+          },
+          {
+            path: 'members.student',
+            select: 'fullName misNumber',
+          },
+          {
+            path: 'allocatedFaculty',
+            select: 'fullName department designation',
+          },
+        ],
+      })
+      .populate({
+        path: 'currentProjects.project',
+        populate: [
+          {
+            path: 'faculty',
+            select: 'fullName department designation',
+          },
+          {
+            path: 'group',
+            select: 'name semester academicYear',
+          },
+        ],
+      })
+      .lean();
+
+    if (!student) {
+      return res.status(404).json({
+        success: false,
+        message: 'Student not found',
+      });
+    }
+
+    const studentInfo = {
+      _id: student._id,
+      fullName: student.fullName,
+      degree: student.degree,
+      semester: student.semester,
+      academicYear: student.academicYear,
+      misNumber: student.misNumber,
+      branch: student.branch,
+      contactNumber: student.contactNumber,
+      createdAt: student.createdAt,
+      updatedAt: student.updatedAt,
+      user: student.user
+        ? {
+            email: student.user.email,
+            role: student.user.role,
+            lastLogin: student.user.lastLogin,
+          }
+        : null,
+    };
+
+    const groupMemberships = student.groupMemberships || [];
+    const currentGroups = [];
+    const pastGroups = [];
+
+    for (const membership of groupMemberships) {
+      const group = membership.group;
+      if (!group) continue;
+
+      const members = (group.members || []).filter(m => m.isActive);
+
+      const groupData = {
+        groupId: group._id,
+        semester: membership.semester || group.semester,
+        academicYear: group.academicYear,
+        role: membership.role,
+        project: group.project
+          ? {
+              _id: group.project._id,
+              title: group.project.title,
+              semester: group.project.semester,
+              academicYear: group.project.academicYear,
+            }
+          : null,
+        faculty: group.allocatedFaculty
+          ? {
+              _id: group.allocatedFaculty._id,
+              fullName: group.allocatedFaculty.fullName,
+              department: group.allocatedFaculty.department,
+              designation: group.allocatedFaculty.designation,
+            }
+          : null,
+        members: members.map(m => ({
+          studentId: m.student ? m.student._id : null,
+          fullName: m.student ? m.student.fullName : null,
+          misNumber: m.student ? m.student.misNumber : null,
+          role: m.role,
+        })),
+      };
+
+      if (membership.isActive) {
+        currentGroups.push(groupData);
+      } else {
+        pastGroups.push(groupData);
+      }
+    }
+
+    const legacyInternships = (student.internshipHistory || []).map(internship => ({
+      _id: internship._id,
+      semester: internship.semester,
+      academicYear: internship.academicYear,
+      type: internship.type,
+      status: internship.status,
+      details: {
+        companyName: internship.company || null,
+        location: internship.location || null,
+        startDate: internship.startDate || null,
+        endDate: internship.endDate || null,
+        mentorName: internship.mentorName || null,
+        mentorEmail: internship.mentorEmail || null,
+        mentorPhone: internship.mentorPhone || null,
+        roleOrNatureOfWork: internship.position || internship.roleOrNatureOfWork || null,
+        mode: internship.mode || null,
+        hasStipend: internship.hasStipend || null,
+        stipendRs: typeof internship.stipendRs === 'number' ? internship.stipendRs : null,
+        offerLetterLink: internship.offerLetterLink || null,
+      },
+      submittedAt: internship.submittedAt || internship.startDate || null,
+      reviewedAt: internship.reviewedAt || null,
+      verifiedAt: internship.verifiedAt || null,
+      reviewedBy: internship.reviewedBy || null,
+      verifiedBy: internship.verifiedBy || null,
+    }));
+
+    const internshipApplications = await InternshipApplication.find({ student: student._id })
+      .sort({ submittedAt: -1 })
+      .limit(20)
+      .lean();
+
+    const applicationInternships = internshipApplications.map(app => ({
+      _id: app._id,
+      semester: app.semester,
+      academicYear: app.academicYear,
+      type: app.type,
+      status: app.status,
+      details: {
+        companyName: app.details?.companyName || null,
+        location: app.details?.location || null,
+        startDate: app.details?.startDate || null,
+        endDate: app.details?.endDate || null,
+        mentorName: app.details?.mentorName || null,
+        mentorEmail: app.details?.mentorEmail || null,
+        mentorPhone: app.details?.mentorPhone || null,
+        roleOrNatureOfWork: app.details?.roleOrNatureOfWork || null,
+        mode: app.details?.mode || null,
+        hasStipend: app.details?.hasStipend || null,
+        stipendRs: typeof app.details?.stipendRs === 'number' ? app.details.stipendRs : null,
+        offerLetterLink: app.details?.offerLetterLink || null,
+      },
+      submittedAt: app.submittedAt,
+      reviewedAt: app.reviewedAt,
+      verifiedAt: app.verifiedAt,
+      reviewedBy: app.reviewedBy || null,
+      verifiedBy: app.verifiedBy || null,
+    }));
+
+    const internships = [...applicationInternships, ...legacyInternships];
+
+    const currentProjects = (student.currentProjects || []).map(cp => {
+      const project = cp.project || {};
+      const faculty = project.faculty || null;
+
+      return {
+        _id: cp._id,
+        projectId: project._id,
+        title: project.title,
+        domain: project.domain,
+        semester: cp.semester,
+        role: cp.role,
+        status: cp.status,
+        joinedAt: cp.joinedAt,
+        projectType: project.projectType,
+        assignedFaculty: faculty
+          ? {
+              _id: faculty._id,
+              fullName: faculty.fullName,
+              department: faculty.department,
+              designation: faculty.designation,
+            }
+          : null,
+      };
+    });
+
+    res.json({
+      success: true,
+      data: {
+        student: studentInfo,
+        groups: {
+          current: currentGroups,
+          past: pastGroups,
+        },
+        internships,
+        currentProjects,
+      },
+    });
+  } catch (error) {
+    console.error('Error getting student details:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching student details',
+      error: error.message,
+    });
+  }
+};
+
+const updateStudentProfile = async (req, res) => {
+  try {
+    const { studentId } = req.params;
+    const { fullName, email, contactNumber, branch, misNumber } = req.body;
+
+    if (!mongoose.Types.ObjectId.isValid(studentId)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid student ID',
+      });
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (email && !emailRegex.test(email)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid email format',
+      });
+    }
+
+    const phoneRegex = /^\d{10}$/;
+    if (contactNumber && !phoneRegex.test(contactNumber)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please enter a valid 10-digit phone number',
+      });
+    }
+
+    const student = await Student.findById(studentId).populate('user');
+    if (!student || !student.user) {
+      return res.status(404).json({
+        success: false,
+        message: 'Student not found',
+      });
+    }
+
+    if (misNumber && misNumber !== student.misNumber) {
+      const existingStudent = await Student.findOne({
+        misNumber,
+        _id: { $ne: studentId },
+      });
+      if (existingStudent) {
+        return res.status(400).json({
+          success: false,
+          message: 'MIS number is already in use by another student',
+        });
+      }
+      student.misNumber = misNumber.trim();
+    }
+
+    if (typeof fullName === 'string' && fullName.trim()) {
+      student.fullName = fullName.trim();
+    }
+    if (typeof contactNumber === 'string' && contactNumber.trim()) {
+      student.contactNumber = contactNumber.trim();
+    }
+    if (typeof branch === 'string' && branch.trim()) {
+      student.branch = branch.trim();
+    }
+
+    const user = student.user;
+    if (email) {
+      const normalizedEmail = email.trim().toLowerCase();
+      if (user.email !== normalizedEmail) {
+        const existingUser = await User.findOne({
+          email: normalizedEmail,
+          _id: { $ne: user._id },
+        });
+        if (existingUser) {
+          return res.status(400).json({
+            success: false,
+            message: 'Email is already in use by another account',
+          });
+        }
+
+        user.email = normalizedEmail;
+        await user.save();
+      }
+    }
+
+    await student.save();
+
+    const updated = await Student.findById(studentId)
+      .populate('user', 'email role lastLogin createdAt')
+      .lean();
+
+    const { user: userData, ...studentData } = updated;
+
+    res.json({
+      success: true,
+      message: 'Student updated successfully',
+      data: {
+        student: studentData,
+        user: userData,
+      },
+    });
+  } catch (error) {
+    console.error('Error updating student profile:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error updating student profile',
+      error: error.message,
+    });
+  }
+};
+
+const resetStudentPassword = async (req, res) => {
+  try {
+    const { studentId } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(studentId)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid student ID',
+      });
+    }
+
+    const student = await Student.findById(studentId).populate('user');
+    if (!student || !student.user) {
+      return res.status(404).json({
+        success: false,
+        message: 'Student not found',
+      });
+    }
+
+    const user = student.user;
+
+    const newPassword = crypto
+      .randomBytes(6)
+      .toString('base64')
+      .replace(/[+/=]/g, 'A')
+      .slice(0, 10);
+
+    const hashedPassword = await bcrypt.hash(newPassword, 12);
+
+    await User.updateOne({ _id: user._id }, { password: hashedPassword });
+
+    res.json({
+      success: true,
+      message: 'Password reset successfully',
+      data: {
+        newPassword,
+      },
+    });
+  } catch (error) {
+    console.error('Error resetting student password:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error resetting student password',
+      error: error.message,
+    });
+  }
+};
+
 // Get all faculty
 const getFaculty = async (req, res) => {
   try {
@@ -282,7 +754,7 @@ const getFaculty = async (req, res) => {
 // Search faculties for admin manage-faculty page
 const searchFaculties = async (req, res) => {
   try {
-    const { search, sort } = req.query;
+    const { search, sort, page, pageSize } = req.query;
 
     // Base query: exclude retired faculty
     let faculties = await Faculty.find({ isRetired: false })
@@ -308,8 +780,16 @@ const searchFaculties = async (req, res) => {
       if (primary !== 0) return primary;
       return (a.fullName || '').localeCompare(b.fullName || '', undefined, { sensitivity: 'base' });
     });
+    const totalCount = faculties.length;
+    const pageNumber = Math.max(parseInt(page, 10) || 1, 1);
+    const limit = Math.min(Math.max(parseInt(pageSize, 10) || 20, 1), 100);
+    const totalPages = Math.ceil(totalCount / limit) || 1;
+    const startIndex = (pageNumber - 1) * limit;
+    const endIndex = startIndex + limit;
 
-    const formatted = faculties.map(fac => ({
+    const paginatedFaculties = faculties.slice(startIndex, endIndex);
+
+    const formatted = paginatedFaculties.map(fac => ({
       _id: fac._id,
       facultyId: fac.facultyId,
       fullName: fac.fullName,
@@ -328,7 +808,10 @@ const searchFaculties = async (req, res) => {
     res.json({
       success: true,
       data: formatted,
-      count: formatted.length
+      totalCount,
+      totalPages,
+      currentPage: pageNumber,
+      count: totalCount
     });
   } catch (error) {
     console.error('Error searching faculties:', error);
@@ -2783,11 +3266,13 @@ module.exports = {
   getDashboardData,
   getUsers,
   getStudents,
+  searchStudents,
   getFaculty,
   searchFaculties,
   getFacultyDetails,
   updateFacultyProfile,
   resetFacultyPassword,
+  getStudentDetails,
   getProjects,
   getGroups,
   getSystemStats,
@@ -2824,5 +3309,7 @@ module.exports = {
   initializeSystemConfigs,
   // Semester Management functions
   updateStudentSemesters,
-  getStudentsBySemester
+  getStudentsBySemester,
+  updateStudentProfile,
+  resetStudentPassword,
 };

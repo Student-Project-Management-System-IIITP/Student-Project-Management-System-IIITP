@@ -17,7 +17,10 @@ router.get('/stats', adminController.getSystemStats);
 
 // User management routes
 router.get('/users', adminController.getUsers);
-router.get('/students', adminController.getStudents);
+router.get('/students', adminController.searchStudents);
+router.get('/students/:studentId', adminController.getStudentDetails);
+router.put('/students/:studentId', adminController.updateStudentProfile);
+router.post('/students/:studentId/reset-password', adminController.resetStudentPassword);
 router.get('/faculty', adminController.getFaculty);
 router.get('/faculties', adminController.searchFaculties);
 router.get('/faculties/:facultyId', adminController.getFacultyDetails);
