@@ -3720,8 +3720,8 @@ const StudentDashboard = () => {
       )}
 
 
-      {/* Information Section - Hide for Sem 7 */}
-      {!isSem7 && (
+      {/* Information Section - Hide for Sem 7 and Sem 8 */}
+      {!isSem7 && !isSem8 && (
       <div className="mt-8 bg-blue-50 rounded-lg p-6">
         <h2 className="text-lg font-semibold text-blue-900 mb-4">
           {isSem6 

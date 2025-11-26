@@ -56,13 +56,42 @@ const Sem7Review = () => {
     return map;
   }, [trackChoices]);
 
+  const internship1ByStudent = useMemo(() => {
+    const map = new Map();
+    const addStudentProject = (studentRef, project) => {
+      const studentId = (studentRef?._id || studentRef || '').toString();
+      if (!studentId) {
+        return;
+      }
+      if (!map.has(studentId)) {
+        map.set(studentId, []);
+      }
+      map.get(studentId).push(project);
+    };
+
+    internship1Projects.forEach(project => {
+      if (project.student) {
+        addStudentProject(project.student, project);
+      }
+      if (project.group?.members?.length) {
+        project.group.members.forEach(member => {
+          if (member.student) {
+            addStudentProject(member.student, project);
+          }
+        });
+      }
+    });
+
+    return map;
+  }, [internship1Projects]);
+
   useEffect(() => {
     loadAllData();
   }, []);
 
   useEffect(() => {
     applyApplicationFilters();
-  }, [applications, appFilterStatus, activeTab]);
+  }, [applications, appFilterStatus, activeTab, internship1Projects]);
 
   const loadAllData = async () => {
     try {
@@ -170,6 +199,14 @@ const Sem7Review = () => {
       filtered = filtered.filter(app => app.type === '6month');
     } else if (activeTab === 'summer') {
       filtered = filtered.filter(app => app.type === 'summer');
+      // Exclude summer internship applications for students who have Internship 1 projects
+      filtered = filtered.filter(app => {
+        const studentId = (app.student?._id || app.student || '').toString();
+        if (!studentId) return true;
+        const studentInternship1Projects = internship1ByStudent.get(studentId) || [];
+        // Exclude if student has any Internship 1 project
+        return studentInternship1Projects.length === 0;
+      });
     }
     // 'all' tab shows all applications
 
@@ -744,34 +781,39 @@ const Sem7Review = () => {
     return maxMajor1Preferences;
   }, [maxMajor1Preferences]);
 
-  const internship1ByStudent = useMemo(() => {
-    const map = new Map();
-    const addStudentProject = (studentRef, project) => {
-      const studentId = (studentRef?._id || studentRef || '').toString();
-      if (!studentId) {
-        return;
-      }
-      if (!map.has(studentId)) {
-        map.set(studentId, []);
-      }
-      map.get(studentId).push(project);
-    };
-
-    internship1Projects.forEach(project => {
+  // Filter Internship 1 projects to exclude students with summer internship applications
+  const filteredInternship1Projects = useMemo(() => {
+    return internship1Projects.filter(project => {
+      // Get student ID(s) from the project
+      const studentIds = new Set();
+      
       if (project.student) {
-        addStudentProject(project.student, project);
+        const studentId = (project.student?._id || project.student || '').toString();
+        if (studentId) studentIds.add(studentId);
       }
+      
+      // Also check group members if it's a group project
       if (project.group?.members?.length) {
         project.group.members.forEach(member => {
           if (member.student) {
-            addStudentProject(member.student, project);
+            const studentId = (member.student?._id || member.student || '').toString();
+            if (studentId) studentIds.add(studentId);
           }
         });
       }
+      
+      // Check if any of these students have a summer internship application
+      for (const studentId of studentIds) {
+        const studentApps = applicationsByStudent.get(studentId) || [];
+        const hasSummerInternship = studentApps.some(app => app.type === 'summer');
+        if (hasSummerInternship) {
+          return false; // Exclude this project
+        }
+      }
+      
+      return true; // Include this project
     });
-
-    return map;
-  }, [internship1Projects]);
+  }, [internship1Projects, applicationsByStudent]);
 
   const sortedSem7Students = useMemo(() => {
     const list = [...sem7Students];
@@ -958,16 +1000,22 @@ const Sem7Review = () => {
                             const contact = student.contactNumber || choice?.contactNumber || 'N/A';
                             const branch = student.branch || choice?.branch || 'N/A';
 
-                            // Check if summer internship is approved/passed (makes Internship 1 not applicable)
-                            const hasApprovedSummer = summerApplication && 
-                              ['approved', 'verified_pass'].includes(summerApplication.status);
+                            // Check if student has summer internship application (any status)
+                            const hasSummerInternship = !!summerApplication;
+                            // Check if student has Internship 1 project
+                            const hasInternship1Project = internshipProjects.length > 0;
 
-                            // Summer Internship: Applicable for coursework track, not applicable for internship track
+                            // Summer Internship: 
+                            // - Not applicable for internship track
+                            // - Not applicable if student has Internship 1 project
+                            // - Otherwise applicable for coursework track
                             const summerEmptyLabel = resolvedTrack === 'internship'
                               ? 'Not applicable'
-                              : resolvedTrack === 'coursework'
-                                ? 'No submission yet'
-                                : 'Track pending';
+                              : hasInternship1Project
+                                ? 'Not applicable'
+                                : resolvedTrack === 'coursework'
+                                  ? 'No submission yet'
+                                  : 'Track pending';
 
                             // 6-Month Internship: Applicable for internship track, not applicable for coursework track
                             const sixMonthEmptyLabel = resolvedTrack === 'internship'
@@ -978,13 +1026,15 @@ const Sem7Review = () => {
 
                             // Internship 1 Project: 
                             // - Not applicable for internship track
-                            // - Not applicable for coursework track if summer internship is approved/passed
-                            // - Applicable for coursework track if summer internship is not approved/passed or not submitted
+                            // - Not applicable if student has summer internship application
+                            // - Otherwise applicable for coursework track
                             const internshipProjectLabel = resolvedTrack === 'internship'
                               ? 'Not applicable'
-                              : resolvedTrack === 'coursework'
-                                ? (hasApprovedSummer ? 'Not applicable' : 'Not registered')
-                                : 'Track pending';
+                              : hasSummerInternship
+                                ? 'Not applicable'
+                                : resolvedTrack === 'coursework'
+                                  ? 'Not registered'
+                                  : 'Track pending';
 
                             // Major Project 1: Applicable for coursework track, not applicable for internship track
                             const majorProjectLabel = resolvedTrack === 'coursework'
@@ -1033,8 +1083,8 @@ const Sem7Review = () => {
                                     : renderApplicationStatus(sixMonthApplication, sixMonthEmptyLabel)}
                                 </td>
                                 <td className="px-4 py-3 whitespace-nowrap">
-                                  {resolvedTrack === 'internship'
-                                    ? <span className="text-sm text-gray-500">{summerEmptyLabel}</span>
+                                  {summerEmptyLabel === 'Not applicable'
+                                    ? <span className="text-sm text-gray-500">Not applicable</span>
                                     : renderApplicationStatus(summerApplication, summerEmptyLabel)}
                                 </td>
                                 <td className="px-4 py-3 whitespace-nowrap">
@@ -1284,14 +1334,14 @@ const Sem7Review = () => {
                         </tr>
                       </thead>
                       <tbody className="bg-white divide-y divide-gray-200">
-                        {internship1Projects.length === 0 ? (
+                        {filteredInternship1Projects.length === 0 ? (
                           <tr>
                             <td colSpan={11 + maxInternship1Preferences} className="px-4 py-8 text-center text-gray-500">
                               No Internship 1 project registrations found
                             </td>
                           </tr>
                         ) : (
-                          internship1Projects.map((project) => {
+                          filteredInternship1Projects.map((project) => {
                             const timestamp = project.createdAt ? formatDateTime(project.createdAt) : '-';
                             
                             // Get faculty preferences from project

@@ -200,15 +200,35 @@ const MajorProject1Registration = () => {
   useEffect(() => {
     const loadSystemConfigs = async () => {
       try {
-        const configPrefix = isSem8 ? 'sem8.major2' : 'sem7.major1';
+        let configPrefix;
+        if (isSem8) {
+          // For Sem 8, differentiate between Type 1 (group) and Type 2 (solo)
+          if (isType2) {
+            configPrefix = 'sem8.major2.solo'; // Type 2: Solo project
+          } else {
+            configPrefix = 'sem8.major2.group'; // Type 1: Group project
+          }
+        } else {
+          configPrefix = 'sem7.major1'; // Sem 7: Major Project 1
+        }
         
-        // Load all configs in parallel
-        const [limitResponse, minResponse, maxResponse, typesResponse] = await Promise.all([
-          studentAPI.getSystemConfig(`${configPrefix}.facultyPreferenceLimit`),
-          studentAPI.getSystemConfig(`${configPrefix}.minGroupMembers`),
-          studentAPI.getSystemConfig(`${configPrefix}.maxGroupMembers`),
-          studentAPI.getSystemConfig(`${configPrefix}.allowedFacultyTypes`)
-        ]);
+        // Load configs based on prefix
+        // For solo projects (Type 2), we don't need min/max group members
+        const configPromises = isSem8 && isType2
+          ? [
+              studentAPI.getSystemConfig(`${configPrefix}.facultyPreferenceLimit`),
+              Promise.resolve({ success: false }), // minResponse (not needed)
+              Promise.resolve({ success: false }), // maxResponse (not needed)
+              studentAPI.getSystemConfig(`${configPrefix}.allowedFacultyTypes`)
+            ]
+          : [
+              studentAPI.getSystemConfig(`${configPrefix}.facultyPreferenceLimit`),
+              studentAPI.getSystemConfig(`${configPrefix}.minGroupMembers`),
+              studentAPI.getSystemConfig(`${configPrefix}.maxGroupMembers`),
+              studentAPI.getSystemConfig(`${configPrefix}.allowedFacultyTypes`)
+            ];
+        
+        const [limitResponse, minResponse, maxResponse, typesResponse] = await Promise.all(configPromises);
         
         // Set faculty preference limit
         if (limitResponse.success && limitResponse.data) {
@@ -260,7 +280,7 @@ const MajorProject1Registration = () => {
     };
 
     loadSystemConfigs();
-  }, [isSem8]);
+  }, [isSem8, isType2]);
 
   // Load faculty list for preferences
   useEffect(() => {

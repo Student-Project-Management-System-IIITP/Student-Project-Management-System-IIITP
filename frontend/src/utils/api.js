@@ -15,7 +15,15 @@ const handleApiResponse = async (response) => {
       }
     }
     
-    throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+    // Create error with full response data preserved for error handling
+    const error = new Error(errorData.message || `HTTP error! status: ${response.status}`);
+    error.response = {
+      status: response.status,
+      statusText: response.statusText,
+      data: errorData // Preserve full error data including warning, etc.
+    };
+    error.status = response.status;
+    throw error;
   }
   return response.json();
 };
@@ -501,6 +509,13 @@ export const adminAPI = {
   getSystemConfigByKey: (key) => api.get(`/admin/system-config/${key}`),
   updateSystemConfigByKey: (key, value, description, force = false) => api.put(`/admin/system-config/${key}`, { value, description, force }),
   initializeSystemConfigs: () => api.post('/admin/system-config/initialize'),
+  getSafeMinimumFacultyLimit: (semester, projectType, variant = null) => {
+    let url = `/admin/system-config/safe-minimum-limit?semester=${semester}&projectType=${projectType}`;
+    if (variant) {
+      url += `&variant=${variant}`;
+    }
+    return api.get(url);
+  },
   
   // Sem 5 Statistics
   getSem5Statistics: () => api.get('/admin/statistics/sem5'),

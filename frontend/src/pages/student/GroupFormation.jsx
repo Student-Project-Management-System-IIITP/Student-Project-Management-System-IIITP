@@ -114,8 +114,8 @@ const GroupFormation = () => {
           minConfigKey = 'sem7.major1.minGroupMembers';
           maxConfigKey = 'sem7.major1.maxGroupMembers';
         } else if (currentSemester === 8) {
-          minConfigKey = 'sem8.major2.minGroupMembers';
-          maxConfigKey = 'sem8.major2.maxGroupMembers';
+          minConfigKey = 'sem8.major2.group.minGroupMembers';
+          maxConfigKey = 'sem8.major2.group.maxGroupMembers';
         } else {
           minConfigKey = 'sem5.minGroupMembers';
           maxConfigKey = 'sem5.maxGroupMembers';
