@@ -524,8 +524,10 @@ const MajorProject1Registration = () => {
 
   const getGroupStats = () => {
     if (!majorProjectGroup) return { memberCount: 0 };
+    // Count only active members
+    const activeMembers = majorProjectGroup.members?.filter(m => m.isActive !== false) || [];
     return {
-      memberCount: majorProjectGroup.members?.length || 0
+      memberCount: activeMembers.length
     };
   };
 

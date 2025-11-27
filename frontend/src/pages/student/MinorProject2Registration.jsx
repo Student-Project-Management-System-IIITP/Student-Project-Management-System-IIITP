@@ -68,16 +68,21 @@ const MinorProject2Registration = () => {
         }
         
         const groupStats = sem5Group ? getGroupStats() : { memberCount: 0 };
-        if (groupStats.memberCount < minGroupMembers) {
-          toast.error(`Your group must have at least ${minGroupMembers} members before registering your project`);
+        // Use the group's actual minMembers value, not the SystemConfig value
+        // This ensures we validate against the group's actual requirements (which may have been adjusted by admin)
+        const groupMinMembers = sem5Group?.minMembers || minGroupMembers;
+        if (groupStats.memberCount < groupMinMembers) {
+          toast.error(`Your group must have at least ${groupMinMembers} members before registering your project. Current: ${groupStats.memberCount} members.`);
           navigate('/dashboard/student');
           return;
         }
       }
       
       const groupStats = sem5Group ? getGroupStats() : { memberCount: 0 };
-      if (groupStats.memberCount < minGroupMembers) {
-        toast.error(`Your group must have at least ${minGroupMembers} members before registering your project`);
+      // Use the group's actual minMembers value, not the SystemConfig value
+      const groupMinMembers = sem5Group?.minMembers || minGroupMembers;
+      if (groupStats.memberCount < groupMinMembers) {
+        toast.error(`Your group must have at least ${groupMinMembers} members before registering your project. Current: ${groupStats.memberCount} members.`);
         navigate('/dashboard/student');
         return;
       }

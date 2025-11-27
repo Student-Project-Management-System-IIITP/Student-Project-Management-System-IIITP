@@ -56,6 +56,8 @@ const AdminDashboard = () => {
     totalStudents: 0,
     registeredProjects: 0
   });
+  const [sem5Groups, setSem5Groups] = useState([]);
+  const [showSem5Groups, setShowSem5Groups] = useState(false);
 
   // M.Tech Sem 1 specific state
   const [mtechSem1Stats, setMtechSem1Stats] = useState({
@@ -87,6 +89,10 @@ const AdminDashboard = () => {
     newProjects: 0,
     registrationRate: 0
   });
+  const [sem6RegisteredGroups, setSem6RegisteredGroups] = useState([]);
+  const [sem6NonRegisteredGroups, setSem6NonRegisteredGroups] = useState([]);
+  const [showSem6RegisteredGroups, setShowSem6RegisteredGroups] = useState(false);
+  const [showSem6NonRegisteredGroups, setShowSem6NonRegisteredGroups] = useState(false);
   
   // Sem 7 specific state
   const [sem7Stats, setSem7Stats] = useState({
@@ -195,6 +201,15 @@ const AdminDashboard = () => {
           };
           
           setSem5Stats(sem5Stats);
+          
+          // Load Sem 5 groups with project info
+          try {
+            const groupsResponse = await adminAPI.getGroups({ semester: 5 });
+            setSem5Groups(groupsResponse.data || []);
+          } catch (groupsError) {
+            console.warn('Sem 5 groups not available:', groupsError);
+            setSem5Groups([]);
+          }
         } catch (sem5Error) {
           console.warn('Sem 5 data not available:', sem5Error);
           // Set default Sem 5 stats if not available
@@ -206,6 +221,7 @@ const AdminDashboard = () => {
             totalStudents: 0,
             registeredProjects: 0
           });
+          setSem5Groups([]);
         }
 
         // Load Sem 6 statistics
@@ -224,6 +240,47 @@ const AdminDashboard = () => {
           };
           
           setSem6Stats(sem6Stats);
+          
+          // Load Sem 6 registered groups with project info
+          try {
+            const registeredResponse = await adminAPI.getSem6Registrations({});
+            const registeredProjects = registeredResponse.data || [];
+            // Extract groups from projects - the response has groupId and groupName
+            const registeredGroups = registeredProjects
+              .filter(p => p.groupId)
+              .map(p => ({
+                _id: p.groupId,
+                name: p.groupName || `Group ${p.groupId.slice(-6)}`,
+                project: {
+                  _id: p._id,
+                  title: p.projectTitle,
+                  projectType: 'minor3',
+                  status: p.status,
+                  description: p.description || '',
+                  isContinuation: p.isContinuation || false
+                },
+                isContinuation: p.isContinuation || false,
+                members: [], // Will be populated if available
+                allocatedFaculty: p.allocatedFaculty && p.allocatedFaculty !== 'Not Allocated' ? {
+                  fullName: p.allocatedFaculty,
+                  department: p.facultyDepartment || 'N/A'
+                } : null,
+                maxMembers: 5 // Default
+              }));
+            setSem6RegisteredGroups(registeredGroups);
+          } catch (registeredError) {
+            console.warn('Sem 6 registered groups not available:', registeredError);
+            setSem6RegisteredGroups([]);
+          }
+          
+          // Load Sem 6 non-registered groups
+          try {
+            const nonRegisteredResponse = await adminAPI.getSem6NonRegisteredGroups({});
+            setSem6NonRegisteredGroups(nonRegisteredResponse.data || []);
+          } catch (nonRegisteredError) {
+            console.warn('Sem 6 non-registered groups not available:', nonRegisteredError);
+            setSem6NonRegisteredGroups([]);
+          }
         } catch (sem6Error) {
           console.warn('Sem 6 data not available:', sem6Error);
           // Set default Sem 6 stats if not available
@@ -236,6 +293,8 @@ const AdminDashboard = () => {
             newProjects: 0,
             registrationRate: 0
           });
+          setSem6RegisteredGroups([]);
+          setSem6NonRegisteredGroups([]);
         }
 
         // Load Sem 7 statistics
@@ -666,6 +725,12 @@ const AdminDashboard = () => {
           >
             👩‍🏫 Manage Faculty Profiles
           </Link>
+          <Link
+            to="/admin/manage-projects"
+            className="inline-flex items-center px-4 py-2 rounded-md bg-teal-600 text-white hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-teal-500"
+          >
+            📋 Manage Projects
+          </Link>
           <button
             onClick={() => setIsAddOpen(true)}
             className="inline-flex items-center px-4 py-2 rounded-md bg-gray-600 text-white hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-500"
@@ -742,13 +807,20 @@ const AdminDashboard = () => {
               <h2 className="text-2xl font-bold mb-4">B.Tech Semester 5 - Minor Project 2</h2>
               <p className="text-blue-200 mb-6">Group formation and faculty allocation overview</p>
             </div>
-            <div className="flex space-x-4">
+            <div className="flex space-x-4 flex-wrap gap-2">
               <Link
                 to="/admin/sem5/allocated-faculty"
                 className="bg-white bg-opacity-20 hover:bg-opacity-30 px-4 py-2 rounded-md text-white font-medium transition-all duration-200 flex items-center space-x-2"
               >
                 <span>👥</span>
                 <span>View Faculty Allocation & Registrations</span>
+              </Link>
+              <Link
+                to="/admin/manage-projects?semester=5"
+                className="bg-white bg-opacity-20 hover:bg-opacity-30 px-4 py-2 rounded-md text-white font-medium transition-all duration-200 flex items-center space-x-2"
+              >
+                <span>🔧</span>
+                <span>Manage Groups</span>
               </Link>
             </div>
           </div>
@@ -775,6 +847,85 @@ const AdminDashboard = () => {
                 <div className="text-2xl font-bold">{sem5Stats.unallocatedGroups}</div>
                 <div className="text-blue-200 text-sm">Groups Pending Allocation</div>
               </div>
+            </div>
+          )}
+          
+          {/* Sem 5 Groups List with Project Info */}
+          {sem5Groups.length > 0 && (
+            <div className="mt-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold text-white">Active Groups & Projects</h3>
+                <button
+                  onClick={() => setShowSem5Groups(!showSem5Groups)}
+                  className="text-sm text-blue-200 hover:text-white underline"
+                >
+                  {showSem5Groups ? 'Hide' : 'Show'} Groups ({sem5Groups.length})
+                </button>
+              </div>
+              
+              {showSem5Groups && (
+                <div className="bg-white bg-opacity-10 rounded-lg p-4 max-h-96 overflow-y-auto">
+                  <div className="space-y-3">
+                    {sem5Groups.map((group) => (
+                      <div
+                        key={group._id}
+                        className="bg-white bg-opacity-20 rounded-lg p-3 hover:bg-opacity-30 transition-colors"
+                      >
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-2">
+                              <h4 className="font-semibold text-white">
+                                {group.name || `Group ${group._id.slice(-6)}`}
+                              </h4>
+                              <StatusBadge status={group.status} />
+                            </div>
+                            
+                            <div className="text-sm text-blue-200 space-y-1">
+                              <div>
+                                Members: {group.members?.filter(m => m.isActive).length || 0} / {group.maxMembers}
+                              </div>
+                              
+                              {group.project ? (
+                                <div className="mt-2 p-2 bg-white bg-opacity-20 rounded">
+                                  <div className="font-medium text-white">Project: {group.project.title}</div>
+                                  <div className="text-xs mt-1">
+                                    Type: {group.project.projectType} • Status: {group.project.status}
+                                  </div>
+                                  {group.project.description && (
+                                    <div className="text-xs mt-1 text-blue-100">
+                                      {group.project.description.length > 100 
+                                        ? `${group.project.description.substring(0, 100)}...`
+                                        : group.project.description}
+                                    </div>
+                                  )}
+                                </div>
+                              ) : (
+                                <div className="text-xs text-yellow-200 mt-2">
+                                  ⚠️ No project registered yet
+                                </div>
+                              )}
+                              
+                              {group.allocatedFaculty && (
+                                <div className="text-xs mt-1">
+                                  Faculty: {group.allocatedFaculty.fullName} ({group.allocatedFaculty.department})
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                          
+                          <Link
+                            to={`/admin/manage-projects?semester=5&group=${group._id}`}
+                            className="ml-4 px-3 py-1 bg-white bg-opacity-30 hover:bg-opacity-40 text-white text-sm rounded transition-colors whitespace-nowrap"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            Manage
+                          </Link>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -821,6 +972,161 @@ const AdminDashboard = () => {
                 <div className="text-2xl font-bold">{sem6Stats.registrationRate}%</div>
                 <div className="text-green-200 text-sm">Registration Rate</div>
               </div>
+            </div>
+          )}
+          
+          {/* Sem 6 Registered Groups with Projects */}
+          {sem6RegisteredGroups.length > 0 && (
+            <div className="mt-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold text-white">Registered Groups & Projects</h3>
+                <button
+                  onClick={() => setShowSem6RegisteredGroups(!showSem6RegisteredGroups)}
+                  className="text-sm text-green-200 hover:text-white underline"
+                >
+                  {showSem6RegisteredGroups ? 'Hide' : 'Show'} Registered ({sem6RegisteredGroups.length})
+                </button>
+              </div>
+              
+              {showSem6RegisteredGroups && (
+                <div className="bg-white bg-opacity-10 rounded-lg p-4 max-h-96 overflow-y-auto">
+                  <div className="space-y-3">
+                    {sem6RegisteredGroups.map((group) => (
+                      <div
+                        key={group._id}
+                        className="bg-white bg-opacity-20 rounded-lg p-3 hover:bg-opacity-30 transition-colors"
+                      >
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-2">
+                              <h4 className="font-semibold text-white">
+                                {group.name || `Group ${group._id.slice(-6)}`}
+                              </h4>
+                              <StatusBadge status={group.status} />
+                              {group.isContinuation && (
+                                <span className="px-2 py-0.5 bg-yellow-500 bg-opacity-50 text-white text-xs rounded">
+                                  Continuation
+                                </span>
+                              )}
+                            </div>
+                            
+                            <div className="text-sm text-green-200 space-y-1">
+                              {group.members && group.members.length > 0 ? (
+                                <div>
+                                  Members: {group.members.filter(m => m.isActive).length || 0} / {group.maxMembers || 5}
+                                </div>
+                              ) : (
+                                <div className="text-xs text-green-100">
+                                  Group members info not available
+                                </div>
+                              )}
+                              
+                              {group.project && (
+                                <div className="mt-2 p-2 bg-white bg-opacity-20 rounded">
+                                  <div className="font-medium text-white">Project: {group.project.title}</div>
+                                  <div className="text-xs mt-1">
+                                    Type: {group.project.projectType} • Status: {group.project.status}
+                                    {group.project.isContinuation && ' • Continuation Project'}
+                                  </div>
+                                  {group.project.description && (
+                                    <div className="text-xs mt-1 text-green-100">
+                                      {group.project.description.length > 100 
+                                        ? `${group.project.description.substring(0, 100)}...`
+                                        : group.project.description}
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                              
+                              {group.allocatedFaculty && (
+                                <div className="text-xs mt-1">
+                                  Faculty: {group.allocatedFaculty.fullName} ({group.allocatedFaculty.department})
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                          
+                          <Link
+                            to={`/admin/manage-projects?semester=6&group=${group._id}`}
+                            className="ml-4 px-3 py-1 bg-white bg-opacity-30 hover:bg-opacity-40 text-white text-sm rounded transition-colors whitespace-nowrap"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            Manage
+                          </Link>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+          
+          {/* Sem 6 Non-Registered Groups */}
+          {sem6NonRegisteredGroups.length > 0 && (
+            <div className="mt-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold text-white">Non-Registered Groups</h3>
+                <button
+                  onClick={() => setShowSem6NonRegisteredGroups(!showSem6NonRegisteredGroups)}
+                  className="text-sm text-yellow-200 hover:text-white underline"
+                >
+                  {showSem6NonRegisteredGroups ? 'Hide' : 'Show'} Not Registered ({sem6NonRegisteredGroups.length})
+                </button>
+              </div>
+              
+              {showSem6NonRegisteredGroups && (
+                <div className="bg-white bg-opacity-10 rounded-lg p-4 max-h-96 overflow-y-auto">
+                  <div className="space-y-3">
+                    {sem6NonRegisteredGroups.map((group) => (
+                      <div
+                        key={group._id}
+                        className="bg-white bg-opacity-20 rounded-lg p-3 hover:bg-opacity-30 transition-colors border-l-4 border-yellow-400"
+                      >
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-2">
+                              <h4 className="font-semibold text-white">
+                                {group.name || `Group ${group._id.slice(-6)}`}
+                              </h4>
+                              <StatusBadge status={group.status} />
+                            </div>
+                            
+                            <div className="text-sm text-green-200 space-y-1">
+                              {group.members && group.members.length > 0 ? (
+                                <div>
+                                  Members: {group.members.filter(m => m.isActive).length || 0} / {group.maxMembers || 5}
+                                </div>
+                              ) : (
+                                <div className="text-xs text-green-100">
+                                  Group members info not available
+                                </div>
+                              )}
+                              <div className="text-xs text-yellow-200 mt-2">
+                                ⚠️ No project registered for Sem 6
+                              </div>
+                              
+                              {group.allocatedFaculty && (
+                                <div className="text-xs mt-1">
+                                  Faculty (Sem 5): {group.allocatedFaculty.fullName} ({group.allocatedFaculty.department})
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                          
+                          <Link
+                            to={`/admin/manage-projects?semester=5&group=${group._id}`}
+                            className="ml-4 px-3 py-1 bg-white bg-opacity-30 hover:bg-opacity-40 text-white text-sm rounded transition-colors whitespace-nowrap"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            View Group
+                          </Link>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>

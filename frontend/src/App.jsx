@@ -50,6 +50,7 @@ import MajorProject1Dashboard from './pages/student/MajorProject1Dashboard';
 import Internship1Registration from './pages/student/Internship1Registration';
 import Internship1Dashboard from './pages/student/Internship1Dashboard';
 import SemesterManagement from './pages/admin/SemesterManagement';
+import ManageProjects from './pages/admin/ManageProjects';
 import MTechSem1Registrations from './pages/admin/MTechSem1Registrations';
 import MTechSem1UnregisteredStudents from './pages/admin/MTechSem1UnregisteredStudents';
 import MTechSem2Registration from './pages/student/MTechSem2Registration';
@@ -498,6 +499,13 @@ function AppContent() {
           <Route path="/admin/semester-management" element={
             <ProtectedRoute allowedRoles={['admin']}>
               <SemesterManagement />
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/manage-projects" element={
+            <ProtectedRoute allowedRoles={['admin']}>
+              <Layout>
+                <ManageProjects />
+              </Layout>
             </ProtectedRoute>
           } />
           {/* Shared Routes - Accessible by all authenticated users */}

@@ -770,6 +770,16 @@ const registerMinorProject2 = async (req, res) => {
         throw new Error('Only the group leader can register for Minor Project 2');
       }
 
+      // Validate member count (explicit check even though finalization should have checked)
+      const activeMembers = group.members.filter(member => member.isActive);
+      if (activeMembers.length < group.minMembers) {
+        throw new Error(`Group must have at least ${group.minMembers} members to register. Current: ${activeMembers.length} members.`);
+      }
+
+      if (activeMembers.length > group.maxMembers) {
+        throw new Error(`Group cannot have more than ${group.maxMembers} members. Current: ${activeMembers.length} members.`);
+      }
+
       // Check if project is already registered for this group
       const existingProject = await Project.findOne({
         group: group._id,

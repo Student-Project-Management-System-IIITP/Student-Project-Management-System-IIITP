@@ -393,10 +393,11 @@ groupSchema.statics.getByStudent = function(studentId, semester) {
 
 // Sem 5 specific method: Check if group is ready for faculty allocation
 groupSchema.methods.isReadyForAllocation = function() {
+  const activeMembers = this.members.filter(member => member.isActive);
   return this.status === 'complete' && 
-         this.members.length >= this.minMembers && 
-         this.members.length <= this.maxMembers &&
-         this.members.some(member => member.role === 'leader');
+         activeMembers.length >= this.minMembers && 
+         activeMembers.length <= this.maxMembers &&
+         activeMembers.some(member => member.role === 'leader');
 };
 
 // Sem 5 specific method: Get group summary for faculty allocation

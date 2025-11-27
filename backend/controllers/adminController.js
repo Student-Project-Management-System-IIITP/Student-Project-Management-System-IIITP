@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const Student = require('../models/Student');
 const Faculty = require('../models/Faculty');
 const Admin = require('../models/Admin');
@@ -261,13 +262,29 @@ const getStudents = async (req, res) => {
 // Get all faculty
 const getFaculty = async (req, res) => {
   try {
-    const faculty = await Faculty.find({ isActive: true })
-      .populate('user', 'name email phone')
-      .sort({ createdAt: -1 });
+    const faculty = await Faculty.find({ isRetired: false })
+      .populate('user', 'email role isActive lastLogin')
+      .sort({ fullName: 1 })
+      .lean();
+
+    const formatted = faculty.map(fac => ({
+      _id: fac._id,
+      facultyId: fac.facultyId,
+      fullName: fac.fullName,
+      email: fac.email || fac.user?.email || '',
+      phone: fac.phone,
+      department: fac.department,
+      mode: fac.mode,
+      designation: fac.designation,
+      user: fac.user ? {
+        email: fac.user.email,
+        role: fac.user.role
+      } : null
+    }));
 
     res.json({
       success: true,
-      data: faculty
+      data: formatted
     });
   } catch (error) {
     console.error('Error getting faculty:', error);
@@ -624,16 +641,35 @@ const getProjects = async (req, res) => {
 // Get all groups
 const getGroups = async (req, res) => {
   try {
-    const { semester, status, faculty } = req.query;
+    const { semester, status, faculty, includeInactive, search } = req.query;
     
     // Build query
     const query = {};
     
+    // Always filter by semester if provided
     if (semester) {
-      query.semester = parseInt(semester);
+      const semesterNum = parseInt(semester, 10);
+      if (!Number.isNaN(semesterNum)) {
+        query.semester = semesterNum;
+      }
     }
     
-    if (status) {
+    // For Sem 5, only show active groups by default (unless explicitly requested)
+    if (query.semester === 5 && includeInactive !== 'true') {
+      query.isActive = true;
+    }
+    // For other semesters, default to active groups unless includeInactive is true
+    else if (query.semester && query.semester !== 5) {
+      if (includeInactive !== 'true') {
+        query.isActive = true;
+    }
+    }
+    // If no semester specified, still filter by active
+    else if (!query.semester && includeInactive !== 'true') {
+      query.isActive = true;
+    }
+    
+    if (status && status !== 'undefined' && status !== 'all') {
       query.status = status;
     }
     
@@ -641,30 +677,78 @@ const getGroups = async (req, res) => {
       query.allocatedFaculty = faculty;
     }
 
-    // Get groups with populated data
+    // Get groups with populated data (need contactNumber for search)
     const groups = await Group.find(query)
-      .populate('members.student', 'fullName misNumber collegeEmail')
-      .populate('leader', 'fullName misNumber collegeEmail')
+      .populate('members.student', 'fullName misNumber collegeEmail contactNumber branch semester degree')
+      .populate('leader', 'fullName misNumber collegeEmail contactNumber branch')
       .populate('allocatedFaculty', 'fullName department designation')
       .populate('project', 'title description projectType status')
       .sort({ createdAt: -1 });
 
-    // Get group statistics
+    // Apply search filter if provided
+    let filteredGroups = groups;
+    if (search && search.trim()) {
+      const searchLower = search.trim().toLowerCase();
+      filteredGroups = groups.filter(group => {
+        // Search in group name
+        if (group.name && group.name.toLowerCase().includes(searchLower)) {
+          return true;
+        }
+        
+        // Search in leader details
+        if (group.leader) {
+          if (
+            (group.leader.fullName && group.leader.fullName.toLowerCase().includes(searchLower)) ||
+            (group.leader.misNumber && group.leader.misNumber.includes(search)) ||
+            (group.leader.collegeEmail && group.leader.collegeEmail.toLowerCase().includes(searchLower)) ||
+            (group.leader.contactNumber && group.leader.contactNumber.includes(search))
+          ) {
+            return true;
+          }
+        }
+        
+        // Search in member details
+        if (group.members && group.members.length > 0) {
+          const memberMatch = group.members.some(member => {
+            if (!member.student || !member.isActive) return false;
+            const student = member.student;
+            return (
+              (student.fullName && student.fullName.toLowerCase().includes(searchLower)) ||
+              (student.misNumber && student.misNumber.includes(search)) ||
+              (student.collegeEmail && student.collegeEmail.toLowerCase().includes(searchLower)) ||
+              (student.contactNumber && student.contactNumber.includes(search))
+            );
+          });
+          if (memberMatch) return true;
+        }
+        
+        // Search in allocated faculty
+        if (group.allocatedFaculty) {
+          if (group.allocatedFaculty.fullName && group.allocatedFaculty.fullName.toLowerCase().includes(searchLower)) {
+            return true;
+          }
+        }
+        
+        return false;
+      });
+    }
+
+    // Get group statistics (based on filtered results)
     const stats = {
-      total: groups.length,
-      forming: groups.filter(g => g.status === 'forming').length,
-      complete: groups.filter(g => g.status === 'complete').length,
-      locked: groups.filter(g => g.status === 'locked').length,
-      disbanded: groups.filter(g => g.status === 'disbanded').length,
-      withFaculty: groups.filter(g => g.allocatedFaculty).length,
-      withProject: groups.filter(g => g.project).length
+      total: filteredGroups.length,
+      forming: filteredGroups.filter(g => g.status === 'forming').length,
+      complete: filteredGroups.filter(g => g.status === 'complete').length,
+      locked: filteredGroups.filter(g => g.status === 'locked').length,
+      disbanded: filteredGroups.filter(g => g.status === 'disbanded').length,
+      withFaculty: filteredGroups.filter(g => g.allocatedFaculty).length,
+      withProject: filteredGroups.filter(g => g.project).length
     };
 
     res.json({
       success: true,
-      data: groups,
+      data: filteredGroups,
       stats,
-      message: `Found ${groups.length} groups`
+      message: `Found ${filteredGroups.length} groups`
     });
   } catch (error) {
     console.error('Error getting groups:', error);
@@ -2821,23 +2905,25 @@ const updateStudentSemesters = async (req, res) => {
       .select('fullName misNumber semester degree academicYear')
       .lean();
 
-    // Post-update processing: Update project status for previous semester projects
-    // When students move to next semester, mark their projects from previous semesters as 'completed'
+    // Post-update processing: Comprehensive status updates for semester promotion
+    // When students move to next semester, update all related statuses
     if (toSemester > fromSemester) {
       try {
-        // First, get all group IDs where these students are members
-        const groupIds = await Group.find({ 
+        const { validateAndUpdateGroupStatus, checkAllMembersPromoted } = require('../utils/groupStatusValidator');
+        
+        // First, get all group IDs where these students are members (from old semester)
+        const oldSemesterGroupIds = await Group.find({ 
           'members.student': { $in: updatedStudentIds },
-          'members.isActive': true 
+          'members.isActive': true,
+          semester: fromSemester
         }).distinct('_id');
         
-        // Find all projects for these students from previous semesters (semester < toSemester)
-        // Only update projects that are not already completed or cancelled
+        // 1. Update project status for previous semester projects
         const projectUpdateResult = await Project.updateMany(
           {
             $or: [
               { student: { $in: updatedStudentIds } },
-              { group: { $in: groupIds } }
+              { group: { $in: oldSemesterGroupIds } }
             ],
             semester: { $lt: toSemester },
             status: { $nin: ['completed', 'cancelled'] }
@@ -2851,9 +2937,87 @@ const updateStudentSemesters = async (req, res) => {
         );
         
         console.log(`Updated ${projectUpdateResult.modifiedCount} projects to 'completed' status for students moving from semester ${fromSemester} to ${toSemester}`);
+        
+        // 2. Update student's currentProjects status for previous semester
+        const currentProjectsUpdateResult = await Student.updateMany(
+          { _id: { $in: updatedStudentIds } },
+          {
+            $set: {
+              'currentProjects.$[elem].status': 'completed'
+            }
+          },
+          {
+            arrayFilters: [
+              { 'elem.semester': { $lt: toSemester } },
+              { 'elem.status': { $ne: 'completed' } }
+            ]
+          }
+        );
+        
+        console.log(`Updated currentProjects status for ${currentProjectsUpdateResult.modifiedCount} students`);
+        
+        // 3. Update student's groupMemberships for previous semester (mark as inactive)
+        const groupMembershipsUpdateResult = await Student.updateMany(
+          { _id: { $in: updatedStudentIds } },
+          {
+            $set: {
+              'groupMemberships.$[elem].isActive': false
+            }
+          },
+          {
+            arrayFilters: [
+              { 'elem.semester': { $lt: toSemester } },
+              { 'elem.isActive': true }
+            ]
+          }
+        );
+        
+        console.log(`Updated groupMemberships for ${groupMembershipsUpdateResult.modifiedCount} students`);
+        
+        // 4. Clear groupId if it points to old semester group
+        if (oldSemesterGroupIds.length > 0) {
+          const groupIdClearResult = await Student.updateMany(
+            { 
+              _id: { $in: updatedStudentIds },
+              groupId: { $in: oldSemesterGroupIds }
+            },
+            {
+              $set: { groupId: null }
+            }
+          );
+          
+          console.log(`Cleared groupId for ${groupIdClearResult.modifiedCount} students`);
+        }
+        
+        // 5. Update group status if all members have been promoted
+        for (const groupId of oldSemesterGroupIds) {
+          try {
+            const promotionCheck = await checkAllMembersPromoted(groupId, toSemester);
+            
+            if (promotionCheck.allPromoted) {
+              const group = await Group.findById(groupId);
+              if (group && group.semester < toSemester) {
+                // All members promoted - mark group as inactive/disbanded
+                group.isActive = false;
+                if (group.status !== 'disbanded') {
+                  group.status = 'disbanded';
+                }
+                await group.save();
+                console.log(`Group ${groupId} marked as disbanded - all members promoted to semester ${toSemester}`);
+              }
+            } else {
+              // Some members still in old semester - validate and update status
+              await validateAndUpdateGroupStatus(groupId);
+            }
+          } catch (groupError) {
+            console.error(`Error updating group ${groupId} status:`, groupError);
+            // Continue with other groups even if one fails
+          }
+        }
+        
       } catch (error) {
-        console.error('Error updating project statuses:', error);
-        // Don't fail the entire operation if project update fails
+        console.error('Error updating statuses during semester promotion:', error);
+        // Don't fail the entire operation if status update fails
       }
     }
 
@@ -3018,6 +3182,1140 @@ const getStudentsBySemester = async (req, res) => {
   }
 };
 
+// ============================================
+// ADMIN GROUP MANAGEMENT - SEM 5 (Phase 2)
+// ============================================
+
+/**
+ * Add member to group (Admin operation)
+ * POST /admin/groups/:groupId/members
+ */
+const addMemberToGroup = async (req, res) => {
+  const session = await mongoose.startSession();
+  
+  try {
+    await session.withTransaction(async () => {
+      const { groupId } = req.params;
+      const { studentId, role = 'member', force = false, reason = '' } = req.body;
+      
+      const { validateAndUpdateGroupStatus } = require('../utils/groupStatusValidator');
+      
+      // 1. Validate inputs
+      if (!studentId) {
+        throw new Error('Student ID is required');
+      }
+      
+      // 2. Get group
+      const group = await Group.findById(groupId).session(session);
+      if (!group) {
+        throw new Error('Group not found');
+      }
+      
+      // 3. Validate group is for Sem 5
+      if (group.semester !== 5) {
+        throw new Error('This endpoint is currently only for Semester 5 groups');
+      }
+      
+      // 4. Get student
+      const student = await Student.findById(studentId).session(session);
+      if (!student) {
+        throw new Error('Student not found');
+      }
+      
+      // 5. Validate student is in Sem 5
+      if (student.semester !== 5) {
+        throw new Error(`Student is in Semester ${student.semester}, but group is for Semester 5`);
+      }
+      
+      // 6. Check student not already in another Sem 5 group
+      const existingGroup = await Group.findOne({
+        'members.student': studentId,
+        semester: 5,
+        'members.isActive': true,
+        _id: { $ne: groupId },
+        isActive: true
+      }).session(session);
+      
+      if (existingGroup) {
+        if (!force) {
+          throw new Error(`Student is already in another group: ${existingGroup.name || existingGroup._id}`);
+        } else {
+          // Remove from old group first (will be handled by removeMemberFromGroup if needed)
+          console.log(`Force flag set - student will be removed from group ${existingGroup._id}`);
+        }
+      }
+      
+      // 7. Admin is allowed to modify groups regardless of status.
+      //    We intentionally do NOT block locked/finalized groups here, because
+      //    this endpoint is admin-only and is used for corrective operations.
+      
+      // 8. Check group has available slots (respect maxMembers for normal cases).
+      //    For locked/finalized groups, allow admin to override maxMembers to fix data.
+      const activeMembers = group.members.filter(m => m.isActive);
+      const isLockedOrFinalized = group.status === 'locked' || group.status === 'finalized';
+      if (!isLockedOrFinalized && activeMembers.length >= group.maxMembers) {
+        throw new Error(`Group is full (max ${group.maxMembers} members). Current: ${activeMembers.length}`);
+      }
+      
+      // 9. Check student not already in this group
+      const alreadyMember = group.members.find(m => 
+        m.student.toString() === studentId && m.isActive
+      );
+      if (alreadyMember) {
+        throw new Error('Student is already an active member of this group');
+      }
+      
+      // 10. Check academic year match (if both have academic year set)
+      if (student.academicYear && group.academicYear && 
+          student.academicYear !== group.academicYear) {
+        if (!force) {
+          throw new Error(`Academic year mismatch: Student ${student.academicYear}, Group ${group.academicYear}`);
+        }
+        // Update student's academic year to match group
+        student.academicYear = group.academicYear;
+        await student.save({ session });
+      }
+      
+      // 11. Add member to group
+      const newMember = {
+        student: studentId,
+        role: role,
+        joinedAt: new Date(),
+        isActive: true,
+        inviteStatus: 'accepted'
+      };
+      
+      group.members.push(newMember);
+      
+      // 12. If making leader, handle existing leader
+      if (role === 'leader') {
+        const oldLeader = group.members.find(m => 
+          m.student.toString() === group.leader.toString() && m.isActive
+        );
+        if (oldLeader) {
+          oldLeader.role = 'member';
+        }
+        group.leader = studentId;
+      }
+      
+      // 13. Sync invitations: Mark any pending invites for this student in group's invites array as 'accepted'
+      group.invites.forEach(invite => {
+        if (invite.student.toString() === studentId && invite.status === 'pending') {
+          invite.status = 'accepted';
+          invite.respondedAt = new Date();
+        }
+      });
+      
+      // 14. Sync student's invites: Mark any pending invites for this group in student's invites array as 'accepted'
+      student.invites.forEach(invite => {
+        if (invite.group.toString() === groupId && invite.status === 'pending') {
+          invite.status = 'accepted';
+        }
+      });
+      await student.save({ session });
+      
+      // 15. Admin operation: adjust min/max members dynamically to reflect new size
+      // This lets admin exceed configured limits safely for this specific group.
+      const activeAfterAdd = group.members.filter(m => m.isActive).length;
+      if (activeAfterAdd < group.minMembers) {
+        group.minMembers = activeAfterAdd;
+      }
+      if (activeAfterAdd > group.maxMembers) {
+        group.maxMembers = activeAfterAdd;
+      }
+      
+      // 16. Update group status
+      await validateAndUpdateGroupStatus(group._id, session);
+      await group.save({ session });
+      
+      // 17. Add to student's groupMemberships
+      await student.addGroupMembershipAtomic(groupId, role, 5, session);
+      
+      // 18. If group has project, add to student's currentProjects
+      if (group.project) {
+        const project = await Project.findById(group.project).session(session);
+        if (project) {
+          // Check if project already in currentProjects
+          const existingProject = student.currentProjects.find(cp => 
+            cp.project.toString() === project._id.toString()
+          );
+          if (!existingProject) {
+            student.currentProjects.push({
+              project: project._id,
+              role: role,
+              semester: 5,
+              status: 'active',
+              joinedAt: new Date()
+            });
+            await student.save({ session });
+          } else {
+            // Update existing project status if it was cancelled
+            if (existingProject.status === 'cancelled') {
+              existingProject.status = 'active';
+              await student.save({ session });
+            }
+          }
+        }
+      }
+      
+      // 16. Clean up any pending invites for this student in other Sem 5 groups
+      await student.cleanupInvitesAtomic(groupId, session);
+      
+      // Populate group for response
+      await group.populate([
+        { path: 'members.student', select: 'fullName misNumber collegeEmail branch' },
+        { path: 'leader', select: 'fullName misNumber collegeEmail' },
+        { path: 'project', select: 'title projectType status' }
+      ]);
+      
+      res.json({
+        success: true,
+        message: 'Member added to group successfully',
+        data: {
+          group: group,
+          addedMember: {
+            studentId: studentId,
+            studentName: student.fullName,
+            role: role,
+            reason: reason || 'Added by admin'
+          }
+        }
+      });
+    });
+  } catch (error) {
+    console.error('Error adding member to group:', error);
+    res.status(400).json({
+      success: false,
+      message: 'Error adding member to group',
+      error: error.message
+    });
+  } finally {
+    await session.endSession();
+  }
+};
+
+/**
+ * Remove member from group (Admin operation)
+ * DELETE /admin/groups/:groupId/members/:studentId
+ */
+const removeMemberFromGroup = async (req, res) => {
+  const session = await mongoose.startSession();
+  
+  try {
+    await session.withTransaction(async () => {
+      const { groupId, studentId } = req.params;
+      // Ensure req.body is always an object to avoid destructuring errors
+      const { reason = '', handleProject = true, force = false } = req.body || {};
+      
+      const { validateAndUpdateGroupStatus } = require('../utils/groupStatusValidator');
+      
+      // 1. Get group
+      const group = await Group.findById(groupId).session(session);
+      if (!group) {
+        throw new Error('Group not found');
+      }
+      
+      // 2. Validate group is for Sem 5
+      if (group.semester !== 5) {
+        throw new Error('This endpoint is currently only for Semester 5 groups');
+      }
+      
+      // 3. Get student
+      const student = await Student.findById(studentId).session(session);
+      if (!student) {
+        throw new Error('Student not found');
+      }
+      
+      // 4. Check member exists in group
+      const member = group.members.find(m => 
+        m.student.toString() === studentId && m.isActive
+      );
+      
+      if (!member) {
+        throw new Error('Student is not an active member of this group');
+      }
+      
+      // 5. Check if removing last member
+      const activeMembers = group.members.filter(m => m.isActive);
+      
+      // 5a. Check if removing would leave only 1 member (not allowed - must disband instead)
+      if (activeMembers.length === 2) {
+        throw new Error('Only 2 members are remaining. Please disband the group instead of removing members.');
+      }
+      
+      if (activeMembers.length === 1) {
+        // Admin operation: always allow removing last member, and disband the group.
+        group.isActive = false;
+        group.status = 'disbanded';
+        group.members.forEach(m => m.isActive = false);
+        await group.save({ session });
+        
+        // Remove from student
+        await student.leaveGroupAtomic(groupId, session);
+        
+        // Handle project
+        if (handleProject && group.project) {
+          const project = await Project.findById(group.project).session(session);
+          if (project) {
+            const projectIndex = student.currentProjects.findIndex(cp => 
+              cp.project.toString() === project._id.toString()
+            );
+            if (projectIndex !== -1) {
+              student.currentProjects[projectIndex].status = 'cancelled';
+              await student.save({ session });
+            }
+          }
+        }
+        
+        res.json({
+          success: true,
+          message: 'Last member removed - group disbanded',
+          data: {
+            group: group,
+            removedMember: {
+              studentId: studentId,
+              studentName: student.fullName,
+              reason: reason || 'Removed by admin (last member)'
+            }
+          }
+        });
+        return;
+      }
+      
+      // 6. Check if removing leader
+      const isLeader = group.leader.toString() === studentId;
+      
+      // 7. If removing leader, assign new leader
+      if (isLeader) {
+        const remainingMembers = group.members.filter(m => 
+          m.student.toString() !== studentId && m.isActive
+        );
+        
+        if (remainingMembers.length === 0) {
+          throw new Error('Cannot remove leader when no other members exist');
+        }
+        
+        // Assign first remaining member as leader
+        const newLeader = remainingMembers[0];
+        newLeader.role = 'leader';
+        group.leader = newLeader.student;
+        
+        // Update new leader's groupMembership role
+        const newLeaderStudent = await Student.findById(newLeader.student).session(session);
+        if (newLeaderStudent) {
+          const membership = newLeaderStudent.groupMemberships.find(gm => 
+            gm.group.toString() === groupId && gm.isActive
+          );
+          if (membership) {
+            membership.role = 'leader';
+            await newLeaderStudent.save({ session });
+          }
+          
+          // Update group name to reflect new leader (format: "Group - [Leader Name] - Sem [Semester]")
+          group.name = `Group - ${newLeaderStudent.fullName} - Sem ${group.semester}`;
+        }
+      }
+      
+      // 8. Mark member as inactive
+      member.isActive = false;
+      
+      // 8a. Sync invitations: Mark any pending invites for this student in group's invites array as 'auto-rejected'
+      group.invites.forEach(invite => {
+        if (invite.student.toString() === studentId && invite.status === 'pending') {
+          invite.status = 'auto-rejected';
+          invite.respondedAt = new Date();
+        }
+      });
+      
+      // 8b. Sync student's invites: Mark any pending invites for this group in student's invites array as 'auto-rejected'
+      student.invites.forEach(invite => {
+        if (invite.group.toString() === groupId && invite.status === 'pending') {
+          invite.status = 'auto-rejected';
+        }
+      });
+      await student.save({ session });
+      
+      // 9. Admin operation: adjust min/max members dynamically to reflect new size
+      // This lets admin reduce group size below configured min safely for this specific group.
+      // Note: minMembers cannot be set below 2 (schema constraint), so we only adjust if >= 2
+      const activeAfterRemove = group.members.filter(m => m.isActive).length;
+      if (activeAfterRemove < group.minMembers && activeAfterRemove >= 2) {
+        group.minMembers = activeAfterRemove;
+      }
+      if (activeAfterRemove > group.maxMembers) {
+        group.maxMembers = activeAfterRemove;
+      }
+      
+      // 10. Update group status
+      await validateAndUpdateGroupStatus(group._id, session);
+      await group.save({ session });
+      
+      // 11. Update student's groupMemberships (this also handles cleanup)
+      await student.leaveGroupAtomic(groupId, session);
+      
+      // 12. Handle project association
+      if (handleProject && group.project) {
+        const project = await Project.findById(group.project).session(session);
+        if (project) {
+          // Remove or mark project as cancelled in student's currentProjects
+          const projectIndex = student.currentProjects.findIndex(cp => 
+            cp.project.toString() === project._id.toString()
+          );
+          if (projectIndex !== -1) {
+            student.currentProjects[projectIndex].status = 'cancelled';
+            await student.save({ session });
+          }
+        }
+      }
+      
+      // Populate group for response
+      await group.populate([
+        { path: 'members.student', select: 'fullName misNumber collegeEmail branch' },
+        { path: 'leader', select: 'fullName misNumber collegeEmail' },
+        { path: 'project', select: 'title projectType status' }
+      ]);
+      
+      res.json({
+        success: true,
+        message: 'Member removed from group successfully',
+        data: {
+          group: group,
+          removedMember: {
+            studentId: studentId,
+            studentName: student.fullName,
+            wasLeader: isLeader,
+            newLeader: isLeader ? {
+              studentId: group.leader,
+              studentName: group.leader?.fullName
+            } : null,
+            reason: reason || 'Removed by admin'
+          }
+        }
+      });
+    });
+  } catch (error) {
+    console.error('Error removing member from group:', error);
+    res.status(400).json({
+      success: false,
+      message: 'Error removing member from group',
+      error: error.message
+    });
+  } finally {
+    await session.endSession();
+  }
+};
+
+/**
+ * Change group leader (Admin operation)
+ * PUT /admin/groups/:groupId/leader
+ */
+const changeGroupLeader = async (req, res) => {
+  const session = await mongoose.startSession();
+  
+  try {
+    await session.withTransaction(async () => {
+      const { groupId } = req.params;
+      const { newLeaderId, reason = '' } = req.body;
+      
+      // 1. Validate inputs
+      if (!newLeaderId) {
+        throw new Error('New leader ID is required');
+      }
+      
+      // 2. Get group
+      const group = await Group.findById(groupId).session(session);
+      if (!group) {
+        throw new Error('Group not found');
+      }
+      
+      // 3. Validate group is for Sem 5
+      if (group.semester !== 5) {
+        throw new Error('This endpoint is currently only for Semester 5 groups');
+      }
+      
+      // 4. Check new leader is active member
+      const newLeader = group.members.find(m => 
+        m.student.toString() === newLeaderId && m.isActive
+      );
+      
+      if (!newLeader) {
+        throw new Error('New leader must be an active member of the group');
+      }
+      
+      // 5. Check not already leader
+      if (group.leader.toString() === newLeaderId) {
+        throw new Error('Student is already the group leader');
+      }
+      
+      // 6. Get students
+      const oldLeaderStudent = await Student.findById(group.leader).session(session);
+      const newLeaderStudent = await Student.findById(newLeaderId).session(session);
+      
+      if (!oldLeaderStudent || !newLeaderStudent) {
+        throw new Error('Student not found');
+      }
+      
+      // 7. Update old leader role in group
+      const oldLeaderMember = group.members.find(m => 
+        m.student.toString() === group.leader.toString()
+      );
+      if (oldLeaderMember) {
+        oldLeaderMember.role = 'member';
+      }
+      
+      // 8. Update new leader role in group
+      newLeader.role = 'leader';
+      group.leader = newLeaderId;
+      
+      // 8a. Update group name to reflect new leader (format: "Group - [Leader Name] - Sem [Semester]")
+      group.name = `Group - ${newLeaderStudent.fullName} - Sem ${group.semester}`;
+      
+      // 9. Update old leader's groupMembership
+      const oldMembership = oldLeaderStudent.groupMemberships.find(gm => 
+        gm.group.toString() === groupId && gm.isActive
+      );
+      if (oldMembership) {
+        oldMembership.role = 'member';
+        await oldLeaderStudent.save({ session });
+      }
+      
+      // 10. Update new leader's groupMembership
+      const newMembership = newLeaderStudent.groupMemberships.find(gm => 
+        gm.group.toString() === groupId && gm.isActive
+      );
+      if (newMembership) {
+        newMembership.role = 'leader';
+        await newLeaderStudent.save({ session });
+      }
+      
+      // 11. Save group
+      await group.save({ session });
+      
+      // Populate group for response
+      await group.populate([
+        { path: 'members.student', select: 'fullName misNumber collegeEmail branch' },
+        { path: 'leader', select: 'fullName misNumber collegeEmail' }
+      ]);
+      
+      res.json({
+        success: true,
+        message: 'Group leader changed successfully',
+        data: {
+          group: group,
+          oldLeader: {
+            studentId: oldLeaderStudent._id,
+            studentName: oldLeaderStudent.fullName
+          },
+          newLeader: {
+            studentId: newLeaderStudent._id,
+            studentName: newLeaderStudent.fullName
+          },
+          reason: reason || 'Changed by admin'
+        }
+      });
+    });
+  } catch (error) {
+    console.error('Error changing group leader:', error);
+    res.status(400).json({
+      success: false,
+      message: 'Error changing group leader',
+      error: error.message
+    });
+  } finally {
+    await session.endSession();
+  }
+};
+
+/**
+ * Disband group (Admin operation) - Sem 5 only
+ * DELETE /admin/groups/:groupId/disband
+ */
+const disbandGroup = async (req, res) => {
+  const session = await mongoose.startSession();
+  
+  try {
+    await session.withTransaction(async () => {
+      const { groupId } = req.params;
+      const { reason = '' } = req.body || {};
+      
+      // 1. Get group with populated data
+      const group = await Group.findById(groupId)
+        .populate('project')
+        .populate('leader', 'fullName misNumber')
+        .populate('members.student', 'fullName misNumber')
+        .session(session);
+      
+      if (!group) {
+        throw new Error('Group not found');
+      }
+      
+      // 2. Validate group is for Sem 5
+      if (group.semester !== 5) {
+        throw new Error('This endpoint is currently only for Semester 5 groups');
+      }
+      
+      // 3. Check if group is already deleted/disbanded (shouldn't happen, but safety check)
+      if (group.status === 'disbanded') {
+        throw new Error('Group is already disbanded');
+      }
+      
+      // 4. Get all active members
+      const activeMembers = group.members.filter(m => m.isActive);
+      const memberIds = activeMembers.map(m => m.student._id || m.student);
+      
+      console.log(`Disbanding Sem 5 group ${groupId} with ${activeMembers.length} active members`);
+      
+      // 5. Handle project and faculty preferences
+      let projectDeleted = false;
+      let facultyPreferencesDeleted = 0;
+      const projectId = group.project;
+      
+      if (projectId) {
+        const project = await Project.findById(projectId).session(session);
+        
+        if (project) {
+          // 5a. Delete FacultyPreference documents for this group/project
+          const facultyPreferences = await FacultyPreference.find({
+            $or: [
+              { group: groupId },
+              { project: project._id }
+            ],
+            semester: 5
+          }).session(session);
+          
+          facultyPreferencesDeleted = facultyPreferences.length;
+          console.log(`  Found ${facultyPreferencesDeleted} faculty preference documents to delete`);
+          
+          for (const facultyPref of facultyPreferences) {
+            await FacultyPreference.findByIdAndDelete(facultyPref._id, { session });
+          }
+          
+          // 5b. Delete the project (only Sem 5 Minor Project 2)
+          if (project.semester === 5 && project.projectType === 'minor2') {
+            await Project.findByIdAndDelete(project._id, { session });
+            projectDeleted = true;
+            console.log(`  Deleted Sem 5 Minor Project 2: ${project._id}`);
+          }
+        }
+      }
+      
+      // 5c. Also check for any remaining FacultyPreference documents linked to this group (in case project was already deleted)
+      const remainingFacultyPrefs = await FacultyPreference.find({
+        group: groupId,
+        semester: 5
+      }).session(session);
+      
+      if (remainingFacultyPrefs.length > 0) {
+        console.log(`  Found ${remainingFacultyPrefs.length} additional faculty preference documents to delete`);
+        for (const facultyPref of remainingFacultyPrefs) {
+          await FacultyPreference.findByIdAndDelete(facultyPref._id, { session });
+        }
+        facultyPreferencesDeleted += remainingFacultyPrefs.length;
+      }
+      
+      // 6. Process each active member
+      for (const member of activeMembers) {
+        const studentId = member.student._id || member.student;
+        const student = await Student.findById(studentId).session(session);
+        
+        if (!student) {
+          console.warn(`  Warning: Student ${studentId} not found, skipping`);
+          continue;
+        }
+        
+        // 6a. Remove Sem 5 Minor Project 2 from currentProjects (only Sem 5 data)
+        if (projectId) {
+          student.currentProjects = student.currentProjects.filter(cp => {
+            // Keep all non-Sem 5 projects
+            if (cp.semester !== 5) return true;
+            
+            // For Sem 5: Remove only if this project is associated with the group's project
+            // This ensures we only remove Sem 5 Minor Project 2, not other Sem 5 projects
+            if (cp.project.toString() === projectId.toString()) {
+              return false; // Remove this Sem 5 project
+            }
+            
+            return true; // Keep other Sem 5 projects (if any)
+          });
+        } else {
+          // If no project linked, we can't safely identify which Sem 5 project to remove
+          // So we'll leave currentProjects as-is (shouldn't happen in normal flow)
+          console.warn(`  Warning: No project linked to group ${groupId}, skipping currentProjects cleanup for student ${studentId}`);
+        }
+        
+        // 6b. Remove Sem 5 groupMemberships completely (only Sem 5 data for this group)
+        const beforeMemberships = student.groupMemberships.length;
+        student.groupMemberships = student.groupMemberships.filter(gm => {
+          // Keep all non-Sem 5 memberships
+          if (gm.semester !== 5) return true;
+          
+          // For Sem 5: Remove only if it's for this specific group
+          return !(gm.group.toString() === groupId);
+        });
+        const removedMemberships = beforeMemberships - student.groupMemberships.length;
+        if (removedMemberships > 0) {
+          console.log(`    Removed ${removedMemberships} Sem 5 groupMembership(s) for this group`);
+        }
+        
+        // 6c. Clear groupId if it points to this group (only if it's the Sem 5 group)
+        // Since we validated the group is Sem 5, if groupId matches, it's definitely Sem 5
+        if (student.groupId && student.groupId.toString() === groupId) {
+          student.groupId = null;
+          console.log(`    Cleared groupId reference`);
+        }
+        
+        // 6d. Remove invites from student's invites array (only for this Sem 5 group)
+        const beforeInvites = student.invites.length;
+        student.invites = student.invites.filter(inv => {
+          // Keep all invites not for this group
+          // Since the group is Sem 5, all invites for this group are Sem 5 related
+          return inv.group.toString() !== groupId;
+        });
+        const removedInvites = beforeInvites - student.invites.length;
+        if (removedInvites > 0) {
+          console.log(`    Removed ${removedInvites} invite(s) for this Sem 5 group`);
+        }
+        
+        await student.save({ session });
+        console.log(`  Processed student: ${student.fullName} (${student.misNumber})`);
+      }
+      
+      // 7. Store group info for response before deletion
+      const groupInfo = {
+        _id: group._id,
+        name: group.name,
+        semester: group.semester
+      };
+      
+      // 8. Delete the group completely (not just mark as disbanded)
+      await Group.findByIdAndDelete(groupId, { session });
+      
+      console.log(`  ✓ Group ${groupId} deleted successfully`);
+      
+      res.json({
+        success: true,
+        message: 'Group disbanded and deleted successfully',
+        data: {
+          group: groupInfo,
+          membersProcessed: activeMembers.length,
+          projectDeleted: projectDeleted,
+          facultyPreferencesDeleted: facultyPreferencesDeleted,
+          reason: reason || 'Disbanded by admin'
+        }
+      });
+    });
+  } catch (error) {
+    console.error('Error disbanding group:', error);
+    res.status(400).json({
+      success: false,
+      message: 'Error disbanding group',
+      error: error.message
+    });
+  } finally {
+    await session.endSession();
+  }
+};
+
+/**
+ * Update group information (Admin operation)
+ * PUT /admin/groups/:groupId
+ */
+const updateGroupInfo = async (req, res) => {
+  try {
+    const { groupId } = req.params;
+    const { name, description, minMembers, maxMembers, status, force = false } = req.body;
+    
+    const { validateAndUpdateGroupStatus } = require('../utils/groupStatusValidator');
+    
+    // 1. Get group
+    const group = await Group.findById(groupId);
+    if (!group) {
+      return res.status(404).json({
+        success: false,
+        message: 'Group not found'
+      });
+    }
+    
+    // 2. Validate group is for Sem 5
+    if (group.semester !== 5) {
+      return res.status(400).json({
+        success: false,
+        message: 'This endpoint is currently only for Semester 5 groups'
+      });
+    }
+    
+    // 3. Validate min/max members if provided
+    if (minMembers !== undefined || maxMembers !== undefined) {
+      const activeMembers = group.members.filter(m => m.isActive);
+      const currentCount = activeMembers.length;
+      
+      if (minMembers !== undefined) {
+        if (minMembers < 2 || minMembers > 10) {
+          return res.status(400).json({
+            success: false,
+            message: 'minMembers must be between 2 and 10'
+          });
+        }
+        if (currentCount < minMembers && !force) {
+          return res.status(400).json({
+            success: false,
+            message: `Cannot set minMembers to ${minMembers} when group has ${currentCount} members. Use force flag to override.`
+          });
+        }
+      }
+      
+      if (maxMembers !== undefined) {
+        if (maxMembers < 2 || maxMembers > 10) {
+          return res.status(400).json({
+            success: false,
+            message: 'maxMembers must be between 2 and 10'
+          });
+        }
+        if (currentCount > maxMembers && !force) {
+          return res.status(400).json({
+            success: false,
+            message: `Cannot set maxMembers to ${maxMembers} when group has ${currentCount} members. Use force flag to override.`
+          });
+        }
+      }
+      
+      if (minMembers !== undefined && maxMembers !== undefined && minMembers > maxMembers) {
+        return res.status(400).json({
+          success: false,
+          message: 'minMembers cannot be greater than maxMembers'
+        });
+      }
+    }
+    
+    // 4. Validate status transitions if provided
+    if (status !== undefined) {
+      const validStatuses = ['invitations_sent', 'open', 'forming', 'complete', 'locked', 'finalized', 'disbanded'];
+      if (!validStatuses.includes(status)) {
+        return res.status(400).json({
+          success: false,
+          message: `Invalid status. Must be one of: ${validStatuses.join(', ')}`
+        });
+      }
+      
+      // Define valid transitions
+      const validTransitions = {
+        'invitations_sent': ['open', 'forming'],
+        'open': ['forming', 'complete', 'finalized'],
+        'forming': ['complete', 'open'],
+        'complete': ['finalized', 'locked'],
+        'finalized': ['locked'], // Usually one-way
+        'locked': [] // Usually one-way
+      };
+      
+      if (!force && group.status !== status) {
+        const allowedTransitions = validTransitions[group.status] || [];
+        if (!allowedTransitions.includes(status) && status !== 'disbanded') {
+          return res.status(400).json({
+            success: false,
+            message: `Invalid status transition from ${group.status} to ${status}. Use force flag to override.`,
+            allowedTransitions: allowedTransitions
+          });
+        }
+      }
+    }
+    
+    // 5. Update fields
+    if (name !== undefined) group.name = name.trim();
+    if (description !== undefined) group.description = description.trim();
+    if (minMembers !== undefined) group.minMembers = minMembers;
+    if (maxMembers !== undefined) group.maxMembers = maxMembers;
+    if (status !== undefined) group.status = status;
+    
+    // 6. Validate status after update
+    await validateAndUpdateGroupStatus(group._id);
+    
+    // 7. Save group
+    await group.save();
+    
+    // Populate for response
+    await group.populate([
+      { path: 'members.student', select: 'fullName misNumber collegeEmail branch' },
+      { path: 'leader', select: 'fullName misNumber collegeEmail' },
+      { path: 'project', select: 'title projectType status' }
+    ]);
+    
+    res.json({
+      success: true,
+      message: 'Group information updated successfully',
+      data: {
+        group: group
+      }
+    });
+  } catch (error) {
+    console.error('Error updating group information:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error updating group information',
+      error: error.message
+    });
+  }
+};
+
+/**
+ * Get group details with full information (Admin operation)
+ * GET /admin/groups/:groupId
+ */
+const getGroupDetails = async (req, res) => {
+  try {
+    const { groupId } = req.params;
+    
+    const group = await Group.findById(groupId)
+      .populate('members.student', 'fullName misNumber collegeEmail branch semester degree')
+      .populate('leader', 'fullName misNumber collegeEmail branch')
+      .populate('createdBy', 'fullName misNumber')
+      .populate('allocatedFaculty', 'fullName department designation')
+      .populate('project', 'title description projectType status faculty')
+      .populate('invites.student', 'fullName misNumber collegeEmail');
+    
+    if (!group) {
+      return res.status(404).json({
+        success: false,
+        message: 'Group not found'
+      });
+    }
+    
+    // Get validation status
+    const { validateGroupForSemester } = require('../utils/groupStatusValidator');
+    const validation = await validateGroupForSemester(groupId, group.semester);
+    
+    // Calculate statistics
+    const activeMembers = group.members.filter(m => m.isActive);
+    const pendingInvites = group.invites.filter(i => i.status === 'pending');
+    
+    res.json({
+      success: true,
+      data: {
+        group: group,
+        statistics: {
+          totalMembers: group.members.length,
+          activeMembers: activeMembers.length,
+          inactiveMembers: group.members.length - activeMembers.length,
+          pendingInvites: pendingInvites.length,
+          availableSlots: group.maxMembers - activeMembers.length,
+          isComplete: activeMembers.length >= group.minMembers && activeMembers.length <= group.maxMembers
+        },
+        validation: validation
+      }
+    });
+  } catch (error) {
+    console.error('Error getting group details:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching group details',
+      error: error.message
+    });
+  }
+};
+
+/**
+ * Allocate faculty to group (Admin operation)
+ * POST /admin/groups/:groupId/allocate-faculty
+ */
+const allocateFacultyToGroup = async (req, res) => {
+  try {
+    const { groupId } = req.params;
+    const { facultyId } = req.body;
+
+    if (!facultyId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Faculty ID is required'
+      });
+    }
+
+    const group = await Group.findById(groupId);
+    if (!group) {
+      return res.status(404).json({
+        success: false,
+        message: 'Group not found'
+      });
+    }
+
+    if (group.allocatedFaculty) {
+      return res.status(400).json({
+        success: false,
+        message: 'Group already has an allocated faculty. Please deallocate first.'
+      });
+    }
+
+    const faculty = await Faculty.findById(facultyId);
+    if (!faculty) {
+      return res.status(404).json({
+        success: false,
+        message: 'Faculty not found'
+      });
+    }
+
+    // Find the FacultyPreference for this group
+    const preference = await FacultyPreference.findOne({
+      group: groupId,
+      semester: group.semester,
+      status: { $in: ['pending', 'allocated'] }
+    });
+
+    // Start transaction
+    const session = await mongoose.startSession();
+    session.startTransaction();
+
+    try {
+      // Update Group
+      group.allocatedFaculty = facultyId;
+      if (group.status === 'complete') {
+        group.status = 'locked';
+      }
+      await group.save({ session });
+
+      // Update Project if exists
+      if (group.project) {
+        const project = await Project.findById(group.project).session(session);
+        if (project) {
+          project.faculty = facultyId;
+          project.status = 'faculty_allocated';
+          project.allocatedBy = 'admin_allocation';
+          await project.save({ session });
+
+          // Update all group members' currentProjects status
+          const activeMembers = group.members.filter(m => m.isActive);
+          for (const member of activeMembers) {
+            const memberStudent = await Student.findById(member.student).session(session);
+            if (memberStudent) {
+              const currentProject = memberStudent.currentProjects.find(cp => 
+                cp.project.toString() === project._id.toString()
+              );
+              if (currentProject) {
+                currentProject.status = 'active';
+              }
+              await memberStudent.save({ session });
+            }
+          }
+        }
+      }
+
+      // Update FacultyPreference if exists
+      if (preference) {
+        preference.allocatedFaculty = facultyId;
+        preference.allocatedBy = 'admin_allocation';
+        preference.status = 'allocated';
+        preference.allocatedAt = new Date();
+        await preference.save({ session });
+      }
+
+      await session.commitTransaction();
+      session.endSession();
+
+      res.json({
+        success: true,
+        message: `Faculty ${faculty.fullName} allocated to group successfully`
+      });
+    } catch (error) {
+      await session.abortTransaction();
+      session.endSession();
+      throw error;
+    }
+  } catch (error) {
+    console.error('Error allocating faculty to group:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error allocating faculty to group',
+      error: error.message
+    });
+  }
+};
+
+/**
+ * Deallocate faculty from group (Admin operation)
+ * DELETE /admin/groups/:groupId/deallocate-faculty
+ */
+const deallocateFacultyFromGroup = async (req, res) => {
+  try {
+    const { groupId } = req.params;
+
+    const group = await Group.findById(groupId);
+    if (!group) {
+      return res.status(404).json({
+        success: false,
+        message: 'Group not found'
+      });
+    }
+
+    if (!group.allocatedFaculty) {
+      return res.status(400).json({
+        success: false,
+        message: 'Group does not have an allocated faculty'
+      });
+    }
+
+    // Find the FacultyPreference for this group
+    const preference = await FacultyPreference.findOne({
+      group: groupId,
+      semester: group.semester
+    });
+
+    // Start transaction
+    const session = await mongoose.startSession();
+    session.startTransaction();
+
+    try {
+      const previousFacultyId = group.allocatedFaculty;
+
+      // Update Group
+      group.allocatedFaculty = null;
+      if (group.status === 'locked') {
+        group.status = 'complete';
+      }
+      await group.save({ session });
+
+      // Update Project if exists
+      if (group.project) {
+        const project = await Project.findById(group.project).session(session);
+        if (project) {
+          project.faculty = null;
+          project.status = 'registered';
+          project.allocatedBy = undefined;
+          await project.save({ session });
+
+          // Note: We don't change currentProjects.status when deallocating
+          // The status should remain 'active' since the project is still registered
+          // Only the Project.status changes from 'faculty_allocated' to 'registered'
+        }
+      }
+
+      // Update FacultyPreference if exists
+      if (preference) {
+        preference.allocatedFaculty = null;
+        preference.allocatedBy = undefined;
+        preference.status = 'pending';
+        preference.allocatedAt = undefined;
+        await preference.save({ session });
+      }
+
+      await session.commitTransaction();
+      session.endSession();
+
+      res.json({
+        success: true,
+        message: 'Faculty deallocated from group successfully'
+      });
+    } catch (error) {
+      await session.abortTransaction();
+      session.endSession();
+      throw error;
+    }
+  } catch (error) {
+    console.error('Error deallocating faculty from group:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error deallocating faculty from group',
+      error: error.message
+    });
+  }
+};
+
 module.exports = {
   getAdminProfile,
   updateAdminProfile,
@@ -3066,5 +4364,14 @@ module.exports = {
   getSafeMinimumFacultyLimit,
   // Semester Management functions
   updateStudentSemesters,
-  getStudentsBySemester
+  getStudentsBySemester,
+  // Admin Group Management functions (Sem 5)
+  addMemberToGroup,
+  removeMemberFromGroup,
+  changeGroupLeader,
+  updateGroupInfo,
+  getGroupDetails,
+  disbandGroup,
+  allocateFacultyToGroup,
+  deallocateFacultyFromGroup
 };

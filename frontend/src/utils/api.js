@@ -390,11 +390,26 @@ export const adminAPI = {
   getUsers: () => api.get('/admin/users'),
   getStudents: () => api.get('/admin/students'),
   getFaculty: () => api.get('/admin/faculty'),
+  searchFaculties: (params = {}) => {
+    const queryString = new URLSearchParams(params).toString();
+    return api.get(`/admin/faculties${queryString ? '?' + queryString : ''}`);
+  },
   getProjects: (params = {}) => {
     const queryString = new URLSearchParams(params).toString();
     return api.get(`/admin/projects${queryString ? '?' + queryString : ''}`);
   },
-  getGroups: () => api.get('/admin/groups'),
+  getGroups: (params = {}) => {
+    const queryString = new URLSearchParams(params).toString();
+    return api.get(`/admin/groups${queryString ? '?' + queryString : ''}`);
+  },
+  getGroupDetails: (groupId) => api.get(`/admin/groups/${groupId}`),
+  updateGroupInfo: (groupId, data) => api.put(`/admin/groups/${groupId}`, data),
+  addMemberToGroup: (groupId, data) => api.post(`/admin/groups/${groupId}/members`, data),
+  removeMemberFromGroup: (groupId, studentId, data) => api.delete(`/admin/groups/${groupId}/members/${studentId}`, { data }),
+  changeGroupLeader: (groupId, data) => api.put(`/admin/groups/${groupId}/leader`, data),
+  disbandGroup: (groupId, data) => api.delete(`/admin/groups/${groupId}/disband`, { data }),
+  allocateFacultyToGroup: (groupId, data) => api.post(`/admin/groups/${groupId}/allocate-faculty`, data),
+  deallocateFacultyFromGroup: (groupId) => api.delete(`/admin/groups/${groupId}/deallocate-faculty`),
   getStats: () => api.get('/admin/stats'),
   
   // Admin Profile Management

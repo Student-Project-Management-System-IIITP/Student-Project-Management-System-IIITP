@@ -30,6 +30,14 @@ router.put('/projects/:id/status', adminController.updateProjectStatus);
 
 // Group management routes
 router.get('/groups', adminController.getGroups);
+router.get('/groups/:groupId', adminController.getGroupDetails);
+router.put('/groups/:groupId', adminController.updateGroupInfo);
+router.post('/groups/:groupId/members', adminController.addMemberToGroup);
+router.delete('/groups/:groupId/members/:studentId', adminController.removeMemberFromGroup);
+router.put('/groups/:groupId/leader', adminController.changeGroupLeader);
+router.delete('/groups/:groupId/disband', adminController.disbandGroup);
+router.post('/groups/:groupId/allocate-faculty', adminController.allocateFacultyToGroup);
+router.delete('/groups/:groupId/deallocate-faculty', adminController.deallocateFacultyFromGroup);
 router.get('/unallocated-groups', adminController.getUnallocatedGroups);
 
 // Allocation management routes
