@@ -2,6 +2,8 @@ const User = require('../models/User');
 const Student = require('../models/Student');
 const Faculty = require('../models/Faculty');
 const Admin = require('../models/Admin');
+const SignupOtp = require('../models/SignupOtp');
+const { sendEmail } = require('../services/emailService');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 
@@ -10,6 +12,143 @@ const generateToken = (userId) => {
   return jwt.sign({ userId }, process.env.JWT_SECRET, {
     expiresIn: process.env.JWT_EXPIRES_IN || '7d'
   });
+};
+
+// Helper: basic email format check
+const isValidEmail = (email) => {
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return emailRegex.test(email);
+};
+
+// Send OTP for student signup email verification
+const sendSignupOtp = async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email is required',
+      });
+    }
+
+    if (!isValidEmail(email)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please enter a valid email address',
+      });
+    }
+
+    // Do not allow OTP for already registered email
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      return res.status(400).json({
+        success: false,
+        message: 'User with this email already exists',
+      });
+    }
+
+    // Generate 6-digit OTP
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const ttlMinutes = 10;
+    const expiresAt = new Date(Date.now() + ttlMinutes * 60 * 1000);
+
+    await SignupOtp.create({
+      email,
+      otp,
+      purpose: 'signup',
+      expiresAt,
+    });
+
+    const subject = 'SPMS IIITP - Email Verification OTP';
+    const text = `Your OTP for SPMS signup is ${otp}. It is valid for ${ttlMinutes} minutes.`;
+    const html = `
+      <p>Dear Student,</p>
+      <p>Your One-Time Password (OTP) for creating your SPMS account is:</p>
+      <h2 style="letter-spacing:4px;">${otp}</h2>
+      <p>This OTP is valid for <strong>${ttlMinutes} minutes</strong>. Do not share this code with anyone.</p>
+      <p>If you did not request this OTP, you can safely ignore this email.</p>
+      <p>Regards,<br/>SPMS IIIT Pune</p>
+    `;
+
+    try {
+      await sendEmail({ to: email, subject, text, html });
+    } catch (emailError) {
+      console.error('Error sending signup OTP email:', emailError);
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to send OTP email. Please try again later.',
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'OTP sent to your email address',
+    });
+  } catch (error) {
+    console.error('Error generating signup OTP:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error.message,
+    });
+  }
+};
+
+// Verify OTP for student signup email verification
+const verifySignupOtp = async (req, res) => {
+  try {
+    const { email, otp } = req.body;
+
+    if (!email || !otp) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email and OTP are required',
+      });
+    }
+
+    const record = await SignupOtp.findOne({
+      email,
+      purpose: 'signup',
+      verified: false,
+    }).sort({ createdAt: -1 });
+
+    if (!record) {
+      return res.status(400).json({
+        success: false,
+        message: 'No active OTP found for this email. Please request a new OTP.',
+      });
+    }
+
+    if (record.expiresAt < new Date()) {
+      return res.status(400).json({
+        success: false,
+        message: 'OTP has expired. Please request a new OTP.',
+      });
+    }
+
+    if (record.otp !== otp) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid OTP. Please try again.',
+      });
+    }
+
+    record.verified = true;
+    await record.save();
+
+    return res.status(200).json({
+      success: true,
+      message: 'Email verified successfully',
+    });
+  } catch (error) {
+    console.error('Error verifying signup OTP:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error.message,
+    });
+  }
 };
 
 // Signup Student
@@ -125,6 +264,21 @@ const signupStudent = async (req, res) => {
         success: false,
         message: 'Please enter a valid email address',
         errorCode: 'INVALID_EMAIL'
+      });
+    }
+
+    // Ensure email OTP has been verified recently
+    const latestOtp = await SignupOtp.findOne({
+      email: collegeEmail,
+      purpose: 'signup',
+      verified: true,
+    }).sort({ createdAt: -1 });
+
+    if (!latestOtp || latestOtp.expiresAt < new Date()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please verify the OTP sent to your email before creating an account',
+        errorCode: 'EMAIL_OTP_NOT_VERIFIED',
       });
     }
 
@@ -646,6 +800,8 @@ const verifyToken = async (req, res) => {
 };
 
 module.exports = {
+  sendSignupOtp,
+  verifySignupOtp,
   signupStudent,
   signupFaculty,
   signupAdmin,
