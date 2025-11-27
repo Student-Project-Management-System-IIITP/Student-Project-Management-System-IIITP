@@ -4857,7 +4857,7 @@ module.exports = {
   getGroupDetails,
   disbandGroup,
   allocateFacultyToGroup,
-  deallocateFacultyFromGroup
+  deallocateFacultyFromGroup,
   updateStudentProfile,
   resetStudentPassword,
 };
