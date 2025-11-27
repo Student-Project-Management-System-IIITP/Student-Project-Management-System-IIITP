@@ -18,6 +18,10 @@ router.get('/stats', adminController.getSystemStats);
 // User management routes
 router.get('/users', adminController.getUsers);
 router.get('/students', adminController.searchStudents);
+// Semester Management routes - must be before /students/:studentId to avoid route conflicts
+router.get('/students/by-semester', adminController.getStudentsBySemester);
+router.post('/students/update-semesters', adminController.updateStudentSemesters);
+// Student detail routes - must come after specific routes
 router.get('/students/:studentId', adminController.getStudentDetails);
 router.put('/students/:studentId', adminController.updateStudentProfile);
 router.post('/students/:studentId/reset-password', adminController.resetStudentPassword);
@@ -91,8 +95,6 @@ router.post('/system-config/initialize', adminController.initializeSystemConfigs
 router.get('/system-config/:key', adminController.getSystemConfig);
 router.put('/system-config/:key', adminController.updateSystemConfig);
 
-// Semester Management routes
-router.post('/students/update-semesters', adminController.updateStudentSemesters);
-router.get('/students/by-semester', adminController.getStudentsBySemester);
+// Semester Management routes moved above to avoid route conflicts
 
 module.exports = router;
