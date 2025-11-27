@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
+import { authAPI } from '../../utils/api';
 
 const Signup = () => {
   const [formData, setFormData] = useState({
@@ -23,6 +24,11 @@ const Signup = () => {
     score: 0,
     feedback: []
   });
+  const [isOtpVerified, setIsOtpVerified] = useState(false);
+  const [isOtpModalOpen, setIsOtpModalOpen] = useState(false);
+  const [otpValue, setOtpValue] = useState('');
+  const [isSendingOtp, setIsSendingOtp] = useState(false);
+  const [isVerifyingOtp, setIsVerifyingOtp] = useState(false);
   
   const { signup } = useAuth();
   const navigate = useNavigate();
@@ -88,6 +94,9 @@ const Signup = () => {
         [name]: value,
         semester: ''
       }));
+    }
+    if (name === 'collegeEmail') {
+      setIsOtpVerified(false);
     }
     
     // Check password strength in real-time (no toasts on each keystroke)
@@ -171,10 +180,64 @@ const Signup = () => {
     return Object.keys(newErrors).length === 0;
   };
 
+  const handleSendOtp = async () => {
+    const email = formData.collegeEmail.trim();
+    if (!email) {
+      setErrors(prev => ({ ...prev, collegeEmail: 'College email is required' }));
+      toast.error('Please enter your college email first');
+      return;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setErrors(prev => ({ ...prev, collegeEmail: 'Please enter a valid email address' }));
+      toast.error('Please enter a valid email address');
+      return;
+    }
+    setIsSendingOtp(true);
+    try {
+      const res = await authAPI.sendSignupOtp(email);
+      toast.success(res.message || 'OTP sent to your email');
+      setOtpValue('');
+      setIsOtpModalOpen(true);
+    } catch (error) {
+      toast.error(error.message || 'Failed to send OTP');
+    } finally {
+      setIsSendingOtp(false);
+    }
+  };
+
+  const handleVerifyOtp = async () => {
+    const email = formData.collegeEmail.trim();
+    const code = otpValue.trim();
+    if (!email || !code) {
+      toast.error('Please enter the OTP');
+      return;
+    }
+    if (code.length !== 6) {
+      toast.error('OTP should be 6 digits');
+      return;
+    }
+    setIsVerifyingOtp(true);
+    try {
+      const res = await authAPI.verifySignupOtp(email, code);
+      toast.success(res.message || 'Email verified successfully');
+      setIsOtpVerified(true);
+      setIsOtpModalOpen(false);
+    } catch (error) {
+      toast.error(error.message || 'Failed to verify OTP');
+    } finally {
+      setIsVerifyingOtp(false);
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     
     if (!validateForm()) {
+      return;
+    }
+
+    if (!isOtpVerified) {
+      toast.error('Please verify your email with OTP before creating an account');
       return;
     }
     
@@ -327,18 +390,40 @@ const Signup = () => {
             <label htmlFor="collegeEmail" className="block text-sm font-medium text-gray-700 mb-2">
               College Email *
             </label>
-            <input
-              type="email"
-              id="collegeEmail"
-              name="collegeEmail"
-              value={formData.collegeEmail}
-              onChange={handleChange}
-              className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                errors.collegeEmail ? 'border-red-500' : 'border-gray-300'
-              }`}
-              placeholder="Enter your college email"
-            />
-            {errors.collegeEmail && <p className="mt-1 text-sm text-red-600">{errors.collegeEmail}</p>}
+            <div className="flex flex-col space-y-2">
+              <input
+                type="email"
+                id="collegeEmail"
+                name="collegeEmail"
+                value={formData.collegeEmail}
+                onChange={handleChange}
+                className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                  errors.collegeEmail ? 'border-red-500' : 'border-gray-300'
+                }`}
+                placeholder="Enter your college email"
+              />
+              <div className="flex items-center justify-between">
+                {errors.collegeEmail ? (
+                  <p className="text-sm text-red-600">{errors.collegeEmail}</p>
+                ) : (
+                  <p className="text-xs text-gray-500">
+                    Verify your email with OTP before creating account.
+                  </p>
+                )}
+                <button
+                  type="button"
+                  onClick={handleSendOtp}
+                  disabled={isSendingOtp || !formData.collegeEmail.trim() || !!errors.collegeEmail || isOtpVerified}
+                  className={`ml-3 inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded-md shadow-sm ${
+                    isOtpVerified
+                      ? 'bg-green-100 text-green-700 cursor-default'
+                      : 'bg-indigo-600 text-white hover:bg-indigo-700 disabled:bg-indigo-300'
+                  }`}
+                >
+                  {isOtpVerified ? 'Email Verified' : isSendingOtp ? 'Sending OTP...' : 'Verify OTP'}
+                </button>
+              </div>
+            </div>
           </div>
           
           <div>
@@ -458,12 +543,47 @@ const Signup = () => {
           
           <button
             type="submit"
-            disabled={isLoading}
+            disabled={isLoading || !isOtpVerified}
             className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white font-semibold py-3 px-4 rounded-lg transition duration-200"
           >
             {isLoading ? 'Creating Account...' : 'Create Account'}
           </button>
         </form>
+
+        {isOtpModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
+            <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-sm">
+              <h2 className="text-lg font-semibold text-gray-900 mb-2">Verify Email OTP</h2>
+              <p className="text-sm text-gray-600 mb-4">
+                Enter the 6-digit OTP sent to <span className="font-medium">{formData.collegeEmail}</span>.
+              </p>
+              <input
+                type="text"
+                value={otpValue}
+                onChange={(e) => setOtpValue(e.target.value.replace(/[^0-9]/g, '').slice(0, 6))}
+                className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 tracking-widest text-center text-lg"
+                placeholder="••••••"
+              />
+              <div className="flex justify-end mt-4 space-x-2">
+                <button
+                  type="button"
+                  onClick={() => setIsOtpModalOpen(false)}
+                  className="px-3 py-1.5 text-sm font-medium rounded-md bg-gray-200 text-gray-700 hover:bg-gray-300"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleVerifyOtp}
+                  disabled={isVerifyingOtp || otpValue.trim().length !== 6}
+                  className="px-3 py-1.5 text-sm font-medium rounded-md bg-indigo-600 text-white hover:bg-indigo-700 disabled:bg-indigo-300"
+                >
+                  {isVerifyingOtp ? 'Verifying...' : 'Verify'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
         
         <div className="mt-6 text-center">
           <p className="text-gray-600">

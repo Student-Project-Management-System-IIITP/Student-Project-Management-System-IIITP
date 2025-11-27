@@ -9,7 +9,9 @@ const {
   updateUserProfile,
   changePassword,
   logoutUser,
-  verifyToken
+  verifyToken,
+  sendSignupOtp,
+  verifySignupOtp,
 } = require('../controllers/authController');
 const { authenticateToken } = require('../middleware/auth');
 
@@ -17,6 +19,8 @@ const { authenticateToken } = require('../middleware/auth');
 router.post('/signup/student', signupStudent);
 router.post('/signup/faculty', signupFaculty);
 router.post('/signup/admin', signupAdmin);
+router.post('/signup/send-otp', sendSignupOtp);
+router.post('/signup/verify-otp', verifySignupOtp);
 router.post('/login', loginUser);
 router.post('/logout', logoutUser);
 
