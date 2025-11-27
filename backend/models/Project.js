@@ -252,12 +252,15 @@ const projectSchema = new mongoose.Schema({
     max: 9, // 0-9 for up to 10 faculty preferences
     validate: {
       validator: function(value) {
-        // Only validate for Sem 5+ projects that support faculty allocation
-        const supportsFacultyAllocation = this.semester >= 5 && 
-          ['minor2', 'minor3', 'major1', 'major2', 'internship1'].includes(this.projectType);
-        return !supportsFacultyAllocation || (value >= 0 && value <= 9);
+        // Only validate for projects that support faculty allocation
+        // This includes Sem 5+ projects and M.Tech Sem 1-4 projects
+        const supportsAllocation = (this.semester >= 5 && 
+          ['minor2', 'minor3', 'major1', 'major2', 'internship1'].includes(this.projectType)) ||
+          (this.semester === 1 && this.projectType === 'minor1' && this.facultyPreferences && this.facultyPreferences.length > 0) ||
+          ((this.semester === 3 || this.semester === 4) && ['major1', 'major2'].includes(this.projectType) && this.facultyPreferences && this.facultyPreferences.length > 0);
+        return !supportsAllocation || (value >= 0 && value <= 9);
       },
-      message: 'Current faculty index must be between 0 and 9 for Sem 5+ projects'
+      message: 'Current faculty index must be between 0 and 9 for projects that support faculty allocation'
     }
   },
   allocationHistory: [{
@@ -892,11 +895,36 @@ projectSchema.methods.getProjectAchievements = function() {
   return achievements;
 };
 
-// Faculty Allocation Methods (Sem 5+ only)
+// Faculty Allocation Methods (Sem 5+ and M.Tech Sem 1)
 // Check if project supports faculty allocation
 projectSchema.methods.supportsFacultyAllocation = function() {
-  return this.semester >= 5 && 
-         ['minor2', 'minor3', 'major1', 'major2', 'internship1'].includes(this.projectType);
+  // Standard case: Sem 5+ projects with specific types
+  if (this.semester >= 5 && 
+      ['minor2', 'minor3', 'major1', 'major2', 'internship1'].includes(this.projectType)) {
+    return true;
+  }
+  
+  // Special case: M.Tech Sem 1 minor1 (has facultyPreferences array with items)
+  // This is identified by: semester === 1, projectType === 'minor1', and has facultyPreferences
+  // B.Tech Sem 4 minor1 doesn't have facultyPreferences, so it won't match
+  if (this.semester === 1 && 
+      this.projectType === 'minor1' && 
+      this.facultyPreferences && 
+      Array.isArray(this.facultyPreferences) && 
+      this.facultyPreferences.length > 0) {
+    return true;
+  }
+  
+  // M.Tech Sem 3 major1 and Sem 4 major2 (semester 3-4)
+  if ((this.semester === 3 || this.semester === 4) && 
+      ['major1', 'major2'].includes(this.projectType) &&
+      this.facultyPreferences && 
+      Array.isArray(this.facultyPreferences) && 
+      this.facultyPreferences.length > 0) {
+    return true;
+  }
+  
+  return false;
 };
 
 // Get current faculty being presented to

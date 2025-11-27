@@ -584,6 +584,14 @@ const registerProject = async (req, res) => {
       };
       const fpDoc = new FacultyPreference(fpData);
       await fpDoc.save();
+
+      // Present project to first faculty (start the allocation process)
+      try {
+        await project.presentToCurrentFaculty();
+      } catch (presentError) {
+        // Don't fail registration if presentation fails - this is not critical
+        console.error('Error presenting M.Tech Sem 1 project to faculty:', presentError);
+      }
     }
 
     res.status(201).json({
@@ -1303,6 +1311,14 @@ const registerMTechSem3MajorProject = async (req, res) => {
         status: 'pending',
         currentFacultyIndex: 0
       }], { session });
+
+      // Present project to first faculty (start the allocation process)
+      try {
+        await project[0].presentToCurrentFaculty();
+      } catch (presentError) {
+        // Don't fail registration if presentation fails - this is not critical
+        console.error('Error presenting M.Tech Sem 3 project to faculty:', presentError);
+      }
 
       res.status(201).json({
         success: true,

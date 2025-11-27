@@ -184,9 +184,29 @@ const passMTechSem3Project = async (req, res) => {
       });
     }
 
-    const nextIndex = currentIndex + 1;
+    // Use project's facultyPass method to properly handle allocation history
+    try {
+      await project.facultyPass(faculty._id, '');
+    } catch (passError) {
+      // If facultyPass fails, manually update
+      console.error('Error using facultyPass method:', passError);
+      // Add to allocation history
+      if (!project.allocationHistory) {
+        project.allocationHistory = [];
+      }
+      project.allocationHistory.push({
+        faculty: faculty._id,
+        priority: currentPref.priority || (currentIndex + 1),
+        action: 'passed',
+        timestamp: new Date()
+      });
+      project.currentFacultyIndex = currentIndex + 1;
+      await project.save();
+    }
+
+    const nextIndex = project.currentFacultyIndex || (currentIndex + 1);
+    
     if (nextIndex >= sortedPrefs.length) {
-      project.currentFacultyIndex = nextIndex;
       project.status = 'pending_admin_allocation';
       await project.save();
       await FacultyPreference.findOneAndUpdate(
@@ -202,12 +222,19 @@ const passMTechSem3Project = async (req, res) => {
       });
     }
 
-    project.currentFacultyIndex = nextIndex;
-    await project.save();
+    // Update FacultyPreference index
     await FacultyPreference.findOneAndUpdate(
       { project: project._id, semester: 3 },
       { currentFacultyIndex: nextIndex }
     );
+
+    // Present to next faculty
+    try {
+      await project.presentToCurrentFaculty();
+    } catch (presentError) {
+      console.error('Error presenting to next faculty:', presentError);
+      // Don't fail the request if presentation fails
+    }
 
     res.json({
       success: true,
@@ -1246,12 +1273,13 @@ const passGroup = async (req, res) => {
     }
 
     // Check if this faculty is the current one being presented to
-    // For solo projects (internship1 - Sem 7 or Sem 8 Type 1), check the Project's currentFacultyIndex
+    // For solo projects (M.Tech Sem 1 minor1, internship1 - Sem 7 or Sem 8 Type 1), check the Project's currentFacultyIndex
     // For group projects, check the FacultyPreference's currentFacultyIndex
     let currentFaculty = preference.getCurrentFaculty();
     let isValidCurrentFaculty = currentFaculty && currentFaculty.faculty.toString() === faculty._id.toString();
     
     // Also verify against Project's currentFacultyIndex for solo projects
+    // For solo projects, Project's currentFacultyIndex is the source of truth
     if (preference.project && !preference.group) {
       const project = await Project.findById(preference.project);
       if (project && project.supportsFacultyAllocation()) {
@@ -1260,6 +1288,11 @@ const passGroup = async (req, res) => {
           // Use Project's current faculty as source of truth for solo projects
           isValidCurrentFaculty = projectCurrentFaculty.faculty.toString() === faculty._id.toString();
           currentFaculty = projectCurrentFaculty;
+        } else {
+          // If project doesn't have current faculty but supports allocation, 
+          // it might be in an invalid state - still check preference as fallback
+          // but log a warning
+          console.warn(`Project ${project._id} supports faculty allocation but getCurrentFaculty() returned null. Using FacultyPreference as fallback.`);
         }
       }
     }
@@ -1321,6 +1354,26 @@ const passGroup = async (req, res) => {
           const projectCurrentFaculty = updatedProject.getCurrentFaculty();
           if (projectCurrentFaculty) {
             nextFaculty = projectCurrentFaculty;
+          }
+          
+          // For solo projects, present to next faculty after passing
+          // This applies to:
+          // - M.Tech Sem 1 minor1 (solo, no group)
+          // - B.Tech Sem 7/8 Internship 1 (solo, no group)
+          // - B.Tech Sem 8 Major Project 2 Type 2 (solo, no group)
+          // - B.Tech Sem 8 Internship 2 (solo, no group)
+          // Group projects (B.Tech Sem 5, Sem 7 Major Project 1, Sem 8 Major Project 2 Type 1) 
+          // don't need this as they use FacultyPreference mechanism exclusively
+          if (!preference.group && projectUpdated) {
+            try {
+              // Check if there's a next faculty to present to
+              if (!updatedProject.allFacultyPresented()) {
+                await updatedProject.presentToCurrentFaculty();
+              }
+            } catch (presentError) {
+              // Don't fail the request if presentation fails - log it
+              console.error('Error presenting to next faculty after pass:', presentError);
+            }
           }
         }
       }
