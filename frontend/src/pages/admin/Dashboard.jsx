@@ -731,6 +731,12 @@ const AdminDashboard = () => {
           >
             📋 Manage Projects
           </Link>
+          <Link
+            to="/admin/manage-students"
+            className="inline-flex items-center px-4 py-2 rounded-md bg-teal-600 text-white hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-teal-500"
+          >
+            🎓 Manage Student Profiles
+          </Link>
           <button
             onClick={() => setIsAddOpen(true)}
             className="inline-flex items-center px-4 py-2 rounded-md bg-gray-600 text-white hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-500"
