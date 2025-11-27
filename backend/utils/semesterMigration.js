@@ -61,7 +61,7 @@ const migrateGroupToSem6 = async (groupId, newAcademicYear, session = null) => {
     }
     
     // Update all group members' memberships
-    // Add new Sem 6 membership while keeping Sem 5 membership for history
+    // Add new Sem 6 membership while marking Sem 5 membership as inactive
     const memberIds = group.members
       .filter(m => m.isActive)
       .map(m => m.student);
@@ -73,8 +73,27 @@ const migrateGroupToSem6 = async (groupId, newAcademicYear, session = null) => {
       
       const role = member?.role || 'member';
       
-      // Add new Sem 6 membership
-      const updateQuery = {
+      // 1. Mark Sem 5 membership as inactive
+      const deactivateQuery = {
+        $set: {
+          'groupMemberships.$[elem].isActive': false
+        }
+      };
+      
+      const deactivateOptions = {
+        arrayFilters: [
+          { 'elem.group': group._id.toString(), 'elem.semester': 5, 'elem.isActive': true }
+        ]
+      };
+      
+      if (session) {
+        await Student.findByIdAndUpdate(memberId, deactivateQuery, { ...deactivateOptions, session });
+      } else {
+        await Student.findByIdAndUpdate(memberId, deactivateQuery, deactivateOptions);
+      }
+      
+      // 2. Add new Sem 6 membership
+      const addMembershipQuery = {
         $push: {
           groupMemberships: {
             group: group._id,
@@ -87,9 +106,28 @@ const migrateGroupToSem6 = async (groupId, newAcademicYear, session = null) => {
       };
       
       if (session) {
-        await Student.findByIdAndUpdate(memberId, updateQuery, { session });
+        await Student.findByIdAndUpdate(memberId, addMembershipQuery, { session });
       } else {
-        await Student.findByIdAndUpdate(memberId, updateQuery);
+        await Student.findByIdAndUpdate(memberId, addMembershipQuery);
+      }
+      
+      // 3. Update currentProjects status for Sem 5 project
+      const updateProjectsQuery = {
+        $set: {
+          'currentProjects.$[elem].status': 'completed'
+        }
+      };
+      
+      const updateProjectsOptions = {
+        arrayFilters: [
+          { 'elem.semester': 5, 'elem.status': { $ne: 'completed' } }
+        ]
+      };
+      
+      if (session) {
+        await Student.findByIdAndUpdate(memberId, updateProjectsQuery, { ...updateProjectsOptions, session });
+      } else {
+        await Student.findByIdAndUpdate(memberId, updateProjectsQuery, updateProjectsOptions);
       }
     });
     

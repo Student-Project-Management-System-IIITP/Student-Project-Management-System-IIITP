@@ -7,6 +7,43 @@ import { toast } from 'react-hot-toast';
 const SystemConfiguration = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
+
+  // Function to convert config keys to user-friendly labels
+  const getConfigLabel = (configKey) => {
+    const labelMap = {
+      // Sem 5
+      'sem5.facultyPreferenceLimit': 'Faculty Preference Limit',
+      'sem5.minGroupMembers': 'Minimum Group Members',
+      'sem5.maxGroupMembers': 'Maximum Group Members',
+      'sem5.minor2.allowedFacultyTypes': 'Allowed Faculty Types',
+      
+      // Sem 7 Major Project 1
+      'sem7.major1.facultyPreferenceLimit': 'Faculty Preference Limit',
+      'sem7.major1.minGroupMembers': 'Minimum Group Members',
+      'sem7.major1.maxGroupMembers': 'Maximum Group Members',
+      'sem7.major1.allowedFacultyTypes': 'Allowed Faculty Types',
+      
+      // Sem 7 Internship 1
+      'sem7.internship1.facultyPreferenceLimit': 'Faculty Preference Limit',
+      'sem7.internship1.allowedFacultyTypes': 'Allowed Faculty Types',
+      
+      // Sem 8 Major Project 2 (Group)
+      'sem8.major2.group.facultyPreferenceLimit': 'Faculty Preference Limit',
+      'sem8.major2.group.minGroupMembers': 'Minimum Group Members',
+      'sem8.major2.group.maxGroupMembers': 'Maximum Group Members',
+      'sem8.major2.group.allowedFacultyTypes': 'Allowed Faculty Types',
+      
+      // Sem 8 Internship 2
+      'sem8.internship2.facultyPreferenceLimit': 'Faculty Preference Limit',
+      'sem8.internship2.allowedFacultyTypes': 'Allowed Faculty Types',
+      
+      // Sem 8 Major Project 2 (Solo)
+      'sem8.major2.solo.facultyPreferenceLimit': 'Faculty Preference Limit',
+      'sem8.major2.solo.allowedFacultyTypes': 'Allowed Faculty Types',
+    };
+    
+    return labelMap[configKey] || configKey;
+  };
   
   const [activeTab, setActiveTab] = useState('sem5'); // 'sem5', 'sem7', or 'sem8'
   const [sem7SubTab, setSem7SubTab] = useState('major1'); // 'major1' or 'internship1' (only active when activeTab === 'sem7')
@@ -2124,7 +2161,7 @@ const SystemConfiguration = () => {
               return configsToShow.map((config) => (
                 <div key={config._id} className="flex justify-between items-center py-2 border-b border-gray-100">
                   <div className="flex-1">
-                    <p className="text-sm font-medium text-gray-900">{config.configKey}</p>
+                    <p className="text-sm font-medium text-gray-900">{getConfigLabel(config.configKey)}</p>
                     <p className="text-xs text-gray-500">{config.description}</p>
                   </div>
                   <div className="text-sm font-mono bg-gray-100 px-3 py-1 rounded ml-4">

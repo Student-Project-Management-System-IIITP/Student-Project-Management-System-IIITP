@@ -69,23 +69,26 @@ export const useGroupManagement = () => {
     ? group?.status === 'finalized' 
     : group?.status === 'complete';
 
-  // Check if group is ready for faculty allocation
+  // Check if group is ready for faculty allocation (count only active members)
+  const activeMembersForAllocation = group?.members?.filter(m => m.isActive !== false) || [];
   const isReadyForAllocation = 
     isGroupComplete && 
-    group?.members && 
-    group.members.length >= (group?.minMembers || 2);
+    activeMembersForAllocation.length >= (group?.minMembers || 2);
 
-  // Get available slots in current group
+  // Get available slots in current group (count only active members)
   const getAvailableSlots = () => {
     if (!group) return 0;
-    const currentMembers = group.members?.length || 0;
+    const activeMembers = group.members?.filter(m => m.isActive !== false) || [];
+    const currentMembers = activeMembers.length;
     const maxMembers = group.maxMembers || 5;
     return Math.max(0, maxMembers - currentMembers);
   };
 
-  // Get group member count
+  // Get group member count (only active members)
   const getMemberCount = () => {
-    return group?.members?.length || 0;
+    if (!group) return 0;
+    const activeMembers = group.members?.filter(m => m.isActive !== false) || [];
+    return activeMembers.length;
   };
 
   // Get pending invitations count
@@ -94,10 +97,13 @@ export const useGroupManagement = () => {
   };
 
   // Check if student can invite more members
+  // Allow invites if: leader, has available slots, and group is not finalized/locked
   const canInviteMembers = () => {
-    return isGroupLeader && 
-           !isGroupComplete && 
-           getAvailableSlots() > 0;
+    if (!isGroupLeader) return false;
+    // Block if group is finalized or locked
+    if (group?.status === 'finalized' || group?.status === 'locked') return false;
+    // Allow if there are available slots (even if status is 'complete' - admin might have added members)
+    return getAvailableSlots() > 0;
   };
 
   // Check if student can accept/reject invitations
@@ -113,7 +119,7 @@ export const useGroupManagement = () => {
     return group.status || 'forming';
   };
 
-  // Get group statistics
+  // Get group statistics (count only active members)
   const getGroupStats = () => {
     if (!group) {
       return {
@@ -127,15 +133,16 @@ export const useGroupManagement = () => {
       };
     }
 
-    const members = group.members || [];
-    const leadersCount = members.filter(m => m.role === 'leader').length;
-    const membersCount = members.filter(m => m.role === 'member').length;
+    const allMembers = group.members || [];
+    const activeMembers = allMembers.filter(m => m.isActive !== false);
+    const leadersCount = activeMembers.filter(m => m.role === 'leader').length;
+    const membersCount = activeMembers.filter(m => m.role === 'member').length;
     const maxMembers = group.maxMembers || 5;
 
     return {
-      memberCount: members.length,
+      memberCount: activeMembers.length,
       maxMembers,
-      availableSlots: Math.max(0, maxMembers - members.length),
+      availableSlots: Math.max(0, maxMembers - activeMembers.length),
       leadersCount,
       membersCount,
       isComplete: isGroupComplete,

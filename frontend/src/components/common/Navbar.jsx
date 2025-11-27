@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useSem7 } from '../../context/Sem7Context';
 import { useSem8 } from '../../context/Sem8Context';
+import { useSem5 } from '../../context/Sem5Context';
 
 const Navbar = ({ userRole: propUserRole = null, user: propUser = null, roleData: propRoleData = null }) => {
   // Use props if provided, otherwise get from AuthContext
@@ -11,6 +12,19 @@ const Navbar = ({ userRole: propUserRole = null, user: propUser = null, roleData
   const user = propUser || auth.user;
   const roleData = propRoleData || auth.roleData;
   
+  // Get Sem 5 data for students (always call hook, but conditionally use)
+  let sem5Data = null;
+  try {
+    const sem5Context = useSem5();
+    // Only use Sem 5 data if student is in semester 5
+    if (userRole === 'student' && (roleData?.semester || user?.semester) === 5) {
+      sem5Data = sem5Context;
+    }
+  } catch (error) {
+    // Sem5Context might not be available, ignore silently
+    console.warn('Sem5Context not available:', error);
+  }
+
   // Get Sem 7 data for students (always call hook, but conditionally use)
   let sem7Data = null;
   try {
@@ -162,19 +176,40 @@ const Navbar = ({ userRole: propUserRole = null, user: propUser = null, roleData
     }
 
     // Semester 5: Minor Project 2 (group)
-    // Only show in Project Dashboard after student has registered for the project
-    const sem5Project = getProjectBySemester(5);
+    // Use Sem5Context data to verify project exists (more reliable than currentProjects)
+    // This ensures we don't show a link to a deleted project after group disbanding
+    const sem5ProjectFromContext = sem5Data?.sem5Project;
+    const sem5GroupFromContext = sem5Data?.sem5Group;
+    const sem5Project = sem5ProjectFromContext || getProjectBySemester(5);
+    
     if (sem5Project || currentSemester === 5) {
-      // Check multiple possible fields for project ID
-      const projectId = sem5Project?.project || sem5Project?._id || sem5Project?.projectId;
-      items.push({
-        name: 'Minor Project 2',
-        path: projectId ? `/projects/${projectId}` : '/student/sem5/register',
-        semester: 5,
-        type: 'minor2',
-        hasProject: !!sem5Project && !!projectId,
-        projectId: projectId
-      });
+      // For Sem 5, verify the project actually exists by checking Sem5Context
+      // If group was disbanded, sem5Project will be null even if currentProjects has stale data
+      const projectId = sem5Project?._id || sem5Project?.project || sem5Project?.projectId;
+      const hasValidProject = !!sem5Project && !!projectId;
+      
+      // Only show link if project exists in Sem5Context OR if student is in a finalized group
+      // This prevents showing links to deleted projects after group disbanding
+      if (hasValidProject || (sem5GroupFromContext && sem5GroupFromContext.status === 'finalized' && !sem5ProjectFromContext)) {
+        items.push({
+          name: 'Minor Project 2',
+          path: projectId ? `/projects/${projectId}` : '/student/sem5/register',
+          semester: 5,
+          type: 'minor2',
+          hasProject: hasValidProject,
+          projectId: projectId
+        });
+      } else if (currentSemester === 5) {
+        // Show registration link if in Sem 5 but no valid project
+        items.push({
+          name: 'Minor Project 2',
+          path: '/student/sem5/register',
+          semester: 5,
+          type: 'minor2',
+          hasProject: false,
+          projectId: null
+        });
+      }
     }
 
     // Semester 6: Minor Project 3 (continuation)

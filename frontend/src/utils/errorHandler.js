@@ -1,6 +1,10 @@
 // Error handling utilities
 
 export const getErrorMessage = (error) => {
+  // Check for specific error message first (more detailed)
+  if (error.response?.data?.error) {
+    return error.response.data.error;
+  }
   if (error.response?.data?.message) {
     return error.response.data.message;
   }
