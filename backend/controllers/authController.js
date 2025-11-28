@@ -6,6 +6,7 @@ const SignupOtp = require('../models/SignupOtp');
 const { sendEmail } = require('../services/emailService');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
 
 const OTP_SIGNUP_ENABLED = process.env.ENABLE_SIGNUP_OTP === 'true';
 
@@ -20,6 +21,137 @@ const generateToken = (userId) => {
 const isValidEmail = (email) => {
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   return emailRegex.test(email);
+};
+
+const requestPasswordReset = async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email is required'
+      });
+    }
+
+    if (!isValidEmail(email)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please enter a valid email address'
+      });
+    }
+
+    const user = await User.findOne({ email });
+
+    if (!user) {
+      return res.status(200).json({
+        success: true,
+        message: 'If an account with this email exists, a password reset link has been sent'
+      });
+    }
+
+    const resetToken = crypto.randomBytes(32).toString('hex');
+    const tokenHash = crypto.createHash('sha256').update(resetToken).digest('hex');
+    const expiresAt = new Date(Date.now() + 60 * 60 * 1000);
+
+    user.resetPasswordTokenHash = tokenHash;
+    user.resetPasswordExpiresAt = expiresAt;
+    await user.save();
+
+    const frontendBaseUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+    const resetUrl = `${frontendBaseUrl}/reset-password?token=${resetToken}&email=${encodeURIComponent(email)}`;
+
+    const subject = 'SPMS IIITP - Password Reset Request';
+    const text = `You requested a password reset for your SPMS account.\n\nPlease click the link below to reset your password:\n${resetUrl}\n\nThis link will expire in 1 hour. If you did not request this, you can ignore this email.`;
+    const html = `
+      <p>You requested a password reset for your SPMS account.</p>
+      <p>Please click the link below to reset your password:</p>
+      <p><a href="${resetUrl}">Reset Password</a></p>
+      <p>This link will expire in <strong>1 hour</strong>. If you did not request this, you can ignore this email.</p>
+      <p>Regards,<br/>SPMS IIIT Pune</p>
+    `;
+
+    try {
+      await sendEmail({ to: email, subject, text, html });
+    } catch (emailError) {
+      console.error('Error sending password reset email:', emailError);
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to send password reset email. Please try again later.'
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'If an account with this email exists, a password reset link has been sent'
+    });
+  } catch (error) {
+    console.error('Error requesting password reset:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error.message
+    });
+  }
+};
+
+const resetPassword = async (req, res) => {
+  try {
+    const { token, email, password } = req.body;
+
+    if (!token || !email || !password) {
+      return res.status(400).json({
+        success: false,
+        message: 'Token, email and new password are required'
+      });
+    }
+
+    if (!isValidEmail(email)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please enter a valid email address'
+      });
+    }
+
+    if (password.length < 6) {
+      return res.status(400).json({
+        success: false,
+        message: 'Password must be at least 6 characters long'
+      });
+    }
+
+    const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+
+    const user = await User.findOne({
+      email,
+      resetPasswordTokenHash: tokenHash,
+      resetPasswordExpiresAt: { $gt: new Date() }
+    }).select('+password');
+
+    if (!user) {
+      return res.status(400).json({
+        success: false,
+        message: 'Reset link is invalid or has expired'
+      });
+    }
+
+    user.password = password;
+    user.resetPasswordTokenHash = undefined;
+    user.resetPasswordExpiresAt = undefined;
+    await user.save();
+
+    return res.status(200).json({
+      success: true,
+      message: 'Password reset successfully. You can now log in.'
+    });
+  } catch (error) {
+    console.error('Error resetting password:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error.message
+    });
+  }
 };
 
 // Send OTP for student signup email verification
@@ -809,6 +941,8 @@ module.exports = {
   signupFaculty,
   signupAdmin,
   loginUser,
+  requestPasswordReset,
+  resetPassword,
   getUserProfile,
   updateUserProfile,
   changePassword,

@@ -12,6 +12,8 @@ const {
   verifyToken,
   sendSignupOtp,
   verifySignupOtp,
+  requestPasswordReset,
+  resetPassword,
 } = require('../controllers/authController');
 const { authenticateToken } = require('../middleware/auth');
 
@@ -21,6 +23,8 @@ router.post('/signup/faculty', signupFaculty);
 router.post('/signup/admin', signupAdmin);
 router.post('/signup/send-otp', sendSignupOtp);
 router.post('/signup/verify-otp', verifySignupOtp);
+router.post('/forgot-password', requestPasswordReset);
+router.post('/reset-password', resetPassword);
 router.post('/login', loginUser);
 router.post('/logout', logoutUser);
 
