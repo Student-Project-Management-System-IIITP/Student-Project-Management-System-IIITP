@@ -4,6 +4,8 @@ import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { authAPI } from '../../utils/api';
 
+const OTP_SIGNUP_ENABLED = import.meta.env.VITE_ENABLE_SIGNUP_OTP === 'true';
+
 const Signup = () => {
   const [formData, setFormData] = useState({
     fullName: '',
@@ -235,8 +237,8 @@ const Signup = () => {
     if (!validateForm()) {
       return;
     }
-
-    if (!isOtpVerified) {
+    
+    if (OTP_SIGNUP_ENABLED && !isOtpVerified) {
       toast.error('Please verify your email with OTP before creating an account');
       return;
     }
@@ -543,7 +545,7 @@ const Signup = () => {
           
           <button
             type="submit"
-            disabled={isLoading || !isOtpVerified}
+            disabled={isLoading || (OTP_SIGNUP_ENABLED && !isOtpVerified)}
             className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white font-semibold py-3 px-4 rounded-lg transition duration-200"
           >
             {isLoading ? 'Creating Account...' : 'Create Account'}
