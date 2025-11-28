@@ -7,6 +7,8 @@ const { sendEmail } = require('../services/emailService');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 
+const OTP_SIGNUP_ENABLED = process.env.ENABLE_SIGNUP_OTP === 'true';
+
 // Generate JWT Token
 const generateToken = (userId) => {
   return jwt.sign({ userId }, process.env.JWT_SECRET, {
@@ -267,19 +269,20 @@ const signupStudent = async (req, res) => {
       });
     }
 
-    // Ensure email OTP has been verified recently
-    const latestOtp = await SignupOtp.findOne({
-      email: collegeEmail,
-      purpose: 'signup',
-      verified: true,
-    }).sort({ createdAt: -1 });
+    if (OTP_SIGNUP_ENABLED) {
+      const latestOtp = await SignupOtp.findOne({
+        email: collegeEmail,
+        purpose: 'signup',
+        verified: true,
+      }).sort({ createdAt: -1 });
 
-    if (!latestOtp || latestOtp.expiresAt < new Date()) {
-      return res.status(400).json({
-        success: false,
-        message: 'Please verify the OTP sent to your email before creating an account',
-        errorCode: 'EMAIL_OTP_NOT_VERIFIED',
-      });
+      if (!latestOtp || latestOtp.expiresAt < new Date()) {
+        return res.status(400).json({
+          success: false,
+          message: 'Please verify the OTP sent to your email before creating an account',
+          errorCode: 'EMAIL_OTP_NOT_VERIFIED',
+        });
+      }
     }
 
     // Validate MIS number format (9 digits)
