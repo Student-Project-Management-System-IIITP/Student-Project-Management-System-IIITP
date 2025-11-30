@@ -115,6 +115,13 @@ const Sem6Registration = () => {
             }
           }
           
+          // Check if error is due to no faculty allocated
+          if (response.message && (response.message.includes('allocated faculty') || response.message.includes('does not have an allocated faculty'))) {
+            toast.error('Your group does not have an allocated faculty. Please contact your admin.');
+            setTimeout(() => navigate('/dashboard/student'), 1500);
+            return;
+          }
+          
           toast.error(response.message || 'Failed to load Sem 5 data');
           navigate('/dashboard/student');
         }
@@ -133,6 +140,13 @@ const Sem6Registration = () => {
             navigate(`/projects/${projectId}`, { replace: true });
             return;
           }
+        }
+        
+        // Check if error is due to no faculty allocated
+        if (error.message && (error.message.includes('allocated faculty') || error.message.includes('does not have an allocated faculty'))) {
+          toast.error('Your group does not have an allocated faculty. Please contact your admin.');
+          setTimeout(() => navigate('/dashboard/student'), 1500);
+          return;
         }
         
         toast.error(error.message || 'Failed to load Sem 5 group data');

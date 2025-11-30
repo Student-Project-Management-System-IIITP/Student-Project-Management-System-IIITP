@@ -78,6 +78,14 @@ const ManageProjects = () => {
     }
   }, [groupIdFromUrl, groups]);
 
+  // Load students when Add Member modal opens
+  useEffect(() => {
+    if (showAddMemberModal && selectedGroup && !studentsLoaded && !studentsLoading) {
+      // Load students with empty search to show all eligible students
+      loadAvailableStudents('');
+    }
+  }, [showAddMemberModal, selectedGroup]);
+
   const loadGroups = async () => {
     try {
       setLoading(true);
@@ -111,16 +119,26 @@ const ManageProjects = () => {
     }
   };
 
-  // Load students for adding (all Sem N students; availability is shown via status in the UI)
-  const loadAvailableStudents = async () => {
+  // Load students for adding (semester-specific search with eligibility checks)
+  const loadAvailableStudents = async (searchTerm = '') => {
+    if (!selectedGroup) {
+      return;
+    }
+    
     try {
       setStudentsLoading(true);
-      const studentsResponse = await adminAPI.getStudentsBySemester({ semester });
-      const allStudents = studentsResponse.data || [];
-      // Do not filter out students in groups here; we want to show them as unavailable in the UI
-      setStudents(allStudents);
+      const params = {
+        search: searchTerm,
+        page: 1,
+        limit: 100
+      };
+      
+      const response = await adminAPI.searchStudentsForGroup(selectedGroup._id, params);
+      const studentsWithEligibility = response.data || [];
+      setStudents(studentsWithEligibility);
     } catch (error) {
       console.error('Error loading students:', error);
+      handleApiError(error);
       setStudents([]);
     } finally {
       setStudentsLoading(false);
@@ -169,6 +187,8 @@ const ManageProjects = () => {
       setSelectedStudentsForAdd([]);
       setStudentSearchTerm('');
       setAddStep(1);
+      setStudentsLoaded(false);
+      setStudents([]);
       await loadGroupDetails(selectedGroup._id);
       await loadGroups();
     } catch (error) {
@@ -206,6 +226,17 @@ const ManageProjects = () => {
   };
 
   // Disband group
+  // Helper function to get project type name for semester
+  const getProjectTypeName = (semester) => {
+    const projectTypeMap = {
+      5: 'Minor Project 2',
+      6: 'Minor Project 3',
+      7: 'Major Project 1',
+      8: 'Major Project 2'
+    };
+    return projectTypeMap[semester] || 'Project';
+  };
+
   const handleDisbandGroup = async () => {
     if (!selectedGroup) {
       return;
@@ -213,10 +244,18 @@ const ManageProjects = () => {
 
     setDisbandingGroup(true);
     try {
-      await adminAPI.disbandGroup(selectedGroup._id, {
+      const response = await adminAPI.disbandGroup(selectedGroup._id, {
         reason: disbandReason || 'Disbanded by admin'
       });
-      toast.success(`Group "${selectedGroup.name || 'Unnamed Group'}" has been disbanded successfully. All members, projects, and faculty preferences have been removed.`);
+      
+      const projectTypeName = getProjectTypeName(selectedGroup.semester);
+      let successMessage = `Group "${selectedGroup.name || 'Unnamed Group'}" has been disbanded successfully. All members, projects, and faculty preferences have been removed.`;
+      
+      if (response.data?.warning) {
+        successMessage += ` ${response.data.warning}`;
+      }
+      
+      toast.success(successMessage);
       setShowDisbandModal(false);
       setDisbandReason('');
       setSelectedGroup(null);
@@ -859,18 +898,36 @@ const ManageProjects = () => {
                     placeholder="Search by name, MIS, or email..."
                     value={studentSearchTerm}
                     onChange={(e) => {
-                      setStudentSearchTerm(e.target.value);
-                      if (e.target.value && !studentsLoaded && !studentsLoading) {
-                        loadAvailableStudents();
+                      const value = e.target.value;
+                      setStudentSearchTerm(value);
+                      
+                      // Clear previous timeout
+                      if (searchTimeoutRef.current) {
+                        clearTimeout(searchTimeoutRef.current);
                       }
+                      
+                      // Debounce search - wait 300ms after user stops typing
+                      searchTimeoutRef.current = setTimeout(() => {
+                        if (value.trim()) {
+                          loadAvailableStudents(value.trim());
+                        } else {
+                          setStudents([]);
+                          setStudentsLoaded(false);
+                        }
+                      }, 300);
                     }}
                     onFocus={() => {
-                      if (!studentsLoaded && !studentsLoading) {
-                        loadAvailableStudents();
+                      if (!studentsLoaded && !studentsLoading && studentSearchTerm) {
+                        loadAvailableStudents(studentSearchTerm);
                       }
                     }}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500"
                   />
+                  {selectedGroup?.semester === 6 && (
+                    <p className="mt-1 text-xs text-gray-500">
+                      Only students with Sem 5 group history will be shown
+                    </p>
+                  )}
                 </div>
 
                 <div>
@@ -889,37 +946,31 @@ const ManageProjects = () => {
                         Start typing (name / MIS / email) to search students.
                       </div>
                     )}
-                    {!studentsLoading && studentSearchTerm && filteredStudents.length === 0 && (
+                    {!studentsLoading && studentSearchTerm && students.length === 0 && (
                       <div className="p-3 text-sm text-gray-500">
                         No students found matching your search.
                       </div>
                     )}
-                    {!studentsLoading && filteredStudents.length > 0 && (
+                    {!studentsLoading && students.length > 0 && (
                       <>
-                        {filteredStudents.map(student => {
+                        {students.map(student => {
+                          const isSelected = selectedStudentsForAdd.some(s => s._id === student._id);
                           const inThisGroup = selectedGroup.members?.some(
                             m => m.isActive && (m.student?._id === student._id || m.student === student._id)
                           );
-                          const inOtherGroup = groups.some(
-                            g =>
-                              g._id !== selectedGroup._id &&
-                              g.semester === semester &&
-                              g.members?.some(
-                                m => m.isActive && (m.student?._id === student._id || m.student === student._id)
-                              )
-                          );
-                          const isSelected = selectedStudentsForAdd.some(s => s._id === student._id);
-                          // Block selection for any student already in a Sem N group; show them as unavailable
-                          const disabled = inThisGroup || inOtherGroup;
+                          
+                          // Use eligibility from backend response, or if already in this group
+                          const disabled = !student.isEligible || inThisGroup;
 
                           let statusLabel = 'Available';
                           let statusClass = 'bg-green-100 text-green-800';
+                          
                           if (inThisGroup) {
                             statusLabel = 'Already in this group';
                             statusClass = 'bg-gray-100 text-gray-600';
-                          } else if (inOtherGroup) {
-                            statusLabel = 'In another group';
-                            statusClass = 'bg-yellow-100 text-yellow-800';
+                          } else if (!student.isEligible) {
+                            statusLabel = student.eligibilityReason || 'Not eligible';
+                            statusClass = 'bg-red-100 text-red-800';
                           }
 
                           return (
@@ -934,22 +985,30 @@ const ManageProjects = () => {
                                   setSelectedStudentsForAdd(prev => [...prev, student]);
                                 }
                               }}
-                              className={`w-full text-left px-3 py-2 text-sm border-b border-gray-100 last:border-b-0 hover:bg-indigo-50 ${
-                                isSelected ? 'bg-indigo-50' : ''
-                              } ${disabled ? 'cursor-not-allowed opacity-60' : ''}`}
+                              className={`w-full text-left px-3 py-2 text-sm border-b border-gray-100 last:border-b-0 transition-colors ${
+                                isSelected ? 'bg-indigo-50' : disabled ? 'bg-gray-50' : 'hover:bg-indigo-50'
+                              } ${disabled ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}
                               disabled={disabled}
+                              title={disabled && student.eligibilityReason ? student.eligibilityReason : ''}
                             >
                               <div className="flex items-center justify-between">
-                                <div>
+                                <div className="flex-1">
                                   <div className="font-medium text-gray-900">{student.fullName}</div>
                                   <div className="text-xs text-gray-500">
                                     {student.misNumber} • {student.branch} • Sem {student.semester}
                                   </div>
-                                  <div className="text-xs text-gray-400">
-                                    {student.collegeEmail}
-                                  </div>
+                                  {student.collegeEmail && (
+                                    <div className="text-xs text-gray-400">
+                                      {student.collegeEmail}
+                                    </div>
+                                  )}
+                                  {!student.isEligible && student.eligibilityReason && (
+                                    <div className="text-xs text-red-600 mt-1">
+                                      {student.eligibilityReason}
+                                    </div>
+                                  )}
                                 </div>
-                                <span className={`ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs ${statusClass}`}>
+                                <span className={`ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs flex-shrink-0 ${statusClass}`}>
                                   {statusLabel}
                                 </span>
                               </div>
@@ -1058,6 +1117,8 @@ const ManageProjects = () => {
                   setSelectedStudentsForAdd([]);
                   setStudentSearchTerm('');
                   setAddStep(1);
+                  setStudentsLoaded(false);
+                  setStudents([]);
                   setAddMemberForm({
                     role: 'member',
                     reason: 'You have been added to this group by admin.'
@@ -1154,18 +1215,53 @@ const ManageProjects = () => {
       {/* Disband Group Modal */}
       {showDisbandModal && selectedGroup && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+          <div className="bg-white rounded-lg p-6 max-w-lg w-full mx-4 max-h-[90vh] overflow-y-auto">
             <h2 className="text-xl font-semibold mb-4 text-red-600">Disband Group</h2>
+            
+            {/* Warning for Sem 6 */}
+            {selectedGroup.semester === 6 && (
+              <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-md">
+                <p className="text-sm text-yellow-800 font-medium">
+                  ⚠️ Important: Students in Sem 6 cannot create new groups. After disbanding, you must add these students to another existing Sem 6 group.
+                </p>
+              </div>
+            )}
+            
             <p className="text-sm text-gray-600 mb-4">
               Are you sure you want to disband this group? This action will:
             </p>
             <ul className="text-sm text-gray-600 mb-4 list-disc list-inside space-y-1">
               <li>Remove all members from the group</li>
-              <li>Delete the Sem 5 Minor Project 2 project (if registered)</li>
-              <li>Remove all faculty preferences</li>
+              <li>Delete the Sem {selectedGroup.semester} {getProjectTypeName(selectedGroup.semester)} project (if registered)</li>
+              <li>Remove all faculty preferences for this semester</li>
               <li>Clear all invitations</li>
-              <li>Mark the group as disbanded</li>
+              <li>Delete the group completely</li>
             </ul>
+            
+            {/* Show member list */}
+            {selectedGroup.members && selectedGroup.members.filter(m => m.isActive).length > 0 && (
+              <div className="mb-4">
+                <p className="text-sm font-medium text-gray-700 mb-2">
+                  Members who will be removed ({selectedGroup.members.filter(m => m.isActive).length}):
+                </p>
+                <div className="max-h-32 overflow-y-auto border border-gray-200 rounded-md p-2 bg-gray-50">
+                  {selectedGroup.members
+                    .filter(m => m.isActive)
+                    .map((member, idx) => (
+                      <div key={idx} className="text-xs text-gray-600 py-1 border-b border-gray-200 last:border-b-0">
+                        <span className="font-medium">{member.student?.fullName || 'Unknown'}</span>
+                        {member.student?.misNumber && (
+                          <span className="text-gray-500"> ({member.student.misNumber})</span>
+                        )}
+                        {member.student?.collegeEmail && (
+                          <span className="text-gray-500"> - {member.student.collegeEmail}</span>
+                        )}
+                      </div>
+                    ))}
+                </div>
+              </div>
+            )}
+            
             <div className="mb-4">
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Reason (optional)

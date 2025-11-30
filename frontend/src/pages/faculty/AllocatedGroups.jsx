@@ -124,7 +124,7 @@ const AllocatedGroups = () => {
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-600">Total Students</p>
                 <p className="text-2xl font-bold text-gray-900">
-                  {currentFacultyGroups.reduce((total, group) => total + (group.members?.length || 0), 0)}
+                  {currentFacultyGroups.reduce((total, group) => total + (group.members?.filter(m => m.isActive !== false).length || 0), 0)}
                 </p>
               </div>
             </div>
@@ -153,7 +153,7 @@ const AllocatedGroups = () => {
                 <p className="text-sm font-medium text-gray-600">Avg. Group Size</p>
                 <p className="text-2xl font-bold text-gray-900">
                   {currentFacultyGroups.length > 0 ? 
-                    Math.round(currentFacultyGroups.reduce((total, group) => total + (group.members?.length || 0), 0) / currentFacultyGroups.length * 10) / 10 
+                    Math.round(currentFacultyGroups.reduce((total, group) => total + (group.members?.filter(m => m.isActive !== false).length || 0), 0) / currentFacultyGroups.length * 10) / 10 
                     : 0}
                 </p>
               </div>

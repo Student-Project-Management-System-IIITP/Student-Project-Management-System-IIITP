@@ -31,19 +31,40 @@ const migrateGroupToSem6 = async (groupId, newAcademicYear, session = null) => {
       throw new Error('Group not found');
     }
     
-    if (group.semester !== 5) {
-      throw new Error('Group is not from Semester 5');
+    // Check if already migrated to Sem 6 first
+    if (group.semester === 6) {
+      // Group is already at Sem 6 - just update academic year if needed
+      if (newAcademicYear && group.academicYear !== newAcademicYear) {
+        group.academicYear = newAcademicYear;
+        group.updatedAt = new Date();
+        if (session) {
+          await group.save({ session });
+        } else {
+          await group.save();
+        }
+      }
+      return group;
     }
     
-    // Check if already migrated
-    if (group.semester === 6) {
-      console.log('Group already migrated to Sem 6');
-      return group;
+    // Check if group is from Sem 5 (required for migration)
+    if (group.semester !== 5) {
+      throw new Error('Group is not from Semester 5');
     }
     
     // Validate academic year format
     if (!newAcademicYear || !/^\d{4}-\d{2}$/.test(newAcademicYear)) {
       newAcademicYear = generateAcademicYear();
+    }
+    
+    // Validate that leader is in active members before migration
+    const activeMembers = group.members.filter(m => m.isActive);
+    const leaderInActiveMembers = activeMembers.some(m => {
+      const memberId = m.student._id ? m.student._id.toString() : m.student.toString();
+      return memberId === group.leader.toString();
+    });
+    
+    if (!leaderInActiveMembers) {
+      throw new Error('Group leader must be an active member of the group before migration to Sem 6');
     }
     
     // Update group semester and academic year
@@ -52,6 +73,25 @@ const migrateGroupToSem6 = async (groupId, newAcademicYear, session = null) => {
     group.status = 'open'; // Reset status for Sem 6
     group.project = null; // Clear Sem 5 project reference
     group.updatedAt = new Date();
+    
+    // Update group name to reflect Sem 6 (replace "Sem 5" with "Sem 6" or append if not present)
+    // Get leader's name for group name generation
+    let leaderName = 'Unknown';
+    if (group.leader && typeof group.leader === 'object' && group.leader.fullName) {
+      // Already populated
+      leaderName = group.leader.fullName;
+    } else {
+      // Need to fetch leader's name
+      const leaderStudent = session
+        ? await Student.findById(group.leader).select('fullName').session(session)
+        : await Student.findById(group.leader).select('fullName');
+      if (leaderStudent) {
+        leaderName = leaderStudent.fullName;
+      }
+    }
+    
+    // Update group name: "Group - [Leader Name] - Sem 6"
+    group.name = `Group - ${leaderName} - Sem 6`;
     
     // Save group
     if (session) {
@@ -62,9 +102,7 @@ const migrateGroupToSem6 = async (groupId, newAcademicYear, session = null) => {
     
     // Update all group members' memberships
     // Add new Sem 6 membership while marking Sem 5 membership as inactive
-    const memberIds = group.members
-      .filter(m => m.isActive)
-      .map(m => m.student);
+    const memberIds = activeMembers.map(m => m.student);
     
     const updatePromises = memberIds.map(async (memberId) => {
       const member = group.members.find(m => 
@@ -165,26 +203,65 @@ const createNewGroupForSem6 = async (sem5GroupId, newAcademicYear, session = nul
       throw new Error('Sem 5 group not found');
     }
     
-    if (sem5Group.semester !== 5) {
-      throw new Error('Source group is not from Semester 5');
-    }
+    // Note: We don't check if semester is 5 because the group might have been migrated
+    // to Sem 6 already (same document updated). This function creates a NEW group document
+    // for Sem 6, so it can work with either a Sem 5 group or a migrated Sem 6 group.
     
     // Validate academic year
     if (!newAcademicYear || !/^\d{4}-\d{2}$/.test(newAcademicYear)) {
       newAcademicYear = generateAcademicYear();
     }
     
-    // Create new group with Sem 5 data
-    const newGroupData = {
-      name: `${sem5Group.name} (Sem 6)`,
-      description: sem5Group.description || '',
-      members: sem5Group.members.map(m => ({
+    // Get leader's fullName for group name generation
+    // Handle both populated and unpopulated leader fields
+    let leaderName = 'Unknown';
+    if (sem5Group.leader && typeof sem5Group.leader === 'object' && sem5Group.leader.fullName) {
+      // Already populated
+      leaderName = sem5Group.leader.fullName;
+    } else {
+      // Need to fetch leader's name
+      const leaderStudent = session
+        ? await Student.findById(sem5Group.leader).select('fullName').session(session)
+        : await Student.findById(sem5Group.leader).select('fullName');
+      if (leaderStudent) {
+        leaderName = leaderStudent.fullName;
+      }
+    }
+    
+    // Generate clean group name: "Group - [Leader Name] - Sem 6"
+    const groupName = `Group - ${leaderName} - Sem 6`;
+    
+    // Get only ACTIVE members (leader must be active)
+    const activeMembers = sem5Group.members.filter(m => m.isActive);
+    
+    // Ensure leader is in the active members list
+    const leaderInActiveMembers = activeMembers.some(m => {
+      const memberId = m.student._id ? m.student._id.toString() : m.student.toString();
+      return memberId === sem5Group.leader.toString();
+    });
+    
+    if (!leaderInActiveMembers) {
+      throw new Error('Group leader must be an active member of the group');
+    }
+    
+    // Create new group with Sem 5 data - only include ACTIVE members
+    // Ensure leader's role is set correctly
+    const newMembers = activeMembers.map(m => {
+      const memberId = m.student._id ? m.student._id.toString() : m.student.toString();
+      const isLeader = memberId === sem5Group.leader.toString();
+      return {
         student: m.student,
-        role: m.role,
+        role: isLeader ? 'leader' : m.role, // Ensure leader role is set correctly
         joinedAt: new Date(),
-        isActive: m.isActive,
+        isActive: true, // All members in new group are active
         inviteStatus: 'accepted'
-      })),
+      };
+    });
+    
+    const newGroupData = {
+      name: groupName,
+      description: sem5Group.description || '',
+      members: newMembers,
       leader: sem5Group.leader,
       createdBy: sem5Group.createdBy,
       allocatedFaculty: sem5Group.allocatedFaculty,
@@ -207,6 +284,7 @@ const createNewGroupForSem6 = async (sem5GroupId, newAcademicYear, session = nul
     }
     
     // Add group membership for all members
+    // Also mark old Sem 5 groupMemberships as inactive to preserve history
     const memberIds = sem5Group.members
       .filter(m => m.isActive)
       .map(m => m.student);
@@ -218,7 +296,27 @@ const createNewGroupForSem6 = async (sem5GroupId, newAcademicYear, session = nul
       
       const role = member?.role || 'member';
       
-      const updateQuery = {
+      // 1. Mark old Sem 5 membership as inactive (preserve history)
+      const deactivateQuery = {
+        $set: {
+          'groupMemberships.$[elem].isActive': false
+        }
+      };
+      
+      const deactivateOptions = {
+        arrayFilters: [
+          { 'elem.group': sem5GroupId.toString(), 'elem.semester': 5, 'elem.isActive': true }
+        ]
+      };
+      
+      if (session) {
+        await Student.findByIdAndUpdate(memberId, deactivateQuery, { ...deactivateOptions, session });
+      } else {
+        await Student.findByIdAndUpdate(memberId, deactivateQuery, deactivateOptions);
+      }
+      
+      // 2. Add new Sem 6 membership pointing to NEW group
+      const addMembershipQuery = {
         $push: {
           groupMemberships: {
             group: newGroup._id,
@@ -227,13 +325,35 @@ const createNewGroupForSem6 = async (sem5GroupId, newAcademicYear, session = nul
             isActive: true,
             joinedAt: new Date()
           }
+        },
+        $set: {
+          groupId: newGroup._id // Update groupId to point to NEW Sem 6 group (not old Sem 5 group)
         }
       };
       
       if (session) {
-        await Student.findByIdAndUpdate(memberId, updateQuery, { session });
+        await Student.findByIdAndUpdate(memberId, addMembershipQuery, { session });
       } else {
-        await Student.findByIdAndUpdate(memberId, updateQuery);
+        await Student.findByIdAndUpdate(memberId, addMembershipQuery);
+      }
+      
+      // 3. Update currentProjects status for Sem 5 project (mark as completed)
+      const updateProjectsQuery = {
+        $set: {
+          'currentProjects.$[elem].status': 'completed'
+        }
+      };
+      
+      const updateProjectsOptions = {
+        arrayFilters: [
+          { 'elem.semester': 5, 'elem.status': { $ne: 'completed' } }
+        ]
+      };
+      
+      if (session) {
+        await Student.findByIdAndUpdate(memberId, updateProjectsQuery, { ...updateProjectsOptions, session });
+      } else {
+        await Student.findByIdAndUpdate(memberId, updateProjectsQuery, updateProjectsOptions);
       }
     });
     

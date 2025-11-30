@@ -214,8 +214,29 @@ groupSchema.pre('save', function(next) {
 // Pre-save middleware to validate group
 groupSchema.pre('save', function(next) {
   // Ensure leader is in members array
-  if (this.leader && !this.members.some(member => member.student.toString() === this.leader.toString())) {
-    return next(new Error('Group leader must be a member of the group'));
+  if (this.leader) {
+    const leaderInMembers = this.members.some(member => {
+      // Handle both ObjectId and populated objects
+      const memberStudentId = member.student._id ? member.student._id.toString() : member.student.toString();
+      const leaderId = this.leader._id ? this.leader._id.toString() : this.leader.toString();
+      return memberStudentId === leaderId;
+    });
+    
+    if (!leaderInMembers) {
+      console.error('\n[GROUP VALIDATION ERROR] Leader not in members array:', {
+        groupId: this._id.toString(),
+        groupName: this.name,
+        groupSemester: this.semester,
+        leader: this.leader._id ? this.leader._id.toString() : this.leader.toString(),
+        membersCount: this.members.length,
+        members: this.members.map(m => ({
+          student: m.student._id ? m.student._id.toString() : m.student.toString(),
+          isActive: m.isActive,
+          role: m.role
+        }))
+      });
+      return next(new Error('Group leader must be a member of the group'));
+    }
   }
   
   // Validate member count
@@ -287,16 +308,23 @@ groupSchema.methods.addMember = function(studentId, role = 'member') {
 
 // Method to remove member
 groupSchema.methods.removeMember = function(studentId) {
-  const memberIndex = this.members.findIndex(member => 
-    member.student.toString() === studentId.toString()
-  );
+  // Find all instances of this student in members array (both active and inactive)
+  const memberIndices = [];
+  for (let i = 0; i < this.members.length; i++) {
+    if (this.members[i].student.toString() === studentId.toString()) {
+      memberIndices.push(i);
+    }
+  }
   
-  if (memberIndex === -1) {
+  if (memberIndices.length === 0) {
     throw new Error('Student is not a member of this group');
   }
   
-  // If removing the leader, assign new leader
-  if (this.leader.toString() === studentId.toString()) {
+  // Check if removing the leader
+  const isLeader = this.leader.toString() === studentId.toString();
+  
+  if (isLeader) {
+    // Find remaining active members (excluding the one being removed)
     const remainingMembers = this.members.filter(member => 
       member.student.toString() !== studentId.toString() && member.isActive
     );
@@ -307,14 +335,23 @@ groupSchema.methods.removeMember = function(studentId) {
     
     // Assign new leader (first remaining member)
     this.leader = remainingMembers[0].student;
-    remainingMembers[0].role = 'leader';
+    // Update the role in the members array
+    const newLeaderMember = this.members.find(m => 
+      m.student.toString() === remainingMembers[0].student.toString()
+    );
+    if (newLeaderMember) {
+      newLeaderMember.role = 'leader';
+    }
   }
   
-  // Mark member as inactive
-  this.members[memberIndex].isActive = false;
+  // Completely remove ALL instances of this student from members array (backwards to preserve indices)
+  for (let i = memberIndices.length - 1; i >= 0; i--) {
+    this.members.splice(memberIndices[i], 1);
+  }
   
-  // Update group status
-  if (this.memberCount < this.minMembers) {
+  // Update group status if below minimum
+  const activeMembers = this.members.filter(m => m.isActive);
+  if (activeMembers.length < this.minMembers) {
     this.status = 'forming';
   }
   
@@ -841,6 +878,8 @@ groupSchema.methods.allowMemberLeave = async function(studentId, session = null)
 };
 
 // Advanced feature: Force disband group (admin function)
+// NOTE: This method marks group as disbanded but does NOT remove members
+// For complete removal, use admin controller's disbandGroup which deletes the group
 groupSchema.methods.disbandGroup = async function(adminId, session = null) {
   if (this.status === 'disbanded') {
     throw new Error('Group is already disbanded');
@@ -850,10 +889,9 @@ groupSchema.methods.disbandGroup = async function(adminId, session = null) {
   this.disbandedAt = new Date();
   this.disbandedBy = adminId;
 
-  // Mark all members as inactive
-  this.members.forEach(member => {
-    member.isActive = false;
-  });
+  // Completely remove all members from the group (not just mark inactive)
+  // This ensures clean state when disbanding
+  this.members = [];
 
   await this.save({ session });
   return true;

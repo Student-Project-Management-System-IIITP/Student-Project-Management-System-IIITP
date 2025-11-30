@@ -580,15 +580,25 @@ studentSchema.methods.updateGroupRoleAtomic = async function(groupId, newRole, s
 
 // Method to leave group
 studentSchema.methods.leaveGroup = function(groupId) {
-  const membership = this.groupMemberships.find(gm => 
-    gm.group.toString() === groupId.toString() && gm.isActive
+  // Find all groupMemberships for this group (both active and inactive)
+  const memberships = this.groupMemberships.filter(gm => 
+    gm.group.toString() === groupId.toString()
   );
   
-  if (!membership) {
+  if (memberships.length === 0) {
     throw new Error('Student is not a member of this group');
   }
   
-  membership.isActive = false;
+  // Completely remove all memberships for this group
+  this.groupMemberships = this.groupMemberships.filter(gm => 
+    gm.group.toString() !== groupId.toString()
+  );
+  
+  // Clear groupId if it points to this group
+  if (this.groupId && this.groupId.toString() === groupId.toString()) {
+    this.groupId = null;
+  }
+  
   return this.save();
 };
 

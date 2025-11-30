@@ -297,10 +297,10 @@ const FacultyDashboard = () => {
       <div className="mb-4">
         <h4 className="text-sm font-medium text-gray-700 mb-2">Group Members</h4>
         <div className="space-y-1">
-          {group.members.map((member, index) => (
+          {group.members?.filter(m => m.isActive !== false).map((member, index) => (
             <div key={index} className="flex justify-between text-sm">
-              <span className="text-gray-900">{member.name}</span>
-              <span className="text-gray-500">{member.misNumber} • {member.role}</span>
+              <span className="text-gray-900">{member.name || member.student?.fullName}</span>
+              <span className="text-gray-500">{member.misNumber || member.student?.misNumber} • {member.role}</span>
             </div>
           ))}
         </div>
