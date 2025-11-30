@@ -463,7 +463,11 @@ const getFacultyGroups = async (req, res) => {
     }
 
     // Build query
-    const query = { allocatedFaculty: faculty._id, isActive: true };
+    const query = { 
+      allocatedFaculty: faculty._id, 
+      isActive: true,
+      status: { $ne: 'locked' } // Exclude locked groups (historical Sem 5 groups)
+    };
     
     if (semester) {
       query.semester = parseInt(semester);
@@ -950,7 +954,7 @@ const getUnallocatedGroups = async (req, res) => {
               misNumber: student.misNumber || 'N/A',
               role: 'leader'
             }] : [])
-          : (pref.group?.members?.map(member => ({
+          : (pref.group?.members?.filter(m => m.isActive !== false).map(member => ({
         name: member.student?.fullName || 'Unknown',
         misNumber: member.student?.misNumber || 'N/A',
         role: member.role || 'member'
@@ -1018,7 +1022,8 @@ const getAllocatedGroups = async (req, res) => {
       allocatedFaculty: faculty._id,
       isActive: true,
       semester: { $in: semestersToFetch },
-      academicYear: academicYear
+      academicYear: academicYear,
+      status: { $ne: 'locked' } // Exclude locked groups (historical Sem 5 groups)
     };
     
     const directlyAllocatedGroups = await Group.find(groupQuery)
@@ -1062,7 +1067,7 @@ const getAllocatedGroups = async (req, res) => {
               misNumber: student.misNumber || 'N/A',
               role: 'leader'
             }] : [])
-          : (pref.group?.members?.map(member => ({
+          : (pref.group?.members?.filter(m => m.isActive !== false).map(member => ({
         name: member.student?.fullName || 'Unknown',
         misNumber: member.student?.misNumber || 'N/A',
         role: member.role || 'member'
@@ -1080,7 +1085,7 @@ const getAllocatedGroups = async (req, res) => {
       groupName: group.name || 'Unnamed Group',
       projectTitle: group.project?.title || 'No Project',
       projectType: group.project?.projectType || (group.semester === 7 ? 'major1' : group.semester === 8 ? 'major2' : group.semester === 5 ? 'minor2' : group.semester === 4 ? 'minor1' : group.semester === 6 ? 'minor3' : 'unknown'),
-      members: group.members?.map(member => ({
+      members: group.members?.filter(m => m.isActive !== false).map(member => ({
         name: member.student?.fullName || 'Unknown',
         misNumber: member.student?.misNumber || 'N/A',
         role: member.role || 'member'

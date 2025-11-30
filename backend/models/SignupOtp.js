@@ -27,7 +27,7 @@ const signupOtpSchema = new mongoose.Schema(
     expiresAt: {
       type: Date,
       required: true,
-      index: true,
+      // Index is defined below using schema.index() for TTL functionality
     },
   },
   {

@@ -270,14 +270,14 @@ const GroupAllocation = () => {
                             </div>
                           )}
                           
-                          {group.members && group.members.length > 0 && (
+                          {group.members && group.members.filter(m => m.isActive !== false).length > 0 && (
                             <div>
                               <h4 className="font-medium text-gray-900">Group Members:</h4>
                               <div className="mt-1 space-y-1">
-                                {group.members.map((member, index) => (
+                                {group.members.filter(m => m.isActive !== false).map((member, index) => (
                                   <div key={index} className="flex items-center justify-between text-sm">
                                     <span className="text-gray-600">
-                                      {member.student?.fullName} ({member.student?.rollNumber})
+                                      {member.student?.fullName} ({member.student?.rollNumber || member.student?.misNumber})
                                     </span>
                                     <span className={`px-2 py-1 text-xs rounded-full ${
                                       member.role === 'leader' 

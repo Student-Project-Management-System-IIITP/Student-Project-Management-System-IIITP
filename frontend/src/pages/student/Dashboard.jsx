@@ -321,6 +321,10 @@ const StudentDashboard = () => {
     try {
       setSem6ProjectLoading(true);
       
+      // Reset state first to ensure clean state
+      setSem6Project(null);
+      setSem6Group(null);
+      
       // Get all projects to find Sem 6 project
       const response = await studentAPI.getProjects({ allSemesters: true });
       
@@ -335,7 +339,7 @@ const StudentDashboard = () => {
           // Get all groups (not filtered by semester)
           const groupsResponse = await studentAPI.getGroups({ allSemesters: true });
           
-          if (groupsResponse.success && groupsResponse.data) {
+          if (groupsResponse.success && Array.isArray(groupsResponse.data)) {
             // The group field might be an ObjectId string or a populated object
             const groupId = typeof sem6ProjectData.group === 'string' 
               ? sem6ProjectData.group 
@@ -345,25 +349,39 @@ const StudentDashboard = () => {
               g => g._id === groupId || g._id.toString() === groupId.toString()
             );
             
+            // Explicitly set to null if not found (student was removed from group)
             setSem6Group(sem6GroupData || null);
+          } else {
+            // No groups data or invalid response - student is not in any group
+            setSem6Group(null);
           }
         } else {
-          // If no Sem 6 project registered yet, check for Sem 5 group
+          // If no Sem 6 project registered yet, check for Sem 5 or Sem 6 group
+          // (Sem 5 group might have been updated to Sem 6 after promotion)
           const groupsResponse = await studentAPI.getGroups({ allSemesters: true });
-          if (groupsResponse.success && groupsResponse.data) {
+          if (groupsResponse.success && Array.isArray(groupsResponse.data)) {
+            // Check for Sem 6 group first (in case it was updated), then Sem 5
+            const sem6GroupData = groupsResponse.data.find(g => g.semester === 6);
             const sem5GroupData = groupsResponse.data.find(g => g.semester === 5);
-            if (sem5GroupData) {
-              // Store Sem 5 group info so we can display it
-              setSem6Group(sem5GroupData);
+            const groupData = sem6GroupData || sem5GroupData;
+            
+            // Explicitly set to null if not found (student is not in any group)
+            setSem6Group(groupData || null);
             } else {
-              // No Sem 5 group found - student cannot proceed with Sem 6 registration
+            // No groups data or invalid response - student is not in any group
               setSem6Group(null);
             }
           }
-        }
+      } else {
+        // No projects found or invalid response - reset group state
+        setSem6Project(null);
+        setSem6Group(null);
       }
     } catch (error) {
       console.error('Error loading Sem 6 project:', error);
+      // On error, reset state to ensure no stale data is shown
+      setSem6Project(null);
+      setSem6Group(null);
     } finally {
       setSem6ProjectLoading(false);
     }
@@ -584,8 +602,11 @@ const StudentDashboard = () => {
     } else if (currentSemester === 6) {
       // Sem 6 actions
       if (!sem6Project) {
-        // Only show register option if student has a Sem 5 group (carried forward)
+        // Only show register option if student has a Sem 6 group AND faculty is allocated
         if (sem6Group && !sem6ProjectLoading) {
+          // Check if group has allocated faculty
+          const hasFaculty = sem6Group.allocatedFaculty || sem6Group.allocatedFaculty?._id;
+          if (hasFaculty) {
           actions.push({
             title: 'Register Minor Project 3',
             description: 'Register your Minor Project 3 (continue or new)',
@@ -594,16 +615,11 @@ const StudentDashboard = () => {
             color: 'bg-blue-50 border-blue-200 hover:bg-blue-100',
             textColor: 'text-blue-800',
           });
+          }
+          // If no faculty, don't show register button (message will be shown in status section)
         } else if (!sem6ProjectLoading && !sem6Group) {
-          // Student has no group - show warning (no link needed, handled in group status card)
-          actions.push({
-            title: '⚠️ No Group Found',
-            description: 'Contact admin to be added to a group',
-            icon: '⚠️',
-            link: null,
-            color: 'bg-orange-50 border-orange-200',
-            textColor: 'text-orange-800',
-          });
+          // Student has no group - don't show action (message is shown in Group Status section)
+          // No action needed here
         }
       } else {
         // Project registered - show project dashboard
@@ -2017,9 +2033,12 @@ const StudentDashboard = () => {
                           </div>
                           <div className="flex items-center text-sm text-gray-600">
                             <span className="font-medium w-20">Faculty:</span>
-                            <span className="text-gray-900">
-                              {sem6Project.faculty?.fullName || sem6Project.group?.allocatedFaculty?.fullName || 'N/A'}
+                            <span className={`${sem6Project.faculty?.fullName || sem6Project.group?.allocatedFaculty?.fullName ? 'text-gray-900' : 'text-yellow-600 font-medium'}`}>
+                              {sem6Project.faculty?.fullName || sem6Project.group?.allocatedFaculty?.fullName || 'Not Allocated'}
                             </span>
+                            {!(sem6Project.faculty?.fullName || sem6Project.group?.allocatedFaculty?.fullName) && (
+                              <span className="ml-2 text-xs text-yellow-600">⚠️</span>
+                            )}
                           </div>
                           {sem6Project.isContinuation && (
                             <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded">
@@ -2039,7 +2058,41 @@ const StudentDashboard = () => {
                     </div>
                   </Link>
                 </div>
-              ) : (
+              ) : sem6Group ? (
+                // Student has a group but no project registered yet
+                (() => {
+                  // Check if group has allocated faculty
+                  const hasFaculty = sem6Group.allocatedFaculty || sem6Group.allocatedFaculty?._id;
+                  
+                  if (!hasFaculty) {
+                    // Faculty not allocated - show warning message
+                    return (
+                      <div className="text-center py-8">
+                        <div className="text-yellow-500 mb-4">
+                          <svg className="mx-auto h-12 w-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                          </svg>
+                        </div>
+                        <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                          Faculty Not Allocated
+                        </h3>
+                        <p className="text-gray-600 mb-2">
+                          Your group does not have an allocated faculty yet.
+                        </p>
+                        <p className="text-sm text-gray-500 mb-4">
+                          Please contact your admin to allocate a faculty before registering for Minor Project 3.
+                        </p>
+                        <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                          <p className="text-sm text-yellow-800">
+                            <span className="font-medium">Note:</span> You cannot register for Minor Project 3 until a faculty member is allocated to your group.
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  }
+                  
+                  // Faculty is allocated - show register button
+                  return (
                 <div className="text-center py-8">
                   <div className="text-gray-400 mb-4">
                     <svg className="mx-auto h-12 w-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -2061,6 +2114,23 @@ const StudentDashboard = () => {
                     </svg>
                     Register Minor Project 3
                   </Link>
+                    </div>
+                  );
+                })()
+              ) : (
+                // Student has no group - show simple message (detailed info is in Group Status section)
+                <div className="text-center py-8">
+                  <div className="text-gray-400 mb-4">
+                    <svg className="mx-auto h-12 w-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                  </div>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                    No Project Available
+                  </h3>
+                  <p className="text-sm text-gray-600">
+                    You need to be part of a group to register for Minor Project 3. See the Group Status section below for more information.
+                  </p>
                 </div>
               )
             ) : isSem5 ? (

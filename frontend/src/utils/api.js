@@ -431,6 +431,10 @@ export const adminAPI = {
   },
   getGroupDetails: (groupId) => api.get(`/admin/groups/${groupId}`),
   updateGroupInfo: (groupId, data) => api.put(`/admin/groups/${groupId}`, data),
+  searchStudentsForGroup: (groupId, params = {}) => {
+    const queryString = new URLSearchParams(params).toString();
+    return api.get(`/admin/groups/${groupId}/search-students${queryString ? '?' + queryString : ''}`);
+  },
   addMemberToGroup: (groupId, data) => api.post(`/admin/groups/${groupId}/members`, data),
   removeMemberFromGroup: (groupId, studentId, data) => api.delete(`/admin/groups/${groupId}/members/${studentId}`, { data }),
   changeGroupLeader: (groupId, data) => api.put(`/admin/groups/${groupId}/leader`, data),

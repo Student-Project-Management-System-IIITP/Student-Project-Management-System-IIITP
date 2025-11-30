@@ -39,6 +39,7 @@ router.put('/projects/:id/status', adminController.updateProjectStatus);
 router.get('/groups', adminController.getGroups);
 router.get('/groups/:groupId', adminController.getGroupDetails);
 router.put('/groups/:groupId', adminController.updateGroupInfo);
+router.get('/groups/:groupId/search-students', adminController.searchStudentsForGroup);
 router.post('/groups/:groupId/members', adminController.addMemberToGroup);
 router.delete('/groups/:groupId/members/:studentId', adminController.removeMemberFromGroup);
 router.put('/groups/:groupId/leader', adminController.changeGroupLeader);
