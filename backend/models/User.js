@@ -37,6 +37,12 @@ const userSchema = new mongoose.Schema({
   updatedAt: {
     type: Date,
     default: Date.now
+  },
+  resetPasswordTokenHash: {
+    type: String
+  },
+  resetPasswordExpiresAt: {
+    type: Date
   }
 }, {
   timestamps: true

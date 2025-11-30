@@ -8,6 +8,7 @@ const mongoose = require('mongoose');
 const User = require('../models/User');
 const { migrateGroupToSem6, createNewGroupForSem6, generateAcademicYear } = require('../utils/semesterMigration');
 const { isWindowOpen } = require('../middleware/windowCheck');
+const { sendEmail } = require('../services/emailService');
 
 // Get student dashboard data
 const getDashboardData = async (req, res) => {
@@ -3235,6 +3236,28 @@ const sendGroupInvitations = async (req, res) => {
             message: 'Invitation sent successfully'
           });
 
+          try {
+            if (invitedStudent.collegeEmail) {
+              const subject = 'SPMS IIITP - Group Invitation';
+              const text = `Dear ${invitedStudent.fullName || 'Student'},\n\nYou have been invited to join the group "${freshGroup.name}" by ${student.fullName}.\n\nPlease log in to the SPMS portal to accept or reject this invitation.\n\nRegards,\nSPMS IIIT Pune`;
+              const html = `
+                <p>Dear ${invitedStudent.fullName || 'Student'},</p>
+                <p>You have been invited to join the group <strong>${freshGroup.name}</strong> by <strong>${student.fullName}</strong>.</p>
+                <p>Please log in to the SPMS portal to accept or reject this invitation.</p>
+                <p>Regards,<br/>SPMS IIIT Pune</p>
+              `;
+
+              await sendEmail({
+                to: invitedStudent.collegeEmail,
+                subject,
+                text,
+                html,
+              });
+            }
+          } catch (emailError) {
+            console.error('Error sending group invitation email:', emailError);
+          }
+
           // Send real-time notification to invited student
           const socketService = req.app.get('socketService');
           if (socketService) {
@@ -4043,14 +4066,40 @@ const inviteToGroup = async (req, res) => {
         select: 'fullName misNumber collegeEmail'
       });
 
-    // 🔥 REAL-TIME NOTIFICATION: Invitations Sent
+    // 🔥 REAL-TIME & EMAIL NOTIFICATION: Invitations Sent
     try {
       const socketService = req.app.get('socketService');
-      if (socketService && results.length > 0) {
+
+      if (results.length > 0) {
         for (const invitation of results) {
-          // Send real-time invitation to every invited student
           const invitedStudent = await Student.findById(invitation.studentId);
-          if (invitedStudent) {
+          if (!invitedStudent) continue;
+
+          // Email invitation
+          try {
+            if (invitedStudent.collegeEmail) {
+              const subject = 'SPMS IIITP - Group Invitation';
+              const text = `Dear ${invitedStudent.fullName || 'Student'},\n\nYou have been invited to join the group "${updatedGroup.name}" by ${student.fullName}.\n\nPlease log in to the SPMS portal to accept or reject this invitation.\n\nRegards,\nSPMS IIIT Pune`;
+              const html = `
+                <p>Dear ${invitedStudent.fullName || 'Student'},</p>
+                <p>You have been invited to join the group <strong>${updatedGroup.name}</strong> by <strong>${student.fullName}</strong>.</p>
+                <p>Please log in to the SPMS portal to accept or reject this invitation.</p>
+                <p>Regards,<br/>SPMS IIIT Pune</p>
+              `;
+
+              await sendEmail({
+                to: invitedStudent.collegeEmail,
+                subject,
+                text,
+                html,
+              });
+            }
+          } catch (emailError) {
+            console.error('Error sending group invitation email (inviteToGroup):', emailError);
+          }
+
+          // Socket notifications
+          if (socketService) {
             await socketService.sendGroupInvitation(
               invitedStudent.user,
               {
@@ -4062,8 +4111,7 @@ const inviteToGroup = async (req, res) => {
                 invitedAt: new Date()
               }
             );
-            
-            // Send a system notification to the student
+
             await socketService.sendSystemNotification(invitedStudent.user, {
               title: 'New Group Invitation',
               message: `You've been invited to join "${updatedGroup.name}" by ${student.fullName}`,
@@ -4073,14 +4121,16 @@ const inviteToGroup = async (req, res) => {
         }
 
         // Notify existing group members about new invitations sent
-        await socketService.broadcastMembershipChange(groupId, {
-          changeType: 'invitations_sent',
-          invitations: results.map(r => ({ studentId: r.studentId, role: r.role })),
-          triggeredBy: student._id
-        });
+        if (socketService) {
+          await socketService.broadcastMembershipChange(groupId, {
+            changeType: 'invitations_sent',
+            invitations: results.map(r => ({ studentId: r.studentId, role: r.role })),
+            triggeredBy: student._id
+          });
+        }
       }
-    } catch (socketError) {
-      console.error('Socket notification error for invitations:', socketError);
+    } catch (notificationError) {
+      console.error('Real-time/email notification error for invitations:', notificationError);
     }
 
     res.json({
@@ -4285,6 +4335,29 @@ const acceptInvitation = async (req, res) => {
           select: 'fullName misNumber collegeEmail branch'
         });
 
+      try {
+        const leaderStudent = await Student.findById(finalGroup.leader);
+        if (leaderStudent && leaderStudent.collegeEmail) {
+          const subject = 'SPMS IIITP - New member joined your group';
+          const text = `Dear ${leaderStudent.fullName || 'Group Leader'},\n\n${student.fullName} has joined your group ${finalGroup.name || 'your group'}.\n\nPlease log in to the SPMS portal to view the updated group members and manage your group.\n\nRegards,\nSPMS IIIT Pune`;
+          const html = `
+            <p>Dear ${leaderStudent.fullName || 'Group Leader'},</p>
+            <p><strong>${student.fullName}</strong> has joined your group <strong>${finalGroup.name || 'your group'}</strong>.</p>
+            <p>Please log in to the SPMS portal to view the updated group members and manage your group.</p>
+            <p>Regards,<br/>SPMS IIIT Pune</p>
+          `;
+
+          await sendEmail({
+            to: leaderStudent.collegeEmail,
+            subject,
+            text,
+            html,
+          });
+        }
+      } catch (emailError) {
+        console.error('Error sending group join notification email:', emailError);
+      }
+
       res.json({
         success: true,
         data: {
@@ -4395,40 +4468,40 @@ const leaveGroup = async (req, res) => {
   
   try {
     await session.withTransaction(async () => {
-    const studentId = req.user.id;
-    const { groupId } = req.params;
-    
-    // Get student
+      const studentId = req.user.id;
+      const { groupId } = req.params;
+      
+      // Get student
       const student = await Student.findOne({ user: studentId }).session(session);
-    if (!student) {
+      if (!student) {
         throw new Error('Student not found');
-    }
-
-    // Find group
+      }
+      
+      // Find group
       const group = await Group.findById(groupId).session(session);
-    if (!group) {
+      if (!group) {
         throw new Error('Group not found');
-    }
-
+      }
+      
       // Check if student is an active member
       const membership = group.members.find(m => 
         m.student.toString() === student._id.toString() && m.isActive
       );
-    if (!membership) {
+      if (!membership) {
         throw new Error('Student is not an active member of this group');
-    }
-
-    // Check if student is the leader
-    if (membership.role === 'leader') {
+      }
+      
+      // Check if student is the leader
+      if (membership.role === 'leader') {
         throw new Error('Group leader cannot leave. Transfer leadership first.');
-    }
-
+      }
+      
       // 1. Remove student from group (completely removes from members array)
-    await group.removeMember(student._id);
-    
+      await group.removeMember(student._id);
+      
       // 2. Remove group membership from student (completely removes from groupMemberships array)
-    await student.leaveGroup(group._id);
-
+      await student.leaveGroup(group._id);
+      
       // 3. Remove invites for this group from both group and student
       // Update group invites: mark pending invites as auto-rejected
       group.invites.forEach(invite => {
@@ -4447,7 +4520,7 @@ const leaveGroup = async (req, res) => {
         });
         await student.save({ session });
       }
-
+      
       // 4. Remove project from student's currentProjects if group has a project
       if (group.project) {
         const beforeProjects = student.currentProjects.length;
@@ -4459,12 +4532,36 @@ const leaveGroup = async (req, res) => {
           await student.save({ session });
         }
       }
-
+      
       await group.save({ session });
-
-    res.json({
-      success: true,
-      message: 'Successfully left group'
+      
+      // 5. Send email notification to group leader
+      try {
+        const leaderStudent = await Student.findById(group.leader);
+        if (leaderStudent && leaderStudent.collegeEmail) {
+          const { sendEmail } = require('../utils/emailService'); // Adjust path if needed
+          const subject = 'SPMS IIITP - Member left your group';
+          const text = `Dear ${leaderStudent.fullName || 'Group Leader'},\n\n${student.fullName} has left your group ${group.name || 'your group'}.\n\nPlease log in to the SPMS portal to review your current group members and take any necessary actions.\n\nRegards,\nSPMS IIIT Pune`;
+          const html = `
+            <p>Dear ${leaderStudent.fullName || 'Group Leader'},</p>
+            <p><strong>${student.fullName}</strong> has left your group <strong>${group.name || 'your group'}</strong>.</p>
+            <p>Please log in to the SPMS portal to review your current group members and take any necessary actions.</p>
+            <p>Regards,<br/>SPMS IIIT Pune</p>
+          `;
+          await sendEmail({
+            to: leaderStudent.collegeEmail,
+            subject,
+            text,
+            html,
+          });
+        }
+      } catch (emailError) {
+        console.error('Error sending group leave notification email:', emailError);
+      }
+      
+      res.json({
+        success: true,
+        message: 'Successfully left group'
       });
     });
   } catch (error) {
@@ -6360,6 +6457,29 @@ const leaveGroupEnhanced = async (req, res) => {
       
       await session.commitTransaction();
       await session.endSession();
+
+      try {
+        const leaderStudent = await Student.findById(group.leader);
+        if (leaderStudent && leaderStudent.collegeEmail) {
+          const subject = 'SPMS IIITP - Member left your group';
+          const text = `Dear ${leaderStudent.fullName || 'Group Leader'},\n\n${student.fullName} has left your group ${group.name || 'your group'}.\n\nPlease log in to the SPMS portal to review your current group members and take any necessary actions.\n\nRegards,\nSPMS IIIT Pune`;
+          const html = `
+            <p>Dear ${leaderStudent.fullName || 'Group Leader'},</p>
+            <p><strong>${student.fullName}</strong> has left your group <strong>${group.name || 'your group'}</strong>.</p>
+            <p>Please log in to the SPMS portal to review your current group members and take any necessary actions.</p>
+            <p>Regards,<br/>SPMS IIIT Pune</p>
+          `;
+
+          await sendEmail({
+            to: leaderStudent.collegeEmail,
+            subject,
+            text,
+            html,
+          });
+        }
+      } catch (emailError) {
+        console.error('Error sending group leave notification email:', emailError);
+      }
 
       // 🔥 REAL-TIME NOTIFICATION: Member Left Group
       try {

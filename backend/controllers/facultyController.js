@@ -4,6 +4,7 @@ const Project = require('../models/Project');
 const Group = require('../models/Group');
 const FacultyPreference = require('../models/FacultyPreference');
 const FacultyNotification = require('../models/FacultyNotification');
+const { sendEmail } = require('../services/emailService');
 
 const sortPreferences = (preferences = []) => {
   return [...preferences].sort((a, b) => (a.priority || 0) - (b.priority || 0));
@@ -1183,8 +1184,9 @@ const chooseGroup = async (req, res) => {
       }
     }
 
+    let project = null;
     if (preference.project) {
-      const project = await Project.findById(preference.project);
+      project = await Project.findById(preference.project);
       if (project) {
         // For solo projects (internship1 - Sem 7 or Sem 8 Type 1, solo major2 - Sem 8 Type 2), use the Project's facultyChoose method
         // This ensures allocation history is properly recorded
@@ -1235,6 +1237,70 @@ const chooseGroup = async (req, res) => {
           }
         }
       }
+    }
+
+    // Send acceptance email to students after successful allocation
+    try {
+      // For group projects, notify all active group members
+      if (group && group.members && group.members.length > 0 && project) {
+        const activeMembers = group.members.filter(m => m.isActive && m.student);
+        const recipientEmails = [];
+
+        for (const member of activeMembers) {
+          // member.student may be populated or just an ObjectId
+          let studentDoc = member.student;
+          if (!studentDoc || !studentDoc.collegeEmail) {
+            studentDoc = await Student.findById(member.student);
+          }
+          if (studentDoc && studentDoc.collegeEmail) {
+            recipientEmails.push(studentDoc.collegeEmail);
+          }
+        }
+
+        if (recipientEmails.length > 0) {
+          const subject = 'SPMS IIITP - Faculty Allocation Confirmed for Your Group';
+          const text = `Dear Student,\n\nYour group has been accepted by ${faculty.fullName} for the project "${project.title}".\n\nPlease check the SPMS portal for further details and upcoming meetings.\n\nRegards,\nSPMS IIIT Pune`;
+          const html = `
+            <p>Dear Student,</p>
+            <p>Your group has been <strong>accepted</strong> by <strong>${faculty.fullName}</strong> for the project:</p>
+            <p><strong>${project.title}</strong></p>
+            <p>Please log in to the SPMS portal to see the updated status and any upcoming meetings or instructions.</p>
+            <p>Regards,<br/>SPMS IIIT Pune</p>
+          `;
+
+          await sendEmail({
+            to: recipientEmails,
+            subject,
+            text,
+            html,
+          });
+        }
+      }
+      // For solo internship projects, notify the single student
+      else if (project && project.projectType === 'internship1' && preference.student) {
+        const student = await Student.findById(preference.student);
+        if (student && student.collegeEmail) {
+          const subject = 'SPMS IIITP - Faculty Allocation Confirmed for Your Internship';
+          const text = `Dear ${student.fullName},\n\nYour internship project "${project.title}" has been accepted by ${faculty.fullName}.\n\nPlease check the SPMS portal for further details and upcoming meetings.\n\nRegards,\nSPMS IIIT Pune`;
+          const html = `
+            <p>Dear ${student.fullName},</p>
+            <p>Your internship project has been <strong>accepted</strong> by <strong>${faculty.fullName}</strong> for:</p>
+            <p><strong>${project.title}</strong></p>
+            <p>Please log in to the SPMS portal to see the updated status and any upcoming meetings or instructions.</p>
+            <p>Regards,<br/>SPMS IIIT Pune</p>
+          `;
+
+          await sendEmail({
+            to: student.collegeEmail,
+            subject,
+            text,
+            html,
+          });
+        }
+      }
+    } catch (emailError) {
+      console.error('Error sending faculty allocation acceptance email:', emailError);
+      // Do not fail the main operation if email fails
     }
 
     res.json({

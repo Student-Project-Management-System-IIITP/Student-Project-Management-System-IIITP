@@ -9,6 +9,8 @@ import Layout from './components/common/Layout';
 import Home from './pages/Home';
 import Login from './pages/auth/Login';
 import Signup from './pages/auth/Signup';
+import ForgotPassword from './pages/auth/ForgotPassword';
+import ResetPassword from './pages/auth/ResetPassword';
 import StudentDashboard from './pages/student/Dashboard';
 import ProjectRegistration from './pages/student/ProjectRegistration';
 // PPTUpload removed - functionality merged into Sem4ProjectDashboard
@@ -169,6 +171,16 @@ function AppContent() {
           <Route path="/login" element={
             <Layout>
               <Login />
+            </Layout>
+          } />
+          <Route path="/forgot-password" element={
+            <Layout>
+              <ForgotPassword />
+            </Layout>
+          } />
+          <Route path="/reset-password" element={
+            <Layout>
+              <ResetPassword />
             </Layout>
           } />
           <Route path="/signup" element={
