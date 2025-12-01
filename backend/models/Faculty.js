@@ -10,6 +10,12 @@ const facultySchema = new mongoose.Schema({
   },
   
   // Personal Information
+  prefix: {
+    type: String,
+    trim: true,
+    enum: ['Dr', 'Mr', 'Mrs', 'Miss', 'Prof', 'Ms'],
+    default: ''
+  },
   fullName: {
     type: String,
     required: true,

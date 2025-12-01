@@ -4,6 +4,7 @@ import { useSem8Project } from '../../hooks/useSem8Project';
 import { useAuth } from '../../context/AuthContext';
 import Layout from '../../components/common/Layout';
 import StatusBadge from '../../components/common/StatusBadge';
+import { formatFacultyName } from '../../utils/formatUtils';
 
 const MajorProject2Dashboard = () => {
   const navigate = useNavigate();
@@ -157,8 +158,8 @@ const MajorProject2Dashboard = () => {
                       <span className="font-medium text-gray-700 w-24">Faculty:</span>
                       {majorProject2.faculty || majorProject2Group?.allocatedFaculty ? (
                         <span className="text-gray-900">
-                          {majorProject2.faculty?.fullName || 
-                           majorProject2Group?.allocatedFaculty?.fullName || 
+                          {formatFacultyName(majorProject2.faculty) || 
+                           formatFacultyName(majorProject2Group?.allocatedFaculty) || 
                            (typeof majorProject2Group?.allocatedFaculty === 'string' ? majorProject2Group.allocatedFaculty : 'Not allocated yet')}
                         </span>
                       ) : (

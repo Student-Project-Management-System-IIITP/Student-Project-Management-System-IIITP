@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { studentAPI } from '../../utils/api';
 import { handleApiError } from '../../utils/errorHandler';
 import { showError, showSuccess } from '../../utils/toast';
+import { formatFacultyName } from '../../utils/formatUtils';
 
 const StudentProfileCard = ({ data, onUpdated }) => {
   const [isEditOpen, setIsEditOpen] = useState(false);
@@ -243,7 +244,7 @@ const StudentProfileCard = ({ data, onUpdated }) => {
                   <div className="text-xs text-gray-700 mb-2">
                     <p>Role: <span className="font-medium capitalize">{group.role}</span></p>
                     {group.faculty && (
-                      <p>Faculty: <span className="font-medium">{group.faculty.fullName}</span></p>
+                      <p>Faculty: <span className="font-medium">{formatFacultyName(group.faculty)}</span></p>
                     )}
                   </div>
                   <div>
@@ -291,7 +292,7 @@ const StudentProfileCard = ({ data, onUpdated }) => {
                   <div className="text-xs text-gray-700 mb-2">
                     <p>Role: <span className="font-medium capitalize">{group.role}</span></p>
                     {group.faculty && (
-                      <p>Faculty: <span className="font-medium">{group.faculty.fullName}</span></p>
+                      <p>Faculty: <span className="font-medium">{formatFacultyName(group.faculty)}</span></p>
                     )}
                   </div>
                   <div>

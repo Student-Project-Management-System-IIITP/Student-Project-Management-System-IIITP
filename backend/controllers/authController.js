@@ -507,6 +507,7 @@ const signupFaculty = async (req, res) => {
   try {
     const { 
       fullName, 
+      prefix,
       department, 
       mode, 
       designation, 
@@ -556,6 +557,7 @@ const signupFaculty = async (req, res) => {
     const faculty = new Faculty({
       user: user._id,
       fullName,
+      prefix: prefix || '',
       phone: contactNumber,
       department,
       mode,

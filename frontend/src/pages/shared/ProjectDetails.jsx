@@ -5,6 +5,7 @@ import { projectAPI, studentAPI } from '../../utils/api';
 import { toast } from 'react-hot-toast';
 import Layout from '../../components/common/Layout';
 import { io } from 'socket.io-client';
+import { formatFacultyName } from '../../utils/formatUtils';
 
 // Component to display images with authentication
 const ImageWithAuth = ({ src, alt, className }) => {
@@ -1133,7 +1134,7 @@ const ProjectDetails = () => {
                         : isFaculty 
                           ? `Communicate with ${project.group?.name || 'your group'}`
                           : project.faculty 
-                            ? `Communicate with ${project.faculty.fullName}`
+                            ? `Communicate with ${formatFacultyName(project.faculty)}`
                             : 'Chat will be available once faculty is allocated'
                       }
                     </p>
@@ -1831,7 +1832,7 @@ const ProjectDetails = () => {
                       </svg>
                     </div>
                     <div>
-                      <p className="font-semibold text-gray-900">{project.faculty.fullName || roleData?.fullName || 'Faculty'}</p>
+                      <p className="font-semibold text-gray-900">{formatFacultyName(project.faculty) || roleData?.fullName || 'Faculty'}</p>
                       <p className="text-sm text-gray-500">{project.faculty.department || roleData?.department || ''}</p>
                     </div>
                   </div>

@@ -5,6 +5,7 @@ import { toast } from 'react-hot-toast';
 import Layout from '../../components/common/Layout';
 import { useAuth } from '../../context/AuthContext';
 import { studentAPI } from '../../utils/api';
+import { formatFacultyName } from '../../utils/formatUtils';
 
 const MTechSem2Registration = () => {
   const navigate = useNavigate();
@@ -203,7 +204,7 @@ const MTechSem2Registration = () => {
                 <span className="font-medium text-gray-900">Faculty Allocated:</span>
                 <p className="text-gray-700">
                   {sem1Project.faculty
-                    ? sem1Project.faculty.fullName || 'Faculty Assigned'
+                    ? formatFacultyName(sem1Project.faculty, 'Faculty Assigned')
                     : 'Pending'}
                 </p>
               </div>
@@ -257,7 +258,7 @@ const MTechSem2Registration = () => {
             </div>
             <div className="flex-1">
               <h3 className="text-xl font-semibold text-gray-900 mb-2">
-                {faculty.fullName || 'Faculty Supervisor'}
+                {formatFacultyName(faculty, 'Faculty Supervisor')}
               </h3>
               <div className="text-sm text-gray-700 space-y-1">
                 {faculty.department && (

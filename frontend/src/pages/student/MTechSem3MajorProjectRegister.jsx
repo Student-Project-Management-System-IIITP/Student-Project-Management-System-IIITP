@@ -7,6 +7,7 @@ import StatusBadge from '../../components/common/StatusBadge';
 import { useAuth } from '../../context/AuthContext';
 import { useMTechSem3Track } from '../../hooks/useMTechSem3Track';
 import { studentAPI } from '../../utils/api';
+import { formatFacultyName } from '../../utils/formatUtils';
 
 const MAX_PREFERENCES = 5;
 
@@ -305,7 +306,7 @@ const MTechSem3MajorProjectRegister = () => {
                           className="w-full text-left px-4 py-3 hover:bg-gray-50 flex justify-between items-center text-sm text-gray-700"
                         >
                           <div>
-                            <p className="font-semibold text-gray-900">{faculty.fullName}</p>
+                            <p className="font-semibold text-gray-900">{formatFacultyName(faculty)}</p>
                             <p className="text-xs text-gray-500">
                               {faculty.designation ? `${faculty.designation}, ` : ''}
                               {faculty.department || 'Department'}
@@ -333,7 +334,7 @@ const MTechSem3MajorProjectRegister = () => {
                         >
                           <div>
                             <p className="text-sm font-medium text-gray-900">
-                              Priority {entry.priority}: {entry.faculty.fullName}
+                              Priority {entry.priority}: {formatFacultyName(entry.faculty)}
                             </p>
                             <p className="text-xs text-gray-500">{entry.faculty.department}</p>
                           </div>

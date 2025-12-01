@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { facultyAPI } from '../../utils/api';
 import { handleApiError } from '../../utils/errorHandler';
 import { showError, showSuccess } from '../../utils/toast';
+import { formatFacultyName } from '../../utils/formatUtils';
 
 const ManageFaculty = () => {
   const [search, setSearch] = useState('');
@@ -13,6 +14,7 @@ const ManageFaculty = () => {
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [editForm, setEditForm] = useState({
     fullName: '',
+    prefix: '',
     email: '',
     phone: '',
     department: '',
@@ -122,6 +124,7 @@ const ManageFaculty = () => {
     const { faculty, user } = selectedFaculty;
     setEditForm({
       fullName: faculty.fullName || '',
+      prefix: faculty.prefix || '',
       email: user?.email || '',
       phone: faculty.phone || '',
       department: faculty.department || '',
@@ -143,6 +146,7 @@ const ManageFaculty = () => {
       const facultyId = selectedFaculty.faculty.facultyId;
       const payload = {
         fullName: editForm.fullName,
+        prefix: editForm.prefix || '',
         phone: editForm.phone,
         department: editForm.department,
         mode: editForm.mode,
@@ -291,7 +295,9 @@ const ManageFaculty = () => {
                   >
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="text-sm font-medium text-gray-900">{f.fullName}</p>
+                        <p className="text-sm font-medium text-gray-900">
+                          {f.prefix ? `${f.prefix} ` : ''}{f.fullName}
+                        </p>
                         <p className="text-xs text-gray-500">{f.user?.email}</p>
                         <p className="text-xs text-gray-500">{f.phone}</p>
                       </div>
@@ -352,7 +358,9 @@ const ManageFaculty = () => {
               <div className="space-y-6">
                 <div className="flex items-start justify-between">
                   <div>
-                    <h2 className="text-xl font-bold text-gray-900">{selectedFaculty.faculty.fullName}</h2>
+                    <h2 className="text-xl font-bold text-gray-900">
+                      {formatFacultyName(selectedFaculty.faculty)}
+                    </h2>
                     <p className="text-sm text-gray-600 mt-1">{selectedFaculty.faculty.department} • {selectedFaculty.faculty.designation}</p>
                   </div>
                   <div className="flex gap-2">
@@ -375,6 +383,10 @@ const ManageFaculty = () => {
                   <div>
                     <h3 className="text-sm font-semibold text-gray-800 mb-3">Personal Details</h3>
                     <dl className="space-y-2 text-sm">
+                      <div>
+                        <dt className="text-gray-500 text-xs">Prefix</dt>
+                        <dd className="text-gray-900">{selectedFaculty.faculty.prefix || '—'}</dd>
+                      </div>
                       <div>
                         <dt className="text-gray-500 text-xs">Full Name</dt>
                         <dd className="text-gray-900">{selectedFaculty.faculty.fullName}</dd>
@@ -457,6 +469,23 @@ const ManageFaculty = () => {
               </button>
             </div>
             <form onSubmit={handleEditSubmit} className="space-y-4">
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Prefix</label>
+                <select
+                  name="prefix"
+                  value={editForm.prefix}
+                  onChange={handleEditChange}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                >
+                  <option value="">None</option>
+                  <option value="Dr">Dr</option>
+                  <option value="Mr">Mr</option>
+                  <option value="Mrs">Mrs</option>
+                  <option value="Miss">Miss</option>
+                  <option value="Prof">Prof</option>
+                  <option value="Ms">Ms</option>
+                </select>
+              </div>
               <div>
                 <label className="block text-xs font-medium text-gray-700 mb-1">Full Name</label>
                 <input

@@ -3,6 +3,7 @@ import { adminAPI, internshipAPI } from '../../utils/api';
 import { toast } from 'react-hot-toast';
 import Layout from '../../components/common/Layout';
 import StatusBadge from '../../components/common/StatusBadge';
+import { formatFacultyName } from '../../utils/formatUtils';
 
 const INTERNSHIP_STATUS_MAP = {
   submitted: { status: 'info', text: 'Submitted' },
@@ -505,7 +506,7 @@ const Sem8Review = () => {
       tooltipParts.push(`Project: ${project.title}`);
     }
     if (options.showFaculty && project.faculty?.fullName) {
-      tooltipParts.push(`Mentor: ${project.faculty.fullName}`);
+      tooltipParts.push(`Mentor: ${formatFacultyName(project.faculty)}`);
     }
     const tooltip = tooltipParts.length > 0 ? tooltipParts.join('\n') : undefined;
 
@@ -1069,7 +1070,7 @@ const Sem8Review = () => {
                                 {timestamp}
                               </td>
                               <td className="px-3 py-2 text-sm text-gray-900">
-                                {project.faculty?.fullName || '-'}
+                                {formatFacultyName(project.faculty, '-')}
                               </td>
                               <td className="px-3 py-2 text-sm text-gray-900">
                                 {project.faculty?.department || '-'}
@@ -1106,7 +1107,7 @@ const Sem8Review = () => {
                                 const pref = sortedPrefs[num - 1];
                                 return (
                                   <td key={num} className="px-3 py-2 text-sm text-gray-900">
-                                    {pref?.faculty?.fullName || '-'}
+                                    {formatFacultyName(pref?.faculty, '-')}
                                   </td>
                                 );
                               })}
@@ -1176,7 +1177,7 @@ const Sem8Review = () => {
                                 {timestamp}
                               </td>
                               <td className="px-3 py-2 text-sm text-gray-900">
-                                {project.faculty?.fullName || '-'}
+                                {formatFacultyName(project.faculty, '-')}
                               </td>
                               <td className="px-3 py-2 text-sm text-gray-900">
                                 {project.faculty?.department || '-'}
@@ -1207,7 +1208,7 @@ const Sem8Review = () => {
                                 const pref = sortedPrefs[num - 1];
                                 return (
                                   <td key={num} className="px-3 py-2 text-sm text-gray-900">
-                                    {pref?.faculty?.fullName || '-'}
+                                    {formatFacultyName(pref?.faculty, '-')}
                                   </td>
                                 );
                               })}
@@ -1274,7 +1275,7 @@ const Sem8Review = () => {
                                 {timestamp}
                               </td>
                               <td className="px-3 py-2 text-sm text-gray-900">
-                                {project.faculty?.fullName || '-'}
+                                {formatFacultyName(project.faculty, '-')}
                               </td>
                               <td className="px-3 py-2 text-sm text-gray-900">
                                 {project.faculty?.department || '-'}
@@ -1305,7 +1306,7 @@ const Sem8Review = () => {
                                 const pref = sortedPrefs[num - 1];
                                 return (
                                   <td key={num} className="px-3 py-2 text-sm text-gray-900">
-                                    {pref?.faculty?.fullName || '-'}
+                                    {formatFacultyName(pref?.faculty, '-')}
                                   </td>
                                 );
                               })}

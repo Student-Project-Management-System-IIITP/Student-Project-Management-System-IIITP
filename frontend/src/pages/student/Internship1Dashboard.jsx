@@ -6,6 +6,7 @@ import { useAuth } from '../../context/AuthContext';
 import { studentAPI } from '../../utils/api';
 import Layout from '../../components/common/Layout';
 import StatusBadge from '../../components/common/StatusBadge';
+import { formatFacultyName } from '../../utils/formatUtils';
 
 const Internship1Dashboard = () => {
   const navigate = useNavigate();
@@ -329,7 +330,7 @@ const Internship1Dashboard = () => {
                   {internship1Project.faculty ? (
                     <div className="flex items-center text-sm">
                       <span className="font-medium text-gray-700 w-24">Faculty:</span>
-                      <span className="text-gray-900">{internship1Project.faculty.fullName || 'Not allocated yet'}</span>
+                      <span className="text-gray-900">{formatFacultyName(internship1Project.faculty, 'Not allocated yet')}</span>
                     </div>
                   ) : (
                     <div className="flex items-center text-sm">
@@ -917,7 +918,7 @@ const Internship1Dashboard = () => {
                   {internship1Project.faculty && (
                     <div className="flex items-center text-sm">
                       <span className="font-medium text-gray-700 w-24">Faculty:</span>
-                      <span className="text-gray-900">{internship1Project.faculty.fullName || 'Not allocated yet'}</span>
+                      <span className="text-gray-900">{formatFacultyName(internship1Project.faculty, 'Not allocated yet')}</span>
                     </div>
                   )}
                   <div className="flex items-center text-sm">

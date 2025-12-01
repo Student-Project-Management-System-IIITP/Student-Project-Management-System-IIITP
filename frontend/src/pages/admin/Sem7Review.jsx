@@ -3,6 +3,7 @@ import { adminAPI, internshipAPI } from '../../utils/api';
 import { toast } from 'react-hot-toast';
 import Layout from '../../components/common/Layout';
 import StatusBadge from '../../components/common/StatusBadge';
+import { formatFacultyName } from '../../utils/formatUtils';
 
 const INTERNSHIP_STATUS_MAP = {
   submitted: { status: 'info', text: 'Submitted' },
@@ -616,7 +617,7 @@ const Sem7Review = () => {
       tooltipParts.push(`Project: ${project.title}`);
     }
     if (options.showFaculty && project.faculty?.fullName) {
-      tooltipParts.push(`Mentor: ${project.faculty.fullName}`);
+      tooltipParts.push(`Mentor: ${formatFacultyName(project.faculty)}`);
     }
     const tooltip = tooltipParts.length > 0 ? tooltipParts.join('\n') : undefined;
 
@@ -720,7 +721,7 @@ const Sem7Review = () => {
       for (let i = 0; i < 10; i++) {
         const pref = facultyPrefs.find(p => p.priority === i + 1);
         if (pref && pref.faculty) {
-          supervisorData.push(pref.faculty.fullName || '-');
+          supervisorData.push(formatFacultyName(pref.faculty, '-'));
         } else {
           supervisorData.push('-');
         }
@@ -732,7 +733,7 @@ const Sem7Review = () => {
         projectId: project._id.toString(), // Store project ID for remarks editing
         timestamp: project.createdAt ? formatDateTime(project.createdAt) : '-',
         groupName: group.name || '-',
-        allocatedFaculty: faculty.fullName || '-',
+        allocatedFaculty: formatFacultyName(faculty, '-'),
         department: faculty.department || '-',
         projectTitle: project.title || '-',
         projectStatus: project.status || '-',
@@ -1360,7 +1361,7 @@ const Sem7Review = () => {
                                   {timestamp}
                                 </td>
                                 <td className="px-3 py-2 text-sm text-gray-900">
-                                  {project.faculty?.fullName || '-'}
+                                  {formatFacultyName(project.faculty, '-')}
                                 </td>
                                 <td className="px-3 py-2 text-sm text-gray-900">
                                   {project.faculty?.department || '-'}
@@ -1391,7 +1392,7 @@ const Sem7Review = () => {
                                   const pref = sortedPrefs[num - 1];
                                   return (
                                     <td key={num} className="px-3 py-2 text-sm text-gray-900">
-                                      {pref?.faculty?.fullName || '-'}
+                                      {formatFacultyName(pref?.faculty, '-')}
                                 </td>
                                   );
                                 })}

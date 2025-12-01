@@ -742,6 +742,7 @@ const getFaculty = async (req, res) => {
       _id: fac._id,
       facultyId: fac.facultyId,
       fullName: fac.fullName,
+      prefix: fac.prefix || '',
       email: fac.email || fac.user?.email || '',
       phone: fac.phone,
       department: fac.department,
@@ -809,6 +810,7 @@ const searchFaculties = async (req, res) => {
       _id: fac._id,
       facultyId: fac.facultyId,
       fullName: fac.fullName,
+      prefix: fac.prefix || '',
       phone: fac.phone,
       department: fac.department,
       mode: fac.mode,
@@ -921,7 +923,7 @@ const getFacultyDetails = async (req, res) => {
 const updateFacultyProfile = async (req, res) => {
   try {
     const { facultyId } = req.params;
-    const { fullName, phone, department, mode, designation, email } = req.body;
+    const { fullName, prefix, phone, department, mode, designation, email } = req.body;
 
     if (!fullName || !phone || !department || !mode || !designation || !email) {
       return res.status(400).json({
@@ -947,6 +949,7 @@ const updateFacultyProfile = async (req, res) => {
     }
 
     faculty.fullName = fullName.trim();
+    faculty.prefix = prefix || '';
     faculty.phone = phone.trim();
     faculty.department = department;
     faculty.mode = mode;

@@ -7,6 +7,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useMTechSem3Track } from '../../hooks/useMTechSem3Track';
 import { studentAPI } from '../../utils/api';
 import { toast } from 'react-hot-toast';
+import { formatFacultyName } from '../../utils/formatUtils';
 
 const MTechSem3MajorProject = () => {
   const navigate = useNavigate();
@@ -126,7 +127,7 @@ const MTechSem3MajorProject = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-gray-700">
             <div>
               <p className="text-xs uppercase text-gray-500">Faculty Mentor</p>
-              <p className="font-medium">{project.faculty?.fullName || '—'}</p>
+              <p className="font-medium">{formatFacultyName(project.faculty, '—')}</p>
               <p className="text-xs text-gray-500">{project.faculty?.department}</p>
             </div>
             <div>

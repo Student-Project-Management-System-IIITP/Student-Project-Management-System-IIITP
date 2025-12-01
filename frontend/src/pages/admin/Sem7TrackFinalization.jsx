@@ -3,6 +3,7 @@ import { adminAPI } from '../../utils/api';
 import { toast } from 'react-hot-toast';
 import Layout from '../../components/common/Layout';
 import StatusBadge from '../../components/common/StatusBadge';
+import { formatFacultyName } from '../../utils/formatUtils';
 
 const Sem7TrackFinalization = () => {
   const [activeTab, setActiveTab] = useState('internship1'); // 'internship1' or 'track'
@@ -439,7 +440,7 @@ const Sem7TrackFinalization = () => {
                           <td className="px-4 py-3 text-sm text-gray-900">
                             {choice.currentTrack === 'project' && choice.project?.faculty ? (
                               <div>
-                                <div className="font-medium">{choice.project.faculty.name}</div>
+                                <div className="font-medium">{formatFacultyName(choice.project.faculty) || choice.project.faculty.name || 'N/A'}</div>
                                 <div className="text-xs text-gray-500">{choice.project.faculty.department}</div>
                               </div>
                             ) : choice.currentTrack === 'project_pending' ? (

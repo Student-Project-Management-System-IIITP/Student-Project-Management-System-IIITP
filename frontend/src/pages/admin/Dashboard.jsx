@@ -4,6 +4,7 @@ import { authAPI, adminAPI } from '../../utils/api';
 import { handleApiError } from '../../utils/errorHandler';
 import { Link } from 'react-router-dom';
 import StatusBadge from '../../components/common/StatusBadge';
+import { formatFacultyName } from '../../utils/formatUtils';
 
 // Helper to compute default password from a name: alpha-only, capitalize first letter, append @iiitp
 const computeDefaultPassword = (name) => {
@@ -30,6 +31,7 @@ const AdminDashboard = () => {
   const [isSubmittingFaculty, setIsSubmittingFaculty] = useState(false);
   const [facultyForm, setFacultyForm] = useState({
     name: '',
+    prefix: '',
     email: '',
     phone: '',
     department: 'CSE',
@@ -658,6 +660,7 @@ const AdminDashboard = () => {
 
       const payload = {
         fullName: facultyForm.name,
+        prefix: facultyForm.prefix || '',
         department: facultyForm.department,
         mode: facultyForm.mode,
         designation: facultyForm.designation,
@@ -671,7 +674,7 @@ const AdminDashboard = () => {
       if (data.success) {
         alert('Faculty created successfully. Default password: ' + facultyDefaultPassword);
         setIsAddFacultyOpen(false);
-        setFacultyForm({ name: '', email: '', phone: '', department: 'CSE', mode: 'Regular', designation: 'Assistant Professor' });
+        setFacultyForm({ name: '', prefix: '', email: '', phone: '', department: 'CSE', mode: 'Regular', designation: 'Assistant Professor' });
       } else {
         alert(data.message || 'Failed to create faculty');
       }
@@ -913,7 +916,7 @@ const AdminDashboard = () => {
                               
                               {group.allocatedFaculty && (
                                 <div className="text-xs mt-1">
-                                  Faculty: {group.allocatedFaculty.fullName} ({group.allocatedFaculty.department})
+                                  Faculty: {formatFacultyName(group.allocatedFaculty)} ({group.allocatedFaculty.department})
                                 </div>
                               )}
                             </div>
@@ -1046,7 +1049,7 @@ const AdminDashboard = () => {
                               
                               {group.allocatedFaculty && (
                                 <div className="text-xs mt-1">
-                                  Faculty: {group.allocatedFaculty.fullName} ({group.allocatedFaculty.department})
+                                  Faculty: {formatFacultyName(group.allocatedFaculty)} ({group.allocatedFaculty.department})
                                 </div>
                               )}
                             </div>
@@ -1114,7 +1117,7 @@ const AdminDashboard = () => {
                               
                               {group.allocatedFaculty && (
                                 <div className="text-xs mt-1">
-                                  Faculty (Sem 5): {group.allocatedFaculty.fullName} ({group.allocatedFaculty.department})
+                                  Faculty (Sem 5): {formatFacultyName(group.allocatedFaculty)} ({group.allocatedFaculty.department})
                                 </div>
                               )}
                             </div>
@@ -1586,6 +1589,18 @@ const AdminDashboard = () => {
             </div>
             <form onSubmit={handleFacultySubmit} className="p-6 space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm text-gray-700 mb-1">Prefix</label>
+                  <select name="prefix" value={facultyForm.prefix} onChange={handleFacultyChange} className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-500">
+                    <option value="">None</option>
+                    <option value="Dr">Dr</option>
+                    <option value="Mr">Mr</option>
+                    <option value="Mrs">Mrs</option>
+                    <option value="Miss">Miss</option>
+                    <option value="Prof">Prof</option>
+                    <option value="Ms">Ms</option>
+                  </select>
+                </div>
                 <div>
                   <label className="block text-sm text-gray-700 mb-1">Name</label>
                   <input name="name" value={facultyForm.name} onChange={handleFacultyChange} required className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-500" />

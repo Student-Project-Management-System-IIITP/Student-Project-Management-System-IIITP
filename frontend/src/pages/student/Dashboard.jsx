@@ -14,6 +14,7 @@ import { useState, useEffect } from 'react';
 import { toast } from 'react-hot-toast';
 import SemesterHeader from '../../components/common/SemesterHeader';
 import StatusBadge from '../../components/common/StatusBadge';
+import { formatFacultyName } from '../../utils/formatUtils';
 
 const StudentDashboard = () => {
   const navigate = useNavigate();
@@ -1351,7 +1352,7 @@ const StudentDashboard = () => {
                 <div className="flex items-center justify-between">
                   <div>
                     <h3 className="font-medium text-gray-900">{mtechProject.title || 'Your Project'}</h3>
-                    <p className="text-sm text-gray-600">Faculty Allocated: {mtechProject.faculty?.fullName || 'Assigned Faculty'}</p>
+                    <p className="text-sm text-gray-600">Faculty Allocated: {formatFacultyName(mtechProject.faculty, 'Assigned Faculty')}</p>
                   </div>
                   <Link to={`/projects/${mtechProject._id}`} className="inline-flex items-center px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700">Open Project Dashboard</Link>
                 </div>
@@ -2034,7 +2035,7 @@ const StudentDashboard = () => {
                           <div className="flex items-center text-sm text-gray-600">
                             <span className="font-medium w-20">Faculty:</span>
                             <span className={`${sem6Project.faculty?.fullName || sem6Project.group?.allocatedFaculty?.fullName ? 'text-gray-900' : 'text-yellow-600 font-medium'}`}>
-                              {sem6Project.faculty?.fullName || sem6Project.group?.allocatedFaculty?.fullName || 'Not Allocated'}
+                              {formatFacultyName(sem6Project.faculty) || formatFacultyName(sem6Project.group?.allocatedFaculty) || 'Not Allocated'}
                             </span>
                             {!(sem6Project.faculty?.fullName || sem6Project.group?.allocatedFaculty?.fullName) && (
                               <span className="ml-2 text-xs text-yellow-600">⚠️</span>
@@ -2170,7 +2171,7 @@ const StudentDashboard = () => {
                             <div className="flex items-center text-sm text-gray-600">
                               <span className="font-medium w-20">Faculty:</span>
                               <span className="text-gray-900">
-                                {sem5Project.faculty?.fullName || sem5Project.group?.allocatedFaculty?.fullName || 'Loading...'}
+                                {formatFacultyName(sem5Project.faculty) || formatFacultyName(sem5Project.group?.allocatedFaculty) || 'Loading...'}
                               </span>
                             </div>
                           </div>
@@ -2488,7 +2489,7 @@ const StudentDashboard = () => {
                           <div className="space-y-1">
                             <p className="font-medium text-gray-900">{majorProject1.title}</p>
                             {majorProject1.faculty || majorProject1Group?.allocatedFaculty ? (
-                              <p>Faculty: {majorProject1.faculty?.fullName || majorProject1Group?.allocatedFaculty?.fullName}</p>
+                              <p>Faculty: {formatFacultyName(majorProject1.faculty) || formatFacultyName(majorProject1Group?.allocatedFaculty)}</p>
                             ) : (
                               <p className="text-gray-500">Waiting for faculty allocation</p>
                             )}
@@ -2642,7 +2643,7 @@ const StudentDashboard = () => {
                             <>
                               <p className="font-medium text-gray-900">{internship1Project.title}</p>
                               {internship1Project.faculty ? (
-                                <p>Faculty: {internship1Project.faculty.fullName}</p>
+                                <p>Faculty: {formatFacultyName(internship1Project.faculty)}</p>
                               ) : (
                                 <p className="text-gray-500">Waiting for faculty allocation</p>
                               )}
@@ -2972,7 +2973,7 @@ const StudentDashboard = () => {
                           <p className="font-medium text-gray-900">{majorProject2.title}</p>
                           {majorProject2.faculty || majorProject2Group?.allocatedFaculty ? (
                             <>
-                              <p>Faculty: {majorProject2.faculty?.fullName || majorProject2Group?.allocatedFaculty?.fullName}</p>
+                              <p>Faculty: {formatFacultyName(majorProject2.faculty) || formatFacultyName(majorProject2Group?.allocatedFaculty)}</p>
                               <p className="text-green-600 font-medium">✓ Project active and allocated</p>
                             </>
                           ) : (
@@ -3072,7 +3073,7 @@ const StudentDashboard = () => {
                               <p className="font-medium text-gray-900">{internship2Project.title}</p>
                               {internship2Project.faculty ? (
                                 <>
-                                  <p>Faculty: {internship2Project.faculty.fullName}</p>
+                                  <p>Faculty: {formatFacultyName(internship2Project.faculty)}</p>
                                   <p className="text-green-600 font-medium">✓ Project active and allocated</p>
                                 </>
                               ) : (
@@ -3418,7 +3419,7 @@ const StudentDashboard = () => {
                       <div>
                         <span className="text-gray-600">Faculty:</span>
                         <span className="ml-2 font-medium">
-                          {sem6Group.allocatedFaculty?.fullName || 'N/A'}
+                          {formatFacultyName(sem6Group.allocatedFaculty, 'N/A')}
                         </span>
                       </div>
                     </div>
@@ -3756,7 +3757,7 @@ const StudentDashboard = () => {
                         <div className="flex items-center space-x-4 text-xs text-gray-500">
                           <span>Registered: {new Date(project.createdAt).toLocaleDateString()}</span>
                           {project.faculty && (
-                            <span>Faculty: {project.faculty?.fullName || 'N/A'}</span>
+                            <span>Faculty: {formatFacultyName(project.faculty, 'N/A')}</span>
                           )}
                         </div>
                         <div className="flex items-center space-x-2">

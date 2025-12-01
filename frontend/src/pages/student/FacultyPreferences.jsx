@@ -6,6 +6,7 @@ import { useAuth } from '../../context/AuthContext';
 import { adminAPI, studentAPI } from '../../utils/api';
 import { toast } from 'react-hot-toast';
 import FacultySelector from '../../components/faculty/FacultySelector';
+import { formatFacultyName } from '../../utils/formatUtils';
 
 const FacultyPreferences = () => {
   const navigate = useNavigate();
@@ -246,7 +247,7 @@ const FacultyPreferences = () => {
                         {item.priority}
                       </div>
                       <div>
-                        <h4 className="font-medium text-gray-900">{item.faculty.fullName}</h4>
+                        <h4 className="font-medium text-gray-900">{formatFacultyName(item.faculty)}</h4>
                         <p className="text-sm text-gray-600">
                           {item.faculty.facultyId} • {item.faculty.department} • {item.faculty.designation}
                         </p>

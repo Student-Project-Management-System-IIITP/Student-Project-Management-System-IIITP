@@ -6,6 +6,7 @@ import { studentAPI } from '../../utils/api';
 import { toast } from 'react-hot-toast';
 import GroupMemberList from '../../components/groups/GroupMemberList';
 import Layout from '../../components/common/Layout';
+import { formatFacultyName } from '../../utils/formatUtils';
 
 const Sem6Registration = () => {
   const navigate = useNavigate();
@@ -302,7 +303,7 @@ const Sem6Registration = () => {
             </div>
             <div className="flex-1">
               <h3 className="text-xl font-semibold text-gray-900 mb-2">
-                {facultyData.fullName}
+                {formatFacultyName(facultyData)}
               </h3>
               <div className="space-y-2 text-gray-600">
                 <div>
