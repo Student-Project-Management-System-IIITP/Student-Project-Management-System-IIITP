@@ -427,57 +427,176 @@ theme: {
 
 ## Implementation Strategy
 
-### Phase 1: Foundation (Week 1)
+**Note**: Implementation will be done semester-by-semester (Sem 4 → Sem 8) to ensure both color updates and layout improvements are completed together for each semester's features.
+
+### Phase 1: Foundation (Must Complete First)
 1. Update `tailwind.config.js` with new color palette
-2. Update `index.css` with base styles
-3. Create reusable component classes in `index.css`
-4. Update `Layout.jsx` and `Navbar.jsx` with new colors
+2. Update `index.css` with base styles and reusable component classes
+3. Update `Layout.jsx` and `Navbar.jsx` with new colors
+4. Update `StatusBadge.jsx` with new status colors (used across all semesters)
 
-### Phase 2: Core Components (Week 2)
-1. Update `StatusBadge.jsx` with new status colors
-2. Update all button components
-3. Update form components (inputs, selects, checkboxes)
-4. Update card components
-5. Update table components
+### Phase 2: Semester 4 Implementation
+**Student Pages:**
+- `Sem4ProjectDashboard.jsx` - Project dashboard with PPT upload
+- `ProjectRegistration.jsx` - Sem 4 project registration form
+- Student Dashboard (Sem 4 sections)
 
-### Phase 3: Pages - Auth (Week 3)
-1. Login page
-2. Signup page
-3. Forgot Password page
-4. Reset Password page
+**Admin Pages:**
+- `Sem4RegistrationsTable.jsx` - Admin registrations table
+- `Sem4UnregisteredStudents.jsx` - Unregistered students list
 
-### Phase 4: Pages - Student (Week 4-5)
-1. Student Dashboard
-2. Profile pages
-3. Registration pages
-4. Project dashboards
-5. Group management pages
+**Components Used:**
+- `ProjectRegistrationForm.jsx`
+- `PPTUploadForm.jsx`
+- `ProjectStatusCard.jsx`
+- `EvaluationScheduleCard.jsx`
 
-### Phase 5: Pages - Faculty (Week 6)
-1. Faculty Dashboard
-2. Evaluation Interface
-3. Group Allocation
-4. Profile pages
+**Layout Improvements:**
+- Optimize spacing and remove whitespace
+- Improve card layouts
+- Enhance form layouts
+- Better table presentations
 
-### Phase 6: Pages - Admin (Week 7-8)
-1. Admin Dashboard
-2. Management pages (Students, Faculty, Projects)
-3. Review pages
-4. Configuration pages
+### Phase 3: Semester 5 Implementation
+**Student Pages:**
+- `MinorProject2Registration.jsx` - Sem 5 registration
+- `GroupFormation.jsx` - Group creation
+- `GroupDashboard.jsx` - Group management
+- `FacultyPreferences.jsx` - Faculty preference selection
+- Student Dashboard (Sem 5 sections)
 
-### Phase 7: Shared Components (Week 9)
-1. Modals
-2. Notifications
-3. File upload components
-4. Chat components
-5. Timeline/Progress components
+**Admin Pages:**
+- `Sem5RegistrationsTable.jsx` - Registrations table
+- `Sem5AllocatedFaculty.jsx` - Faculty allocation management
 
-### Phase 8: Polish & Testing (Week 10)
+**Faculty Pages:**
+- `GroupAllocation.jsx` - Faculty group allocation
+- `AllocatedGroups.jsx` - View allocated groups
+
+**Components Used:**
+- `GroupCard.jsx`
+- `GroupManagementList.jsx`
+- `GroupMemberList.jsx`
+- `GroupStatusBadge.jsx`
+- `StudentSearch.jsx`
+- `FacultySelector.jsx`
+
+**Layout Improvements:**
+- Group card layouts
+- Member list presentations
+- Faculty selection interfaces
+- Allocation workflows
+
+### Phase 4: Semester 6 Implementation
+**Student Pages:**
+- `Sem6Registration.jsx` - Sem 6 project registration
+- Student Dashboard (Sem 6 sections)
+
+**Admin Pages:**
+- `Sem6RegistrationsTable.jsx` - Registrations table
+
+**Layout Improvements:**
+- Registration form layouts
+- Continuation project displays
+
+### Phase 5: Semester 7 Implementation
+**Student Pages:**
+- `Sem7TrackSelection.jsx` - Track selection (Coursework/Internship)
+- `MajorProject1Registration.jsx` - Major Project 1 registration
+- `MajorProject1Dashboard.jsx` - Major Project 1 dashboard
+- `Internship1Registration.jsx` - Internship 1 registration
+- `Internship1Dashboard.jsx` - Internship 1 dashboard
+- `InternshipApplicationForm.jsx` - 6-month internship application
+- Student Dashboard (Sem 7 sections)
+
+**Admin Pages:**
+- `Sem7Review.jsx` - Track choices and applications review
+- `Sem7TrackFinalization.jsx` - Track finalization
+- `Sem7InternshipApplications.jsx` - Internship applications review
+
+**Layout Improvements:**
+- Track selection interfaces
+- Major project dashboards
+- Internship application forms
+- Review interfaces
+
+### Phase 6: Semester 8 Implementation
+**Student Pages:**
+- `Sem8TrackSelection.jsx` - Track selection (Type 2 students)
+- `Sem8Status.jsx` - Sem 8 status overview
+- `MajorProject2Dashboard.jsx` - Major Project 2 dashboard
+- Student Dashboard (Sem 8 sections)
+
+**Admin Pages:**
+- `Sem8Review.jsx` - Comprehensive Sem 8 review
+- `Sem8TrackFinalization.jsx` - Track finalization
+
+**Layout Improvements:**
+- Status overview displays
+- Major Project 2 interfaces
+- Review and finalization workflows
+
+### Phase 7: M.Tech Semesters (Parallel to B.Tech)
+**Student Pages:**
+- `MTechSem1Registration.jsx` - M.Tech Sem 1
+- `MTechSem2Registration.jsx` - M.Tech Sem 2
+- `MTechSem3TrackSelection.jsx` - M.Tech Sem 3 track selection
+- `MTechSem3MajorProject.jsx` - M.Tech Sem 3 major project
+- `MTechSem3MajorProjectRegister.jsx` - M.Tech Sem 3 registration
+
+**Admin Pages:**
+- `MTechSem1Registrations.jsx`
+- `MTechSem1UnregisteredStudents.jsx`
+- `MTechSem2Registrations.jsx`
+- `MTechSem2UnregisteredStudents.jsx`
+- `MTechSem3Review.jsx`
+
+### Phase 8: Shared & Common Pages
+**Auth Pages:**
+- `Login.jsx`
+- `Signup.jsx`
+- `ForgotPassword.jsx`
+- `ResetPassword.jsx`
+
+**Profile Pages:**
+- `student/Profile.jsx`
+- `faculty/Profile.jsx`
+- `admin/Profile.jsx`
+
+**Shared Pages:**
+- `Home.jsx`
+- `NotFound.jsx`
+- `shared/ProjectDetails.jsx`
+
+**Common Components:**
+- `FileUpload.jsx`
+- `ProgressTimeline.jsx`
+- `SemesterHeader.jsx`
+- `NotificationCenter.jsx`
+- `ProjectChatMini.jsx`
+
+**Dashboard Pages:**
+- `student/Dashboard.jsx` (complete overhaul)
+- `faculty/Dashboard.jsx`
+- `admin/Dashboard.jsx`
+
+**Admin Management Pages:**
+- `ManageStudents.jsx`
+- `ManageFaculty.jsx`
+- `ManageProjects.jsx`
+- `SystemConfiguration.jsx`
+- `SemesterManagement.jsx`
+
+**Faculty Pages:**
+- `EvaluationInterface.jsx`
+
+### Phase 9: Final Polish & Testing
 1. Review all pages for consistency
-2. Fix spacing and layout issues
+2. Fix spacing and layout issues across all semesters
 3. Remove unnecessary whitespace
 4. Accessibility testing
 5. Cross-browser testing
+6. Performance optimization
 
 ---
 

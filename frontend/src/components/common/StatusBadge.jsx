@@ -4,30 +4,40 @@ const StatusBadge = ({ status, text, size = 'md', className = '' }) => {
   const getStatusConfig = (status) => {
     const statusMap = {
       // Project Status
-      'registered': { color: 'bg-blue-100 text-blue-800', text: 'Registered' },
-      'faculty_allocated': { color: 'bg-purple-100 text-purple-800', text: 'Faculty Allocated' },
-      'active': { color: 'bg-green-100 text-green-800', text: 'Active' },
-      'completed': { color: 'bg-gray-100 text-gray-800', text: 'Completed' },
-      'cancelled': { color: 'bg-red-100 text-red-800', text: 'Cancelled' },
+      'registered': { color: 'bg-info-100 text-info-700', text: 'Registered' },
+      'faculty_allocated': { color: 'bg-purple-100 text-purple-700', text: 'Faculty Allocated' },
+      'active': { color: 'bg-success-100 text-success-700', text: 'Active' },
+      'completed': { color: 'bg-neutral-100 text-neutral-700', text: 'Completed' },
+      'cancelled': { color: 'bg-error-100 text-error-700', text: 'Cancelled' },
       
       // Evaluation Status
-      'pending': { color: 'bg-yellow-100 text-yellow-800', text: 'Pending' },
-      'scheduled': { color: 'bg-blue-100 text-blue-800', text: 'Scheduled' },
-      'evaluated': { color: 'bg-green-100 text-green-800', text: 'Evaluated' },
+      'pending': { color: 'bg-warning-100 text-warning-700', text: 'Pending' },
+      'scheduled': { color: 'bg-info-100 text-info-700', text: 'Scheduled' },
+      'evaluated': { color: 'bg-success-100 text-success-700', text: 'Evaluated' },
       
       // Upload Status
-      'not_uploaded': { color: 'bg-gray-100 text-gray-800', text: 'Not Uploaded' },
-      'uploaded': { color: 'bg-green-100 text-green-800', text: 'Uploaded' },
-      'upload_failed': { color: 'bg-red-100 text-red-800', text: 'Upload Failed' },
+      'not_uploaded': { color: 'bg-neutral-100 text-neutral-700', text: 'Not Uploaded' },
+      'uploaded': { color: 'bg-success-100 text-success-700', text: 'Uploaded' },
+      'upload_failed': { color: 'bg-error-100 text-error-700', text: 'Upload Failed' },
       
       // General Status
-      'success': { color: 'bg-green-100 text-green-800', text: 'Success' },
-      'error': { color: 'bg-red-100 text-red-800', text: 'Error' },
-      'warning': { color: 'bg-yellow-100 text-yellow-800', text: 'Warning' },
-      'info': { color: 'bg-blue-100 text-blue-800', text: 'Info' },
+      'success': { color: 'bg-success-100 text-success-700', text: 'Success' },
+      'error': { color: 'bg-error-100 text-error-700', text: 'Error' },
+      'warning': { color: 'bg-warning-100 text-warning-700', text: 'Warning' },
+      'info': { color: 'bg-info-100 text-info-700', text: 'Info' },
+      
+      // Internship/Application Status
+      'submitted': { color: 'bg-warning-100 text-warning-700', text: 'Submitted' },
+      'needs_info': { color: 'bg-error-100 text-error-700', text: 'Needs Info' },
+      'pending_verification': { color: 'bg-info-100 text-info-700', text: 'Pending Verification' },
+      'verified_pass': { color: 'bg-success-100 text-success-700', text: 'Verified (Pass)' },
+      'verified_fail': { color: 'bg-error-100 text-error-700', text: 'Verified (Fail)' },
+      'absent': { color: 'bg-error-100 text-error-700', text: 'Absent' },
+      'approved': { color: 'bg-success-100 text-success-700', text: 'Approved' },
+      'rejected': { color: 'bg-error-100 text-error-700', text: 'Rejected' },
     };
     
-    return statusMap[status] || { color: 'bg-gray-100 text-gray-800', text: status };
+    return statusMap[status] || { color: 'bg-neutral-100 text-neutral-700', text: status };
   };
 
   const getSizeClasses = (size) => {

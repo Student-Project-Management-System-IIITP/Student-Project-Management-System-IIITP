@@ -3,29 +3,78 @@
 @tailwind utilities;
 
 @layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+    margin: 0;
+    padding: 0;
+  }
+
   body {
     font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    @apply bg-surface-200 text-neutral-600;
   }
 }
 
 /* Professional design system for profile pages */
 @layer components {
-  .pro-page { @apply min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50; }
-  .pro-card { @apply bg-white rounded-xl shadow-md border border-slate-200 ring-1 ring-slate-100 p-8; }
+  /* Page Layouts */
+  .pro-page { @apply min-h-screen bg-gradient-to-br from-primary-50 via-secondary-50 to-primary-50; }
+  
+  /* Cards */
+  .pro-card { @apply bg-white rounded-xl shadow-sm border border-neutral-200 p-8; }
+  
+  /* Sections */
   .pro-section { @apply mb-6 flex items-center; }
   .pro-section-icon { @apply w-8 h-8 rounded-lg flex items-center justify-center mr-3; }
-  .pro-section-title { @apply text-xl font-semibold text-gray-900; }
-  .pro-h1 { @apply text-3xl lg:text-4xl font-extrabold tracking-tight text-slate-900; }
-  .pro-h2 { @apply text-xl lg:text-2xl font-bold text-slate-900; }
-  .pro-muted { @apply text-slate-600; }
-  .pro-label { @apply block text-sm font-medium text-gray-700 mb-2; }
-  .pro-input { @apply w-full px-4 py-3 border border-slate-300 rounded-lg bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent; }
-  .pro-input-disabled { @apply bg-gray-100 text-gray-500; }
-  .pro-kv { @apply w-full px-4 py-3 border border-slate-200 rounded-lg bg-gray-50 text-gray-900 font-medium; }
-  .pro-status-chip { @apply w-full px-4 py-3 border border-slate-200 rounded-lg bg-gray-50; }
+  .pro-section-title { @apply text-xl font-semibold text-neutral-800; }
+  
+  /* Typography */
+  .pro-h1 { @apply text-3xl lg:text-4xl font-extrabold tracking-tight text-neutral-900; }
+  .pro-h2 { @apply text-xl lg:text-2xl font-bold text-neutral-800; }
+  .pro-muted { @apply text-neutral-500; }
+  
+  /* Form Elements */
+  .pro-label { @apply block text-sm font-medium text-neutral-700 mb-2; }
+  .pro-input { @apply w-full px-4 py-3 border border-neutral-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-neutral-700 placeholder-neutral-400; }
+  .pro-input-disabled { @apply bg-neutral-100 text-neutral-400 cursor-not-allowed; }
+  .pro-kv { @apply w-full px-4 py-3 border border-neutral-200 rounded-lg bg-neutral-50 text-neutral-800 font-medium; }
+  .pro-status-chip { @apply w-full px-4 py-3 border border-neutral-200 rounded-lg bg-neutral-50; }
+  
+  /* Actions */
   .pro-actions { @apply flex items-center space-x-3 pt-4; }
-  .pro-btn-primary { @apply inline-flex items-center px-6 py-3 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors; }
-  .pro-btn-secondary { @apply inline-flex items-center px-6 py-3 bg-gray-100 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition-colors; }
-  .pro-btn-danger { @apply inline-flex items-center px-6 py-3 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 transition-colors; }
-  /* Add to frontend/src/index.css */
+  
+  /* Buttons */
+  .pro-btn-primary { @apply inline-flex items-center px-6 py-3 bg-primary-500 text-white text-sm font-medium rounded-lg hover:bg-primary-600 active:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 transition-colors disabled:bg-primary-300 disabled:text-primary-100 disabled:cursor-not-allowed; }
+  .pro-btn-secondary { @apply inline-flex items-center px-6 py-3 bg-neutral-100 text-neutral-700 text-sm font-medium rounded-lg hover:bg-neutral-200 active:bg-neutral-300 border border-neutral-300 focus:outline-none focus:ring-2 focus:ring-neutral-500 focus:ring-offset-2 transition-colors; }
+  .pro-btn-danger { @apply inline-flex items-center px-6 py-3 bg-error-500 text-white text-sm font-medium rounded-lg hover:bg-error-600 active:bg-error-700 focus:outline-none focus:ring-2 focus:ring-error-500 focus:ring-offset-2 transition-colors; }
+  .pro-btn-success { @apply inline-flex items-center px-6 py-3 bg-success-500 text-white text-sm font-medium rounded-lg hover:bg-success-600 active:bg-success-700 focus:outline-none focus:ring-2 focus:ring-success-500 focus:ring-offset-2 transition-colors; }
+  .pro-btn-ghost { @apply inline-flex items-center px-6 py-3 text-primary-600 text-sm font-medium rounded-lg hover:bg-primary-50 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 transition-colors; }
+  
+  /* Reusable Component Classes */
+  .card-base { @apply bg-surface-100 rounded-lg shadow-sm border border-neutral-200 p-6 hover:shadow-md transition-shadow; }
+  .card-hover { @apply hover:border-primary-300 cursor-pointer; }
+  .card-selected { @apply bg-primary-50 border-primary-300; }
+  
+  .input-base { @apply w-full px-4 py-2 border border-neutral-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-neutral-700 placeholder-neutral-400 transition-colors; }
+  .input-disabled { @apply bg-neutral-100 text-neutral-400 cursor-not-allowed; }
+  
+  .btn-primary { @apply bg-primary-500 hover:bg-primary-600 active:bg-primary-700 text-white font-medium px-4 py-2 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 disabled:bg-primary-300 disabled:text-primary-100 disabled:cursor-not-allowed; }
+  .btn-secondary { @apply bg-neutral-100 hover:bg-neutral-200 text-neutral-700 border border-neutral-300 font-medium px-4 py-2 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-neutral-500 focus:ring-offset-2; }
+  .btn-success { @apply bg-success-500 hover:bg-success-600 text-white font-medium px-4 py-2 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-success-500 focus:ring-offset-2; }
+  .btn-danger { @apply bg-error-500 hover:bg-error-600 text-white font-medium px-4 py-2 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-error-500 focus:ring-offset-2; }
+  .btn-ghost { @apply text-primary-600 hover:bg-primary-50 font-medium px-4 py-2 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2; }
+  
+  .badge-success { @apply bg-success-100 text-success-700; }
+  .badge-error { @apply bg-error-100 text-error-700; }
+  .badge-warning { @apply bg-warning-100 text-warning-700; }
+  .badge-info { @apply bg-info-100 text-info-700; }
+  .badge-neutral { @apply bg-neutral-100 text-neutral-700; }
+  .badge-purple { @apply bg-purple-100 text-purple-700; }
+  
+  .alert-success { @apply bg-success-50 border border-success-200 text-success-700; }
+  .alert-error { @apply bg-error-50 border border-error-200 text-error-700; }
+  .alert-warning { @apply bg-warning-50 border border-warning-200 text-warning-700; }
+  .alert-info { @apply bg-info-50 border border-info-200 text-info-700; }
 }
