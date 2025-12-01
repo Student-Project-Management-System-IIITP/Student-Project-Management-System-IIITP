@@ -509,37 +509,25 @@ const Navbar = ({ userRole: propUserRole = null, user: propUser = null, roleData
   };
 
   return (
-    <nav className="bg-slate-800 border-b border-slate-700 shadow-md sticky top-0 z-50">
+    <nav className="bg-neutral-800 border-b border-neutral-700/50 shadow-lg sticky top-0 z-50">
       <div className="w-full px-8">
         <div className="flex justify-between items-center h-14">
           {/* Logo and Brand - Left */}
           <div className="flex items-center flex-shrink-0">
             <Link to="/" className="flex items-center gap-3 hover:opacity-90 transition-opacity">
-              <div className="relative">
-                <div className="absolute inset-0 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full opacity-70 blur-[1px]"></div>
-                <img 
-                  src="/IIIT Pune Logo New.jpg" 
-                  alt="IIIT Pune" 
-                  className="h-10 w-10.1 rounded-full object-cover border-2 border-white relative z-10 shadow-md"
-                />
-              </div>
+              <img 
+                src="/IIIT Pune Logo New.jpg" 
+                alt="IIIT Pune" 
+                className="h-10 w-10 rounded-full object-cover shadow-md"
+              />
               <div className="flex flex-col">
-                <div className="flex items-baseline">
-                  <h1 className="text-base lg:text-lg font-bold text-white" style={{ letterSpacing: '0.05em' }}>
-                    SPMS
-                  </h1>
-                  <span className="mx-0.5 text-sm font-normal text-gray-300">@</span>
-                  <h2 className="text-base lg:text-lg font-semibold text-white" style={{ letterSpacing: '0.02em' }}>
-                    IIIT-Pune
-                  </h2>
-                </div>
-                <div className="flex items-center mt-0.5">
-                  <p className="text-[10px] text-slate-300" style={{ letterSpacing: '0.04em', fontWeight: 500 }}>
-                    STUDENT PROJECT MANAGEMENT SYSTEM
-                  </p>
-                </div>
+                <h1 className="text-base lg:text-lg font-bold text-white tracking-wide">
+                  SPMS<span className="text-primary-400 font-normal">@</span>IIITP
+                </h1>
+                <p className="text-[10px] text-neutral-400 tracking-wider">
+                  STUDENT PROJECT MANAGEMENT SYSTEM
+                </p>
               </div>
-              {/* Removed admin badge for cleaner brand area */}
             </Link>
           </div>
 
@@ -557,10 +545,10 @@ const Navbar = ({ userRole: propUserRole = null, user: propUser = null, roleData
                     >
                       <button
                         onClick={() => toggleDropdown(item.name)}
-                        className={`px-2.5 py-1.5 text-sm font-medium rounded transition-colors flex items-center gap-1 ${
+                        className={`px-2.5 py-1.5 text-sm font-medium rounded-lg transition-colors flex items-center gap-1 ${
                           isActivePath(item.path)
-                            ? 'bg-blue-600 text-white'
-                            : 'text-slate-300 hover:text-white hover:bg-slate-700'
+                            ? 'bg-primary-600 text-white shadow-md shadow-primary-600/30'
+                            : 'text-neutral-300 hover:text-white hover:bg-neutral-700'
                         }`}
                       >
                         {item.name}
@@ -571,12 +559,12 @@ const Navbar = ({ userRole: propUserRole = null, user: propUser = null, roleData
 
                       {/* Main Dropdown Menu */}
                       {openDropdowns[item.name] && (
-                        <div className="absolute right-0 mt-1 w-56 bg-white rounded-md shadow-lg border border-slate-200 py-1">
+                        <div className="absolute right-0 mt-2 w-56 bg-surface-100 rounded-xl shadow-xl border border-neutral-200 py-2">
                           {item.items.map((subItem, idx) => 
                             subItem.isSection ? (
                               <div key={subItem.name}>
-                                {idx > 0 && <div className="border-t border-slate-200 my-1"></div>}
-                                <div className="px-3 py-1 text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                                {idx > 0 && <div className="border-t border-neutral-200 my-2"></div>}
+                                <div className="px-3 py-1.5 text-xs font-semibold text-neutral-500 uppercase tracking-wide">
                                   {subItem.name}
                                 </div>
                                 {subItem.items.map(sectionItem => (
@@ -584,7 +572,7 @@ const Navbar = ({ userRole: propUserRole = null, user: propUser = null, roleData
                                     key={`${subItem.name}-${sectionItem.name}`}
                                     to={sectionItem.path}
                                     onClick={() => toggleDropdown(item.name)}
-                                    className="block px-3 py-2 text-sm text-slate-700 hover:bg-blue-50 hover:text-blue-700 transition-colors"
+                                    className="block px-3 py-2 text-sm text-neutral-600 hover:bg-primary-50 hover:text-primary-700 transition-colors rounded-lg mx-1"
                                   >
                                     {sectionItem.name}
                                   </Link>
@@ -595,7 +583,7 @@ const Navbar = ({ userRole: propUserRole = null, user: propUser = null, roleData
                                 key={subItem.name}
                                 to={subItem.path}
                                 onClick={() => toggleDropdown(item.name)}
-                                className="block px-3 py-2 text-sm text-slate-700 hover:bg-blue-50 hover:text-blue-700 transition-colors"
+                                className="block px-3 py-2 text-sm text-neutral-600 hover:bg-primary-50 hover:text-primary-700 transition-colors rounded-lg mx-1"
                               >
                                 {subItem.name}
                               </Link>
@@ -608,10 +596,10 @@ const Navbar = ({ userRole: propUserRole = null, user: propUser = null, roleData
                     <Link
                       key={item.name}
                       to={item.path}
-                      className={`px-2.5 py-1.5 text-sm font-medium rounded transition-colors ${
+                      className={`px-2.5 py-1.5 text-sm font-medium rounded-lg transition-colors ${
                         isActivePath(item.path)
-                          ? 'bg-blue-600 text-white'
-                          : 'text-slate-300 hover:text-white hover:bg-slate-700'
+                          ? 'bg-primary-600 text-white shadow-md shadow-primary-600/30'
+                          : 'text-neutral-300 hover:text-white hover:bg-neutral-700'
                       }`}
                     >
                       {item.name}
@@ -624,10 +612,10 @@ const Navbar = ({ userRole: propUserRole = null, user: propUser = null, roleData
                   <div className="relative" ref={projectMenuRef}>
                     <button
                       onClick={() => setIsProjectMenuOpen(!isProjectMenuOpen)}
-                      className={`px-2.5 py-1.5 text-sm font-medium rounded transition-colors flex items-center gap-1 ${
+                      className={`px-2.5 py-1.5 text-sm font-medium rounded-lg transition-colors flex items-center gap-1 ${
                         location.pathname.includes('/student/project/')
-                          ? 'bg-blue-600 text-white'
-                          : 'text-slate-300 hover:text-white hover:bg-slate-700'
+                          ? 'bg-primary-600 text-white shadow-md shadow-primary-600/30'
+                          : 'text-neutral-300 hover:text-white hover:bg-neutral-700'
                       }`}
                     >
                       Project Dashboard
@@ -638,21 +626,21 @@ const Navbar = ({ userRole: propUserRole = null, user: propUser = null, roleData
 
                     {/* Dropdown Menu */}
                     {isProjectMenuOpen && (
-                      <div className="absolute right-0 mt-1 w-56 bg-white rounded-md shadow-lg border border-slate-200 py-1">
+                      <div className="absolute right-0 mt-2 w-56 bg-surface-100 rounded-xl shadow-xl border border-neutral-200 py-2">
                         {projectDashboardItems.map((project) => (
                           <Link
                             key={project.type}
                             to={project.path}
                             onClick={() => setIsProjectMenuOpen(false)}
-                            className={`block px-3 py-2 text-sm transition-colors ${
+                            className={`block px-3 py-2 text-sm transition-colors rounded-lg mx-1 ${
                               location.pathname === project.path
-                                ? 'bg-blue-50 text-blue-700 font-medium'
-                                : 'text-slate-700 hover:bg-blue-50 hover:text-blue-700'
+                                ? 'bg-primary-100 text-primary-700 font-medium'
+                                : 'text-neutral-600 hover:bg-primary-50 hover:text-primary-700'
                             }`}
                           >
                             <div className="flex items-center justify-between">
                               <span>{project.name}</span>
-                              <span className="text-xs text-slate-500">Sem {project.semester}</span>
+                              <span className="text-xs text-neutral-400">Sem {project.semester}</span>
                             </div>
                           </Link>
                         ))}
@@ -671,10 +659,10 @@ const Navbar = ({ userRole: propUserRole = null, user: propUser = null, roleData
                 <div className="relative hidden md:block ml-4" ref={userMenuRef}>
                   <button 
                     onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
-                    className="flex items-center gap-2 px-2 py-1 rounded-md hover:bg-slate-700 transition-colors"
+                    className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-neutral-700 transition-colors"
                   >
-                    <div className="w-7 h-7 bg-indigo-600 rounded-full flex items-center justify-center">
-                      <span className="text-xs font-semibold text-white">
+                    <div className="w-8 h-8 bg-gradient-to-br from-primary-400 to-primary-600 rounded-full flex items-center justify-center shadow-md shadow-primary-500/20">
+                      <span className="text-xs font-bold text-white">
                         {getUserName().charAt(0).toUpperCase()}
                       </span>
                     </div>
@@ -682,22 +670,22 @@ const Navbar = ({ userRole: propUserRole = null, user: propUser = null, roleData
                       <p className="text-xs font-medium text-white leading-tight">
                         {getUserName()}
                       </p>
-                      <p className="text-[10px] text-slate-400 leading-tight">
+                      <p className="text-[10px] text-primary-300 leading-tight">
                         {getRoleDisplayName(userRole)}
                       </p>
                     </div>
-                    <svg className={`w-3 h-3 text-slate-400 transition-transform ${isUserMenuOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className={`w-3 h-3 text-neutral-400 transition-transform ${isUserMenuOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                     </svg>
                   </button>
 
                   {/* Dropdown Menu */}
                   {isUserMenuOpen && (
-                    <div className="absolute right-0 mt-1 w-48 bg-white rounded-md shadow-lg border border-slate-200 py-1">
+                    <div className="absolute right-0 mt-2 w-48 bg-surface-100 rounded-xl shadow-xl border border-neutral-200 py-2">
                       <Link
                         to={`/${userRole}/profile`}
                         onClick={() => setIsUserMenuOpen(false)}
-                        className="block px-3 py-2 text-sm text-slate-700 hover:bg-blue-50 hover:text-blue-700 transition-colors"
+                        className="block px-3 py-2 text-sm text-neutral-600 hover:bg-primary-50 hover:text-primary-700 transition-colors rounded-lg mx-1"
                       >
                         <div className="flex items-center gap-2">
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -706,10 +694,11 @@ const Navbar = ({ userRole: propUserRole = null, user: propUser = null, roleData
                           My Profile
                         </div>
                       </Link>
-                      <div className="border-t border-slate-200 my-1"></div>
+                      <div className="border-t border-neutral-200 my-2 mx-2"></div>
                       <button
                         onClick={handleLogout}
-                        className="w-full text-left px-3 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
+                        className="w-full text-left px-3 py-2 text-sm text-error-600 hover:bg-error-50 transition-colors rounded-lg mx-1"
+                        style={{ width: 'calc(100% - 8px)' }}
                       >
                         <div className="flex items-center gap-2">
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -727,13 +716,13 @@ const Navbar = ({ userRole: propUserRole = null, user: propUser = null, roleData
               <div className="hidden md:flex items-center gap-2">
                 <Link
                   to="/login"
-                  className="px-3 py-1.5 text-sm font-medium text-slate-300 hover:text-white hover:bg-slate-700 rounded transition-colors"
+                  className="px-3 py-1.5 text-sm font-medium text-neutral-300 hover:text-white hover:bg-neutral-700 rounded-lg transition-colors"
                 >
                   Login
                 </Link>
                 <Link
                   to="/signup"
-                  className="px-3 py-1.5 text-sm font-medium bg-blue-600 text-white hover:bg-blue-700 rounded transition-colors"
+                  className="px-3 py-1.5 text-sm font-medium bg-primary-600 text-white hover:bg-primary-700 rounded-lg transition-colors shadow-md shadow-primary-600/30"
                 >
                   Sign Up
                 </Link>
@@ -743,7 +732,7 @@ const Navbar = ({ userRole: propUserRole = null, user: propUser = null, roleData
             {/* Mobile menu button */}
             <button
               onClick={() => setIsMenuOpen(!isMenuOpen)}
-              className="md:hidden p-2 rounded-md text-slate-300 hover:text-white hover:bg-slate-700 transition-colors"
+              className="md:hidden p-2 rounded-md text-neutral-300 hover:text-white hover:bg-neutral-700 transition-colors"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 {isMenuOpen ? (
@@ -758,21 +747,21 @@ const Navbar = ({ userRole: propUserRole = null, user: propUser = null, roleData
 
         {/* Mobile Navigation Menu */}
         {isMenuOpen && (
-          <div className="md:hidden border-t border-slate-700 py-2">
+          <div className="md:hidden border-t border-neutral-700/50 py-3 bg-neutral-800">
             {/* Navigation Items */}
             {navigationItems.length > 0 && (
-              <div className="space-y-1 mb-2">
+              <div className="space-y-1 mb-2 px-2">
                 {navigationItems.map((item) => (
                   item.isDropdown ? (
                     <div key={item.name} className="py-1">
-                      <div className="px-3 py-1 text-xs font-semibold text-slate-400 uppercase tracking-wide">
+                      <div className="px-3 py-1.5 text-xs font-semibold text-primary-300 uppercase tracking-wide">
                         {item.name}
                       </div>
-                      <div className="pl-2 border-l border-slate-700 ml-3 space-y-1">
+                      <div className="pl-2 border-l-2 border-primary-600/30 ml-3 space-y-1">
                         {item.items.map((subItem, idx) => 
                           subItem.isSection ? (
                             <div key={subItem.name} className="pt-1">
-                              <div className="px-3 py-1 text-xs font-semibold text-slate-500">
+                              <div className="px-3 py-1 text-xs font-semibold text-neutral-500">
                                 {subItem.name}
                               </div>
                               <div className="pl-2 space-y-1">
@@ -780,7 +769,7 @@ const Navbar = ({ userRole: propUserRole = null, user: propUser = null, roleData
                                   <Link
                                     key={`${subItem.name}-${sectionItem.name}`}
                                     to={sectionItem.path}
-                                    className="block px-3 py-1.5 text-sm text-slate-300 hover:text-white hover:bg-slate-700 rounded-md"
+                                    className="block px-3 py-1.5 text-sm text-neutral-300 hover:text-white hover:bg-neutral-700 rounded-lg"
                                     onClick={() => setIsMenuOpen(false)}
                                   >
                                     {sectionItem.name}
@@ -792,7 +781,7 @@ const Navbar = ({ userRole: propUserRole = null, user: propUser = null, roleData
                             <Link
                               key={subItem.name}
                               to={subItem.path}
-                              className="block px-3 py-1.5 text-sm text-slate-300 hover:text-white hover:bg-slate-700 rounded-md"
+                              className="block px-3 py-1.5 text-sm text-neutral-300 hover:text-white hover:bg-neutral-700 rounded-lg"
                               onClick={() => setIsMenuOpen(false)}
                             >
                               {subItem.name}
@@ -805,10 +794,10 @@ const Navbar = ({ userRole: propUserRole = null, user: propUser = null, roleData
                     <Link
                       key={item.name}
                       to={item.path}
-                      className={`block px-3 py-2 text-sm font-medium rounded transition-colors ${
+                      className={`block px-3 py-2 text-sm font-medium rounded-lg transition-colors ${
                         isActivePath(item.path)
-                          ? 'bg-indigo-600 text-white'
-                          : 'text-slate-300 hover:text-white hover:bg-slate-700'
+                          ? 'bg-primary-600 text-white shadow-md shadow-primary-600/30'
+                          : 'text-neutral-300 hover:text-white hover:bg-neutral-700'
                       }`}
                       onClick={() => setIsMenuOpen(false)}
                     >
@@ -819,24 +808,24 @@ const Navbar = ({ userRole: propUserRole = null, user: propUser = null, roleData
 
                 {/* Project Dashboard - Mobile */}
                 {userRole === 'student' && projectDashboardItems.length > 0 && (
-                  <div className="pt-2 border-t border-slate-700">
-                    <div className="px-3 py-1 text-xs font-semibold text-slate-400 uppercase tracking-wide">
+                  <div className="pt-3 mt-2 border-t border-neutral-700/50">
+                    <div className="px-3 py-1.5 text-xs font-semibold text-primary-300 uppercase tracking-wide">
                       Project Dashboard
                     </div>
                     {projectDashboardItems.map((project) => (
                       <Link
                         key={project.type}
                         to={project.path}
-                        className={`block px-3 py-2 text-sm font-medium rounded transition-colors ${
+                        className={`block px-3 py-2 text-sm font-medium rounded-lg transition-colors ${
                           location.pathname === project.path
-                            ? 'bg-indigo-600 text-white'
-                            : 'text-slate-300 hover:text-white hover:bg-slate-700'
+                            ? 'bg-primary-600 text-white shadow-md shadow-primary-600/30'
+                            : 'text-neutral-300 hover:text-white hover:bg-neutral-700'
                         }`}
                         onClick={() => setIsMenuOpen(false)}
                       >
                         <div className="flex items-center justify-between">
                           <span>{project.name}</span>
-                          <span className="text-xs opacity-75">Sem {project.semester}</span>
+                          <span className="text-xs text-primary-300">Sem {project.semester}</span>
                         </div>
                       </Link>
                     ))}
@@ -847,46 +836,46 @@ const Navbar = ({ userRole: propUserRole = null, user: propUser = null, roleData
 
             {/* User Menu for Mobile */}
             {userRole ? (
-              <div className="border-t border-slate-700 pt-2">
-                <div className="flex items-center gap-2 px-3 py-2">
-                  <div className="w-8 h-8 bg-indigo-600 rounded-full flex items-center justify-center">
-                    <span className="text-sm font-semibold text-white">
+              <div className="border-t border-neutral-700/50 pt-3 mt-2 px-2">
+                <div className="flex items-center gap-3 px-3 py-2 mb-2">
+                  <div className="w-10 h-10 bg-gradient-to-br from-primary-400 to-primary-600 rounded-full flex items-center justify-center shadow-lg shadow-primary-500/20">
+                    <span className="text-sm font-bold text-white">
                       {getUserName().charAt(0).toUpperCase()}
                     </span>
                   </div>
                   <div>
                     <p className="text-sm font-medium text-white">{getUserName()}</p>
-                    <p className="text-xs text-slate-400">{getRoleDisplayName(userRole)}</p>
+                    <p className="text-xs text-primary-300">{getRoleDisplayName(userRole)}</p>
                   </div>
                 </div>
                 <Link
                   to={`/${userRole}/profile`}
                   onClick={() => setIsMenuOpen(false)}
-                  className="block px-3 py-2 text-sm text-slate-300 hover:text-white hover:bg-slate-700 rounded transition-colors"
+                  className="block px-3 py-2 text-sm text-neutral-300 hover:text-white hover:bg-neutral-700 rounded-lg transition-colors"
                 >
                   My Profile
                 </Link>
                 <button
                   onClick={handleLogout}
-                  className="w-full text-left px-3 py-2 text-sm text-red-400 hover:text-red-300 hover:bg-slate-700 rounded transition-colors"
+                  className="w-full text-left px-3 py-2 text-sm text-error-400 hover:text-error-300 hover:bg-error-500/10 rounded-lg transition-colors"
                 >
                   Sign Out
                 </button>
               </div>
             ) : (
               // Mobile Public Menu
-              <div className="border-t border-slate-700 pt-2 space-y-1">
+              <div className="border-t border-neutral-700/50 pt-3 mt-2 px-2 space-y-2">
                 <Link
                   to="/login"
                   onClick={() => setIsMenuOpen(false)}
-                  className="block px-3 py-2 text-sm font-medium text-slate-300 hover:text-white hover:bg-slate-700 rounded transition-colors"
+                  className="block px-3 py-2.5 text-sm font-medium text-neutral-300 hover:text-white hover:bg-neutral-700 rounded-lg transition-colors text-center"
                 >
                   Login
                 </Link>
                 <Link
                   to="/signup"
                   onClick={() => setIsMenuOpen(false)}
-                  className="block px-3 py-2 text-sm font-medium bg-indigo-600 text-white hover:bg-indigo-700 rounded transition-colors"
+                  className="block px-3 py-2.5 text-sm font-medium bg-primary-600 text-white hover:bg-primary-700 rounded-lg transition-colors shadow-md shadow-primary-600/30 text-center"
                 >
                   Sign Up
                 </Link>
