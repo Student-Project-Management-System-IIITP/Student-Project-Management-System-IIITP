@@ -1653,12 +1653,13 @@ const dismissNotification = async (req, res) => {
 const updateFacultyProfile = async (req, res) => {
   try {
     const userId = req.user.id;
-    const { fullName, phone, department, mode, designation } = req.body;
+    const { fullName, prefix, phone, department, mode, designation } = req.body;
     const faculty = await Faculty.findOne({ user: userId });
     if (!faculty) {
       return res.status(404).json({ success: false, message: 'Faculty profile not found' });
     }
     if (fullName !== undefined) faculty.fullName = fullName;
+    if (prefix !== undefined) faculty.prefix = prefix || '';
     if (phone !== undefined) faculty.phone = phone;
     if (department !== undefined) faculty.department = department;
     if (mode !== undefined) faculty.mode = mode;
@@ -1671,6 +1672,7 @@ const updateFacultyProfile = async (req, res) => {
         faculty: {
           id: refreshed._id,
           fullName: refreshed.fullName,
+          prefix: refreshed.prefix || '',
           phone: refreshed.phone,
           facultyId: refreshed.facultyId,
           department: refreshed.department,

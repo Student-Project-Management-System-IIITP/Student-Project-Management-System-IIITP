@@ -4,6 +4,7 @@ import { adminAPI } from '../../utils/api';
 import { handleApiError } from '../../utils/errorHandler';
 import { toast } from 'react-hot-toast';
 import StatusBadge from '../../components/common/StatusBadge';
+import { formatFacultyName } from '../../utils/formatUtils';
 
 const ManageProjects = () => {
   const [searchParams] = useSearchParams();
@@ -370,7 +371,7 @@ const ManageProjects = () => {
       return;
     }
 
-    if (!window.confirm(`Are you sure you want to deallocate ${selectedGroup.allocatedFaculty.fullName} from this group? This will revert the project status and all related changes.`)) {
+    if (!window.confirm(`Are you sure you want to deallocate ${formatFacultyName(selectedGroup.allocatedFaculty)} from this group? This will revert the project status and all related changes.`)) {
       return;
     }
 
@@ -598,8 +599,8 @@ const ManageProjects = () => {
                                 <svg className="w-3.5 h-3.5 text-green-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                                 </svg>
-                                <span className="text-green-700 font-medium truncate" title={group.allocatedFaculty.fullName}>
-                                  {group.allocatedFaculty.fullName}
+                                <span className="text-green-700 font-medium truncate" title={formatFacultyName(group.allocatedFaculty)}>
+                                  {formatFacultyName(group.allocatedFaculty)}
                                 </span>
                               </div>
                             ) : (
@@ -804,7 +805,7 @@ const ManageProjects = () => {
                       </div>
                       {selectedGroup.allocatedFaculty ? (
                         <div className="p-2 bg-gray-50 rounded">
-                          <div className="font-medium text-sm">{selectedGroup.allocatedFaculty.fullName}</div>
+                          <div className="font-medium text-sm">{formatFacultyName(selectedGroup.allocatedFaculty)}</div>
                           <div className="text-xs text-gray-500">
                             {selectedGroup.allocatedFaculty.department} • {selectedGroup.allocatedFaculty.designation}
                           </div>
@@ -1340,7 +1341,7 @@ const ManageProjects = () => {
                         disabled={allocatingFaculty}
                         className="w-full text-left p-3 border border-gray-200 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                       >
-                        <div className="font-medium text-sm">{faculty.fullName}</div>
+                        <div className="font-medium text-sm">{formatFacultyName(faculty)}</div>
                         <div className="text-xs text-gray-500">
                           {faculty.department} • {faculty.designation}
                         </div>

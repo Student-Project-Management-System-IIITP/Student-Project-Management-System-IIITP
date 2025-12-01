@@ -1,6 +1,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import StatusBadge from '../common/StatusBadge';
+import { formatFacultyName } from '../../utils/formatUtils';
 
 const GroupCard = ({ 
   group, 
@@ -103,7 +104,7 @@ const GroupCard = ({
         <div className="text-sm">
           <span className="font-medium text-gray-700">Allocated Faculty:</span>
           <div className="mt-1 text-gray-600">
-            {group.allocatedFaculty.fullName} ({group.allocatedFaculty.facultyId})
+            {formatFacultyName(group.allocatedFaculty)} ({group.allocatedFaculty.facultyId})
           </div>
           <div className="text-xs text-gray-500">
             {group.allocatedFaculty.department} • {group.allocatedFaculty.designation}

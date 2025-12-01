@@ -7,6 +7,7 @@ import { useAuth } from '../../context/AuthContext';
 import { studentAPI } from '../../utils/api';
 import { toast } from 'react-hot-toast';
 import Layout from '../../components/common/Layout';
+import { formatFacultyName } from '../../utils/formatUtils';
 
 const MajorProject1Registration = () => {
   const navigate = useNavigate();
@@ -466,7 +467,7 @@ const MajorProject1Registration = () => {
     };
     
     setFacultyPreferences([...facultyPreferences, newPreference]);
-    toast.success(`${faculty.fullName} added to preferences`);
+    toast.success(`${formatFacultyName(faculty)} added to preferences`);
   };
 
   const removeFacultyPreference = (facultyId) => {
@@ -477,7 +478,7 @@ const MajorProject1Registration = () => {
     
     setFacultyPreferences(updatedPreferences);
     if (facultyToRemove) {
-      toast.success(`${facultyToRemove.faculty.fullName} removed from preferences`);
+      toast.success(`${formatFacultyName(facultyToRemove.faculty)} removed from preferences`);
     }
   };
 
@@ -849,7 +850,7 @@ const MajorProject1Registration = () => {
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium text-gray-900 truncate">
-                            {preference.faculty.fullName}
+                            {formatFacultyName(preference.faculty)}
                           </p>
                         </div>
                         <div className="text-xs text-gray-500">
@@ -943,7 +944,7 @@ const MajorProject1Registration = () => {
                       <div className="flex-1 min-w-0 flex items-center space-x-3">
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium text-gray-900 truncate">
-                            {faculty.fullName}
+                            {formatFacultyName(faculty)}
                           </p>
                         </div>
                         <div className="text-xs text-gray-500">

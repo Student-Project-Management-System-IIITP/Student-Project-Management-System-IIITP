@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { studentAPI } from '../../utils/api';
+import { formatFacultyName } from '../../utils/formatUtils';
 
 const FacultySelector = ({ 
   selectedFaculties = [], 
@@ -175,7 +176,7 @@ const FacultySelector = ({
                   
                   <div className="flex-1">
                     <div className="font-medium text-gray-900">
-                      {item.faculty.fullName}
+                      {formatFacultyName(item.faculty)}
                     </div>
                     <div className="text-sm text-gray-600">
                       {item.faculty.facultyId} • {item.faculty.department}
@@ -252,7 +253,7 @@ const FacultySelector = ({
                     <div className="flex items-center justify-between">
                       <div className="flex-1">
                         <div className="font-medium text-gray-900">
-                          {faculty.fullName}
+                          {formatFacultyName(faculty)}
                         </div>
                         <div className="text-sm text-gray-600">
                           {faculty.facultyId} • {faculty.department} • {faculty.designation}

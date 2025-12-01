@@ -4,6 +4,7 @@ import { useSem7Project } from '../../hooks/useSem7Project';
 import { useAuth } from '../../context/AuthContext';
 import Layout from '../../components/common/Layout';
 import StatusBadge from '../../components/common/StatusBadge';
+import { formatFacultyName } from '../../utils/formatUtils';
 
 const MajorProject1Dashboard = () => {
   const navigate = useNavigate();
@@ -134,8 +135,8 @@ const MajorProject1Dashboard = () => {
                       <div className="flex items-center text-sm">
                         <span className="font-medium text-gray-700 w-24">Faculty:</span>
                         <span className="text-gray-900">
-                          {majorProject1.faculty?.fullName || 
-                           majorProject1Group?.allocatedFaculty?.fullName || 
+                          {formatFacultyName(majorProject1.faculty) || 
+                           formatFacultyName(majorProject1Group?.allocatedFaculty) || 
                            (typeof majorProject1Group?.allocatedFaculty === 'string' ? majorProject1Group.allocatedFaculty : 'Not allocated yet')}
                         </span>
                       </div>

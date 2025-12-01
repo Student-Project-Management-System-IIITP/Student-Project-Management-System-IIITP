@@ -4539,7 +4539,6 @@ const leaveGroup = async (req, res) => {
       try {
         const leaderStudent = await Student.findById(group.leader);
         if (leaderStudent && leaderStudent.collegeEmail) {
-          const { sendEmail } = require('../utils/emailService'); // Adjust path if needed
           const subject = 'SPMS IIITP - Member left your group';
           const text = `Dear ${leaderStudent.fullName || 'Group Leader'},\n\n${student.fullName} has left your group ${group.name || 'your group'}.\n\nPlease log in to the SPMS portal to review your current group members and take any necessary actions.\n\nRegards,\nSPMS IIIT Pune`;
           const html = `

@@ -9,6 +9,7 @@ import GroupMemberList from '../../components/groups/GroupMemberList';
 import StatusBadge from '../../components/common/StatusBadge';
 import StudentSearch from '../../components/groups/StudentSearch';
 import Layout from '../../components/common/Layout';
+import { formatFacultyName } from '../../utils/formatUtils';
 
 const GroupDashboard = () => {
   const navigate = useNavigate();
@@ -1596,7 +1597,7 @@ const GroupDashboard = () => {
                     </div>
                     <div className="flex-1">
                       <h3 className="text-lg font-semibold text-gray-900">
-                        {groupDetails.allocatedFaculty.fullName}
+                        {formatFacultyName(groupDetails.allocatedFaculty)}
                       </h3>
                       <p className="text-gray-600">
                         {groupDetails.allocatedFaculty.facultyId} • {groupDetails.allocatedFaculty.department}
