@@ -45,7 +45,14 @@ const getTransporter = () => {
  */
 const sendEmail = async ({ to, subject, text, html }) => {
   const tx = getTransporter();
-  if (!tx) return; // Email disabled due to missing config
+  if (!tx) {
+    // In development mode, log a warning instead of silently failing
+    if (process.env.NODE_ENV === 'development') {
+      console.warn('⚠️  Email sending skipped: Email service not configured');
+      console.warn('   Configure EMAIL_HOST, EMAIL_PORT, EMAIL_USER, EMAIL_PASS, EMAIL_FROM in .env');
+    }
+    throw new Error('Email service is not configured. Please check environment variables.');
+  }
 
   const from = process.env.EMAIL_FROM;
 
@@ -57,7 +64,18 @@ const sendEmail = async ({ to, subject, text, html }) => {
     html,
   };
 
-  await tx.sendMail(mailOptions);
+  try {
+    await tx.sendMail(mailOptions);
+  } catch (error) {
+    // Enhance error message for common Gmail issues
+    if (error.code === 'EAUTH') {
+      const enhancedError = new Error('Email authentication failed. For Gmail, use an App Password instead of your regular password. Enable 2-Step Verification and generate an App Password at: https://myaccount.google.com/apppasswords');
+      enhancedError.code = 'EAUTH';
+      enhancedError.originalError = error;
+      throw enhancedError;
+    }
+    throw error;
+  }
 };
 
 module.exports = {
