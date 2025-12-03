@@ -187,13 +187,6 @@ const sendSignupOtp = async (req, res) => {
     const ttlMinutes = 10;
     const expiresAt = new Date(Date.now() + ttlMinutes * 60 * 1000);
 
-    await SignupOtp.create({
-      email,
-      otp,
-      purpose: 'signup',
-      expiresAt,
-    });
-
     const subject = 'SPMS IIITP - Email Verification OTP';
     const text = `Your OTP for SPMS signup is ${otp}. It is valid for ${ttlMinutes} minutes.`;
     const html = `
@@ -205,13 +198,60 @@ const sendSignupOtp = async (req, res) => {
       <p>Regards,<br/>SPMS IIIT Pune</p>
     `;
 
+    // Try to send email first, only create OTP if email is sent successfully
+    // In development mode, allow OTP creation even if email fails (for testing)
+    const isDevelopment = process.env.NODE_ENV === 'development';
+    let emailSent = false;
+    
     try {
       await sendEmail({ to: email, subject, text, html });
+      emailSent = true;
     } catch (emailError) {
       console.error('Error sending signup OTP email:', emailError);
-      return res.status(500).json({
-        success: false,
-        message: 'Failed to send OTP email. Please try again later.',
+      
+      // In development mode, log OTP to console so developers can still test
+      if (isDevelopment) {
+        console.log(`\n⚠️  EMAIL SENDING FAILED - OTP for ${email}: ${otp}\n`);
+        console.log('   You can use this OTP to test the verification flow.\n');
+        // Continue to create OTP in development mode
+      } else {
+        // In production, return error and don't create OTP
+        // Check if it's an authentication error (Gmail App Password issue)
+        if (emailError.code === 'EAUTH') {
+          return res.status(500).json({
+            success: false,
+            message: emailError.message || 'Email service authentication failed. Please contact administrator.',
+          });
+        }
+        
+        // Check if email service is not configured
+        if (emailError.message && emailError.message.includes('not configured')) {
+          return res.status(500).json({
+            success: false,
+            message: 'Email service is not configured. Please contact administrator.',
+          });
+        }
+        
+        return res.status(500).json({
+          success: false,
+          message: 'Failed to send OTP email. Please try again later.',
+        });
+      }
+    }
+
+    // Create OTP record if email was sent successfully OR in development mode
+    await SignupOtp.create({
+      email,
+      otp,
+      purpose: 'signup',
+      expiresAt,
+    });
+    
+    // Return appropriate message based on email status
+    if (!emailSent && isDevelopment) {
+      return res.status(200).json({
+        success: true,
+        message: 'OTP generated (email sending failed - check console for OTP). Development mode enabled.',
       });
     }
 
