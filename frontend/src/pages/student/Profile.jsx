@@ -1,6 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { studentAPI, authAPI } from '../../utils/api';
 import { toast } from 'react-hot-toast';
+import { 
+  FiUser, FiMail, FiPhone, FiBook, FiCalendar,
+  FiEdit, FiCheck, FiX, FiLock, FiShield, FiHash
+} from 'react-icons/fi';
 
 const StudentProfile = () => {
   const [profileData, setProfileData] = useState(null);
@@ -125,10 +129,10 @@ const StudentProfile = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-surface-200 via-primary-50 to-secondary-50">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600 font-medium">Loading profile...</p>
+          <div className="w-12 h-12 border-4 border-primary-200 border-t-primary-600 rounded-full animate-spin mx-auto"></div>
+          <p className="mt-4 text-neutral-700 font-medium">Loading profile...</p>
         </div>
       </div>
     );
@@ -136,15 +140,15 @@ const StudentProfile = () => {
 
   if (error && !profileData) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-surface-200 via-primary-50 to-secondary-50">
         <div className="text-center max-w-md mx-auto p-6">
-          <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
-            <svg className="w-8 h-8 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z"/></svg>
+          <div className="w-16 h-16 bg-error-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <FiUser className="w-8 h-8 text-error-600" />
           </div>
-          <h3 className="text-lg font-semibold text-gray-900 mb-2">Unable to Load Profile</h3>
-          <p className="text-gray-600 mb-4">{error}</p>
-          <button onClick={fetchProfile} className="inline-flex items-center px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors">
-            <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+          <h3 className="text-lg font-bold text-neutral-800 mb-2">Unable to Load Profile</h3>
+          <p className="text-neutral-600 mb-4">{error}</p>
+          <button onClick={fetchProfile} className="btn-primary inline-flex items-center gap-2">
+            <FiActivity className="w-4 h-4" />
             Try Again
           </button>
         </div>
@@ -155,27 +159,76 @@ const StudentProfile = () => {
   const { student, user: userData } = profileData || {};
 
   return (
-    <div className="pro-page py-8">
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-        {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">Student Profile</h1>
-          <p className="mt-2 text-gray-600">Manage your student profile and account information</p>
+    <div className="min-h-screen bg-gradient-to-br from-surface-200 via-primary-50 to-secondary-50">
+      {/* Compact Header */}
+      <div className="bg-white border-b border-neutral-200 shadow-sm">
+        <div className="max-w-[1400px] mx-auto px-4 lg:px-8 py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-gradient-to-br from-primary-600 to-secondary-600 rounded-lg flex items-center justify-center flex-shrink-0">
+                <FiUser className="w-5 h-5 text-white" />
+              </div>
+              <div>
+                <h1 className="text-xl font-bold text-neutral-800">Student Profile</h1>
+                <p className="text-xs text-neutral-600 mt-0.5">Manage your information</p>
+              </div>
+            </div>
+            {/* Account Status Badge */}
+            <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold ${
+              userData?.isActive 
+                ? 'bg-success-100 text-success-800 border border-success-200' 
+                : 'bg-error-100 text-error-800 border border-error-200'
+            }`}>
+              <span className={`w-2 h-2 rounded-full ${userData?.isActive ? 'bg-success-500' : 'bg-error-500'}`}></span>
+              {userData?.isActive ? 'Active' : 'Inactive'}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Main Content */}
+      <div className="max-w-[1400px] mx-auto px-4 lg:px-8 py-5 pb-8 space-y-4">
+        {/* Profile Summary - Full Width */}
+        <div className="bg-surface-100 rounded-xl shadow-sm border border-neutral-200 overflow-hidden">
+          <div className="bg-gradient-to-br from-primary-600 to-secondary-600 p-5">
+            <div className="flex items-center gap-4">
+              <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center shadow-lg flex-shrink-0">
+                <FiUser className="w-8 h-8 text-primary-600" />
+              </div>
+              <div className="flex-1 text-white min-w-0">
+                <h2 className="text-xl font-bold truncate">{student?.fullName || 'Student'}</h2>
+                <div className="flex flex-wrap items-center gap-3 mt-1 text-sm text-white/90">
+                  <span className="flex items-center gap-1.5">
+                    <FiHash className="w-3 h-3" />
+                    {student?.misNumber || 'N/A'}
+                  </span>
+                  <span>•</span>
+                  <span>{student?.degree}</span>
+                  <span>•</span>
+                  <span>{student?.branch}</span>
+                  <span>•</span>
+                  <span>Sem {student?.semester}</span>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        {/* Two Column Layout - Personal Info & Academic Details */}
+        <div className="grid lg:grid-cols-2 gap-4">
           {/* Personal Information */}
-          <div className="pro-card shadow-lg border-0 transition-shadow hover:shadow-2xl w-full max-w-xl mx-auto lg:mx-0">
-            <div className="pro-section flex items-center justify-between mb-6 border-b border-gray-100 pb-4">
-              <div className="flex items-center">
-                <div className="pro-section-icon bg-gradient-to-br from-green-200 via-green-100 to-white">
-                  <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
-                </div>
-                <h2 className="pro-section-title ml-2 text-xl font-semibold">Personal Information</h2>
-              </div>
+          <div className="bg-surface-100 rounded-xl shadow-sm border border-neutral-200 p-5">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-base font-bold text-neutral-800 flex items-center gap-2">
+                <FiUser className="w-4 h-4 text-primary-600" />
+                Personal Information
+              </h3>
               {!isEditMode && (
-                <button onClick={() => setIsEditMode(true)} className="pro-btn-primary px-4 py-2 text-base shadow-sm">
-                  <svg className="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                <button 
+                  onClick={() => setIsEditMode(true)} 
+                  className="text-primary-600 hover:text-primary-700 text-sm font-medium inline-flex items-center gap-1.5"
+                >
+                  <FiEdit className="w-4 h-4" />
                   Edit
                 </button>
               )}
@@ -183,147 +236,285 @@ const StudentProfile = () => {
 
             {isEditMode ? (
               <div className="space-y-4">
-                <div className="grid grid-cols-1 gap-4">
-                  <div>
-                    <label className="pro-label">Full Name *</label>
-                    <input type="text" value={editForm.fullName} onChange={e => setEditForm({ ...editForm, fullName: e.target.value })} className="pro-input" required />
-                  </div>
-                  <div>
-                    <label className="pro-label">Contact Number *</label>
-                    <input type="tel" value={editForm.contactNumber} onChange={e => setEditForm({ ...editForm, contactNumber: e.target.value })} className="pro-input" required />
-                  </div>
-                  <div>
-                    <label className="pro-label">Email *</label>
-                    <input type="email" value={editForm.email} onChange={e => setEditForm({ ...editForm, email: e.target.value })} className="pro-input" required />
-                  </div>
+                <div>
+                  <label className="block text-sm font-medium text-neutral-700 mb-2">
+                    <FiUser className="w-3.5 h-3.5 inline mr-1.5" />
+                    Full Name *
+                  </label>
+                  <input 
+                    type="text" 
+                    value={editForm.fullName} 
+                    onChange={e => setEditForm({ ...editForm, fullName: e.target.value })} 
+                    className="input-base" 
+                    required 
+                  />
                 </div>
-                <div className="pro-actions flex flex-col md:flex-row gap-3 pt-2">
-                  <button onClick={updateProfile} disabled={editSubmitting} className="pro-btn-primary w-full md:w-auto disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center">
-                    {editSubmitting ? (<><div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>Saving...</>) : (<><svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>Save Changes</>)}
+                <div>
+                  <label className="block text-sm font-medium text-neutral-700 mb-2">
+                    <FiPhone className="w-3.5 h-3.5 inline mr-1.5" />
+                    Contact Number *
+                  </label>
+                  <input 
+                    type="tel" 
+                    value={editForm.contactNumber} 
+                    onChange={e => setEditForm({ ...editForm, contactNumber: e.target.value })} 
+                    className="input-base" 
+                    required 
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-neutral-700 mb-2">
+                    <FiMail className="w-3.5 h-3.5 inline mr-1.5" />
+                    Email *
+                  </label>
+                  <input 
+                    type="email" 
+                    value={editForm.email} 
+                    onChange={e => setEditForm({ ...editForm, email: e.target.value })} 
+                    className="input-base" 
+                    required 
+                  />
+                </div>
+                <div className="flex items-center gap-3 pt-2">
+                  <button 
+                    onClick={updateProfile} 
+                    disabled={editSubmitting} 
+                    className="btn-primary inline-flex items-center gap-2"
+                  >
+                    {editSubmitting ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                        Saving...
+                      </>
+                    ) : (
+                      <>
+                        <FiCheck className="w-4 h-4" />
+                        Save Changes
+                      </>
+                    )}
                   </button>
-                  <button onClick={() => setIsEditMode(false)} className="pro-btn-secondary w-full md:w-auto">Cancel</button>
+                  <button 
+                    onClick={() => setIsEditMode(false)} 
+                    className="btn-secondary inline-flex items-center gap-2"
+                  >
+                    <FiX className="w-4 h-4" />
+                    Cancel
+                  </button>
                 </div>
               </div>
             ) : (
-              <div className="space-y-4 divide-y divide-gray-100">
-                <div className="pb-3">
-                  <label className="pro-label">Full Name</label>
-                  <div className="pro-kv">{student?.fullName || 'Not provided'}</div>
+              <div className="space-y-3">
+                <div className="bg-neutral-50 rounded-lg p-3 border border-neutral-200">
+                  <label className="text-xs font-medium text-neutral-600 mb-1 flex items-center gap-1.5">
+                    <FiUser className="w-3.5 h-3.5" />
+                    Full Name
+                  </label>
+                  <p className="text-sm font-semibold text-neutral-800">{student?.fullName || 'Not provided'}</p>
                 </div>
-                <div className="py-3">
-                  <label className="pro-label">Contact Number</label>
-                  <div className="pro-kv">{student?.contactNumber || 'Not provided'}</div>
+                <div className="bg-neutral-50 rounded-lg p-3 border border-neutral-200">
+                  <label className="text-xs font-medium text-neutral-600 mb-1 flex items-center gap-1.5">
+                    <FiPhone className="w-3.5 h-3.5" />
+                    Contact Number
+                  </label>
+                  <p className="text-sm font-semibold text-neutral-800">{student?.contactNumber || 'Not provided'}</p>
                 </div>
-                <div className="pt-3">
-                  <label className="pro-label">Email</label>
-                  <div className="pro-kv">{userData?.email || 'Not provided'}</div>
+                <div className="bg-neutral-50 rounded-lg p-3 border border-neutral-200">
+                  <label className="text-xs font-medium text-neutral-600 mb-1 flex items-center gap-1.5">
+                    <FiMail className="w-3.5 h-3.5" />
+                    Email
+                  </label>
+                  <p className="text-sm font-semibold text-neutral-800">{userData?.email || 'Not provided'}</p>
                 </div>
               </div>
             )}
           </div>
 
-          {/* Academic & Account Information */}
-          <div className="pro-card shadow-lg border-0 transition-shadow hover:shadow-2xl w-full max-w-xl mx-auto lg:mx-0">
-            <div className="pro-section flex items-center justify-between mb-6 border-b border-gray-100 pb-4">
-              <div className="flex items-center">
-                <div className="pro-section-icon bg-gradient-to-br from-yellow-200 via-yellow-100 to-white">
-                  <svg className="w-6 h-6 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 4.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
-                </div>
-                <h2 className="pro-section-title ml-2 text-xl font-semibold">Academic & Account Information</h2>
+          {/* Academic Details */}
+          <div className="bg-surface-100 rounded-xl shadow-sm border border-neutral-200 p-5">
+            <h3 className="text-base font-bold text-neutral-800 mb-4 flex items-center gap-2">
+              <FiBook className="w-4 h-4 text-primary-600" />
+              Academic Details
+            </h3>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="bg-primary-50 rounded-lg p-3 border border-primary-200">
+                <label className="text-xs font-medium text-primary-700 mb-1 flex items-center gap-1.5">
+                  <FiBook className="w-3 h-3" />
+                  Degree
+                </label>
+                <p className="text-sm font-bold text-primary-900">{student?.degree || 'N/A'}</p>
               </div>
-              <div className="flex items-center ml-4">
-                <span className={`flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold shadow-sm ${userData?.isActive ? 'bg-green-100 text-green-800 border border-green-200' : 'bg-red-100 text-red-700 border border-red-200'}`} style={{minWidth:'80px'}}>
-                  <span className={`w-2 h-2 rounded-full inline-block ${userData?.isActive ? 'bg-green-500' : 'bg-red-500'}`}></span>
-                  {userData?.isActive ? 'Active' : 'Inactive'}
-                </span>
+              <div className="bg-secondary-50 rounded-lg p-3 border border-secondary-200">
+                <label className="text-xs font-medium text-secondary-700 mb-1 flex items-center gap-1.5">
+                  <FiBook className="w-3 h-3" />
+                  Branch
+                </label>
+                <p className="text-sm font-bold text-secondary-900">{student?.branch || 'N/A'}</p>
               </div>
-            </div>
-            <div className="space-y-6 divide-y divide-gray-100">
-              {/* Line 1: MIS only */}
-              <div className="pb-4">
-                <label className="pro-label">MIS Number</label>
-                <div className="pro-kv">{student?.misNumber || 'Not provided'}</div>
+              <div className="bg-accent-50 rounded-lg p-3 border border-accent-200">
+                <label className="text-xs font-medium text-accent-700 mb-1 flex items-center gap-1.5">
+                  <FiCalendar className="w-3 h-3" />
+                  Academic Year
+                </label>
+                <p className="text-sm font-bold text-accent-900">{student?.academicYear || 'N/A'}</p>
               </div>
-              {/* Line 2: Degree | Branch */}
-              <div className="py-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="pro-label">Degree</label>
-                  <div className="pro-kv">{student?.degree || 'Not set'}</div>
-                </div>
-                <div>
-                  <label className="pro-label">Branch</label>
-                  <div className="pro-kv">{student?.branch || 'Not set'}</div>
-                </div>
-              </div>
-              {/* Line 3: Academic Year | Semester */}
-              <div className="py-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="pro-label">Academic Year</label>
-                  <div className="pro-kv">{student?.academicYear || 'Not set'}</div>
-                </div>
-                <div>
-                  <label className="pro-label">Semester</label>
-                  <div className="pro-kv">{student?.semester ?? 'N/A'}</div>
-                </div>
-              </div>
-              {/* Line 4: Last Login | Member Since */}
-              <div className="pt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="pro-label">Last Login</label>
-                  <div className="pro-kv">{userData?.lastLogin ? new Date(userData.lastLogin).toLocaleDateString('en-US', {year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'}) : 'Never'}</div>
-                </div>
-                <div>
-                  <label className="pro-label">Member Since</label>
-                  <div className="pro-kv">{student?.createdAt ? new Date(student.createdAt).toLocaleDateString('en-US', {year: 'numeric', month: 'long', day: 'numeric'}) : 'Unknown'}</div>
-                </div>
+              <div className="bg-info-50 rounded-lg p-3 border border-info-200">
+                <label className="text-xs font-medium text-info-700 mb-1 flex items-center gap-1.5">
+                  <FiHash className="w-3 h-3" />
+                  Semester
+                </label>
+                <p className="text-sm font-bold text-info-900">{student?.semester ?? 'N/A'}</p>
               </div>
             </div>
           </div>
         </div>
 
-        {/* Change Password Button */}
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 mt-10 flex justify-center">
-          <button onClick={() => setIsPwOpen(true)} className="pro-btn-danger">
-            <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/></svg>
-            Change Password
-          </button>
+        {/* Security Section - Full Width at Bottom */}
+        <div className="bg-surface-100 rounded-xl shadow-sm border border-neutral-200 p-5">
+          <div className="max-w-2xl mx-auto">
+            <h3 className="text-base font-bold text-neutral-800 mb-4 flex items-center gap-2 justify-center">
+              <FiShield className="w-5 h-5 text-error-600" />
+              Account Security
+            </h3>
+            <div className="text-center mb-4">
+              <p className="text-sm text-neutral-600">
+                Keep your account secure by using a strong password. It's recommended to change your password regularly.
+              </p>
+            </div>
+            <div className="flex justify-center">
+              <button 
+                onClick={() => setIsPwOpen(true)} 
+                className="bg-error-600 hover:bg-error-700 text-white font-medium px-6 py-2.5 rounded-lg transition-colors inline-flex items-center gap-2 focus:outline-none focus:ring-2 focus:ring-error-500 focus:ring-offset-2 shadow-sm hover:shadow-md"
+              >
+                <FiLock className="w-4 h-4" />
+                Change Password
+              </button>
+            </div>
+          </div>
         </div>
+      </div>
 
-        {isPwOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
-            <div className="bg-white w-full max-w-md rounded-xl shadow-xl mx-4">
-              <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
-                <h3 className="text-lg font-semibold text-gray-900">Change Password</h3>
-                <button onClick={() => { setIsPwOpen(false); setPwError(''); setPwSuccess(''); setPwForm({ currentPassword: '', newPassword: '', confirmPassword: '' }); }} className="text-gray-400 hover:text-gray-600 transition-colors">
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/></svg>
+      {/* Password Change Modal */}
+      {isPwOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className="bg-surface-100 w-full max-w-md rounded-xl shadow-2xl mx-4 border border-neutral-200">
+            {/* Modal Header */}
+            <div className="px-6 py-4 border-b border-neutral-200 flex items-center justify-between bg-gradient-to-r from-primary-600 to-secondary-600 rounded-t-xl">
+              <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                <FiLock className="w-5 h-5" />
+                Change Password
+              </h3>
+              <button 
+                onClick={() => { 
+                  setIsPwOpen(false); 
+                  setPwError(''); 
+                  setPwSuccess(''); 
+                  setPwForm({ currentPassword: '', newPassword: '', confirmPassword: '' }); 
+                }} 
+                className="text-white/80 hover:text-white transition-colors"
+              >
+                <FiX className="w-6 h-6" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <form onSubmit={handlePasswordChange} className="p-6 space-y-4">
+              {pwError && (
+                <div className="alert-error rounded-lg p-3 flex items-start gap-2">
+                  <FiX className="w-5 h-5 flex-shrink-0 mt-0.5" />
+                  <p className="text-sm font-medium">{pwError}</p>
+                </div>
+              )}
+              {pwSuccess && (
+                <div className="alert-success rounded-lg p-3 flex items-start gap-2">
+                  <FiCheck className="w-5 h-5 flex-shrink-0 mt-0.5" />
+                  <p className="text-sm font-medium">{pwSuccess}</p>
+                </div>
+              )}
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-neutral-700 mb-2">
+                    <FiLock className="w-3.5 h-3.5 inline mr-1.5" />
+                    Current Password
+                  </label>
+                  <input 
+                    type="password" 
+                    value={pwForm.currentPassword} 
+                    onChange={e => setPwForm({ ...pwForm, currentPassword: e.target.value })} 
+                    className="input-base" 
+                    required 
+                    placeholder="Enter current password"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-neutral-700 mb-2">
+                    <FiShield className="w-3.5 h-3.5 inline mr-1.5" />
+                    New Password
+                  </label>
+                  <input 
+                    type="password" 
+                    value={pwForm.newPassword} 
+                    onChange={e => setPwForm({ ...pwForm, newPassword: e.target.value })} 
+                    className="input-base" 
+                    required 
+                    minLength={6}
+                    placeholder="Enter new password (min 6 chars)"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-neutral-700 mb-2">
+                    <FiCheck className="w-3.5 h-3.5 inline mr-1.5" />
+                    Confirm New Password
+                  </label>
+                  <input 
+                    type="password" 
+                    value={pwForm.confirmPassword} 
+                    onChange={e => setPwForm({ ...pwForm, confirmPassword: e.target.value })} 
+                    className="input-base" 
+                    required 
+                    minLength={6}
+                    placeholder="Confirm new password"
+                  />
+                </div>
+              </div>
+
+              {/* Modal Actions */}
+              <div className="flex items-center justify-end gap-3 pt-4">
+                <button 
+                  type="button" 
+                  onClick={() => { 
+                    setIsPwOpen(false); 
+                    setPwError(''); 
+                    setPwSuccess(''); 
+                    setPwForm({ currentPassword: '', newPassword: '', confirmPassword: '' }); 
+                  }} 
+                  className="btn-secondary inline-flex items-center gap-2"
+                >
+                  <FiX className="w-4 h-4" />
+                  Cancel
+                </button>
+                <button 
+                  type="submit" 
+                  disabled={pwSubmitting} 
+                  className="btn-primary inline-flex items-center gap-2"
+                >
+                  {pwSubmitting ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      Updating...
+                    </>
+                  ) : (
+                    <>
+                      <FiCheck className="w-4 h-4" />
+                      Update Password
+                    </>
+                  )}
                 </button>
               </div>
-              <form onSubmit={handlePasswordChange} className="p-6 space-y-4">
-                {pwError && (<div className="bg-red-50 border border-red-200 rounded-lg p-3"><div className="flex items-center"><svg className="w-5 h-5 text-red-400 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg><p className="text-red-700 text-sm font-medium">{pwError}</p></div></div>)}
-                {pwSuccess && (<div className="bg-green-50 border border-green-200 rounded-lg p-3"><div className="flex items-center"><svg className="w-5 h-5 text-green-400 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7"/></svg><p className="text-green-700 text-sm font-medium">{pwSuccess}</p></div></div>)}
-                <div className="space-y-4">
-                  <div>
-                    <label className="pro-label">Current Password</label>
-                    <input type="password" value={pwForm.currentPassword} onChange={e => setPwForm({ ...pwForm, currentPassword: e.target.value })} className="pro-input" required />
-                  </div>
-                  <div>
-                    <label className="pro-label">New Password</label>
-                    <input type="password" value={pwForm.newPassword} onChange={e => setPwForm({ ...pwForm, newPassword: e.target.value })} className="pro-input" required minLength={6} />
-                  </div>
-                  <div>
-                    <label className="pro-label">Confirm New Password</label>
-                    <input type="password" value={pwForm.confirmPassword} onChange={e => setPwForm({ ...pwForm, confirmPassword: e.target.value })} className="pro-input" required minLength={6} />
-                  </div>
-                </div>
-                <div className="flex items-center justify-end gap-3 pt-4">
-                  <button type="button" onClick={() => { setIsPwOpen(false); setPwError(''); setPwSuccess(''); setPwForm({ currentPassword: '', newPassword: '', confirmPassword: '' }); }} className="pro-btn-secondary">Cancel</button>
-                  <button type="submit" disabled={pwSubmitting} className="pro-btn-primary disabled:opacity-50 disabled:cursor-not-allowed">{pwSubmitting ? (<><div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2 inline-block"></div>Updating...</>) : ('Update Password')}</button>
-                </div>
-              </form>
-            </div>
+            </form>
           </div>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 };

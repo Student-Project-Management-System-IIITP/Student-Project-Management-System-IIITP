@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { useGroupManagement } from '../../hooks/useGroupManagement';
 import { useSem7 } from '../../context/Sem7Context';
 import { useSem8 } from '../../context/Sem8Context';
 import { useSem5 } from '../../context/Sem5Context';
@@ -49,6 +50,21 @@ const Navbar = ({ userRole: propUserRole = null, user: propUser = null, roleData
   } catch (error) {
     // Sem8Context might not be available, ignore silently
     console.warn('Sem8Context not available:', error);
+  }
+
+  // Current semester group for quick dashboard link
+  let currentGroup = null;
+  let currentGroupDashboardPath = null;
+  try {
+    const groupManagement = useGroupManagement();
+    currentGroup = groupManagement?.group || null;
+
+    if (userRole === 'student' && roleData?.semester && currentGroup && currentGroup._id) {
+      // For now, all group dashboards share the same route pattern
+      currentGroupDashboardPath = `/student/groups/${currentGroup._id}/dashboard`;
+    }
+  } catch (error) {
+    console.warn('useGroupManagement not available in Navbar:', error);
   }
   
   // Get user's actual name based on role
@@ -557,14 +573,14 @@ const Navbar = ({ userRole: propUserRole = null, user: propUser = null, roleData
                         </svg>
                       </button>
 
-                      {/* Main Dropdown Menu */}
+                      {/* Main Dropdown Menu - Compact */}
                       {openDropdowns[item.name] && (
-                        <div className="absolute right-0 mt-2 w-56 bg-surface-100 rounded-xl shadow-xl border border-neutral-200 py-2">
+                        <div className="absolute right-0 mt-1 w-48 bg-surface-100 rounded-lg shadow-xl border border-neutral-200 py-1">
                           {item.items.map((subItem, idx) => 
                             subItem.isSection ? (
                               <div key={subItem.name}>
-                                {idx > 0 && <div className="border-t border-neutral-200 my-2"></div>}
-                                <div className="px-3 py-1.5 text-xs font-semibold text-neutral-500 uppercase tracking-wide">
+                                {idx > 0 && <div className="border-t border-neutral-200 my-1"></div>}
+                                <div className="px-3 py-1 text-xs font-semibold text-neutral-500 uppercase tracking-wide">
                                   {subItem.name}
                                 </div>
                                 {subItem.items.map(sectionItem => (
@@ -572,7 +588,7 @@ const Navbar = ({ userRole: propUserRole = null, user: propUser = null, roleData
                                     key={`${subItem.name}-${sectionItem.name}`}
                                     to={sectionItem.path}
                                     onClick={() => toggleDropdown(item.name)}
-                                    className="block px-3 py-2 text-sm text-neutral-600 hover:bg-primary-50 hover:text-primary-700 transition-colors rounded-lg mx-1"
+                                    className="block px-3 py-1.5 text-sm text-neutral-600 hover:bg-primary-50 hover:text-primary-700 transition-colors rounded mx-1"
                                   >
                                     {sectionItem.name}
                                   </Link>
@@ -583,7 +599,7 @@ const Navbar = ({ userRole: propUserRole = null, user: propUser = null, roleData
                                 key={subItem.name}
                                 to={subItem.path}
                                 onClick={() => toggleDropdown(item.name)}
-                                className="block px-3 py-2 text-sm text-neutral-600 hover:bg-primary-50 hover:text-primary-700 transition-colors rounded-lg mx-1"
+                                className="block px-3 py-1.5 text-sm text-neutral-600 hover:bg-primary-50 hover:text-primary-700 transition-colors rounded mx-1"
                               >
                                 {subItem.name}
                               </Link>
@@ -609,43 +625,58 @@ const Navbar = ({ userRole: propUserRole = null, user: propUser = null, roleData
 
                 {/* Project Dashboard Dropdown - Only for Students */}
                 {userRole === 'student' && projectDashboardItems.length > 0 && (
-                  <div className="relative" ref={projectMenuRef}>
-                    <button
-                      onClick={() => setIsProjectMenuOpen(!isProjectMenuOpen)}
-                      className={`px-2.5 py-1.5 text-sm font-medium rounded-lg transition-colors flex items-center gap-1 ${
-                        location.pathname.includes('/student/project/')
-                          ? 'bg-primary-600 text-white shadow-md shadow-primary-600/30'
-                          : 'text-neutral-300 hover:text-white hover:bg-neutral-700'
-                      }`}
-                    >
-                      Project Dashboard
-                      <svg className={`w-3 h-3 transition-transform ${isProjectMenuOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                      </svg>
-                    </button>
-
-                    {/* Dropdown Menu */}
-                    {isProjectMenuOpen && (
-                      <div className="absolute right-0 mt-2 w-56 bg-surface-100 rounded-xl shadow-xl border border-neutral-200 py-2">
-                        {projectDashboardItems.map((project) => (
-                          <Link
-                            key={project.type}
-                            to={project.path}
-                            onClick={() => setIsProjectMenuOpen(false)}
-                            className={`block px-3 py-2 text-sm transition-colors rounded-lg mx-1 ${
-                              location.pathname === project.path
-                                ? 'bg-primary-100 text-primary-700 font-medium'
-                                : 'text-neutral-600 hover:bg-primary-50 hover:text-primary-700'
-                            }`}
-                          >
-                            <div className="flex items-center justify-between">
-                              <span>{project.name}</span>
-                              <span className="text-xs text-neutral-400">Sem {project.semester}</span>
-                            </div>
-                          </Link>
-                        ))}
-                      </div>
+                  <div className="flex items-center gap-2">
+                    {currentGroupDashboardPath && (
+                      <Link
+                        to={currentGroupDashboardPath}
+                        className={`px-2.5 py-1.5 text-sm font-medium rounded-lg transition-colors flex items-center gap-1 ${
+                          location.pathname.includes('/student/groups/') && location.pathname.includes('/dashboard')
+                            ? 'bg-primary-600 text-white shadow-md shadow-primary-600/30'
+                            : 'text-neutral-300 hover:text-white hover:bg-neutral-700'
+                        }`}
+                      >
+                        Group Dashboard
+                      </Link>
                     )}
+
+                    <div className="relative" ref={projectMenuRef}>
+                      <button
+                        onClick={() => setIsProjectMenuOpen(!isProjectMenuOpen)}
+                        className={`px-2.5 py-1.5 text-sm font-medium rounded-lg transition-colors flex items-center gap-1 ${
+                          location.pathname.includes('/student/project/')
+                            ? 'bg-primary-600 text-white shadow-md shadow-primary-600/30'
+                            : 'text-neutral-300 hover:text-white hover:bg-neutral-700'
+                        }`}
+                      >
+                        Project Dashboard
+                        <svg className={`w-3 h-3 transition-transform ${isProjectMenuOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
+                      </button>
+
+                      {/* Dropdown Menu - Compact */}
+                      {isProjectMenuOpen && (
+                        <div className="absolute right-0 mt-1 w-48 bg-surface-100 rounded-lg shadow-xl border border-neutral-200 py-1">
+                          {projectDashboardItems.map((project) => (
+                            <Link
+                              key={project.type}
+                              to={project.path}
+                              onClick={() => setIsProjectMenuOpen(false)}
+                              className={`block px-3 py-1.5 text-sm transition-colors rounded mx-1 ${
+                                location.pathname === project.path
+                                  ? 'bg-primary-100 text-primary-700 font-medium'
+                                  : 'text-neutral-600 hover:bg-primary-50 hover:text-primary-700'
+                              }`}
+                            >
+                              <div className="flex items-center justify-between">
+                                <span>{project.name}</span>
+                                <span className="text-xs text-neutral-400">Sem {project.semester}</span>
+                              </div>
+                            </Link>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 )}
               </div>
@@ -679,29 +710,29 @@ const Navbar = ({ userRole: propUserRole = null, user: propUser = null, roleData
                     </svg>
                   </button>
 
-                  {/* Dropdown Menu */}
+                  {/* Dropdown Menu - Compact */}
                   {isUserMenuOpen && (
-                    <div className="absolute right-0 mt-2 w-48 bg-surface-100 rounded-xl shadow-xl border border-neutral-200 py-2">
+                    <div className="absolute right-0 mt-1 w-40 bg-surface-100 rounded-lg shadow-xl border border-neutral-200 py-1">
                       <Link
                         to={`/${userRole}/profile`}
                         onClick={() => setIsUserMenuOpen(false)}
-                        className="block px-3 py-2 text-sm text-neutral-600 hover:bg-primary-50 hover:text-primary-700 transition-colors rounded-lg mx-1"
+                        className="block px-3 py-1.5 text-sm text-neutral-600 hover:bg-primary-50 hover:text-primary-700 transition-colors rounded mx-1"
                       >
                         <div className="flex items-center gap-2">
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                           </svg>
                           My Profile
                         </div>
                       </Link>
-                      <div className="border-t border-neutral-200 my-2 mx-2"></div>
+                      <div className="border-t border-neutral-200 my-1 mx-2"></div>
                       <button
                         onClick={handleLogout}
-                        className="w-full text-left px-3 py-2 text-sm text-error-600 hover:bg-error-50 transition-colors rounded-lg mx-1"
+                        className="w-full text-left px-3 py-1.5 text-sm text-error-600 hover:bg-error-50 transition-colors rounded mx-1"
                         style={{ width: 'calc(100% - 8px)' }}
                       >
                         <div className="flex items-center gap-2">
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
                           </svg>
                           Sign Out
@@ -716,13 +747,21 @@ const Navbar = ({ userRole: propUserRole = null, user: propUser = null, roleData
               <div className="hidden md:flex items-center gap-2">
                 <Link
                   to="/login"
-                  className="px-3 py-1.5 text-sm font-medium text-neutral-300 hover:text-white hover:bg-neutral-700 rounded-lg transition-colors"
+                  className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
+                    location.pathname === '/login'
+                      ? 'bg-primary-600 text-white shadow-md shadow-primary-600/30'
+                      : 'text-neutral-300 hover:text-white hover:bg-neutral-700'
+                  }`}
                 >
                   Login
                 </Link>
                 <Link
                   to="/signup"
-                  className="px-3 py-1.5 text-sm font-medium bg-primary-600 text-white hover:bg-primary-700 rounded-lg transition-colors shadow-md shadow-primary-600/30"
+                  className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
+                    location.pathname === '/signup'
+                      ? 'bg-primary-600 text-white shadow-md shadow-primary-600/30'
+                      : 'text-neutral-300 hover:text-white hover:bg-neutral-700'
+                  }`}
                 >
                   Sign Up
                 </Link>
@@ -806,29 +845,44 @@ const Navbar = ({ userRole: propUserRole = null, user: propUser = null, roleData
                   )
                 ))}
 
-                {/* Project Dashboard - Mobile */}
+                {/* Project Dashboard + Current Group - Mobile */}
                 {userRole === 'student' && projectDashboardItems.length > 0 && (
-                  <div className="pt-3 mt-2 border-t border-neutral-700/50">
-                    <div className="px-3 py-1.5 text-xs font-semibold text-primary-300 uppercase tracking-wide">
-                      Project Dashboard
-                    </div>
-                    {projectDashboardItems.map((project) => (
+                  <div className="pt-3 mt-2 border-t border-neutral-700/50 space-y-1">
+                    {currentGroupDashboardPath && (
                       <Link
-                        key={project.type}
-                        to={project.path}
+                        to={currentGroupDashboardPath}
                         className={`block px-3 py-2 text-sm font-medium rounded-lg transition-colors ${
-                          location.pathname === project.path
+                          location.pathname.includes('/student/groups/') && location.pathname.includes('/dashboard')
                             ? 'bg-primary-600 text-white shadow-md shadow-primary-600/30'
-                            : 'text-neutral-300 hover:text-white hover:bg-neutral-700'
+                            : 'text-primary-100 hover:text-white hover:bg-primary-600/80'
                         }`}
                         onClick={() => setIsMenuOpen(false)}
                       >
-                        <div className="flex items-center justify-between">
-                          <span>{project.name}</span>
-                          <span className="text-xs text-primary-300">Sem {project.semester}</span>
-                        </div>
+                        Current Group
                       </Link>
-                    ))}
+                    )}
+                    <div>
+                      <div className="px-3 py-1.5 text-xs font-semibold text-primary-300 uppercase tracking-wide">
+                        Project Dashboard
+                      </div>
+                      {projectDashboardItems.map((project) => (
+                        <Link
+                          key={project.type}
+                          to={project.path}
+                          className={`block px-3 py-2 text-sm font-medium rounded-lg transition-colors ${
+                            location.pathname === project.path
+                              ? 'bg-primary-600 text-white shadow-md shadow-primary-600/30'
+                              : 'text-neutral-300 hover:text-white hover:bg-neutral-700'
+                          }`}
+                          onClick={() => setIsMenuOpen(false)}
+                        >
+                          <div className="flex items-center justify-between">
+                            <span>{project.name}</span>
+                            <span className="text-xs text-primary-300">Sem {project.semester}</span>
+                          </div>
+                        </Link>
+                      ))}
+                    </div>
                   </div>
                 )}
               </div>
@@ -868,14 +922,22 @@ const Navbar = ({ userRole: propUserRole = null, user: propUser = null, roleData
                 <Link
                   to="/login"
                   onClick={() => setIsMenuOpen(false)}
-                  className="block px-3 py-2.5 text-sm font-medium text-neutral-300 hover:text-white hover:bg-neutral-700 rounded-lg transition-colors text-center"
+                  className={`block px-3 py-2.5 text-sm font-medium rounded-lg transition-colors text-center ${
+                    location.pathname === '/login'
+                      ? 'bg-primary-600 text-white shadow-md shadow-primary-600/30'
+                      : 'text-neutral-300 hover:text-white hover:bg-neutral-700'
+                  }`}
                 >
                   Login
                 </Link>
                 <Link
                   to="/signup"
                   onClick={() => setIsMenuOpen(false)}
-                  className="block px-3 py-2.5 text-sm font-medium bg-primary-600 text-white hover:bg-primary-700 rounded-lg transition-colors shadow-md shadow-primary-600/30 text-center"
+                  className={`block px-3 py-2.5 text-sm font-medium rounded-lg transition-colors text-center ${
+                    location.pathname === '/signup'
+                      ? 'bg-primary-600 text-white shadow-md shadow-primary-600/30'
+                      : 'text-neutral-300 hover:text-white hover:bg-neutral-700'
+                  }`}
                 >
                   Sign Up
                 </Link>

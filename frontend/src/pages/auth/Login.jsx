@@ -3,6 +3,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { handleAuthError } from '../../utils/signupErrorHandler';
+import { FiEye, FiEyeOff } from 'react-icons/fi';
 
 const Login = () => {
   const [formData, setFormData] = useState({
@@ -48,28 +49,37 @@ const Login = () => {
       setIsLoading(false);
     }
   };
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
-      <div className="max-w-md w-full bg-white rounded-xl shadow-xl p-8">
+    <div className="min-h-screen bg-gradient-to-br from-surface-200 via-primary-50 to-secondary-50 flex items-center justify-center py-12 px-4">
+      {/* Decorative Elements */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute -top-40 -right-40 w-96 h-96 bg-primary-200 rounded-full opacity-30 blur-3xl"></div>
+        <div className="absolute top-1/2 -left-20 w-72 h-72 bg-secondary-200 rounded-full opacity-20 blur-3xl"></div>
+      </div>
+
+      <div className="relative max-w-md w-full bg-surface-100 rounded-2xl shadow-xl border border-neutral-200 p-8">
         <div className="text-center mb-8">
-          <img 
-            src="/IIIT Pune Logo New.jpg" 
-            alt="IIIT Pune Logo" 
-            className="h-16 w-auto mx-auto mb-4"
-          />
-          <h1 className="text-2xl font-bold text-gray-900">Welcome Back</h1>
-          <p className="text-gray-600">Sign in to your SPMS account</p>
+          <div className="flex justify-center mb-4">
+            <img 
+              src="/IIIT Pune Logo New.jpg" 
+              alt="IIIT Pune Logo" 
+              className="h-16 w-16 rounded-full object-cover"
+            />
+          </div>
+          <h1 className="text-2xl font-bold text-neutral-800 mb-2">Welcome Back</h1>
+          <p className="text-neutral-600">Sign in to your SPMS account</p>
         </div>
         
         <form onSubmit={handleSubmit} className="space-y-6">
           {error && (
-            <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-lg">
+            <div className="bg-error-50 border border-error-200 text-error-700 px-4 py-3 rounded-lg text-sm">
               {error}
             </div>
           )}
           
           <div>
-            <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
+            <label htmlFor="email" className="block text-sm font-medium text-neutral-700 mb-2">
               Email Address
             </label>
             <input
@@ -79,13 +89,13 @@ const Login = () => {
               value={formData.email}
               onChange={handleChange}
               required
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-4 py-3 border border-neutral-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-neutral-700 placeholder-neutral-400 transition-colors"
               placeholder="Enter your email"
             />
           </div>
           
           <div>
-            <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
+            <label htmlFor="password" className="block text-sm font-medium text-neutral-700 mb-2">
               Password
             </label>
             <div className="relative">
@@ -96,16 +106,16 @@ const Login = () => {
                 value={formData.password}
                 onChange={handleChange}
                 required
-                className="w-full pr-12 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full pr-12 px-4 py-3 border border-neutral-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-neutral-700 placeholder-neutral-400 transition-colors"
                 placeholder="Enter your password"
               />
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="absolute inset-y-0 right-0 px-3 flex items-center text-gray-500 hover:text-gray-700"
+                className="absolute inset-y-0 right-0 px-3 flex items-center text-neutral-500 hover:text-neutral-700 transition-colors"
                 aria-label={showPassword ? 'Hide password' : 'Show password'}
               >
-                {showPassword ? '🙈' : '👁️'}
+                {showPassword ? <FiEyeOff className="w-5 h-5" /> : <FiEye className="w-5 h-5" />}
               </button>
             </div>
           </div>
@@ -115,16 +125,16 @@ const Login = () => {
               <input
                 type="checkbox"
                 id="remember"
-                className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-neutral-300 rounded"
               />
-              <label htmlFor="remember" className="ml-2 block text-sm text-gray-700">
+              <label htmlFor="remember" className="ml-2 block text-sm text-neutral-700">
                 Remember me
               </label>
             </div>
             <button
               type="button"
               onClick={() => navigate('/forgot-password')}
-              className="text-sm text-blue-600 hover:text-blue-500"
+              className="text-sm text-primary-600 hover:text-primary-700 font-medium transition-colors"
             >
               Forgot password?
             </button>
@@ -133,16 +143,26 @@ const Login = () => {
           <button
             type="submit"
             disabled={isLoading}
-            className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white font-semibold py-3 px-4 rounded-lg transition duration-200"
+            className="w-full bg-primary-600 hover:bg-primary-700 active:bg-primary-800 disabled:bg-primary-300 disabled:cursor-not-allowed text-white font-semibold py-3 px-4 rounded-lg transition-colors shadow-md shadow-primary-600/20 hover:shadow-lg hover:shadow-primary-600/30"
           >
-            {isLoading ? 'Signing In...' : 'Sign In'}
+            {isLoading ? (
+              <span className="flex items-center justify-center gap-2">
+                <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                Signing In...
+              </span>
+            ) : (
+              'Sign In'
+            )}
           </button>
         </form>
         
         <div className="mt-6 text-center">
-          <p className="text-gray-600">
+          <p className="text-neutral-600 text-sm">
             Don't have an account?{' '}
-            <a href="/signup" className="text-blue-600 hover:text-blue-500 font-semibold">
+            <a href="/signup" className="text-primary-600 hover:text-primary-700 font-semibold transition-colors">
               Sign up here
             </a>
           </p>

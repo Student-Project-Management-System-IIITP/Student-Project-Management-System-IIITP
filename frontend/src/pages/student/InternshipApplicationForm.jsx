@@ -4,10 +4,15 @@ import { useForm } from 'react-hook-form';
 import { useAuth } from '../../context/AuthContext';
 import { useSem7Project } from '../../hooks/useSem7Project';
 import { useSem8 } from '../../context/Sem8Context';
-import { internshipAPI } from '../../utils/api';
+import { internshipAPI, studentAPI } from '../../utils/api';
 import { toast } from 'react-hot-toast';
 import Layout from '../../components/common/Layout';
 import StatusBadge from '../../components/common/StatusBadge';
+import {
+  FiX, FiBriefcase, FiUser, FiFileText, FiLink, FiTarget,
+  FiInfo, FiZap, FiAlertTriangle, FiAlertCircle, FiCheckCircle,
+  FiCalendar, FiMapPin, FiDollarSign, FiMail, FiPhone, FiLoader
+} from 'react-icons/fi';
 
 const InternshipApplicationForm = () => {
   const navigate = useNavigate();
@@ -95,16 +100,9 @@ const InternshipApplicationForm = () => {
         const windowKey = type === '6month' 
           ? (isSem8 ? 'sem8.sixMonthSubmissionWindow' : 'sem7.sixMonthSubmissionWindow')
           : (isSem8 ? 'sem8.internship2.evidenceWindow' : 'sem7.internship2.evidenceWindow');
-        const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/student/system-config/${windowKey}`, {
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('token')}`
-          }
-        });
-        if (response.ok) {
-          const data = await response.json();
-          if (data.success && data.data) {
-            setWindowStatus(data.data);
-          }
+        const response = await studentAPI.getSystemConfig(windowKey);
+        if (response.success && response.data) {
+          setWindowStatus(response.data);
         }
       } catch (error) {
         console.error('Failed to check window status:', error);
@@ -203,325 +201,609 @@ const InternshipApplicationForm = () => {
   const canEdit = application && ['submitted', 'needs_info'].includes(application.status);
   const windowOpen = isWindowOpen();
 
+  // Watch form data for checklist
+  const formData = watch();
+
   if (loading) {
     return (
       <Layout>
-        <div className="flex items-center justify-center min-h-screen">
+        <div className="flex items-center justify-center min-h-screen bg-surface-200">
           <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-            <p className="mt-4 text-gray-600">Loading...</p>
+            <FiLoader className="w-12 h-12 text-blue-600 mx-auto animate-spin" />
+            <p className="mt-4 text-neutral-600">Loading...</p>
           </div>
         </div>
       </Layout>
     );
   }
 
+  const formTitle = type === '6month' ? '6-Month Internship Application' : 'Summer Internship Evidence Submission';
+  const formSubtitle = type === '6month' 
+    ? 'Submit your 6-month internship company details and offer letter'
+    : 'Submit evidence of your completed 2-month summer internship';
+
   return (
     <Layout>
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">
-            {type === '6month' ? '6-Month Internship Application' : 'Summer Internship Evidence Submission'}
-          </h1>
-          <p className="text-gray-600">
-            {type === '6month' 
-              ? 'Submit your 6-month internship company details and offer letter'
-              : 'Submit evidence of your completed 2-month summer internship'
-            }
-          </p>
+      <div className="h-[calc(100vh-64px)] bg-surface-200 overflow-hidden flex flex-col">
+        {/* Compact Header */}
+        <div className="bg-white border-b border-neutral-200 shadow-sm flex-shrink-0">
+          <div className="max-w-full mx-auto px-4 lg:px-6 py-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => navigate('/dashboard/student')}
+                  className="p-2 hover:bg-neutral-100 rounded-lg transition-colors"
+                >
+                  <FiX className="w-5 h-5 text-neutral-600" />
+                </button>
+                <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-blue-700 rounded-lg flex items-center justify-center flex-shrink-0">
+                  <FiBriefcase className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <h1 className="text-xl font-bold text-neutral-800">
+                    {formTitle}
+                  </h1>
+                  <p className="text-xs text-neutral-600 mt-0.5">
+                    {formSubtitle}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
 
-        {/* Application Status (if editing) */}
-        {application && (
-          <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="font-semibold text-gray-900">Application Status</h3>
-                <p className="text-sm text-gray-600 mt-1">
-                  Status: <StatusBadge 
-                    status={application.status === 'approved' ? 'success' : 
-                           application.status === 'rejected' ? 'error' : 
-                           application.status === 'needs_info' ? 'error' : 'warning'} 
-                    text={application.status.charAt(0).toUpperCase() + application.status.slice(1).replace('_', ' ')} 
-                  />
-                </p>
-              </div>
-            </div>
+        {/* Main Content - 2 Column Layout */}
+        <div className="flex-1 min-h-0 w-full overflow-hidden">
+          <div className="h-full grid grid-cols-1 lg:grid-cols-12 gap-0">
             
-            {application.adminRemarks && (
-              <div className="mt-3 p-3 bg-white rounded border border-gray-200">
-                <p className="text-sm font-medium text-gray-700">Admin Remarks:</p>
-                <p className="text-sm text-gray-600 mt-1">{application.adminRemarks}</p>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Window Status */}
-        {!windowOpen && (
-          <div className="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-            <p className="text-sm text-yellow-800">
-              The submission window is currently closed. Please contact admin for more information.
-            </p>
-          </div>
-        )}
-
-        {/* Can Edit Check */}
-        {application && !canEdit && (
-          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
-            <p className="text-sm text-red-800">
-              This application cannot be edited. Status: {application.status}. Please contact admin if you need to make changes.
-            </p>
-          </div>
-        )}
-
-        {/* Form */}
-        {(canEdit || !isEditing) && windowOpen && (
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-            {/* Company Details */}
-            <div className="bg-white shadow rounded-lg p-6">
-              <h2 className="text-xl font-semibold text-gray-900 mb-4">Company Details</h2>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Company Name <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    {...register('companyName', { required: 'Company name is required' })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-                  />
-                  {errors.companyName && (
-                    <p className="mt-1 text-sm text-red-600">{errors.companyName.message}</p>
-                  )}
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Location
-                  </label>
-                  <input
-                    type="text"
-                    {...register('location')}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Start Date <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="date"
-                    {...register('startDate', { required: 'Start date is required' })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-                  />
-                  {errors.startDate && (
-                    <p className="mt-1 text-sm text-red-600">{errors.startDate.message}</p>
-                  )}
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    End Date <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="date"
-                    {...register('endDate', { required: 'End date is required' })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-                  />
-                  {errors.endDate && (
-                    <p className="mt-1 text-sm text-red-600">{errors.endDate.message}</p>
-                  )}
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Mode <span className="text-red-500">*</span>
-                  </label>
-                  <select
-                    {...register('mode', { required: 'Mode is required' })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-                  >
-                    <option value="onsite">Onsite</option>
-                    <option value="remote">Remote</option>
-                    <option value="hybrid">Hybrid</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Are you getting Stipend/Salary? <span className="text-red-500">*</span>
-                  </label>
-                  <select
-                    {...register('hasStipend', { required: 'Please select an option' })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-                  >
-                    <option value="yes">Yes</option>
-                    <option value="no">No</option>
-                  </select>
-                  {errors.hasStipend && (
-                    <p className="mt-1 text-sm text-red-600">{errors.hasStipend.message}</p>
-                  )}
-                </div>
-
-                {watch('hasStipend') === 'yes' && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Monthly Stipend (Rs.) <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      {...register('stipendRs', { 
-                        required: watch('hasStipend') === 'yes' ? 'Stipend amount is required' : false,
-                        min: 0,
-                        validate: (value) => {
-                          if (watch('hasStipend') === 'yes' && (!value || value <= 0)) {
-                            return 'Please enter a valid stipend amount';
-                          }
-                          return true;
-                        }
-                      })}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-                    />
-                    {errors.stipendRs && (
-                      <p className="mt-1 text-sm text-red-600">{errors.stipendRs.message}</p>
-                    )}
+            {/* Left Column - Form */}
+            <div className="lg:col-span-8 bg-surface-50 overflow-y-auto custom-scrollbar min-h-0 h-full">
+              <div className="p-4 lg:p-6 space-y-4 pb-6">
+                
+                {/* Application Status Banner (When Editing) */}
+                {application && (
+                  <div className={`rounded-xl p-4 border ${
+                    application.status === 'needs_info' 
+                      ? 'bg-warning-50 border-warning-200' 
+                      : 'bg-info-50 border-info-200'
+                  }`}>
+                    <div className="flex items-start gap-3">
+                      {application.status === 'needs_info' ? (
+                        <FiAlertTriangle className="w-5 h-5 text-warning-600 flex-shrink-0 mt-0.5" />
+                      ) : (
+                        <FiInfo className="w-5 h-5 text-info-600 flex-shrink-0 mt-0.5" />
+                      )}
+                      <div className="flex-1">
+                        <div className="flex items-center justify-between mb-2">
+                          <h3 className="font-semibold text-neutral-900 text-sm">Application Status</h3>
+                          <StatusBadge 
+                            status={
+                              application.status === 'verified_pass' ? 'success' : 
+                              application.status === 'verified_fail' || application.status === 'absent' ? 'error' : 
+                              application.status === 'needs_info' ? 'error' : 
+                              application.status === 'pending_verification' ? 'info' : 
+                              application.status === 'submitted' ? 'info' : 
+                              'warning'
+                            } 
+                            text={
+                              application.status === 'verified_pass' ? 'Verified (Pass)' :
+                              application.status === 'verified_fail' ? 'Verified (Fail)' :
+                              application.status === 'absent' ? 'Absent' :
+                              application.status === 'needs_info' ? 'Update Required' :
+                              application.status === 'pending_verification' ? 'Pending Verification' :
+                              application.status === 'submitted' ? 'Submitted' :
+                              application.status.charAt(0).toUpperCase() + application.status.slice(1).replace('_', ' ')
+                            } 
+                          />
+                        </div>
+                        {application.adminRemarks && (
+                          <div className="mt-3 p-3 bg-white rounded-lg border border-neutral-200">
+                            <p className="text-xs font-medium text-neutral-700 mb-1">Admin Remarks:</p>
+                            <p className="text-xs text-neutral-600">{application.adminRemarks}</p>
+                          </div>
+                        )}
+                        {!canEdit && (
+                          <p className="text-xs text-neutral-600 mt-2">
+                            This application cannot be edited. Please contact admin if you need to make changes.
+                          </p>
+                        )}
+                      </div>
+                    </div>
                   </div>
                 )}
-              </div>
 
-              <div className="mt-6">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Nature of Work / Role <span className="text-red-500">*</span>
-                </label>
-                <textarea
-                  {...register('roleOrNatureOfWork', { required: 'Nature of work is required' })}
-                  rows={3}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="Describe your role, responsibilities, and nature of work during the internship"
-                />
-                {errors.roleOrNatureOfWork && (
-                  <p className="mt-1 text-sm text-red-600">{errors.roleOrNatureOfWork.message}</p>
+                {/* Window Status Banner */}
+                {!windowOpen && (
+                  <div className="bg-warning-50 border-l-4 border-warning-400 rounded-lg p-4">
+                    <div className="flex items-start gap-3">
+                      <FiAlertCircle className="w-5 h-5 text-warning-600 flex-shrink-0 mt-0.5" />
+                      <div className="flex-1">
+                        <h3 className="font-semibold text-warning-900 mb-1 text-sm">Submission Window Closed</h3>
+                        <p className="text-xs text-warning-800">
+                          The submission window is currently closed. Please contact admin for more information.
+                        </p>
+                        {windowStatus?.value && (() => {
+                          try {
+                            const windowData = typeof windowStatus.value === 'string' 
+                              ? JSON.parse(windowStatus.value) 
+                              : windowStatus.value;
+                            if (windowData.start || windowData.end) {
+                              return (
+                                <p className="text-xs text-warning-700 mt-2">
+                                  {windowData.start && windowData.end 
+                                    ? `Window: ${new Date(windowData.start).toLocaleDateString()} - ${new Date(windowData.end).toLocaleDateString()}`
+                                    : windowData.start 
+                                      ? `Opens: ${new Date(windowData.start).toLocaleDateString()}`
+                                      : `Closes: ${new Date(windowData.end).toLocaleDateString()}`}
+                                </p>
+                              );
+                            }
+                          } catch (e) {}
+                          return null;
+                        })()}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Form */}
+                {(canEdit || !isEditing) && windowOpen && (
+                  <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+                    
+                    {/* Company Information Section */}
+                    <div className="bg-white rounded-xl border border-neutral-200 shadow-sm overflow-hidden">
+                      <div className="bg-gradient-to-r from-blue-500 to-blue-600 px-5 py-3">
+                        <div className="flex items-center gap-2">
+                          <FiBriefcase className="w-5 h-5 text-white" />
+                          <h2 className="text-lg font-bold text-white">
+                            Company Information
+                          </h2>
+                        </div>
+                      </div>
+                      <div className="p-5 space-y-5">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                          <div>
+                            <label className="block text-xs font-medium text-neutral-700 mb-2 uppercase tracking-wide">
+                              Company Name <span className="text-red-500">*</span>
+                            </label>
+                            <input
+                              type="text"
+                              {...register('companyName', { required: 'Company name is required' })}
+                              className="w-full px-3 py-2.5 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                              placeholder="Enter company name"
+                            />
+                            {errors.companyName && (
+                              <p className="mt-1 text-xs text-red-600">{errors.companyName.message}</p>
+                            )}
+                          </div>
+
+                          <div>
+                            <label className="block text-xs font-medium text-neutral-700 mb-2 uppercase tracking-wide">
+                              <div className="flex items-center gap-1">
+                                <FiMapPin className="w-3 h-3" />
+                                Location
+                              </div>
+                            </label>
+                            <input
+                              type="text"
+                              {...register('location')}
+                              className="w-full px-3 py-2.5 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                              placeholder="Enter location (optional)"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-xs font-medium text-neutral-700 mb-2 uppercase tracking-wide">
+                              <div className="flex items-center gap-1">
+                                <FiCalendar className="w-3 h-3" />
+                                Start Date <span className="text-red-500">*</span>
+                              </div>
+                            </label>
+                            <input
+                              type="date"
+                              {...register('startDate', { required: 'Start date is required' })}
+                              className="w-full px-3 py-2.5 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                            />
+                            {errors.startDate && (
+                              <p className="mt-1 text-xs text-red-600">{errors.startDate.message}</p>
+                            )}
+                          </div>
+
+                          <div>
+                            <label className="block text-xs font-medium text-neutral-700 mb-2 uppercase tracking-wide">
+                              <div className="flex items-center gap-1">
+                                <FiCalendar className="w-3 h-3" />
+                                End Date <span className="text-red-500">*</span>
+                              </div>
+                            </label>
+                            <input
+                              type="date"
+                              {...register('endDate', { required: 'End date is required' })}
+                              className="w-full px-3 py-2.5 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                            />
+                            {errors.endDate && (
+                              <p className="mt-1 text-xs text-red-600">{errors.endDate.message}</p>
+                            )}
+                          </div>
+
+                          <div>
+                            <label className="block text-xs font-medium text-neutral-700 mb-2 uppercase tracking-wide">
+                              Mode <span className="text-red-500">*</span>
+                            </label>
+                            <select
+                              {...register('mode', { required: 'Mode is required' })}
+                              className="w-full px-3 py-2.5 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm appearance-none bg-white"
+                            >
+                              <option value="onsite">Onsite</option>
+                              <option value="remote">Remote</option>
+                              <option value="hybrid">Hybrid</option>
+                            </select>
+                          </div>
+
+                          <div>
+                            <label className="block text-xs font-medium text-neutral-700 mb-2 uppercase tracking-wide">
+                              <div className="flex items-center gap-1">
+                                <FiDollarSign className="w-3 h-3" />
+                                Stipend/Salary? <span className="text-red-500">*</span>
+                              </div>
+                            </label>
+                            <select
+                              {...register('hasStipend', { required: 'Please select an option' })}
+                              className="w-full px-3 py-2.5 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm appearance-none bg-white"
+                            >
+                              <option value="yes">Yes</option>
+                              <option value="no">No</option>
+                            </select>
+                            {errors.hasStipend && (
+                              <p className="mt-1 text-xs text-red-600">{errors.hasStipend.message}</p>
+                            )}
+                          </div>
+
+                          {watch('hasStipend') === 'yes' && (
+                            <div className="md:col-span-2">
+                              <label className="block text-xs font-medium text-neutral-700 mb-2 uppercase tracking-wide">
+                                Monthly Stipend (Rs.) <span className="text-red-500">*</span>
+                              </label>
+                              <input
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                {...register('stipendRs', { 
+                                  required: watch('hasStipend') === 'yes' ? 'Stipend amount is required' : false,
+                                  min: 0,
+                                  validate: (value) => {
+                                    if (watch('hasStipend') === 'yes' && (!value || value <= 0)) {
+                                      return 'Please enter a valid stipend amount';
+                                    }
+                                    return true;
+                                  }
+                                })}
+                                className="w-full px-3 py-2.5 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                                placeholder="Enter monthly stipend amount"
+                              />
+                              {errors.stipendRs && (
+                                <p className="mt-1 text-xs text-red-600">{errors.stipendRs.message}</p>
+                              )}
+                            </div>
+                          )}
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-medium text-neutral-700 mb-2 uppercase tracking-wide">
+                            Nature of Work / Role <span className="text-red-500">*</span>
+                          </label>
+                          <textarea
+                            {...register('roleOrNatureOfWork', { required: 'Nature of work is required' })}
+                            rows={4}
+                            className="w-full px-3 py-2.5 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm resize-none"
+                            placeholder="Describe your role, responsibilities, and nature of work during the internship"
+                          />
+                          {errors.roleOrNatureOfWork && (
+                            <p className="mt-1 text-xs text-red-600">{errors.roleOrNatureOfWork.message}</p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Manager Details Section */}
+                    <div className="bg-white rounded-xl border border-neutral-200 shadow-sm overflow-hidden">
+                      <div className="bg-gradient-to-r from-info-500 to-info-600 px-5 py-3">
+                        <div className="flex items-center gap-2">
+                          <FiUser className="w-5 h-5 text-white" />
+                          <h2 className="text-lg font-bold text-white">
+                            Manager/Contact Details
+                          </h2>
+                        </div>
+                      </div>
+                      <div className="p-5">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                          <div>
+                            <label className="block text-xs font-medium text-neutral-700 mb-2 uppercase tracking-wide">
+                              Manager Name
+                            </label>
+                            <input
+                              type="text"
+                              {...register('mentorName')}
+                              className="w-full px-3 py-2.5 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                              placeholder="Enter manager name (optional)"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-xs font-medium text-neutral-700 mb-2 uppercase tracking-wide">
+                              <div className="flex items-center gap-1">
+                                <FiMail className="w-3 h-3" />
+                                Manager Email
+                              </div>
+                            </label>
+                            <input
+                              type="email"
+                              {...register('mentorEmail')}
+                              className="w-full px-3 py-2.5 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                              placeholder="Enter email (optional)"
+                            />
+                          </div>
+
+                          <div className="md:col-span-2">
+                            <label className="block text-xs font-medium text-neutral-700 mb-2 uppercase tracking-wide">
+                              <div className="flex items-center gap-1">
+                                <FiPhone className="w-3 h-3" />
+                                Manager Phone
+                              </div>
+                            </label>
+                            <input
+                              type="tel"
+                              {...register('mentorPhone')}
+                              className="w-full px-3 py-2.5 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                              placeholder="Enter phone number (optional)"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Required Documents Section */}
+                    <div className="bg-white rounded-xl border border-neutral-200 shadow-sm overflow-hidden">
+                      <div className="bg-gradient-to-r from-purple-500 to-indigo-500 px-5 py-3">
+                        <div className="flex items-center gap-2">
+                          <FiFileText className="w-5 h-5 text-white" />
+                          <h2 className="text-lg font-bold text-white">
+                            Required Documents
+                          </h2>
+                        </div>
+                      </div>
+                      <div className="p-5">
+                        {type === '6month' ? (
+                          <div>
+                            <label className="block text-xs font-medium text-neutral-700 mb-2 uppercase tracking-wide">
+                              <div className="flex items-center gap-1">
+                                <FiLink className="w-3 h-3" />
+                                Offer Letter Link <span className="text-red-500">*</span>
+                              </div>
+                            </label>
+                            <input
+                              type="url"
+                              {...register('offerLetterLink', { 
+                                required: 'Offer letter link is required', 
+                                pattern: { 
+                                  value: /^https?:\/\//i, 
+                                  message: 'Enter a valid URL' 
+                                } 
+                              })}
+                              className="w-full px-3 py-2.5 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                              placeholder="https://drive.google.com/..."
+                            />
+                            {errors.offerLetterLink && (
+                              <p className="mt-1 text-xs text-red-600">{errors.offerLetterLink.message}</p>
+                            )}
+                            <p className="mt-2 text-xs text-neutral-600">
+                              Upload your offer letter to Google Drive and share the link here
+                            </p>
+                          </div>
+                        ) : (
+                          <div>
+                            <label className="block text-xs font-medium text-neutral-700 mb-2 uppercase tracking-wide">
+                              <div className="flex items-center gap-1">
+                                <FiLink className="w-3 h-3" />
+                                Completion Certificate Link <span className="text-red-500">*</span>
+                              </div>
+                            </label>
+                            <input
+                              type="url"
+                              {...register('completionCertificateLink', { 
+                                required: 'Completion certificate link is required',
+                                pattern: {
+                                  value: /^https?:\/\//i,
+                                  message: 'Enter a valid URL'
+                                }
+                              })}
+                              className="w-full px-3 py-2.5 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                              placeholder="https://drive.google.com/..."
+                            />
+                            {errors.completionCertificateLink && (
+                              <p className="mt-1 text-xs text-red-600">{errors.completionCertificateLink.message}</p>
+                            )}
+                            <p className="mt-2 text-xs text-neutral-600">
+                              Upload your sealed and signed summer internship completion certificate to Google Drive and share the link here. Make sure the link is publicly accessible or shared with admin.
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Action Buttons */}
+                    <div className="flex justify-end gap-3 pt-2">
+                      <button
+                        type="button"
+                        onClick={() => navigate('/dashboard/student')}
+                        className="px-5 py-2.5 border border-neutral-300 rounded-lg text-neutral-700 hover:bg-neutral-50 transition-colors text-sm font-medium"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="submit"
+                        disabled={isSubmitting}
+                        className="px-6 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm font-medium flex items-center gap-2"
+                      >
+                        {isSubmitting ? (
+                          <>
+                            <FiLoader className="w-4 h-4 animate-spin" />
+                            {isEditing ? 'Updating...' : 'Submitting...'}
+                          </>
+                        ) : (
+                          <>
+                            <FiCheckCircle className="w-4 h-4" />
+                            {isEditing ? 'Update Application' : 'Submit Application'}
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </form>
                 )}
               </div>
             </div>
 
-            {/* Manager Details */}
-            <div className="bg-white shadow rounded-lg p-6">
-              <h2 className="text-xl font-semibold text-gray-900 mb-4">Manager/Contact Details</h2>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Manager Name
-                  </label>
-                  <input
-                    type="text"
-                    {...register('mentorName')}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-                  />
+            {/* Right Column - Information & Tips */}
+            <div className="lg:col-span-4 bg-surface-100 border-l border-neutral-200 overflow-y-auto custom-scrollbar min-h-0 h-full">
+              <div className="p-4 space-y-4">
+                
+                {/* Submission Progress */}
+                <div className="bg-white rounded-xl p-4 border border-neutral-200 shadow-sm">
+                  <div className="flex items-center gap-2 mb-3">
+                    <FiTarget className="w-4 h-4 text-blue-600" />
+                    <h3 className="text-xs font-bold text-neutral-800 uppercase tracking-wide">
+                      Submission Progress
+                    </h3>
+                  </div>
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      {formData.companyName && formData.startDate && formData.endDate && formData.mode && formData.roleOrNatureOfWork ? (
+                        <FiCheckCircle className="w-4 h-4 text-success-600 flex-shrink-0" />
+                      ) : (
+                        <div className="w-4 h-4 rounded-full border-2 border-neutral-300 flex-shrink-0" />
+                      )}
+                      <span className="text-xs text-neutral-700">Company Information</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {formData.mentorName || formData.mentorEmail || formData.mentorPhone ? (
+                        <FiCheckCircle className="w-4 h-4 text-success-600 flex-shrink-0" />
+                      ) : (
+                        <div className="w-4 h-4 rounded-full border-2 border-neutral-300 flex-shrink-0" />
+                      )}
+                      <span className="text-xs text-neutral-700">Manager Details (Optional)</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {(type === 'summer' && formData.completionCertificateLink) || (type === '6month' && formData.offerLetterLink) ? (
+                        <FiCheckCircle className="w-4 h-4 text-success-600 flex-shrink-0" />
+                      ) : (
+                        <div className="w-4 h-4 rounded-full border-2 border-neutral-300 flex-shrink-0" />
+                      )}
+                      <span className="text-xs text-neutral-700">Required Documents</span>
+                    </div>
+                  </div>
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Manager Email
-                  </label>
-                  <input
-                    type="email"
-                    {...register('mentorEmail')}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-                  />
+                {/* About Summer Internship / 6-Month */}
+                <div className="bg-info-50 rounded-xl p-4 border border-info-200">
+                  <div className="flex items-center gap-2 mb-3">
+                    <FiInfo className="w-4 h-4 text-info-600" />
+                    <h3 className="text-xs font-bold text-neutral-800 uppercase tracking-wide">
+                      About {type === 'summer' ? 'Summer Internship' : '6-Month Internship'}
+                    </h3>
+                  </div>
+                  <div className="space-y-2 text-xs text-info-800">
+                    {type === 'summer' ? (
+                      <>
+                        <p>• <strong>Purpose:</strong> Submit evidence of completed 2-month summer internship</p>
+                        <p>• <strong>Eligibility:</strong> Students who have completed a summer internship</p>
+                        <p>• <strong>Required:</strong> Completion certificate (Google Drive link)</p>
+                        <p>• <strong>Optional:</strong> Manager details, nature of work, stipend information</p>
+                        <p>• <strong>Next Steps:</strong> Admin reviews and approves/rejects</p>
+                      </>
+                    ) : (
+                      <>
+                        <p>• <strong>Purpose:</strong> Submit 6-month internship company details and offer letter</p>
+                        <p>• <strong>Required:</strong> Offer letter link (Google Drive)</p>
+                        <p>• <strong>Optional:</strong> Manager details, nature of work, stipend information</p>
+                        <p>• <strong>Next Steps:</strong> Admin reviews and verifies</p>
+                      </>
+                    )}
+                  </div>
                 </div>
 
-                <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Manager Phone
-                  </label>
-                  <input
-                    type="tel"
-                    {...register('mentorPhone')}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-                  />
+                {/* Required Documents */}
+                <div className="bg-white rounded-xl p-4 border border-neutral-200 shadow-sm">
+                  <div className="flex items-center gap-2 mb-3">
+                    <FiFileText className="w-4 h-4 text-purple-600" />
+                    <h3 className="text-xs font-bold text-neutral-800 uppercase tracking-wide">
+                      Required Documents
+                    </h3>
+                  </div>
+                  <div className="space-y-2 text-xs text-neutral-700">
+                    {type === 'summer' ? (
+                      <>
+                        <p>• <strong>Completion Certificate:</strong> Required</p>
+                        <p>• Upload to Google Drive and share link</p>
+                        <p>• Format: PDF or image</p>
+                        <p>• Must be sealed and signed</p>
+                        <p>• Link must be publicly accessible or shared with admin</p>
+                      </>
+                    ) : (
+                      <>
+                        <p>• <strong>Offer Letter:</strong> Required</p>
+                        <p>• Upload to Google Drive and share link</p>
+                        <p>• Format: PDF or image</p>
+                        <p>• Link must be publicly accessible or shared with admin</p>
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                {/* Tips & Guidelines */}
+                <div className="bg-warning-50 rounded-xl p-4 border border-warning-200">
+                  <div className="flex items-center gap-2 mb-3">
+                    <FiZap className="w-4 h-4 text-warning-600" />
+                    <h3 className="text-xs font-bold text-neutral-800 uppercase tracking-wide">
+                      Tips & Guidelines
+                    </h3>
+                  </div>
+                  <div className="space-y-1.5 text-xs text-warning-800">
+                    <p>• Ensure all dates are accurate</p>
+                    <p>• Upload document to Google Drive first</p>
+                    <p>• Make sure the link is accessible</p>
+                    <p>• Provide accurate manager contact information</p>
+                    <p>• Describe your role clearly in nature of work</p>
+                    <p>• Double-check stipend amount if applicable</p>
+                  </div>
+                </div>
+
+                {/* Important Notes */}
+                <div className="bg-surface-100 rounded-xl p-4 border border-neutral-200">
+                  <div className="flex items-center gap-2 mb-3">
+                    <FiAlertTriangle className="w-4 h-4 text-warning-600" />
+                    <h3 className="text-xs font-bold text-neutral-800 uppercase tracking-wide">
+                      Important Notes
+                    </h3>
+                  </div>
+                  <div className="space-y-1.5 text-[11px] text-neutral-700">
+                    <p>• Submission window may be restricted (check dates)</p>
+                    <p>• Application can be edited if status is "submitted" or "needs_info"</p>
+                    <p>• Admin may request additional information</p>
+                    {type === 'summer' && (
+                      <>
+                        <p>• Approval means {isSem8 ? 'Internship 2' : 'Internship 1'} project is not required</p>
+                        <p>• Rejection means you must register for {isSem8 ? 'Internship 2' : 'Internship 1'} solo project</p>
+                      </>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
-
-            {/* 6-month: Offer Letter Link */}
-            <div className="bg-white shadow rounded-lg p-6">
-              <h2 className="text-xl font-semibold text-gray-900 mb-4">Required Documents</h2>
-              {type === '6month' && (
-                <div className="mb-6">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Offer Letter Link <span className="text-red-500">*</span></label>
-                  <input
-                    type="url"
-                    {...register('offerLetterLink', { required: 'Offer letter link is required', pattern: { value: /^https?:\/\//i, message: 'Enter a valid URL' } })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-                    placeholder="https://drive.google.com/..."
-                  />
-                  {errors.offerLetterLink && (
-                    <p className="mt-1 text-sm text-red-600">{errors.offerLetterLink.message}</p>
-                  )}
-                </div>
-              )}
-
-              {/* Summer: Completion Certificate Link */}
-              {type === 'summer' && (
-                <>
-                  <div className="mb-6">
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Completion Certificate Link (Google Drive) <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="url"
-                      {...register('completionCertificateLink', { 
-                        required: 'Completion certificate link is required',
-                        pattern: {
-                          value: /^https?:\/\//i,
-                          message: 'Enter a valid URL'
-                        }
-                      })}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-                      placeholder="https://drive.google.com/..."
-                    />
-                    {errors.completionCertificateLink && (
-                      <p className="mt-1 text-sm text-red-600">{errors.completionCertificateLink.message}</p>
-                    )}
-                    <p className="mt-1 text-sm text-gray-500">
-                      Upload your sealed and signed summer internship completion certificate to Google Drive and share the link here
-                    </p>
-                  </div>
-
-                </>
-              )}
-            </div>
-
-            {/* Submit Button */}
-            <div className="flex justify-end space-x-4">
-              <button
-                type="button"
-                onClick={() => navigate('/dashboard/student')}
-                className="px-6 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={isSubmitting}
-                className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {isSubmitting ? 'Submitting...' : (isEditing ? 'Update Application' : 'Submit Application')}
-              </button>
-            </div>
-          </form>
-        )}
+          </div>
+        </div>
       </div>
     </Layout>
   );
 };
 
 export default InternshipApplicationForm;
-

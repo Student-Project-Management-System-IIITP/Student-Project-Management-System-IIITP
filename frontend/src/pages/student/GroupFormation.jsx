@@ -14,6 +14,11 @@ import GroupMemberList from '../../components/groups/GroupMemberList';
 import StudentSearch from '../../components/groups/StudentSearch';
 import StatusBadge from '../../components/common/StatusBadge';
 import Layout from '../../components/common/Layout';
+import { 
+  FiUsers, FiUserPlus, FiX, FiSearch, FiCheck, FiCheckCircle, 
+  FiAlertCircle, FiArrowRight, FiArrowLeft, FiStar, FiMail,
+  FiPhone, FiHash, FiLoader
+} from 'react-icons/fi';
 
 const GroupFormation = () => {
   const navigate = useNavigate();
@@ -638,136 +643,63 @@ const GroupFormation = () => {
     }
   };
 
-  // If student is already in a group, show group management
+  // If student is already in a group, redirect to group dashboard
   if (isInGroup && currentGroup) {
     const projectType = currentSemester === 7 ? 'Major Project 1' : 
                         currentSemester === 8 ? 'Major Project 2' : 
                         'Minor Project 2';
     return (
       <Layout>
-        <div className="py-8">
-          <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-          {/* Header */}
-          <div className="mb-8">
+        <div className="min-h-screen bg-gradient-to-br from-surface-200 via-primary-50 to-secondary-50">
+          {/* Compact Header */}
+          <div className="bg-white border-b border-neutral-200 shadow-sm">
+            <div className="max-w-[1400px] mx-auto px-4 lg:px-8 py-4">
             <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-gradient-to-br from-primary-600 to-secondary-600 rounded-lg flex items-center justify-center flex-shrink-0 shadow-md">
+                    <FiUsers className="w-5 h-5 text-white" />
+                  </div>
               <div>
-                <h1 className="text-3xl font-bold text-gray-900">
-                  Manage Your Group
-                </h1>
-                <p className="mt-2 text-gray-600">
-                  Manage your {projectType} group members and settings
-                </p>
+                    <h1 className="text-xl font-bold text-neutral-800">Manage Your Group</h1>
+                    <p className="text-xs text-neutral-600 mt-0.5">{projectType} Group Management</p>
+                  </div>
               </div>
               <button
                 onClick={() => navigate('/dashboard/student')}
-                className="px-4 py-2 text-gray-600 hover:text-gray-800 transition-colors"
+                  className="text-neutral-500 hover:text-neutral-700 transition-colors p-2"
+                  aria-label="Close"
               >
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
+                  <FiX className="w-6 h-6" />
               </button>
             </div>
-          </div>
-
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            {/* Group Information */}
-            <div className="lg:col-span-2">
-              <div className="bg-white rounded-lg shadow-lg">
-                <div className="px-6 py-4 border-b border-gray-200">
-                  <h2 className="text-xl font-semibold text-gray-900">Group Information</h2>
-                </div>
-                <div className="p-6">
-                  <GroupCard 
-                    group={currentGroup} 
-                    showActions={false}
-                    userRole="student"
-                  />
                 </div>
               </div>
 
-              {/* Group Members */}
-              <div className="mt-8 bg-white rounded-lg shadow-lg">
-                <div className="px-6 py-4 border-b border-gray-200">
-                  <h2 className="text-xl font-semibold text-gray-900">Group Members</h2>
-                </div>
-                <div className="p-6">
-                  <GroupMemberList 
-                    members={currentGroup.members || []}
-                    showRoles={true}
-                    showContact={true}
-                    currentUserId={user._id}
-                    canManage={isGroupLeader}
-                  />
-                </div>
-              </div>
-            </div>
+          {/* Main Content */}
+          <div className="max-w-[1400px] mx-auto px-4 lg:px-8 py-5 pb-8">
 
-            {/* Group Actions */}
-            <div className="space-y-6">
-              {/* Group Stats */}
-              <div className="bg-white rounded-lg shadow-lg p-6">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">Group Statistics</h3>
-                <div className="space-y-4">
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Members:</span>
-                    <span className="font-medium">{getGroupStats().memberCount}/{getGroupStats().maxMembers}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Available Slots:</span>
-                    <span className="font-medium">{getGroupStats().availableSlots}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Status:</span>
-                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                      getGroupStats().isComplete ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
-                    }`}>
-                      {getGroupStats().isComplete ? 'Complete' : 'Forming'}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Actions */}
-              {isGroupLeader && (
-                <div className="bg-white rounded-lg shadow-lg p-6">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Group Actions</h3>
-                  <div className="space-y-3">
-                    {getGroupStats().availableSlots > 0 && (
+            {/* Info Message - Already in Group */}
+            <div className="bg-info-50 rounded-xl border border-info-200 p-6 text-center">
+              <FiUsers className="w-16 h-16 text-info-500 mx-auto mb-4" />
+              <h2 className="text-lg font-bold text-neutral-800 mb-2">You're Already in a Group!</h2>
+              <p className="text-sm text-neutral-600 mb-6">
+                You cannot create a new group while being part of an existing group for {projectType}.
+              </p>
+              <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
                       <button
-                        onClick={() => navigate('/student/groups/invite')}
-                        className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                  onClick={() => navigate(`/student/groups/${currentGroup._id}/dashboard`)}
+                  className="btn-primary inline-flex items-center gap-2"
                       >
-                        Invite Members
+                  <FiUsers className="w-4 h-4" />
+                  View Group Dashboard
                       </button>
-                    )}
-                    
-                    {getGroupStats().isComplete && currentSemester === 5 && (
                       <button
-                        onClick={() => navigate('/student/sem5/register')}
-                        className="w-full px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                  onClick={() => navigate('/dashboard/student')}
+                  className="btn-secondary inline-flex items-center gap-2"
                       >
-                        Register Minor Project 2
-                      </button>
-                    )}
-                    
-                    {currentSemester === 7 && currentGroup.status === 'finalized' && (
-                    <button
-                        onClick={() => navigate('/student/major-project-1/register')}
-                        className="w-full px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
-                      >
-                        Register Major Project 1
-                      </button>
-                    )}
-                    
-                    <button
-                      onClick={() => navigate(`/student/groups/${currentGroup._id}/dashboard`)}
-                      className="w-full px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
-                    >
-                      Group Dashboard
+                  <FiArrowLeft className="w-4 h-4" />
+                  Back to Dashboard
                     </button>
-                  </div>
-                </div>
-              )}
             </div>
           </div>
           </div>
@@ -780,12 +712,10 @@ const GroupFormation = () => {
   if (currentSemester === 8 && sem8Loading) {
     return (
       <Layout>
-        <div className="py-8">
-          <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="text-center py-12">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-              <p className="mt-4 text-gray-600">Loading group creation options...</p>
-            </div>
+        <div className="min-h-screen bg-gradient-to-br from-surface-200 via-primary-50 to-secondary-50 flex items-center justify-center">
+          <div className="text-center">
+            <FiLoader className="w-12 h-12 animate-spin text-primary-600 mx-auto mb-4" />
+            <p className="text-neutral-700 font-medium">Loading group options...</p>
           </div>
         </div>
       </Layout>
@@ -796,125 +726,131 @@ const GroupFormation = () => {
   if (canCreateGroup) {
     return (
       <Layout>
-        <div className="py-8">
-          <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-          {/* Header */}
-          <div className="mb-8">
-            <div className="flex items-center justify-between">
-              <div>
-                <h1 className="text-3xl font-bold text-gray-900">
-                  Create Your Group
-                </h1>
-                <p className="mt-2 text-gray-600">
-                  {currentSemester === 7 
-                    ? 'Form a new group for your Major Project 1 (coursework students only)'
-                    : `Form a group for your Minor Project 2 (${minGroupMembers}-${maxGroupMembers} members)`
-                  }
-                </p>
-                {/* Real-time status indicator - Hidden since WebSocket isn't critical for group formation */}
-                {/* WebSocket connection is optional and not required for basic group creation functionality */}
-              </div>
-              <button
-                onClick={onCancel}
-                className="px-4 py-2 text-gray-600 hover:text-gray-800 transition-colors"
-              >
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-          </div>
+        <div className="bg-gradient-to-br from-surface-200 via-primary-50 to-secondary-50 flex flex-col overflow-hidden" style={{ height: 'calc(100vh - 64px)' }}>
+          {/* Main Content - Flexible */}
+          <div className="flex-1 overflow-hidden">
+            <div className="max-w-[1400px] mx-auto px-4 lg:px-8 h-full py-3">
 
-          {/* Progress Indicator - Now 2 steps instead of 3 */}
-          <div className="mb-8">
-            <div className="flex items-center space-x-4">
-              <div className="flex items-center">
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
-                  currentStep >= 1 ? 'bg-blue-600 text-white' : 'bg-gray-300 text-gray-600'
+            {/* Step 1: Member Invitation */}
+            {currentStep === 1 && (
+              <div className="h-full flex flex-col gap-2.5">
+                {/* Progress Bar - Top */}
+                <div className="bg-white rounded-xl shadow-sm border border-neutral-200 p-3 flex items-center justify-center flex-shrink-0">
+                  <div className="flex items-center gap-3">
+                    {/* Step 1 */}
+                    <div className="flex items-center gap-2">
+                      <div className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold transition-all ${
+                        currentStep >= 1 ? 'bg-gradient-to-br from-primary-600 to-secondary-600 text-white shadow-lg' : 'bg-neutral-200 text-neutral-500'
                 }`}>
-                  {currentStep > 1 ? '✓' : '1'}
+                        {currentStep > 1 ? <FiCheck className="w-4 h-4" /> : '1'}
                 </div>
-                <span className={`ml-2 text-sm ${
-                  currentStep >= 1 ? 'font-medium text-blue-600' : 'text-gray-500'
-                }`}>
+                      <span className={`text-sm font-semibold ${currentStep >= 1 ? 'text-neutral-800' : 'text-neutral-500'}`}>
                   Invite Members
                 </span>
               </div>
-              <div className={`flex-1 h-0.5 ${currentStep > 1 ? 'bg-blue-600' : 'bg-gray-200'}`}></div>
-              <div className="flex items-center">
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
-                  currentStep >= 2 ? 'bg-blue-600 text-white' : 'bg-gray-300 text-gray-600'
+                    
+                    {/* Connector */}
+                    <div className={`h-1 w-16 rounded-full transition-all ${currentStep > 1 ? 'bg-gradient-to-r from-primary-600 to-secondary-600' : 'bg-neutral-200'}`}></div>
+                    
+                    {/* Step 2 */}
+                    <div className="flex items-center gap-2">
+                      <div className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold transition-all ${
+                        currentStep >= 2 ? 'bg-gradient-to-br from-primary-600 to-secondary-600 text-white shadow-lg' : 'bg-neutral-200 text-neutral-500'
                 }`}>
-                  {currentStep >= 2 ? '2' : '2'}
+                        2
                 </div>
-                <span className={`ml-2 text-sm ${
-                  currentStep >= 2 ? 'font-medium text-blue-600' : 'text-gray-500'
-                }`}>
+                      <span className={`text-sm font-semibold ${currentStep >= 2 ? 'text-neutral-800' : 'text-neutral-500'}`}>
                   Create Group
                 </span>
               </div>
             </div>
           </div>
 
-          {/* Multi-Step Group Creation Workflow */}
-          {/* Step 1: Member Invitation (previously Step 2) */}
-          {currentStep === 1 && (
-          <div className="bg-white rounded-lg shadow-lg">
-            <div className="px-6 py-4 border-b border-gray-200">
-                  <h2 className="text-xl font-semibold text-gray-900">Step 1: Invite Members</h2>
-              <p className="text-gray-600 mt-1">
-                    Select members to invite to your group. As the group creator, you will be the group leader. Group name will be auto-generated.
-                  </p>
-              </div>
-
-              <div className="p-6">
-                {/* Group Creator Info - Always the Leader */}
-                <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                  <h3 className="text-lg font-medium text-blue-900 mb-3">
-                    Group Leader & Creator
-                  </h3>
-                  <div className="flex items-center space-x-3 p-3 bg-white rounded-lg border border-blue-200">
-                    <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
-                      <span className="text-lg font-bold text-blue-600">👑</span>
-                        </div>
-                        <div className="flex-1">
-                          <div className="font-medium text-gray-900">
-                        {roleData?.fullName || user?.fullName || user?.name || 'Loading...'}
-                        <span className="ml-2 text-sm text-blue-600">(You - Group Creator & Leader)</span>
-                          </div>
-                          <div className="text-sm text-gray-600">
-                        {roleData?.misNumber || roleData?.rollNumber || 'MIS# -'} • {roleData?.collegeEmail || user?.collegeEmail || user?.email || 'Email not available'}
-                          </div>
-                      <div className="text-xs text-blue-700 mt-1">
-                        💡 As the group creator, you will be the group leader. You can transfer leadership later from the group dashboard.
-                        </div>
+                {/* Main Content Grid - Flexible */}
+                <div className="grid lg:grid-cols-12 gap-2.5 flex-1 overflow-hidden">
+                  {/* Left Column - Group Summary */}
+                  <div className="lg:col-span-4 flex flex-col gap-2.5 overflow-y-auto custom-scrollbar pr-1">
+                  {/* Group Leader Card */}
+                  <div className="bg-gradient-to-br from-primary-600 to-secondary-600 rounded-xl p-4 shadow-md">
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center shadow-lg flex-shrink-0">
+                        <FiStar className="w-6 h-6 text-primary-600" />
                       </div>
+                      <div className="flex-1 text-white min-w-0">
+                        <p className="text-xs font-medium text-white/80 mb-0.5">Group Leader</p>
+                        <p className="text-sm font-bold truncate">{roleData?.fullName || user?.fullName || user?.name || 'Loading...'}</p>
+                        <p className="text-xs text-white/90 mt-0.5 flex items-center gap-1">
+                          <FiHash className="w-3 h-3" />
+                          {roleData?.misNumber || roleData?.rollNumber || 'N/A'}
+                        </p>
                       </div>
                     </div>
-                    
-                    {/* Selected Members */}
-                {selectedStudents.length > 0 && (
-                  <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg">
-                    <h3 className="text-lg font-medium text-green-900 mb-3">
-                      Members to Invite ({selectedStudents.length})
-                    </h3>
-                    <div className="grid grid-cols-1 gap-2 max-h-40 overflow-y-auto">
-                    {selectedStudents.map((student) => (
-                      <div key={student._id} className="flex items-center justify-between p-3 bg-white rounded-lg border border-green-200">
-                        <div className="flex items-center space-x-3">
-                          <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
-                            <span className="text-sm">✓</span>
+                    <div className="bg-white/20 rounded-lg p-2 text-xs text-white/90">
+                      <FiAlertCircle className="w-3 h-3 inline mr-1" />
+                      You'll be the group leader automatically
+                    </div>
+              </div>
+
+                  {/* Selected Members Count */}
+                  <div className="bg-surface-100 rounded-xl p-4 border border-neutral-200">
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-2">
+                        <FiUsers className="w-4 h-4 text-primary-600" />
+                        <h3 className="text-sm font-bold text-neutral-800">Selected</h3>
+                        </div>
+                      <span className="text-xs font-semibold text-primary-700 bg-primary-100 px-2 py-1 rounded-full">
+                        {selectedStudents.length + 1} members
+                      </span>
                           </div>
-                          <div>
-                            <div className="font-medium text-gray-900">{student.fullName}</div>
-                            <div className="text-sm text-gray-600">{student.rollNumber} • {student.collegeEmail}</div>
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-neutral-600">Total:</span>
+                        <span className="font-bold text-neutral-800">{selectedStudents.length + 1}</span>
+                          </div>
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-neutral-600">Min Required:</span>
+                        <span className={`font-bold ${(selectedStudents.length + 1) >= minGroupMembers ? 'text-success-700' : 'text-warning-700'}`}>
+                          {minGroupMembers}
+                        </span>
+                        </div>
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-neutral-600">Max Allowed:</span>
+                        <span className="font-bold text-neutral-800">{maxGroupMembers}</span>
+                      </div>
+                      </div>
+                    {(selectedStudents.length + 1) < minGroupMembers && (
+                      <div className="mt-3 bg-warning-50 border border-warning-200 rounded-lg p-2 text-xs text-warning-800">
+                        <FiAlertCircle className="w-3 h-3 inline mr-1" />
+                        Need {minGroupMembers - (selectedStudents.length + 1)} more member(s)
+                      </div>
+                    )}
+                    </div>
+                    
+                  {/* Selected Members List */}
+                {selectedStudents.length > 0 && (
+                    <div className="bg-surface-100 rounded-xl p-4 border border-neutral-200">
+                      <h3 className="text-sm font-bold text-neutral-800 mb-3 flex items-center gap-2">
+                        <FiUserPlus className="w-4 h-4 text-success-600" />
+                        To Invite ({selectedStudents.length})
+                    </h3>
+                      <div className="space-y-2 max-h-64 overflow-y-auto custom-scrollbar">
+                    {selectedStudents.map((student) => (
+                          <div key={student._id} className="flex items-center justify-between p-2 bg-success-50 rounded-lg border border-success-200">
+                            <div className="flex items-center gap-2 flex-1 min-w-0">
+                              <div className="w-7 h-7 bg-success-500 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
+                                {student.fullName?.charAt(0) || 'S'}
+                          </div>
+                              <div className="min-w-0 flex-1">
+                                <p className="font-medium text-neutral-800 text-xs truncate">{student.fullName}</p>
+                                <p className="text-[11px] text-neutral-600 truncate">{student.misNumber || student.rollNumber}</p>
                           </div>
                         </div>
                           <button
                             onClick={() => handleStudentSelection(student)}
-                            className="px-3 py-1 text-red-600 hover:text-red-800 text-sm font-medium"
+                              className="text-error-600 hover:text-error-700 p-1.5 hover:bg-error-50 rounded transition-colors flex-shrink-0"
+                              aria-label="Remove"
                           >
-                            Remove
+                              <FiX className="w-4 h-4" />
                           </button>
                       </div>
                     ))}
@@ -922,150 +858,98 @@ const GroupFormation = () => {
                 </div>
                 )}
 
-                {/* Search and Available Students */}
-                <div className="mb-6">
-                  <h3 className="text-lg font-medium text-gray-900 mb-4">
-                    {hasSearched ? `Search Results (${sortedStudents.length} found)` : 'Search Students'}
+                  </div>
+
+                  {/* Right Column - Search and Students */}
+                  <div className="lg:col-span-8 flex flex-col gap-2.5 overflow-hidden">
+                    {/* Search Input - Fixed */}
+                    <div className="bg-surface-100 rounded-xl shadow-sm border border-neutral-200 p-4">
+                      <div className="flex items-center gap-2 mb-3">
+                        <FiSearch className="w-4 h-4 text-primary-600" />
+                        <h3 className="text-sm font-bold text-neutral-800">
+                          {hasSearched ? `Found ${sortedStudents.length} student${sortedStudents.length !== 1 ? 's' : ''}` : 'Search Students'}
                   </h3>
+                      </div>
                   
-                  {/* Search Input */}
-                  <div className="mb-4">
+                      {/* Search Input with proper icon alignment */}
+                      <div className="relative">
                     <input
                       type="text"
                       placeholder={currentSemester === 7 
-                        ? "Search Semester 7 coursework students by name, email, phone, or MIS number..."
-                        : "Search CSE & ECE students by name, email, phone, or MIS number..."
+                            ? "Search Sem 7 coursework students..."
+                            : currentSemester === 8
+                            ? "Search Sem 8 Type 1 students..."
+                            : "Search by name, MIS, email, or phone..."
                       }
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
                       maxLength={50}
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                    <div className="mt-1 flex justify-between items-center">
-                      {!hasSearched ? (
-                        <div className="text-sm text-gray-500">
-                          <p className="mb-1">💡 Start typing to search for students. This helps load results faster.</p>
-                          <p className="text-xs text-gray-400">
-                            {currentSemester === 7 
-                              ? <>Search <strong>Semester 7 coursework</strong> students by: <strong>name</strong>, <strong>email</strong>, <strong>phone number</strong>, or <strong>MIS number</strong>. Students on internship track or without a track selection will be shown but disabled.</>
-                              : currentSemester === 8
-                              ? <>Search <strong>Semester 8 Type 1</strong> students by: <strong>name</strong>, <strong>email</strong>, <strong>phone number</strong>, or <strong>MIS number</strong>. Only Type 1 students (completed 6-month internship in Sem 7) can join groups. Type 2 students will be shown but disabled.</>
-                              : <>Search {currentSemester}th semester <strong>CSE & ECE</strong> students by: <strong>name</strong>, <strong>email</strong>, <strong>phone number</strong>, or <strong>MIS number</strong></>
-                            }
-                          </p>
+                          className="w-full px-4 py-2.5 pl-10 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm bg-white placeholder:text-neutral-400"
+                        />
+                        <FiSearch className="w-4 h-4 text-neutral-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                         </div>
-                      ) : (
-                        <p className="text-sm text-gray-500">
-                          Search results for: "{searchTerm}"
+                      
+                      <div className="mt-2 flex justify-between items-center text-xs">
+                        <p className="text-neutral-500">
+                          {!hasSearched ? 'Type at least 2 characters' : `Showing ${sortedStudents.length} result${sortedStudents.length !== 1 ? 's' : ''}`}
                         </p>
-                      )}
-                      <span className="text-xs text-gray-400">
-                        {searchTerm.length}/50 characters
+                        <span className="text-neutral-400 font-mono">
+                          {searchTerm.length}/50
                       </span>
                     </div>
                   </div>
                   
-                  {/* Status Legend and Quick Stats - Only show when search has been performed */}
-                  {hasSearched && (
-                    <div className="mb-4 p-3 bg-gray-50 rounded-lg border border-gray-200">
-                      <div className="flex items-center justify-between mb-3">
-                        <span className="text-sm font-medium text-gray-700">Students are sorted by status:</span>
-                        <span className="text-xs text-gray-500">Selected → Available → Others</span>
-                      </div>
-                      
-                      {/* Quick Stats */}
-                      <div className={`mb-3 grid gap-2 text-xs ${currentSemester === 7 ? 'grid-cols-4' : 'grid-cols-3'}`}>
-                        {(() => {
-                          const stats = sortedStudents.reduce((acc, student) => {
-                            const status = getInviteStatus(student);
-                            acc[status.status] = (acc[status.status] || 0) + 1;
-                            return acc;
-                          }, {});
-                          
-                          const statItems = [
-                            { key: 'selected', label: 'Selected', color: 'blue', count: stats.selected || 0 },
-                            { key: 'available', label: 'Available', color: 'green', count: stats.available || 0 },
-                            { key: 'in_group', label: 'In Group', color: 'red', count: stats.in_group || 0 }
-                          ];
-                          
-                          // Add disabled stats for Sem 7
-                          if (currentSemester === 7) {
-                            const disabledCount = (stats.no_track_selected || 0) + (stats.internship_track || 0) + (stats.not_coursework || 0);
-                            statItems.push({ key: 'disabled', label: 'Not Eligible', color: 'gray', count: disabledCount });
-                          }
-                          
-                          return statItems.map(({ key, label, color, count }) => (
-                            <div key={key} className="flex items-center justify-between p-2 bg-white rounded border">
-                              <span className={`text-${color}-700 font-medium`}>{label}</span>
-                              <span className={`text-${color}-600 font-bold`}>{count}</span>
-                            </div>
-                          ));
-                        })()}
-                      </div>
-                      
-                      {/* Status Legend */}
-                      <div className="flex flex-wrap gap-4 text-xs">
-                        <span className="flex items-center space-x-1">
-                          <div className="w-3 h-3 bg-green-100 rounded-full border border-green-300"></div>
-                          <span className="text-green-700">Available</span>
+                    {/* Student List with Status Legend - Scrollable */}
+                    <div className="bg-surface-100 rounded-xl shadow-sm border border-neutral-200 flex flex-col overflow-hidden" style={{ maxHeight: 'calc(100vh - 250px)' }}>
+                      {/* Status Legend - Sticky */}
+                      {hasSearched && sortedStudents.length > 0 && (
+                        <div className="bg-gradient-to-r from-neutral-50 to-white px-4 py-2.5 border-b border-neutral-200 flex-shrink-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-xs font-bold text-neutral-600 mr-1">Status:</span>
+                            <span className="flex items-center gap-1.5 bg-success-100 px-2 py-0.5 rounded-full text-xs">
+                              <div className="w-1.5 h-1.5 bg-success-500 rounded-full"></div>
+                              <span className="text-success-700 font-semibold">Available</span>
                         </span>
-                        <span className="flex items-center space-x-1">
-                          <div className="w-3 h-3 bg-blue-100 rounded-full border border-blue-300"></div>
-                          <span className="text-blue-700">Selected</span>
+                            <span className="flex items-center gap-1.5 bg-primary-100 px-2 py-0.5 rounded-full text-xs">
+                              <div className="w-1.5 h-1.5 bg-primary-500 rounded-full"></div>
+                              <span className="text-primary-700 font-semibold">Selected</span>
                         </span>
-                        <span className="flex items-center space-x-1">
-                          <div className="w-3 h-3 bg-red-100 rounded-full border border-red-300"></div>
-                          <span className="text-red-700">In Group</span>
+                            <span className="flex items-center gap-1.5 bg-error-100 px-2 py-0.5 rounded-full text-xs">
+                              <div className="w-1.5 h-1.5 bg-error-500 rounded-full"></div>
+                              <span className="text-error-700 font-semibold">In Group</span>
                         </span>
                         {currentSemester === 7 && (
-                          <>
-                            <span className="flex items-center space-x-1">
-                              <div className="w-3 h-3 bg-gray-200 rounded-full border border-gray-300"></div>
-                              <span className="text-gray-600">Track not selected</span>
+                              <span className="flex items-center gap-1.5 bg-neutral-100 px-2 py-0.5 rounded-full text-xs">
+                                <div className="w-1.5 h-1.5 bg-neutral-400 rounded-full"></div>
+                                <span className="text-neutral-600 font-semibold">Not Eligible</span>
                             </span>
-                            <span className="flex items-center space-x-1">
-                              <div className="w-3 h-3 bg-gray-200 rounded-full border border-gray-300"></div>
-                              <span className="text-gray-600">6-month internship track</span>
-                            </span>
-                          </>
                         )}
                       </div>
                     </div>
                   )}
                   
+                      {/* Scrollable List */}
+                      <div className="flex-1 overflow-y-auto bg-neutral-50" style={{ scrollbarWidth: 'thin', scrollbarColor: '#cbd5e1 transparent' }}>
                   {!hasSearched ? (
-                    <div className="text-center py-8 bg-gray-50 rounded-lg border border-gray-200">
-                      <div className="text-gray-400 mb-2">
-                        <svg className="w-12 h-12 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                        </svg>
+                          <div className="text-center py-8 px-4">
+                            <FiSearch className="w-12 h-12 mx-auto text-neutral-300 mb-3" />
+                            <p className="text-neutral-700 font-medium mb-1 text-sm">Start Searching</p>
+                            <p className="text-xs text-neutral-500">Type at least 2 characters to find students</p>
                       </div>
-                      <p className="text-gray-600 font-medium mb-1">Search for Students</p>
-                      <p className="text-sm text-gray-500 mb-2">Type at least 2 characters to find and invite CSE & ECE students to your group</p>
-                      <div className="text-xs text-gray-400 space-y-1">
-                        <p>🔍 Search by <strong>name</strong> (e.g., "John", "Smith")</p>
-                        <p>📧 Search by <strong>email</strong> (e.g., "john@iiitp.ac.in")</p>
-                        <p>📱 Search by <strong>phone</strong> (e.g., "9876543210")</p>
-                        <p>🎓 Search by <strong>MIS number</strong> (e.g., "000000123")</p>
-                      </div>
-                    </div>
-                  ) : null}
-
-                  {isLoading ? (
+                        ) : isLoading ? (
                     <div className="text-center py-8">
-                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-                      <p className="mt-2 text-gray-600">Loading students...</p>
+                            <FiLoader className="w-8 h-8 animate-spin text-primary-600 mx-auto mb-2" />
+                            <p className="text-sm text-neutral-600">Loading students...</p>
                     </div>
-                  ) : hasSearched && sortedStudents.length === 0 ? (
+                        ) : sortedStudents.length === 0 ? (
                     <div className="text-center py-8">
-                      <p className="text-gray-500">No students found matching your search.</p>
+                            <FiAlertCircle className="w-12 h-12 mx-auto text-neutral-300 mb-3" />
+                            <p className="text-neutral-500 text-sm">No students found matching your search</p>
                     </div>
-                  ) : hasSearched && sortedStudents.length > 0 ? (
-                    <div className="max-h-96 overflow-y-auto border border-gray-200 rounded-lg bg-gray-50">
-                      {sortedStudents.map((student, index) => {
+                        ) : (
+                          sortedStudents.map((student, index) => {
                         const isSelected = selectedStudents.some(s => s._id === student._id);
                         const inviteStatus = getInviteStatus(student);
-                        // Check if student is disabled (for Sem 7 track restrictions or Sem 8 Type 1 restrictions)
                         const isDisabled = inviteStatus.disabled === true;
                         const canSelect = !isDisabled && (
                           inviteStatus.status === 'available' || 
@@ -1073,7 +957,7 @@ const GroupFormation = () => {
                           inviteStatus.status === 'rejected_from_current_group'
                         );
                         
-                        // Check if we need to add a separator
+                          // Check if we need to add a status separator
                         const prevStudent = index > 0 ? sortedStudents[index - 1] : null;
                         const prevStatus = prevStudent ? getInviteStatus(prevStudent) : null;
                         const showSeparator = prevStatus && prevStatus.status !== inviteStatus.status;
@@ -1082,17 +966,17 @@ const GroupFormation = () => {
                           <div key={student._id}>
                             {/* Status Group Separator */}
                             {showSeparator && (
-                              <div className="px-4 py-2 bg-gray-100 border-t border-b border-gray-200">
-                                <div className="flex items-center space-x-2">
+                                <div className="sticky top-0 px-4 py-2 bg-gradient-to-r from-neutral-100 to-neutral-50 border-y border-neutral-200 z-10">
+                                  <div className="flex items-center gap-2">
                                   <div className={`w-2 h-2 rounded-full ${
-                                    inviteStatus.status === 'available' ? 'bg-green-400' :
-                                    inviteStatus.status === 'selected' ? 'bg-blue-400' :
-                                    inviteStatus.status === 'in_group' ? 'bg-red-400' : 'bg-gray-400'
+                                      inviteStatus.status === 'available' ? 'bg-success-500' :
+                                      inviteStatus.status === 'selected' ? 'bg-primary-500' :
+                                      inviteStatus.status === 'in_group' ? 'bg-error-500' : 'bg-neutral-400'
                                   }`}></div>
-                                  <span className="text-xs font-medium text-gray-600 uppercase tracking-wide">
-                                    {inviteStatus.status === 'available' ? 'Available Students' :
-                                     inviteStatus.status === 'selected' ? 'Selected Students' :
-                                     inviteStatus.status === 'in_group' ? 'Already in Groups' : 'Other'}
+                                    <span className="text-xs font-bold text-neutral-700 uppercase tracking-wider">
+                                      {inviteStatus.status === 'available' ? '✓ Available Students' :
+                                       inviteStatus.status === 'selected' ? '★ Selected Students' :
+                                       inviteStatus.status === 'in_group' ? '⚠ Already in Groups' : 'Other'}
                                   </span>
                                 </div>
                               </div>
@@ -1101,64 +985,51 @@ const GroupFormation = () => {
                             {/* Student Card */}
                             <div
                               onClick={() => canSelect && !isDisabled && handleStudentSelection(student)}
-                              className={`p-3 mx-4 my-2 rounded-lg border transition-all duration-200 ${
-                                canSelect && !isDisabled ? 'cursor-pointer' : 'cursor-not-allowed'
+                                className={`p-3 mx-3 my-2 rounded-lg border transition-all ${
+                                  canSelect && !isDisabled ? 'cursor-pointer hover:shadow-md hover:border-primary-300' : 'cursor-not-allowed'
                               } ${
                             isSelected 
-                                  ? 'bg-gradient-to-r from-blue-50 to-purple-50 border-blue-200 shadow-sm'
+                                    ? 'bg-gradient-to-r from-primary-50 to-secondary-50 border-primary-300 shadow-sm' 
                                   : canSelect && !isDisabled
-                                  ? 'bg-white border-gray-200 hover:border-blue-300 hover:shadow-sm'
+                                    ? 'bg-white border-neutral-200'
                                   : isDisabled
-                                  ? 'bg-gray-100 border-gray-300 opacity-50'
-                                  : 'bg-gray-50 border-gray-200 opacity-60'
+                                    ? 'bg-neutral-100 border-neutral-300 opacity-60'
+                                    : 'bg-neutral-50 border-neutral-200 opacity-60'
                               }`}
                             >
-                            <div className="flex items-center space-x-3">
+                                <div className="flex items-center gap-3">
                               <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
                                 isSelected
-                                  ? 'bg-gradient-to-br from-blue-500 to-purple-600 text-white'
-                                  : 'bg-gray-200 text-gray-600'
+                                      ? 'bg-gradient-to-br from-primary-600 to-secondary-600 text-white shadow-md'
+                                      : 'bg-neutral-200 text-neutral-600'
                               }`}>
-                                <span className="font-bold text-sm">
-                                  {isSelected ? '✓' : student.fullName?.charAt(0) || '?'}
-                                </span>
+                                    {isSelected ? <FiCheck className="w-5 h-5" /> : <span className="font-bold text-sm">{student.fullName?.charAt(0) || '?'}</span>}
                               </div>
                               
                               <div className="flex-1 min-w-0">
-                                <div className="flex items-center space-x-2 mb-1">
-                                  <p className="font-medium text-gray-900 text-sm truncate">{student.fullName}</p>
-                                  {isSelected && (
-                                    <span className="bg-blue-100 text-blue-700 text-xs px-1 py-0.5 rounded-full font-medium">
-                                      ✓
+                                    <p className="font-semibold text-neutral-800 text-sm truncate">{student.fullName}</p>
+                                    <div className="flex items-center gap-2 text-xs text-neutral-600 mt-1">
+                                      <span className="flex items-center gap-1">
+                                        <FiHash className="w-3 h-3" />
+                                        {student.rollNumber || student.misNumber}
                                     </span>
-                                  )}
-                                </div>
-                                <p className="text-xs text-gray-600 truncate">{student.rollNumber || student.misNumber}</p>
                                 {student.branch && (
-                                  <p className="text-xs text-gray-500 truncate">{student.branch}</p>
+                                        <>
+                                          <span>•</span>
+                                          <span>{student.branch}</span>
+                                        </>
                                 )}
                                 </div>
                               </div>
                             
-                            <div className="mt-2">
-                              <span className={`text-xs px-2 py-1 rounded-full font-medium ${
+                                  <span className={`text-xs px-2.5 py-1 rounded-full font-semibold flex-shrink-0 ${
                                 inviteStatus.status === 'available'
-                                  ? 'bg-green-100 text-green-700'
+                                      ? 'bg-success-100 text-success-700 border border-success-200'
                                   : inviteStatus.status === 'selected'
-                                  ? 'bg-blue-100 text-blue-700'
+                                      ? 'bg-primary-100 text-primary-700 border border-primary-200'
                                   : inviteStatus.status === 'in_group'
-                                  ? 'bg-red-100 text-red-700'
-                                  : inviteStatus.status === 'pending_from_current_group'
-                                  ? 'bg-orange-100 text-orange-700'
-                                  : inviteStatus.status === 'rejected_from_current_group'
-                                  ? 'bg-pink-100 text-pink-700'
-                                  : inviteStatus.status === 'pending_invites'
-                                  ? 'bg-yellow-100 text-yellow-700'
-                                  : inviteStatus.status === 'group_full'
-                                  ? 'bg-purple-100 text-purple-700'
-                                  : inviteStatus.status === 'no_track_selected' || inviteStatus.status === 'internship_track' || inviteStatus.status === 'not_coursework' || inviteStatus.status === 'no_sem8_type' || inviteStatus.status === 'type2_student' || inviteStatus.status === 'not_type1'
-                                  ? 'bg-gray-200 text-gray-600'
-                                  : 'bg-red-100 text-red-700'
+                                      ? 'bg-error-100 text-error-700 border border-error-200'
+                                      : 'bg-neutral-100 text-neutral-600 border border-neutral-200'
                               }`}>
                                 {inviteStatus.message}
                               </span>
@@ -1166,239 +1037,256 @@ const GroupFormation = () => {
                             </div>
                           </div>
                         );
-                      })}
-                    </div>
-                  ) : null}
+                        })
+                        )}
 
                   {/* Load More Button */}
                   {hasSearched && hasMoreStudents && (
-                    <div className="mt-4 text-center">
+                          <div className="p-3 border-t border-neutral-200 bg-gradient-to-b from-white to-neutral-50 flex-shrink-0">
                       <button
                         onClick={handleLoadMore}
                         disabled={isLoadingMore}
-                        className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                              className="w-full btn-secondary inline-flex items-center justify-center gap-2 text-sm"
                       >
                         {isLoadingMore ? (
-                          <div className="flex items-center space-x-2">
-                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                            <span>Loading more...</span>
-                          </div>
+                                <>
+                                  <FiLoader className="w-4 h-4 animate-spin" />
+                                  Loading...
+                                </>
                         ) : (
-                          `Load More Students (${totalStudents - availableStudents.length} remaining)`
+                                <>
+                                  <FiArrowRight className="w-4 h-4" />
+                                  Load More ({totalStudents - availableStudents.length} remaining)
+                                </>
                         )}
                       </button>
                     </div>
                   )}
-
-                  {/* Search Info */}
-                  {hasSearched && (
-                    <div className="mt-4 text-center text-sm text-gray-500">
-                      Showing {sortedStudents.length} search result{sortedStudents.length !== 1 ? 's' : ''}
                     </div>
-                  )}
                 </div>
-
-                {/* Selection Achievement Summary */}
-                <div className="mb-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-4">
-                      <h4 className="font-medium text-blue-900">Ready to Send Invitations</h4>
-                      <div className="flex items-center space-x-6 text-sm text-blue-800">
-                        <span>👑 Leader: {roleData?.fullName || user?.fullName || user?.name || 'Loading...'} (You)</span>
-                        <span>👥 Total Members: {selectedStudents.length + 1}</span>
                       </div>
                     </div>
-                    <div className="text-sm text-blue-600">
-                      {selectedStudents.length > 0 
-                        ? `${selectedStudents.length} invitation${selectedStudents.length > 1 ? 's' : ''} will be sent`
-                        : 'Group will be created with just you (the leader)'
-                      }
-                    </div>
+                
+                {/* Action Bar - Bottom */}
+                <div className="bg-white rounded-xl shadow-sm border border-neutral-200 p-3 flex items-center justify-between flex-shrink-0">
+                  <div className="flex items-center gap-3">
+                    {/* Member Count */}
+                    <div className="flex items-center gap-2">
+                      <FiUsers className="w-4 h-4 text-primary-600" />
+                      <span className="font-bold text-neutral-800 text-sm">
+                        {selectedStudents.length + 1} / {maxGroupMembers} members
+                      </span>
+                      {selectedStudents.length > 0 && (
+                        <span className="text-xs px-2 py-0.5 bg-success-100 text-success-700 rounded-full font-medium ml-1">
+                          {selectedStudents.length} invitation{selectedStudents.length > 1 ? 's' : ''} ready
+                        </span>
+                      )}
                   </div>
                 </div>
 
-                {/* Step Navigation */}
-                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
                   <button
                     onClick={handlePreviousStep}
-                    className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+                      className="btn-secondary inline-flex items-center gap-1.5 px-3 py-1.5 text-sm"
                   >
-                    ← Back
+                      <FiArrowLeft className="w-3.5 h-3.5" />
+                      Back
                   </button>
-                  
-                  <div className="flex justify-end">
                     <button
                       type="button"
                       onClick={handleNextStep}
-                      className={`px-6 py-3 rounded-lg transition-all duration-200 ${
-                        selectedStudents.length === 0 || isSubmitting || isLoading
-                          ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                          : 'bg-blue-600 text-white hover:bg-blue-700'
-                      }`}
                       disabled={selectedStudents.length === 0 || isSubmitting || isLoading}
+                      className={`inline-flex items-center gap-1.5 px-4 py-1.5 rounded-lg font-semibold text-sm transition-all focus:outline-none focus:ring-2 focus:ring-offset-2 ${
+                        selectedStudents.length === 0 || isSubmitting || isLoading
+                          ? 'bg-neutral-200 text-neutral-600 cursor-not-allowed'
+                          : 'bg-gradient-to-r from-primary-600 to-secondary-600 text-white hover:shadow-lg focus:ring-primary-500'
+                      }`}
                     >
-                      {selectedStudents.length === 0 
-                        ? 'Select at least 1 student to continue'
-                        : `Next: Review & Send Invitations (${selectedStudents.length})`
-                      }
+                      {selectedStudents.length === 0 ? (
+                        <>
+                          <FiAlertCircle className="w-3.5 h-3.5" />
+                          Select members first
+                        </>
+                      ) : (
+                        <>
+                          Next: Review
+                          <FiArrowRight className="w-3.5 h-3.5" />
+                        </>
+                      )}
                     </button>
-                  </div>
                 </div>
               </div>
             </div>
           )}
 
-          {/* Step 2: Invitation Results & Summary (previously Step 3) */}
+          {/* Step 2: Confirmation */}
           {currentStep === 2 && (
-            <div className="bg-white rounded-lg shadow-lg">
-              <div className="px-6 py-4 border-b border-gray-200">
-                <h2 className="text-xl font-semibold text-gray-900">Step 2: Create Group & Send Invitations</h2>
-                <p className="text-gray-600 mt-1">
-                  Review your group details and create the group with invitations to selected members. Group name will be auto-generated.
+            <div className="space-y-4">
+              {/* Summary Header */}
+              <div className="bg-white rounded-xl shadow-sm border border-neutral-200 p-5">
+                <h2 className="text-lg font-bold text-neutral-800 mb-1 flex items-center gap-2">
+                  <FiCheckCircle className="w-5 h-5 text-primary-600" />
+                  Review & Confirm
+                </h2>
+                <p className="text-sm text-neutral-600">
+                  Verify details before creating your group
                 </p>
               </div>
 
-              <div className="p-6">
-                {/* Group Summary */}
-                <div className="mb-6 p-4 bg-blue-50 rounded-lg">
-                  <h3 className="font-medium text-blue-900 mb-3">📋 Group Summary</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                    <div>
-                      <span className="font-medium text-blue-800">Group Name:</span>
-                      <span className="ml-2 text-blue-700 italic">Will be auto-generated</span>
+              <div className="grid lg:grid-cols-2 gap-4">
+                {/* Left - Group Summary */}
+                <div className="space-y-4">
+                  <div className="bg-surface-100 rounded-xl shadow-sm border border-neutral-200 p-5">
+                    <h3 className="text-sm font-bold text-neutral-800 mb-4 flex items-center gap-2">
+                      <FiUsers className="w-4 h-4 text-primary-600" />
+                      Group Summary
+                    </h3>
+                    <div className="space-y-3">
+                      <div className="bg-neutral-50 rounded-lg p-3 border border-neutral-200">
+                        <label className="text-xs font-medium text-neutral-600 mb-1 block">Group Name</label>
+                        <p className="text-sm font-semibold text-neutral-800 italic">Auto-generated</p>
                     </div>
-                    <div>
-                      <span className="font-medium text-blue-800">Leader:</span>
-                      <span className="ml-2 text-blue-700">{roleData?.fullName || user?.fullName || user?.name}</span>
+                      <div className="bg-primary-50 rounded-lg p-3 border border-primary-200">
+                        <label className="text-xs font-medium text-primary-700 mb-1 flex items-center gap-1">
+                          <FiStar className="w-3 h-3" />
+                          Leader
+                        </label>
+                        <p className="text-sm font-bold text-primary-900">{roleData?.fullName || user?.fullName || user?.name}</p>
                     </div>
-                    <div>
-                      <span className="font-medium text-blue-800">Total Members:</span>
-                      <span className="ml-2 text-blue-700">{selectedStudents.length + 1}</span>
-                      <span className="ml-1 text-xs text-blue-600">(You + {selectedStudents.length} invites)</span>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="bg-secondary-50 rounded-lg p-3 border border-secondary-200">
+                          <label className="text-xs font-medium text-secondary-700 mb-1 block">Total</label>
+                          <p className="text-lg font-bold text-secondary-900">{selectedStudents.length + 1}</p>
+                          <p className="text-xs text-secondary-700">members</p>
                     </div>
-                    <div>
-                      <span className="font-medium text-blue-800">Semester:</span>
-                      <span className="ml-2 text-blue-700">Semester {currentSemester}</span>
+                        <div className="bg-accent-50 rounded-lg p-3 border border-accent-200">
+                          <label className="text-xs font-medium text-accent-700 mb-1 block">Semester</label>
+                          <p className="text-lg font-bold text-accent-900">{currentSemester}</p>
+                          <p className="text-xs text-accent-700">current</p>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
 
-                {/* Group Members Summary */}
-                <div className="mb-6">
-                  <h3 className="font-medium text-gray-900 mb-3">👥 Group Members & Invitations</h3>
-                  
-                  {/* Group Leader - Always Creator */}
-                  <div className="mb-4">
-                    <h4 className="text-sm font-medium text-gray-700 mb-2">Group Leader</h4>
-                    <div className="p-3 bg-green-50 rounded-lg border border-green-200">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center space-x-3">
-                          <div className="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center text-white text-sm font-medium">
+                {/* Right - Members List */}
+                <div className="space-y-4">
+                  <div className="bg-surface-100 rounded-xl shadow-sm border border-neutral-200 p-5">
+                    <h3 className="text-sm font-bold text-neutral-800 mb-4 flex items-center gap-2">
+                      <FiUsers className="w-4 h-4 text-primary-600" />
+                      Group Members ({selectedStudents.length + 1})
+                    </h3>
+                    
+                    <div className="space-y-2 max-h-96 overflow-y-auto custom-scrollbar">
+                      {/* Group Leader */}
+                      <div className="bg-success-50 rounded-lg p-3 border border-success-200">
+                        <div className="flex items-center gap-3">
+                          <div className="w-9 h-9 bg-gradient-to-br from-success-500 to-success-600 rounded-full flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
                             {(roleData?.fullName || user?.fullName || user?.name)?.charAt(0) || 'U'}
                           </div>
-                          <div>
-                            <span className="font-medium text-gray-900">
-                              {roleData?.fullName || user?.fullName || user?.name || 'Loading...'}
-                            </span>
-                            <span className="ml-2 text-sm text-gray-600">
-                              • {roleData?.misNumber || roleData?.rollNumber || 'MIS# -'}
-                            </span>
+                          <div className="flex-1 min-w-0">
+                            <p className="font-semibold text-neutral-800 text-sm truncate">{roleData?.fullName || user?.fullName || user?.name || 'Loading...'}</p>
+                            <p className="text-xs text-neutral-600 flex items-center gap-1">
+                              <FiHash className="w-3 h-3" />
+                              {roleData?.misNumber || roleData?.rollNumber || 'MIS# -'}
+                            </p>
                           </div>
-                        </div>
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                          ✓ Leader (You)
+                          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-semibold bg-success-100 text-success-800 flex-shrink-0">
+                            <FiStar className="w-3 h-3" />
+                            Leader
                         </span>
-                      </div>
                     </div>
                   </div>
 
-                  {/* Members to Invite */}
-                  {selectedStudents.length > 0 && (
-                    <div>
-                      <h4 className="text-sm font-medium text-gray-700 mb-2">
-                        Members to Invite ({selectedStudents.length})
-                      </h4>
-                      <div className="space-y-2">
-                        {selectedStudents.map((student, index) => (
-                          <div key={index} className="p-3 bg-yellow-50 rounded-lg border border-yellow-200">
-                            <div className="flex items-center justify-between">
-                              <div className="flex items-center space-x-3">
-                                <div className="w-8 h-8 bg-yellow-500 rounded-full flex items-center justify-center text-white text-sm font-medium">
+                      {/* Invited Members */}
+                      {selectedStudents.length > 0 ? (
+                        selectedStudents.map((student, index) => (
+                          <div key={index} className="bg-warning-50 rounded-lg p-3 border border-warning-200">
+                            <div className="flex items-center gap-3">
+                              <div className="w-9 h-9 bg-warning-500 rounded-full flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
                                   {student.fullName?.charAt(0) || 'S'}
                                 </div>
-                                <div>
-                                  <span className="font-medium text-gray-900">{student.fullName}</span>
-                                  <span className="ml-2 text-sm text-gray-600">
-                                    • {student.misNumber || student.rollNumber || 'MIS# -'}
-                                  </span>
+                              <div className="flex-1 min-w-0">
+                                <p className="font-semibold text-neutral-800 text-sm truncate">{student.fullName}</p>
+                                <p className="text-xs text-neutral-600 flex items-center gap-1">
+                                  <FiHash className="w-3 h-3" />
+                                  {student.misNumber || student.rollNumber || 'MIS# -'}
                                   {student.branch && (
-                                    <span className="ml-2 text-xs text-gray-500">
-                                      • {student.branch}
-                                    </span>
+                                    <>
+                                      <span className="mx-1">•</span>
+                                      <span>{student.branch}</span>
+                                    </>
                                   )}
+                                </p>
                                 </div>
-                              </div>
-                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
-                                📤 Will invite
+                              <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-semibold bg-warning-100 text-warning-800 flex-shrink-0">
+                                <FiMail className="w-3 h-3" />
+                                Pending
                               </span>
                             </div>
                           </div>
-                        ))}
-                      </div>
+                        ))
+                      ) : (
+                        <div className="text-center py-4 bg-neutral-50 rounded-lg">
+                          <p className="text-neutral-500 text-sm">No additional members</p>
+                          <p className="text-neutral-400 text-xs mt-1">Invite members later from group dashboard</p>
                     </div>
                   )}
-
-                  {/* No members selected */}
-                  {selectedStudents.length === 0 && (
-                    <div className="p-4 bg-gray-50 rounded-lg text-center">
-                      <p className="text-gray-500 text-sm">No additional members selected</p>
-                      <p className="text-gray-400 text-xs mt-1">You can invite members later from the group dashboard</p>
                     </div>
-                  )}
+                  </div>
+                </div>
                 </div>
 
+
                 {/* Confirmation Message */}
-                <div className="mb-6 p-4 bg-yellow-50 rounded-lg border border-yellow-200">
-                  <h3 className="font-medium text-yellow-900 mb-2">⚠️ Confirmation Required</h3>
-                  <p className="text-sm text-yellow-800">
-                    You are about to create your group and send invitations to {selectedStudents.length} student(s). 
-                    Once created, the group will be permanent and invitations will be sent immediately.
-                    You can invite more members later from the group dashboard.
+              <div className="bg-warning-50 rounded-xl border border-warning-200 p-4">
+                <div className="flex items-start gap-3">
+                  <FiAlertCircle className="w-5 h-5 text-warning-600 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <h3 className="font-bold text-warning-900 mb-1 text-sm">Confirm Group Creation</h3>
+                    <p className="text-xs text-warning-800">
+                      You're creating a group with {selectedStudents.length + 1} member{selectedStudents.length > 0 ? 's' : ''}. 
+                      {selectedStudents.length > 0 && ` ${selectedStudents.length} invitation${selectedStudents.length !== 1 ? 's' : ''} will be sent immediately.`}
+                      {' '}You can invite more members later.
                   </p>
+                  </div>
+                </div>
                 </div>
 
                 {/* Action Buttons */}
-                <div className="flex justify-between">
+              <div className="bg-white rounded-xl shadow-sm border border-neutral-200 p-4">
+                <div className="flex items-center justify-between gap-3">
                   <button
                       onClick={() => setCurrentStep(1)}
-                    className="px-6 py-3 bg-gray-500 text-white rounded-lg hover:bg-gray-600 font-medium"
+                    className="btn-secondary inline-flex items-center gap-2"
                   >
+                    <FiArrowLeft className="w-4 h-4" />
                     Back to Edit
                   </button>
                   
                   <button
                     type="button"
                     onClick={handleSendInvitations}
-                    disabled={isSubmitting || selectedStudents.length === 0}
-                    className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                    disabled={isSubmitting}
+                    className="bg-success-600 hover:bg-success-700 text-white font-medium px-6 py-2.5 rounded-lg transition-colors inline-flex items-center gap-2 focus:outline-none focus:ring-2 focus:ring-success-500 focus:ring-offset-2 shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    {isSubmitting ? 'Creating Group & Sending Invitations...' : `Create Group & Send ${selectedStudents.length} Invitation${selectedStudents.length !== 1 ? 's' : ''}`}
+                    {isSubmitting ? (
+                      <>
+                        <FiLoader className="w-4 h-4 animate-spin" />
+                        Creating...
+                      </>
+                    ) : (
+                      <>
+                        <FiCheckCircle className="w-4 h-4" />
+                        Create Group {selectedStudents.length > 0 && `& Send ${selectedStudents.length} Invitation${selectedStudents.length !== 1 ? 's' : ''}`}
+                      </>
+                    )}
                   </button>
                 </div>
               </div>
             </div>
           )}
 
-          {/* Enhanced Information Card */}
-          <div className="mt-8 bg-blue-50 rounded-lg p-6">
-            <h3 className="text-lg font-semibold text-blue-900 mb-4">🏗️ Group Formation Process</h3>
-            <div className="text-blue-800 space-y-2">
-              <p>• <strong>Step 1:</strong> Member selection with live student search functionality</p>
-              <p>• <strong>Step 2:</strong> Automated bulk invitation sending with results tracking</p>
-              <p>• <strong>Auto-generated:</strong> Group name is automatically created based on leader name and semester</p>
-              <p>• <strong>Real-time:</strong> WebSocket notifications for invitation responses</p>
-              <p>• <strong>Management:</strong> Advanced leader transfer and group finalization controls</p>
-            </div>
           </div>
           </div>
         </div>
@@ -1481,26 +1369,34 @@ const GroupFormation = () => {
   
   return (
     <Layout>
-      <div className="py-8">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="text-center py-12">
-          <div className="text-gray-400 mb-4">
-            <svg className="mx-auto h-12 w-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
-            </svg>
+      <div className="min-h-screen bg-gradient-to-br from-surface-200 via-primary-50 to-secondary-50 flex items-center justify-center">
+        <div className="max-w-lg mx-auto px-4">
+          <div className="bg-white rounded-xl shadow-lg border border-neutral-200 p-8 text-center">
+            <div className="w-16 h-16 bg-error-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <FiAlertCircle className="w-8 h-8 text-error-600" />
           </div>
-          <h3 className="text-lg font-medium text-gray-900 mb-2">Cannot Create Group</h3>
-          <p className="text-gray-600 mb-4">
+            <h3 className="text-lg font-bold text-neutral-800 mb-2">Cannot Create Group</h3>
+            <p className="text-sm text-neutral-600 mb-6">
             {errorMessage}
           </p>
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
           {errorAction && (
           <button
               onClick={errorAction}
-            className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                  className="btn-primary inline-flex items-center gap-2"
           >
+                  <FiCheckCircle className="w-4 h-4" />
               {errorButtonText}
           </button>
           )}
+              <button
+                onClick={() => navigate('/dashboard/student')}
+                className="btn-secondary inline-flex items-center gap-2"
+              >
+                <FiArrowLeft className="w-4 h-4" />
+                Back to Dashboard
+              </button>
+            </div>
         </div>
         </div>
       </div>

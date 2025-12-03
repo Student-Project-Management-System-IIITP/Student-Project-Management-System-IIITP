@@ -6,6 +6,12 @@ import { toast } from 'react-hot-toast';
 import Layout from '../../components/common/Layout';
 import { io } from 'socket.io-client';
 import { formatFacultyName } from '../../utils/formatUtils';
+import { 
+  FiArrowLeft, FiArrowRight, FiFolder, FiCalendar, FiAlertTriangle, FiInfo, 
+  FiUser, FiUsers, FiClock, FiFileText, FiSearch, FiImage, 
+  FiPaperclip, FiSend, FiEdit, FiTrash2, FiCheck, FiX, FiDownload,
+  FiFile, FiVideo, FiCheckCircle, FiMessageSquare, FiSettings, FiStar, FiLoader, FiHeart
+} from 'react-icons/fi';
 
 // Component to display images with authentication
 const ImageWithAuth = ({ src, alt, className }) => {
@@ -706,6 +712,31 @@ const ProjectDetails = () => {
     return diffMinutes <= 5;
   };
 
+  // Format sender name with faculty prefix if applicable
+  const formatSenderName = (message) => {
+    // If senderModel indicates faculty, try to format with prefix
+    if (message.senderModel === 'Faculty' && project?.faculty) {
+      // The message.sender is the user ID (from User model)
+      // Check if the sender user ID matches the faculty's user ID
+      const messageSenderId = message.sender?._id || message.sender;
+      const facultyUserId = project.faculty.user?._id || project.faculty.user;
+      
+      // Also check if message.sender is a string (user ID) and matches faculty.user
+      const senderIdStr = typeof messageSenderId === 'string' 
+        ? messageSenderId 
+        : (messageSenderId?.toString() || '');
+      const facultyUserIdStr = typeof facultyUserId === 'string'
+        ? facultyUserId
+        : (facultyUserId?.toString() || '');
+      
+      if (senderIdStr && facultyUserIdStr && senderIdStr === facultyUserIdStr) {
+        return formatFacultyName(project.faculty) || message.senderName;
+      }
+    }
+    // For students or if faculty info not available, return senderName as is
+    return message.senderName || 'Unknown';
+  };
+
   // Format timestamp
   const formatTimestamp = (date) => {
     const messageDate = new Date(date);
@@ -1043,57 +1074,65 @@ const ProjectDetails = () => {
 
   return (
     <Layout>
-      <div className="min-h-screen bg-gray-50">
-        <div className="container mx-auto px-4 py-8">
-          {/* Header */}
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
+      <div className="h-[calc(100vh-64px)] bg-surface-200 overflow-hidden flex flex-col">
+        {/* Header - Fixed at top */}
+        <div className="flex-shrink-0 bg-surface-100 border-b border-neutral-200 px-4 py-3">
+          <div className="container mx-auto">
             <div className="flex items-center justify-between">
-              <div>
-                <div className="flex items-center space-x-3">
+              <div className="flex items-center gap-3 flex-1 min-w-0">
                   <button
                     onClick={() => navigate('/dashboard')}
-                    className="text-gray-600 hover:text-gray-900"
+                  className="flex-shrink-0 p-2 text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100 rounded-lg transition-colors"
+                  title="Back to Dashboard"
                   >
-                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-                    </svg>
+                  <FiArrowLeft className="w-5 h-5" />
                   </button>
-                  <div>
-                    <h1 className="text-2xl font-bold text-gray-900">Project Dashboard</h1>
-                    <p className="text-gray-600 mt-1">{project.title}</p>
+                <div className="flex items-center gap-3 flex-1 min-w-0">
+                  <div className="flex-shrink-0 w-10 h-10 bg-primary-100 rounded-lg flex items-center justify-center">
+                    <FiFolder className="w-5 h-5 text-primary-600" />
                   </div>
+                  <div className="flex-1 min-w-0">
+                    <h1 className="text-lg font-bold text-neutral-900 truncate">Project Dashboard</h1>
+                    <p className="text-sm text-neutral-600 mt-0.5 truncate">{project.title}</p>
                 </div>
               </div>
+              </div>
+              <div className="flex items-center gap-4 flex-shrink-0 ml-4">
               <div className="text-right">
-                <p className="text-sm text-gray-500">Academic Year</p>
-                <p className="font-semibold text-gray-900">{project.academicYear}</p>
-                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium mt-2 ${
-                  project.status === 'faculty_allocated' ? 'bg-green-100 text-green-800' :
-                  project.status === 'registered' ? 'bg-yellow-100 text-yellow-800' :
-                  'bg-gray-100 text-gray-800'
+                  <p className="text-xs text-neutral-500">Academic Year</p>
+                  <p className="text-sm font-semibold text-neutral-900">{project.academicYear}</p>
+                </div>
+                <span className={`inline-flex items-center px-3 py-1 rounded-lg text-xs font-medium ${
+                  project.status === 'faculty_allocated' ? 'bg-success-100 text-success-700' :
+                  project.status === 'registered' ? 'bg-warning-100 text-warning-700' :
+                  'bg-neutral-100 text-neutral-700'
                 }`}>
                   {project.status === 'faculty_allocated' ? 'Active' : 
                    project.status === 'registered' ? 'Pending Allocation' : 
                    project.status}
                 </span>
               </div>
+              </div>
             </div>
           </div>
 
+        {/* Banners - Fixed below header */}
+        <div className="flex-shrink-0 px-4 py-2 space-y-2">
+          <div className="container mx-auto">
           {/* Faculty Allocation Pending Banner */}
           {!project.faculty && project.status === 'registered' && (
-            <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-6">
-              <div className="flex">
+              <div className="bg-warning-50 border border-warning-200 rounded-lg p-3">
+                <div className="flex items-start gap-3">
                 <div className="flex-shrink-0">
-                  <svg className="h-5 w-5 text-yellow-400" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                  </svg>
+                    <div className="w-8 h-8 bg-warning-100 rounded-full flex items-center justify-center">
+                      <FiAlertTriangle className="w-4 h-4 text-warning-600" />
                 </div>
-                <div className="ml-3">
-                  <h3 className="text-sm font-medium text-yellow-800">Faculty Allocation Pending</h3>
-                  <div className="mt-2 text-sm text-yellow-700">
-                    <p>Your project has been registered successfully. Faculty allocation is in progress. Once a faculty member is assigned, you'll be able to communicate with them through the chat feature.</p>
                   </div>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="text-sm font-semibold text-warning-900 mb-1">Faculty Allocation Pending</h3>
+                    <p className="text-xs text-warning-700">
+                      Your project has been registered successfully. Faculty allocation is in progress. Once a faculty member is assigned, you'll be able to communicate with them through the chat feature.
+                    </p>
                 </div>
               </div>
             </div>
@@ -1101,34 +1140,127 @@ const ProjectDetails = () => {
 
           {/* Previous Semester Project Notice */}
           {isPreviousSemesterProject && (
-            <div className="bg-blue-50 border-l-4 border-blue-400 p-4 mb-6">
-              <div className="flex">
+              <div className="bg-info-50 border border-info-200 rounded-lg p-3">
+                <div className="flex items-start gap-3">
                 <div className="flex-shrink-0">
-                  <svg className="h-5 w-5 text-blue-400" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-                  </svg>
+                    <div className="w-8 h-8 bg-info-100 rounded-full flex items-center justify-center">
+                      <FiInfo className="w-4 h-4 text-info-600" />
                 </div>
-                <div className="ml-3">
-                  <h3 className="text-sm font-medium text-blue-800">Previous Semester Project</h3>
-                  <div className="mt-2 text-sm text-blue-700">
-                    <p>This project is from Semester {project.semester}. Chat functionality is disabled for previous semester projects. You can view project details and history, but cannot send new messages.</p>
                   </div>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="text-sm font-semibold text-info-900 mb-1">Previous Semester Project</h3>
+                    <p className="text-xs text-info-700">
+                      This project is from Semester {project.semester}. Chat functionality is disabled for previous semester projects. You can view project details and history, but cannot send new messages.
+                    </p>
                 </div>
               </div>
             </div>
           )}
+          </div>
+        </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Chat Section */}
-            <div className="lg:col-span-2">
-              <div className="bg-white rounded-lg shadow-sm border border-gray-200 h-[600px] flex flex-col">
-                {/* Chat Header */}
-                <div className="border-b border-gray-200 p-4 flex items-center justify-between">
+        {/* Main Content Grid - Scrollable columns */}
+        <div className="flex-1 min-h-0 overflow-hidden">
+          <div className="container mx-auto h-full px-3">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 h-full overflow-hidden" style={{ minHeight: 0 }}>
+            {/* Left Column - Quick Info & Actions */}
+            <div className="lg:col-span-2 flex flex-col gap-2.5 overflow-y-auto custom-scrollbar" style={{ minHeight: 0 }}>
+              {/* Project Status Card */}
+              <div className="bg-surface-100 rounded-xl border border-neutral-200 p-4 flex-shrink-0">
+                <div className="flex items-center gap-2 mb-3">
+                  <FiFolder className="w-4 h-4 text-primary-600" />
+                  <h3 className="text-sm font-semibold text-neutral-900">Project Status</h3>
+                </div>
+                <div className="space-y-2.5">
                   <div>
-                    <h2 className="text-lg font-semibold text-gray-900">
+                    <p className="text-xs text-neutral-500 mb-1">Title</p>
+                    <p className="text-sm font-medium text-neutral-900 line-clamp-2">{project.title}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-neutral-500 mb-1">Type</p>
+                    <p className="text-xs text-neutral-900 capitalize">{project.projectType?.replace(/([A-Z])/g, ' $1').trim()}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-neutral-500 mb-1">Semester</p>
+                    <p className="text-xs text-neutral-900">Semester {project.semester}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-neutral-500 mb-1">Status</p>
+                    <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
+                      project.status === 'faculty_allocated' ? 'bg-success-100 text-success-700' :
+                      project.status === 'registered' ? 'bg-warning-100 text-warning-700' :
+                      'bg-neutral-100 text-neutral-700'
+                    }`}>
+                      {project.status === 'faculty_allocated' ? 'Active' : 
+                       project.status === 'registered' ? 'Pending' : 
+                       project.status}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Supervisor/Faculty Card */}
+              {project.faculty && (
+                <div className="bg-surface-100 rounded-xl border border-neutral-200 p-4 flex-shrink-0">
+                  <div className="flex items-center gap-2 mb-3">
+                    <FiUser className="w-4 h-4 text-primary-600" />
+                    <h3 className="text-sm font-semibold text-neutral-900">Supervisor</h3>
+                  </div>
+                  <div className="space-y-2">
+                    <p className="text-sm font-medium text-neutral-900">{formatFacultyName(project.faculty) || 'Faculty'}</p>
+                    {project.faculty.department && (
+                      <p className="text-xs text-neutral-600">{project.faculty.department}</p>
+                    )}
+                    {(project.faculty.email || project.faculty.user?.email) && (
+                      <p className="text-xs text-neutral-600 truncate">{project.faculty.email || project.faculty.user?.email}</p>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Group Info Card */}
+              {project.group && project.group.members && (
+                <div className="bg-surface-100 rounded-xl border border-neutral-200 p-4 flex-shrink-0">
+                  <div className="flex items-center gap-2 mb-3">
+                    <FiUsers className="w-4 h-4 text-primary-600" />
+                    <h3 className="text-sm font-semibold text-neutral-900">Group</h3>
+                  </div>
+                  <div className="space-y-2">
+                    {project.group.name && (
+                      <p className="text-sm font-medium text-neutral-900">{project.group.name}</p>
+                    )}
+                    <p className="text-xs text-neutral-600">
+                      {project.group.members?.filter(m => m.isActive).length || 0} member{project.group.members?.filter(m => m.isActive).length !== 1 ? 's' : ''}
+                    </p>
+                    {isStudent && (
+                      <a
+                        href={`/student/groups/${project.group._id}/dashboard`}
+                        className="text-xs text-primary-600 hover:text-primary-700 flex items-center gap-1"
+                      >
+                        <FiArrowRight className="w-3 h-3" />
+                        View Group Dashboard
+                      </a>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Center Column - Chat & Deliverables */}
+            <div className="lg:col-span-7 flex flex-col gap-3 overflow-y-auto custom-scrollbar" style={{ minHeight: 0 }}>
+            {/* Chat Section */}
+            <div className="flex-shrink-0">
+              <div className="bg-surface-100 rounded-xl border border-neutral-200 flex flex-col" style={{ minHeight: '500px', maxHeight: '70vh' }}>
+                {/* Chat Header */}
+                <div className="border-b border-neutral-200 p-3 flex items-center justify-between bg-gradient-to-r from-primary-50 to-transparent flex-shrink-0">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <FiMessageSquare className="w-4 h-4 text-primary-600 flex-shrink-0" />
+                      <h2 className="text-sm font-semibold text-neutral-900 truncate">
                       {isFaculty ? 'Chat with Group' : 'Chat with Supervisor'}
                     </h2>
-                    <p className="text-sm text-gray-500">
+                    </div>
+                    <p className="text-xs text-neutral-600 truncate">
                       {isPreviousSemesterProject 
                         ? 'Chat disabled for previous semester projects'
                         : isFaculty 
@@ -1139,36 +1271,39 @@ const ProjectDetails = () => {
                       }
                     </p>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1.5 flex-shrink-0 ml-3">
                     {/* Search Button */}
                     <button
                       onClick={() => setShowSearch(!showSearch)}
-                      className="p-2 text-gray-600 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                      className={`p-2 rounded-lg transition-colors ${
+                        showSearch 
+                          ? 'text-primary-600 bg-primary-100' 
+                          : 'text-neutral-600 hover:text-primary-600 hover:bg-primary-50'
+                      }`}
                       title="Search messages"
                     >
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                      </svg>
+                      <FiSearch className="w-4 h-4" />
                     </button>
                     {/* Media Button */}
                     <button
                       onClick={handleToggleMediaPanel}
-                      className="p-2 text-gray-600 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                      className={`p-2 rounded-lg transition-colors ${
+                        showMediaPanel 
+                          ? 'text-primary-600 bg-primary-100' 
+                          : 'text-neutral-600 hover:text-primary-600 hover:bg-primary-50'
+                      }`}
                       title="Media gallery"
                     >
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 5h16a1 1 0 011 1v12a1 1 0 01-1 1H4a1 1 0 01-1-1V6a1 1 0 011-1z" />
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 15l4-4 4 4 4-4 4 4" />
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 9h.01" />
-                      </svg>
+                      <FiImage className="w-4 h-4" />
                     </button>
                   </div>
                 </div>
 
                 {/* Search Bar */}
                 {showSearch && (
-                  <div className="border-b border-gray-200 p-3 bg-gray-50">
+                  <div className="border-b border-neutral-200 p-3 bg-neutral-50 flex-shrink-0">
                     <div className="relative">
+                      <FiSearch className="w-4 h-4 text-neutral-400 absolute left-3 top-1/2 transform -translate-y-1/2" />
                       <input
                         type="text"
                         value={searchQuery}
@@ -1177,46 +1312,44 @@ const ProjectDetails = () => {
                           handleSearch(e.target.value);
                         }}
                         placeholder="Search messages..."
-                        className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                        className="w-full pl-9 pr-9 py-2 text-sm border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 bg-white"
                       />
-                      <svg className="w-5 h-5 text-gray-400 absolute left-3 top-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                      </svg>
                       {searchQuery && (
                         <button
                           onClick={() => {
                             setSearchQuery('');
                             setSearchResults([]);
                           }}
-                          className="absolute right-3 top-2.5 text-gray-400 hover:text-gray-600"
+                          className="absolute right-3 top-1/2 transform -translate-y-1/2 text-neutral-400 hover:text-neutral-600"
                         >
-                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                          </svg>
+                          <FiX className="w-4 h-4" />
                         </button>
                       )}
                     </div>
                     {isSearching && (
-                      <p className="text-xs text-gray-500 mt-2">Searching...</p>
+                      <p className="text-xs text-neutral-500 mt-2">Searching...</p>
                     )}
                     {searchQuery && searchResults.length > 0 && (
-                      <p className="text-xs text-gray-600 mt-2">{searchResults.length} result(s) found</p>
+                      <p className="text-xs text-neutral-600 mt-2">{searchResults.length} result(s) found</p>
                     )}
                   </div>
                 )}
 
                 {/* Media Panel */}
                 {showMediaPanel && (
-                  <div className="border-b border-gray-200 p-3 bg-gray-50">
+                  <div className="border-b border-neutral-200 p-3 bg-neutral-50 flex-shrink-0">
                     <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <FiImage className="w-4 h-4 text-primary-600" />
                       <div>
-                        <p className="text-sm font-medium text-gray-700">Media, Docs &amp; Files</p>
+                          <p className="text-xs font-medium text-neutral-700">Media, Docs &amp; Files</p>
                         {isPreviousSemesterProject && (
-                          <p className="text-xs text-gray-500 mt-0.5">Read-only: Files from previous semester</p>
+                            <p className="text-[10px] text-neutral-500 mt-0.5">Read-only</p>
                         )}
+                        </div>
                       </div>
                       {isLoadingMedia && (
-                        <span className="text-xs text-gray-500">Loading...</span>
+                        <FiLoader className="w-4 h-4 text-neutral-400 animate-spin" />
                       )}
                     </div>
                     {mediaItems.length === 0 && !isLoadingMedia ? (
@@ -1276,7 +1409,7 @@ const ProjectDetails = () => {
                 )}
 
                 {/* Messages */}
-                <div ref={chatContainerRef} className="flex-1 overflow-y-auto p-4 space-y-4">
+                <div ref={chatContainerRef} className="flex-1 min-h-0 overflow-y-auto custom-scrollbar p-4 space-y-4">
                   {hasMoreMessages && groupedMessages.length > 0 && (
                     <div className="flex justify-center">
                       <button
@@ -1290,11 +1423,9 @@ const ProjectDetails = () => {
                   )}
 
                   {groupedMessages.length === 0 ? (
-                    <div className="text-center text-gray-500 mt-10">
-                      <svg className="w-16 h-16 mx-auto mb-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-                      </svg>
-                      <p>No messages yet. Start the conversation!</p>
+                    <div className="text-center text-neutral-500 mt-10">
+                      <FiMessageSquare className="w-16 h-16 mx-auto mb-4 text-neutral-300" />
+                      <p className="text-sm">No messages yet. Start the conversation!</p>
                     </div>
                   ) : (
                     groupedMessages.map((message) => {
@@ -1337,7 +1468,7 @@ const ProjectDetails = () => {
                               {/* Sender Name & Time */}
                               <div className="flex items-center justify-between mb-1">
                                 <span className={`text-xs font-medium ${isOwnMessage ? 'text-indigo-100' : 'text-gray-600'}`}>
-                                  {message.senderName}
+                                  {formatSenderName(message)}
                                 </span>
                                 <span className={`text-xs ${isOwnMessage ? 'text-indigo-200' : 'text-gray-400'} ml-2`}>
                                   {formatTime(message.createdAt)}
@@ -1418,24 +1549,19 @@ const ProjectDetails = () => {
                                                 {canPreviewFile(attachment.mimeType) && (
                                                   <button
                                                     onClick={() => handlePreviewFile(attachment)}
-                                                    className={`p-1 rounded hover:bg-opacity-20 hover:bg-white transition-colors ${isOwnMessage ? 'text-white' : 'text-gray-600'}`}
+                                                    className={`p-1 rounded hover:bg-opacity-20 hover:bg-white transition-colors ${isOwnMessage ? 'text-white' : 'text-neutral-600'}`}
                                                     title="Preview"
                                                   >
-                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                                                    </svg>
+                                                    <FiFile className="w-4 h-4" />
                                                   </button>
                                                 )}
                                                 {/* Download button */}
                                                 <button
                                                   onClick={() => handleDownloadFile(attachment.filename, attachment.originalName)}
-                                                  className={`p-1 rounded hover:bg-opacity-20 hover:bg-white transition-colors ${isOwnMessage ? 'text-white' : 'text-gray-600'}`}
+                                                  className={`p-1 rounded hover:bg-opacity-20 hover:bg-white transition-colors ${isOwnMessage ? 'text-white' : 'text-neutral-600'}`}
                                                   title="Download"
                                                 >
-                                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                                                  </svg>
+                                                  <FiDownload className="w-4 h-4" />
                                                 </button>
                                               </div>
                                             </div>
@@ -1497,43 +1623,41 @@ const ProjectDetails = () => {
                                       e.stopPropagation();
                                       setShowMessageMenu(showMessageMenu === message._id ? null : message._id);
                                     }}
-                                    className="p-1 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded transition-colors"
+                                    className="p-1 text-neutral-500 hover:text-neutral-700 hover:bg-neutral-100 rounded transition-colors"
                                     title="Message options"
                                   >
-                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 12h.01M12 12h.01M19 12h.01M6 12a1 1 0 11-2 0 1 1 0 012 0zm7 0a1 1 0 11-2 0 1 1 0 012 0zm7 0a1 1 0 11-2 0 1 1 0 012 0z" />
-                                    </svg>
+                                    <FiSettings className="w-4 h-4" />
                                   </button>
                                   
                                   {/* Message Menu Dropdown */}
                                   {showMessageMenu === message._id && (
                                     <div
-                                      className={`absolute ${isOwnMessage ? 'right-0' : 'left-0'} bottom-full mb-1 bg-white border border-gray-200 rounded-lg shadow-lg py-1 z-20 w-40`}
+                                      className={`absolute ${isOwnMessage ? 'right-0' : 'left-0'} bottom-full mb-1 bg-white border border-neutral-200 rounded-lg shadow-lg py-1 z-20 w-40`}
                                       onClick={(e) => e.stopPropagation()}
                                     >
                                       <div className="flex flex-col">
                                         <button
                                           onClick={() => { copyToClipboard(message.message); setShowMessageMenu(null); }}
-                                          className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+                                          className="w-full text-left px-4 py-2 text-sm text-neutral-700 hover:bg-neutral-100 flex items-center gap-2"
                                         >
-                                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
+                                          <FiFile className="w-4 h-4" />
                                           Copy
                                         </button>
                                         {canEdit && (
                                           <button
                                             onClick={() => { startEditing(message); setShowMessageMenu(null); }}
-                                            className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+                                            className="w-full text-left px-4 py-2 text-sm text-neutral-700 hover:bg-neutral-100 flex items-center gap-2"
                                           >
-                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.5L15.232 5.232z" /></svg>
+                                            <FiEdit className="w-4 h-4" />
                                             Edit
                                           </button>
                                         )}
                                         {canDelete && (
                                           <button
                                             onClick={() => { handleDeleteMessage(message._id); setShowMessageMenu(null); }}
-                                            className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
+                                            className="w-full text-left px-4 py-2 text-sm text-error-600 hover:bg-error-50 flex items-center gap-2"
                                           >
-                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                            <FiTrash2 className="w-4 h-4" />
                                             Delete
                                           </button>
                                         )}
@@ -1548,12 +1672,10 @@ const ProjectDetails = () => {
                                       e.stopPropagation();
                                       setShowEmojiPicker(showEmojiPicker === message._id ? null : message._id);
                                     }}
-                                    className="p-1 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded transition-colors"
+                                    className="p-1 text-neutral-500 hover:text-pink-600 hover:bg-pink-50 rounded transition-colors"
                                     title="Add reaction"
                                   >
-                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                    </svg>
+                                    <FiHeart className="w-4 h-4" />
                                   </button>
                                   
                                   {/* Emoji Picker - Position based on message alignment */}
@@ -1669,13 +1791,11 @@ const ProjectDetails = () => {
                     <button
                       type="button"
                       onClick={() => fileInputRef.current?.click()}
-                      className="p-2 text-gray-600 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="p-2 text-neutral-600 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
                       title="Attach files (max 3 files, 10MB each)"
                       disabled={isSending || isPreviousSemesterProject || (!project.faculty && project.status === 'registered' && !isFaculty)}
                     >
-                      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
-                      </svg>
+                      <FiPaperclip className="w-5 h-5" />
                     </button>
                     
 
@@ -1692,7 +1812,7 @@ const ProjectDetails = () => {
                             ? 'Waiting for faculty allocation...'
                             : 'Type your message...'
                         }
-                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
+                        className="w-full border border-neutral-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 disabled:bg-neutral-100 disabled:cursor-not-allowed"
                         disabled={isSending || isPreviousSemesterProject || (!project.faculty && project.status === 'registered' && !isFaculty)}
                       />
                       
@@ -1700,13 +1820,11 @@ const ProjectDetails = () => {
                       <button
                         type="button"
                         onClick={() => setShowMessageEmojiPicker(!showMessageEmojiPicker)}
-                        className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-indigo-600 p-1 disabled:text-gray-300"
+                        className="absolute right-2 top-1/2 transform -translate-y-1/2 text-neutral-500 hover:text-primary-600 p-1 disabled:text-neutral-300"
                         title="Add emoji"
                         disabled={isSending || isPreviousSemesterProject || (!project.faculty && project.status === 'registered' && !isFaculty)}
                       >
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
+                        <FiMessageSquare className="w-4 h-4" />
                       </button>
                       
                       {/* Emoji Picker */}
@@ -1733,23 +1851,232 @@ const ProjectDetails = () => {
                     <button
                       type="submit"
                       disabled={isSending || isPreviousSemesterProject || (!newMessage.trim() && selectedFiles.length === 0) || (!project.faculty && project.status === 'registered' && !isFaculty)}
-                      className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                      className="bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
                     >
-                      {isSending ? 'Sending...' : 'Send'}
+                      {isSending ? (
+                        <>
+                          <FiLoader className="w-4 h-4 animate-spin" />
+                          Sending...
+                        </>
+                      ) : (
+                        <>
+                          <FiSend className="w-4 h-4" />
+                          Send
+                        </>
+                      )}
                     </button>
                   </form>
                 </div>
               </div>
             </div>
 
-            {/* Project Information Sidebar */}
-            <div className="lg:col-span-1">
-              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                <h2 className="text-lg font-semibold text-gray-900 mb-4">Project Information</h2>
-                
-                <div className="space-y-4">
+            {/* Deliverables Section - In Center Column */}
+            {project && (
+              <div className="flex-shrink-0 bg-surface-100 rounded-xl border border-neutral-200 p-4">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-2">
+                    <FiFileText className="w-4 h-4 text-primary-600" />
+                    <h3 className="text-sm font-semibold text-neutral-900">Project Deliverables</h3>
+                  </div>
+                  {isPreviousSemesterProject && (
+                    <span className="text-[10px] text-neutral-500 bg-neutral-100 px-2 py-0.5 rounded">
+                      Read-only
+                    </span>
+                  )}
+                </div>
+                {(() => {
+                  const isGroupProject = project.group && project.group.members && project.group.members.length > 1;
+                  const requiredDeliverables = isGroupProject
+                    ? [
+                        { key: 'mid', label: 'Mid-Sem Presentation', icon: FiFileText },
+                        { key: 'end', label: 'End-Sem Presentation', icon: FiFileText },
+                        { key: 'report', label: 'Project Report', icon: FiFile },
+                      ]
+                    : [
+                        { key: 'end', label: 'End-Sem Presentation', icon: FiFileText },
+                        { key: 'report', label: 'Project Report', icon: FiFile },
+                      ];
+
+                  const deliverablesByName = (project.deliverables || []).reduce((acc, d) => {
+                    acc[d.name] = d;
+                    return acc;
+                  }, {});
+
+                  const nameMap = {
+                    mid: 'Mid Sem Presentation',
+                    end: 'End Sem Presentation',
+                    report: 'Project Report',
+                  };
+
+                  const handleFileUpload = async (deliverableType, event) => {
+                    if (isPreviousSemesterProject) {
+                      event.preventDefault();
+                      if (event.target) {
+                        event.target.value = '';
+                      }
+                      toast.error('File upload is not allowed for previous semester projects');
+                      return;
+                    }
+
+                    const file = event.target.files[0];
+                    if (!file) return;
+
+                    const toastId = toast.loading('Uploading file...');
+                    try {
+                      await projectAPI.uploadDeliverable(actualProjectId, deliverableType, file);
+                      const response = await projectAPI.getProjectDetails(actualProjectId);
+                      setProject(response.data.project);
+                      toast.success('File uploaded successfully!', { id: toastId });
+                    } catch (error) {
+                      console.error('Error uploading file:', error);
+                      toast.error(error.message || 'Failed to upload file.', { id: toastId });
+                    }
+                  };
+
+                  const handleDownloadDeliverableLocal = async (filename, originalName) => {
+                    try {
+                      const token = localStorage.getItem('token');
+                      const url = projectAPI.getDeliverableUrl(actualProjectId, filename);
+                      
+                      const response = await fetch(url, {
+                        headers: {
+                          'Authorization': `Bearer ${token}`
+                        }
+                      });
+                      
+                      if (!response.ok) {
+                        throw new Error('Failed to download file');
+                      }
+                      
+                      const blob = await response.blob();
+                      const downloadUrl = window.URL.createObjectURL(blob);
+                      const link = document.createElement('a');
+                      link.href = downloadUrl;
+                      link.download = originalName || filename;
+                      document.body.appendChild(link);
+                      link.click();
+                      document.body.removeChild(link);
+                      window.URL.revokeObjectURL(downloadUrl);
+                    } catch (error) {
+                      console.error('Error downloading file:', error);
+                      toast.error('Failed to download file');
+                    }
+                  };
+
+                  const handleRemoveDeliverable = async (deliverableType) => {
+                    if (!window.confirm('Are you sure you want to remove this deliverable? This action cannot be undone.')) {
+                      return;
+                    }
+
+                    const toastId = toast.loading('Removing file...');
+                    try {
+                      await projectAPI.deleteDeliverable(actualProjectId, deliverableType);
+                      const response = await projectAPI.getProjectDetails(actualProjectId);
+                      setProject(response.data.project);
+                      toast.success('File removed successfully!', { id: toastId });
+                    } catch (error) {
+                      console.error('Error removing file:', error);
+                      toast.error(error.message || 'Failed to remove file.', { id: toastId });
+                    }
+                  };
+
+                  return (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      {requiredDeliverables.map((d) => {
+                        const deliverableName = nameMap[d.key];
+                        const existing = deliverablesByName[deliverableName];
+                        const IconComponent = d.icon;
+
+                        return (
+                          <div key={d.key} className="bg-white rounded-lg border border-neutral-200 p-3">
+                            <div className="flex items-start gap-2 mb-2">
+                              <IconComponent className="w-4 h-4 text-primary-600 flex-shrink-0 mt-0.5" />
+                              <div className="flex-1 min-w-0">
+                                <p className="text-xs font-semibold text-neutral-900">{d.label}</p>
+                                <p className="text-[10px] text-neutral-500 mt-0.5">
+                                  {d.key === 'report' ? 'PDF format' : 'PDF or PPT format'}
+                                </p>
+                              </div>
+                            </div>
+                            
+                            {existing ? (
+                              <div className="space-y-2">
+                                <div className="bg-success-50 border border-success-200 rounded p-2">
+                                  <p className="text-xs font-medium text-success-800 truncate">{existing.originalName}</p>
+                                  <p className="text-[10px] text-success-600 mt-0.5">
+                                    Uploaded {new Date(existing.submittedAt).toLocaleDateString()}
+                                  </p>
+                                </div>
+                                <div className="grid grid-cols-2 gap-1.5">
+                                  <button
+                                    onClick={() => handleDownloadDeliverableLocal(existing.filename, existing.originalName)}
+                                    className="text-[11px] px-2 py-1.5 bg-success-600 text-white rounded hover:bg-success-700 transition-colors flex items-center justify-center gap-1"
+                                  >
+                                    <FiDownload className="w-3 h-3" />
+                                    Download
+                                  </button>
+                                  {isStudent && !isPreviousSemesterProject && (
+                                    <button
+                                      onClick={() => handleRemoveDeliverable(d.key)}
+                                      className="text-[11px] px-2 py-1.5 bg-error-600 text-white rounded hover:bg-error-700 transition-colors flex items-center justify-center gap-1"
+                                    >
+                                      <FiTrash2 className="w-3 h-3" />
+                                      Remove
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="text-[11px] text-center text-neutral-500 italic bg-neutral-50 p-2 rounded border border-dashed">
+                                Not yet uploaded
+                              </div>
+                            )}
+
+                            {isStudent && (
+                              <div className="mt-2">
+                                <input
+                                  type="file"
+                                  id={`file-upload-${d.key}`}
+                                  className="hidden"
+                                  accept=".pdf,.ppt,.pptx,application/pdf,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation"
+                                  onChange={(e) => handleFileUpload(d.key, e)}
+                                  disabled={isPreviousSemesterProject}
+                                />
+                                {isPreviousSemesterProject ? (
+                                  <div className="w-full text-center rounded px-2 py-1 text-[11px] font-medium border border-neutral-300 bg-neutral-100 text-neutral-500 cursor-not-allowed">
+                                    Upload Disabled
+                                  </div>
+                                ) : (
+                                  <label 
+                                    htmlFor={`file-upload-${d.key}`}
+                                    className="w-full text-center cursor-pointer rounded px-2 py-1 text-[11px] font-medium border border-neutral-300 hover:bg-neutral-50 text-neutral-700 block"
+                                  >
+                                    {existing ? 'Replace File' : 'Upload File'}
+                                  </label>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })()}
+              </div>
+            )}
+            </div>
+
+            {/* Right Column - Project Details, Meetings, History */}
+            <div className="lg:col-span-3 flex flex-col gap-3 overflow-y-auto custom-scrollbar" style={{ minHeight: 0 }}>
+              {/* Project Information Card */}
+              <div className="bg-surface-100 rounded-xl border border-neutral-200 p-4 flex-shrink-0">
+                <div className="flex items-center gap-2 mb-3">
+                  <FiFileText className="w-4 h-4 text-primary-600" />
+                  <h3 className="text-sm font-semibold text-neutral-900">Project Information</h3>
+                </div>
+                <div className="space-y-2.5">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Project Title</label>
+                    <p className="text-xs text-neutral-500 mb-1">Title</p>
                     {isStudent && isProjectOwnerStudent ? (
                       isEditingProjectTitle ? (
                         <div className="space-y-2">
@@ -1757,14 +2084,14 @@ const ProjectDetails = () => {
                             type="text"
                             value={projectTitleInput}
                             onChange={(e) => setProjectTitleInput(e.target.value)}
-                            className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                            className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                           />
                           <div className="flex items-center gap-2">
                             <button
                               type="button"
                               onClick={handleSaveProjectTitle}
                               disabled={isSavingProjectTitle}
-                              className="px-3 py-1 text-xs font-medium rounded-md bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50"
+                              className="px-3 py-1 text-xs font-medium rounded-lg bg-primary-600 text-white hover:bg-primary-700 disabled:opacity-50"
                             >
                               {isSavingProjectTitle ? 'Saving...' : 'Save'}
                             </button>
@@ -1774,7 +2101,7 @@ const ProjectDetails = () => {
                                 setIsEditingProjectTitle(false);
                                 setProjectTitleInput(project.title || '');
                               }}
-                              className="px-3 py-1 text-xs font-medium rounded-md bg-gray-200 text-gray-700 hover:bg-gray-300"
+                              className="px-3 py-1 text-xs font-medium rounded-lg bg-neutral-200 text-neutral-700 hover:bg-neutral-300"
                             >
                               Cancel
                             </button>
@@ -1782,132 +2109,88 @@ const ProjectDetails = () => {
                         </div>
                       ) : (
                         <div className="flex items-center justify-between gap-2">
-                          <p className="text-gray-900 break-words">{project.title}</p>
+                          <p className="text-sm text-neutral-900 break-words flex-1">{project.title}</p>
                           <button
                             type="button"
                             onClick={() => {
                               setIsEditingProjectTitle(true);
                               setProjectTitleInput(project.title || '');
                             }}
-                            className="text-gray-400 hover:text-indigo-600"
+                            className="text-neutral-400 hover:text-primary-600 flex-shrink-0"
                             title="Edit project title"
                           >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536M4 20h4l9.536-9.536a1.5 1.5 0 00-2.121-2.121L6 17.879V20z" />
-                            </svg>
+                            <FiEdit className="w-3.5 h-3.5" />
                           </button>
                         </div>
                       )
                     ) : (
-                      <p className="text-gray-900">{project.title}</p>
+                      <p className="text-sm text-neutral-900">{project.title}</p>
                     )}
                   </div>
                   
+                  {project.domain && (
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Project Type</label>
-                    <p className="text-gray-900 capitalize">{project.projectType?.replace(/([A-Z])/g, ' $1').trim()}</p>
+                      <p className="text-xs text-neutral-500 mb-1">Domain</p>
+                      <p className="text-xs text-neutral-900">{project.domain}</p>
+                  </div>
+                  )}
+                  
+                  <div>
+                    <p className="text-xs text-neutral-500 mb-1">Type</p>
+                    <p className="text-xs text-neutral-900 capitalize">{project.projectType?.replace(/([A-Z])/g, ' $1').trim()}</p>
                   </div>
                   
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Semester</label>
-                    <p className="text-gray-900">Semester {project.semester}</p>
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Academic Year</label>
-                    <p className="text-gray-900">{project.academicYear}</p>
-                  </div>
-                </div>
+                    <p className="text-xs text-neutral-500 mb-1">Semester</p>
+                    <p className="text-xs text-neutral-900">Semester {project.semester}</p>
               </div>
 
-              {/* Faculty Information */}
-              {project.faculty && (
-                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mt-6">
-                  <h2 className="text-lg font-semibold text-gray-900 mb-4">Supervisor</h2>
-                  
-                  <div className="flex items-center mb-4">
-                    <div className="w-12 h-12 bg-indigo-100 rounded-full flex items-center justify-center mr-3">
-                      <svg className="w-6 h-6 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                      </svg>
-                    </div>
+                  {project.createdAt && (
                     <div>
-                      <p className="font-semibold text-gray-900">{formatFacultyName(project.faculty) || roleData?.fullName || 'Faculty'}</p>
-                      <p className="text-sm text-gray-500">{project.faculty.department || roleData?.department || ''}</p>
-                    </div>
-                  </div>
-                  
-                  <div className="space-y-2 text-sm">
-                    {(project.faculty.email || project.faculty.user?.email) && (
-                      <div className="flex justify-between">
-                        <span className="text-gray-500">Email:</span>
-                        <span className="text-gray-900">
-                          {project.faculty.email || project.faculty.user?.email}
-                        </span>
+                      <p className="text-xs text-neutral-500 mb-1">Registered</p>
+                      <p className="text-xs text-neutral-900">{new Date(project.createdAt).toLocaleDateString()}</p>
                       </div>
                     )}
-                    {project.faculty.designation && (
-                      <div className="flex justify-between">
-                        <span className="text-gray-500">Designation:</span>
-                        <span className="text-gray-900">{project.faculty.designation}</span>
                       </div>
-                    )}
-                    {project.faculty.mode && (
-                      <div className="flex justify-between">
-                        <span className="text-gray-500">Mode:</span>
-                        <span className="text-gray-900">{project.faculty.mode}</span>
                       </div>
-                    )}
-                  </div>
-                </div>
-              )}
 
-              {/* Next Meeting */}
-              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mt-6">
-                <div className="flex items-center mb-4">
-                  <div className="w-9 h-9 rounded-full bg-indigo-50 flex items-center justify-center mr-3">
-                    <svg className="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V5a1 1 0 011-1h6a1 1 0 011 1v2m-9 0h10M5 11h14v7a2 2 0 01-2 2H7a2 2 0 01-2-2v-7z" />
-                    </svg>
-                  </div>
-                  <div>
-                    <h2 className="text-lg font-semibold text-gray-900 leading-tight">Next Meeting</h2>
-                    {!isFaculty && (
-                      <p className="text-xs text-gray-500">Details of your next discussion with supervisor.</p>
-                    )}
-                  </div>
+              {/* Next Meeting Card */}
+              <div className="bg-surface-100 rounded-xl border border-neutral-200 p-4 flex-shrink-0">
+                <div className="flex items-center gap-2 mb-3">
+                  <FiCalendar className="w-4 h-4 text-primary-600" />
+                  <h3 className="text-sm font-semibold text-neutral-900">Next Meeting</h3>
                 </div>
 
                 {project.nextMeeting ? (
-                  <div className="space-y-2 text-sm">
-                    <div className="flex justify-between">
-                      <span className="text-gray-500">Scheduled for</span>
-                      <span className="font-medium text-gray-900 text-right">
+                  <div className="space-y-2.5">
+                    <div>
+                      <p className="text-xs text-neutral-500 mb-1">Scheduled for</p>
+                      <p className="text-sm font-medium text-neutral-900">
                         {formatMeetingDateTime(project.nextMeeting.scheduledAt)}
-                      </span>
+                      </p>
                     </div>
                     {project.nextMeeting.location && (
-                      <div className="flex justify-between">
-                        <span className="text-gray-500">Location</span>
-                        <span className="text-gray-900 text-right">{project.nextMeeting.location}</span>
+                      <div>
+                        <p className="text-xs text-neutral-500 mb-1">Location</p>
+                        <p className="text-xs text-neutral-900">{project.nextMeeting.location}</p>
                       </div>
                     )}
                     {project.nextMeeting.notes && (
                       <div>
-                        <p className="text-gray-500">Notes</p>
-                        <p className="text-gray-900 whitespace-pre-wrap break-words text-sm mt-1">{project.nextMeeting.notes}</p>
+                        <p className="text-xs text-neutral-500 mb-1">Notes</p>
+                        <p className="text-xs text-neutral-900 whitespace-pre-wrap break-words">{project.nextMeeting.notes}</p>
                       </div>
                     )}
                     {!isFaculty && (
-                      <p className="text-xs text-gray-400 mt-1">If you need to change this timing, contact your supervisor.</p>
+                      <p className="text-[10px] text-neutral-400 mt-1">Contact your supervisor to change timing.</p>
                     )}
                   </div>
                 ) : (
-                  <div className="text-sm text-gray-500">
+                  <div className="text-xs text-neutral-500">
                     {isFaculty ? (
-                      <p>No meeting scheduled yet. Use the button below to plan the next discussion.</p>
+                      <p>No meeting scheduled yet.</p>
                     ) : (
-                      <p>Your supervisor has not scheduled the next meeting yet. Once it is planned, date and time will appear here.</p>
+                      <p>Your supervisor has not scheduled the next meeting yet.</p>
                     )}
                   </div>
                 )}
@@ -1915,12 +2198,12 @@ const ProjectDetails = () => {
                 {/* Post-meeting notes for faculty when meeting time is over */}
                 {isFaculty && project.nextMeeting && project.nextMeeting.scheduledAt &&
                   new Date(project.nextMeeting.scheduledAt) < new Date() && (
-                  <div className="mt-4 border-t border-gray-200 pt-4">
-                    <p className="text-sm font-medium text-gray-900 mb-2">Add meeting notes</p>
+                  <div className="mt-3 pt-3 border-t border-neutral-200">
+                    <p className="text-xs font-medium text-neutral-900 mb-2">Add meeting notes</p>
                     <textarea
                       value={meetingSummary}
                       onChange={(e) => setMeetingSummary(e.target.value)}
-                      className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                      className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                       rows="3"
                       placeholder="Summary of discussion, key points, action items..."
                     />
@@ -1928,9 +2211,9 @@ const ProjectDetails = () => {
                       <button
                         onClick={handleSaveMeetingNotes}
                         disabled={isSavingSummary || !meetingSummary.trim()}
-                        className="px-3 py-1.5 text-sm font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
+                        className="px-3 py-1.5 text-xs font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50"
                       >
-                        {isSavingSummary ? 'Saving...' : 'Save notes to history'}
+                        {isSavingSummary ? 'Saving...' : 'Save notes'}
                       </button>
                     </div>
                   </div>
@@ -1939,33 +2222,73 @@ const ProjectDetails = () => {
                 {isFaculty && (
                   <button
                     onClick={openMeetingModal}
-                    className="mt-4 w-full inline-flex justify-center items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                    className="mt-3 w-full inline-flex justify-center items-center px-3 py-2 border border-transparent text-xs font-medium rounded-lg text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
                   >
                     {project.nextMeeting ? 'Reschedule Meeting' : 'Schedule Meeting'}
                   </button>
                 )}
               </div>
 
-              {/* Group Members */}
+              {/* Meeting History Card */}
+              {project?.meetingHistory && project.meetingHistory.length > 0 && (
+                <div className="bg-surface-100 rounded-xl border border-neutral-200 p-4 flex-shrink-0">
+                  <div className="flex items-center gap-2 mb-3">
+                    <FiClock className="w-4 h-4 text-primary-600" />
+                    <h3 className="text-sm font-semibold text-neutral-900">Meeting History</h3>
+                  </div>
+                  <div className="space-y-2.5 max-h-64 overflow-y-auto custom-scrollbar">
+                    {project.meetingHistory
+                      .slice()
+                      .sort((a, b) => new Date(b.scheduledAt) - new Date(a.scheduledAt))
+                      .map((meeting) => (
+                        <div key={meeting._id} className="bg-white rounded-lg border border-neutral-200 p-3">
+                          <div className="flex items-start justify-between mb-2">
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs font-semibold text-neutral-900">
+                                {formatMeetingDateTime(meeting.scheduledAt)}
+                              </p>
+                              {meeting.location && (
+                                <p className="text-[10px] text-neutral-500 mt-0.5">{meeting.location}</p>
+                              )}
+                            </div>
+                            <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-success-100 text-success-700 flex-shrink-0">
+                              Completed
+                            </span>
+                          </div>
+                          {meeting.notes && (
+                            <p className="text-[11px] text-neutral-700 whitespace-pre-wrap break-words mt-2 pt-2 border-t border-neutral-100">
+                              {meeting.notes}
+                            </p>
+                          )}
+                        </div>
+                      ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Group Members Card */}
               {project.group && project.group.members && (
-                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mt-6">
-                  <div className="flex items-center justify-between mb-4">
-                    <h2 className="text-lg font-semibold text-gray-900">Group Members</h2>
+                <div className="bg-surface-100 rounded-xl border border-neutral-200 p-4 flex-shrink-0">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <FiUsers className="w-4 h-4 text-primary-600" />
+                      <h3 className="text-sm font-semibold text-neutral-900">Group Members</h3>
+                    </div>
                     {project.group.name && (
                       isStudent && canEditGroupName ? (
                         isEditingGroupName ? (
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-1.5">
                             <input
                               type="text"
                               value={groupNameInput}
                               onChange={(e) => setGroupNameInput(e.target.value)}
-                              className="w-40 border border-gray-300 rounded-md px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                              className="w-32 border border-neutral-300 rounded-lg px-2 py-1 text-[10px] focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                             />
                             <button
                               type="button"
                               onClick={handleSaveGroupName}
                               disabled={isSavingGroupName}
-                              className="px-2 py-1 text-[11px] font-medium rounded-md bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50"
+                              className="px-2 py-1 text-[10px] font-medium rounded-lg bg-primary-600 text-white hover:bg-primary-700 disabled:opacity-50"
                             >
                               {isSavingGroupName ? 'Saving' : 'Save'}
                             </button>
@@ -1975,9 +2298,9 @@ const ProjectDetails = () => {
                                 setIsEditingGroupName(false);
                                 setGroupNameInput(project.group.name || '');
                               }}
-                              className="px-2 py-1 text-[11px] font-medium rounded-md bg-gray-200 text-gray-700 hover:bg-gray-300"
+                              className="px-2 py-1 text-[10px] font-medium rounded-lg bg-neutral-200 text-neutral-700 hover:bg-neutral-300"
                             >
-                              Cancel
+                              <FiX className="w-3 h-3" />
                             </button>
                           </div>
                         ) : (
@@ -1987,41 +2310,37 @@ const ProjectDetails = () => {
                               setIsEditingGroupName(true);
                               setGroupNameInput(project.group.name || '');
                             }}
-                            className="flex items-center gap-1 text-xs text-gray-600 hover:text-indigo-600"
+                            className="flex items-center gap-1 text-[10px] text-neutral-600 hover:text-primary-600"
                             title="Edit group name"
                           >
-                            <span className="truncate max-w-[120px]">Group: {project.group.name}</span>
-                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536M4 20h4l9.536-9.536a1.5 1.5 0 00-2.121-2.121L6 17.879V20z" />
-                            </svg>
+                            <span className="truncate max-w-[100px]">{project.group.name}</span>
+                            <FiEdit className="w-3 h-3" />
                           </button>
                         )
                       ) : (
-                        <span className="text-xs text-gray-600">
-                          Group: <span className="font-medium">{project.group.name}</span>
+                        <span className="text-[10px] text-neutral-600">
+                          {project.group.name}
                         </span>
                       )
                     )}
                   </div>
                   
-                  <div className="space-y-3">
+                  <div className="space-y-2 max-h-64 overflow-y-auto custom-scrollbar">
                     {project.group.members
                       .filter(member => member.isActive)
                       .map((member, index) => (
-                        <div key={index} className="flex items-center p-3 bg-gray-50 rounded-lg">
-                          <div className="w-10 h-10 bg-indigo-100 rounded-full flex items-center justify-center mr-3">
-                            <svg className="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                            </svg>
+                        <div key={index} className="flex items-center gap-2 p-2 bg-white rounded-lg border border-neutral-200">
+                          <div className="w-8 h-8 bg-primary-100 rounded-full flex items-center justify-center flex-shrink-0">
+                            <FiUser className="w-4 h-4 text-primary-600" />
                           </div>
-                          <div className="flex-1">
-                            <div className="flex items-center justify-between">
-                              <p className="font-medium text-gray-900">{member.student?.fullName}</p>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-1.5">
+                              <p className="text-xs font-medium text-neutral-900 truncate">{member.student?.fullName}</p>
                               {member.role === 'leader' && (
-                                <span className="text-xs bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full">Leader</span>
+                                <FiStar className="w-3 h-3 text-primary-600 flex-shrink-0" />
                               )}
                             </div>
-                            <p className="text-sm text-gray-500">
+                            <p className="text-[10px] text-neutral-600 truncate">
                               {member.student?.misNumber} • {member.student?.branch}
                             </p>
                           </div>
@@ -2034,211 +2353,9 @@ const ProjectDetails = () => {
           </div>
         </div>
       </div>
-
-      {/* Meeting History */}
-      {project?.meetingHistory && project.meetingHistory.length > 0 && (
-        <div className="mt-8 px-4">
-          <h2 className="text-xl font-semibold text-gray-900 mb-4">Meeting History</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {project.meetingHistory
-              .slice()
-              .sort((a, b) => new Date(b.scheduledAt) - new Date(a.scheduledAt))
-              .map((meeting) => (
-                <div key={meeting._id} className="bg-white rounded-lg shadow-sm border border-gray-200 p-5">
-                  <div className="flex items-start justify-between mb-3">
-                    <div className="flex items-center">
-                      <div className="w-9 h-9 rounded-full bg-green-50 flex items-center justify-center mr-3">
-                        <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                      </div>
-                      <div>
-                        <p className="text-sm font-semibold text-gray-900">
-                          {formatMeetingDateTime(meeting.scheduledAt)}
-                        </p>
-                        <p className="text-xs text-gray-500">
-                          {meeting.location || 'No location specified'}
-                        </p>
-                      </div>
-                    </div>
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                      Completed
-                    </span>
                   </div>
 
-                  {(meeting.agenda || meeting.notes) && <div className="border-t border-gray-200 my-3"></div>}
-
-                  {meeting.agenda && (
-                    <div className="mb-3">
-                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Agenda</p>
-                      <p className="text-sm text-gray-800 whitespace-pre-wrap break-words">{meeting.agenda}</p>
-                    </div>
-                  )}
-                  {meeting.notes && (
-                    <div>
-                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Notes & Action Items</p>
-                      <p className="text-sm text-gray-800 whitespace-pre-wrap break-words">{meeting.notes}</p>
-                    </div>
-                  )}
-                </div>
-              ))}
-          </div>
-        </div>
-      )}
-
-      {/* Deliverables Section */}
-      {project && (
-        <div className="mt-8 px-4">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-semibold text-gray-900">Project Deliverables</h2>
-            {isPreviousSemesterProject && (
-              <span className="text-xs text-gray-500 bg-gray-100 px-3 py-1 rounded-full">
-                🔒 Read-only (Previous Semester)
-              </span>
-            )}
-          </div>
-          {isPreviousSemesterProject && (
-            <div className="mb-4 p-3 bg-blue-50 border-l-4 border-blue-400 rounded">
-              <p className="text-sm text-blue-700">
-                <strong>Note:</strong> File uploads are disabled for previous semester projects. You can view and download existing deliverables, but cannot upload new files.
-              </p>
-            </div>
-          )}
-          {(() => {
-            const isGroupProject = project.group && project.group.members && project.group.members.length > 1;
-            const requiredDeliverables = isGroupProject
-              ? [
-                  { key: 'mid', label: 'Mid-Sem Presentation (PDF/PPT)' },
-                  { key: 'end', label: 'End-Sem Presentation (PDF/PPT)' },
-                  { key: 'report', label: 'Project Report (PDF)' },
-                ]
-              : [
-                  { key: 'end', label: 'End-Sem Presentation (PDF/PPT)' },
-                  { key: 'report', label: 'Project Report (PDF)' },
-                ];
-
-            const deliverablesByName = (project.deliverables || []).reduce((acc, d) => {
-              acc[d.name] = d;
-              return acc;
-            }, {});
-
-            const nameMap = {
-              mid: 'Mid Sem Presentation',
-              end: 'End Sem Presentation',
-              report: 'Project Report',
-            };
-
-            const handleFileUpload = async (deliverableType, event) => {
-              // Block file upload for previous semester projects
-              if (isPreviousSemesterProject) {
-                event.preventDefault();
-                if (event.target) {
-                  event.target.value = '';
-                }
-                toast.error('File upload is not allowed for previous semester projects');
-                return;
-              }
-
-              const file = event.target.files[0];
-              if (!file) return;
-
-              const toastId = toast.loading('Uploading file...');
-              try {
-                await projectAPI.uploadDeliverable(actualProjectId, deliverableType, file);
-                const response = await projectAPI.getProjectDetails(actualProjectId);
-                setProject(response.data.project);
-                toast.success('File uploaded successfully!', { id: toastId });
-              } catch (error) {
-                console.error('Error uploading file:', error);
-                toast.error(error.message || 'Failed to upload file.', { id: toastId });
-              }
-            };
-
-            const DeliverableIcon = ({ type }) => {
-              if (type === 'presentation') {
-                return (
-                  <svg className="w-6 h-6 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                  </svg>
-                );
-              }
-              return (
-                <svg className="w-6 h-6 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
-              );
-            };
-
-            return (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {requiredDeliverables.map((d) => {
-                  const deliverableName = nameMap[d.key];
-                  const existing = deliverablesByName[deliverableName];
-
-                  return (
-                    <div key={d.key} className="bg-white rounded-lg shadow-sm border border-gray-200 p-5 flex flex-col">
-                      <div className="flex items-start mb-3">
-                        <div className="w-10 h-10 rounded-full bg-indigo-50 flex items-center justify-center mr-4 flex-shrink-0">
-                          <DeliverableIcon type={d.icon} />
-                        </div>
-                        <div>
-                          <p className="font-semibold text-gray-900">{d.label}</p>
-                          <p className="text-xs text-gray-500">{d.icon === 'report' ? 'PDF format' : 'PDF or PPT format'}</p>
-                        </div>
-                      </div>
-                      
-                      <div className="mt-auto">
-                        {existing ? (
-                          <div className="text-sm text-center bg-green-50 p-3 rounded-md border border-green-200">
-                            <p className="font-medium text-green-800 truncate">{existing.originalName}</p>
-                            <p className="text-xs text-green-600 mb-2">Uploaded on {new Date(existing.submittedAt).toLocaleDateString()}</p>
-                            <button
-                              onClick={() => handleDownloadDeliverable(existing.filename, existing.originalName)}
-                              className="w-full mt-2 inline-flex justify-center items-center px-3 py-1 text-xs font-medium rounded bg-green-600 text-white hover:bg-green-700"
-                            >
-                              Download
-                            </button>
-                          </div>
-                        ) : (
-                          <div className="text-sm text-center text-gray-500 italic bg-gray-50 p-3 rounded-md border border-dashed">
-                            Not yet uploaded
-                          </div>
-                        )}
-
-                        {isStudent && (
-                          <div className="mt-3">
-                            <input
-                              type="file"
-                              id={`file-upload-${d.key}`}
-                              className="hidden"
-                              accept=".pdf,.ppt,.pptx,application/pdf,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation"
-                              onChange={(e) => handleFileUpload(d.key, e)}
-                              disabled={isPreviousSemesterProject}
-                            />
-                            {isPreviousSemesterProject ? (
-                              <div className="w-full text-center rounded-md px-3 py-1.5 text-sm font-medium border border-gray-300 bg-gray-100 text-gray-500 cursor-not-allowed">
-                                Upload Disabled (Previous Semester)
-                              </div>
-                            ) : (
-                              <label 
-                                htmlFor={`file-upload-${d.key}`}
-                                className="w-full text-center cursor-pointer rounded-md px-3 py-1.5 text-sm font-medium border border-gray-300 hover:bg-gray-50 text-gray-700"
-                              >
-                                {existing ? 'Replace File' : 'Upload File'}
-                              </label>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            );
-          })()}
-        </div>
-      )}
-
+      {/* Modals */}
       {showMeetingModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4" onClick={() => { if (!isScheduling) setShowMeetingModal(false); }}>
           <div className="bg-white rounded-lg max-w-md w-full p-6" onClick={(e) => e.stopPropagation()}>
@@ -2318,21 +2435,17 @@ const ProjectDetails = () => {
               <div className="flex gap-2">
                 <button
                   onClick={() => handleDownloadFile(previewFile.url.split('/').pop(), previewFile.name)}
-                  className="p-2 text-gray-600 hover:text-indigo-600 hover:bg-indigo-50 rounded transition-colors"
+                  className="p-2 text-neutral-600 hover:text-primary-600 hover:bg-primary-50 rounded transition-colors"
                   title="Download"
                 >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                  </svg>
+                  <FiDownload className="w-5 h-5" />
                 </button>
                 <button
                   onClick={closePreview}
-                  className="p-2 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+                  className="p-2 text-neutral-600 hover:text-error-600 hover:bg-error-50 rounded transition-colors"
                   title="Close"
                 >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
+                  <FiX className="w-5 h-5" />
                 </button>
               </div>
             </div>

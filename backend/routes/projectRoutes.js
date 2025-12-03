@@ -61,6 +61,9 @@ router.post('/:projectId/deliverables/:deliverableType',
 // Download a deliverable file
 router.get('/:projectId/deliverables/:filename', projectController.downloadDeliverable);
 
+// Delete a deliverable file
+router.delete('/:projectId/deliverables/:deliverableType', projectController.deleteDeliverable);
+
 // Student: submit/update faculty preferences for a project (M.Tech Sem 1 solo flow)
 router.post('/:projectId/faculty-preferences', submitProjectFacultyPreferences);
 

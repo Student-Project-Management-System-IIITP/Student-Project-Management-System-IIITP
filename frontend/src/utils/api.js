@@ -702,6 +702,37 @@ export const projectAPI = {
     return response.json();
   },
   getDeliverableUrl: (projectId, filename) => `${API_BASE_URL}/projects/${projectId}/deliverables/${filename}`,
+  deleteDeliverable: async (projectId, deliverableType) => {
+    const token = localStorage.getItem('token');
+    const response = await fetch(`${API_BASE_URL}/projects/${projectId}/deliverables/${deliverableType}`, {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token && { Authorization: `Bearer ${token}` }),
+      },
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+    }
+    return response.json();
+  },
+  getProjectMedia: async (projectId) => {
+    const token = localStorage.getItem('token');
+    const response = await fetch(`${API_BASE_URL}/projects/${projectId}/media`, {
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token && { Authorization: `Bearer ${token}` }),
+      },
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+    }
+    return response.json();
+  },
 };
 
 export default api;

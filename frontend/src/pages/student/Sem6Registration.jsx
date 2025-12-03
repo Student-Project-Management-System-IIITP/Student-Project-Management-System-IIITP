@@ -7,6 +7,12 @@ import { toast } from 'react-hot-toast';
 import GroupMemberList from '../../components/groups/GroupMemberList';
 import Layout from '../../components/common/Layout';
 import { formatFacultyName } from '../../utils/formatUtils';
+import {
+  FiUsers, FiUserCheck, FiRefreshCw, FiPlus, FiFilePlus,
+  FiTarget, FiInfo, FiAlertCircle, FiCheckCircle, FiClock,
+  FiArrowRight, FiX, FiMail, FiPhone, FiStar, FiLoader,
+  FiAlertTriangle, FiFileText
+} from 'react-icons/fi';
 
 const Sem6Registration = () => {
   const navigate = useNavigate();
@@ -25,7 +31,6 @@ const Sem6Registration = () => {
   // Form state
   const [isContinuing, setIsContinuing] = useState(null);
   const [projectChoice, setProjectChoice] = useState(null);
-  
   const [customDomain, setCustomDomain] = useState('');
 
   const {
@@ -47,7 +52,6 @@ const Sem6Registration = () => {
   useEffect(() => {
     const checkExistingProject = async () => {
       try {
-        // Check if student has a Sem 6 project in currentProjects
         const currentProjects = roleData?.currentProjects || [];
         const sem6Project = currentProjects.find(p => p.semester === 6 && p.projectType === 'minor3');
         
@@ -71,19 +75,17 @@ const Sem6Registration = () => {
 
   // Load Sem 5 group and faculty data
   useEffect(() => {
-    let isMounted = true; // Prevent duplicate toasts on unmount
+    let isMounted = true;
     
     const loadSem5Data = async () => {
       try {
         setLoading(true);
         const response = await studentAPI.getSem5GroupForSem6();
         
-        if (!isMounted) return; // Component unmounted, don't update state
+        if (!isMounted) return;
         
         if (response.success) {
-          // Check if already registered (backend returns this in response)
           if (response.alreadyRegistered || response.data?.alreadyRegistered) {
-            // Try to find project ID from response or currentProjects
             const currentProjects = roleData?.currentProjects || [];
             const sem6Project = currentProjects.find(p => p.semester === 6 && p.projectType === 'minor3');
             const projectId = response.data?.projectId || sem6Project?.project || sem6Project?._id || sem6Project?.projectId;
@@ -104,7 +106,6 @@ const Sem6Registration = () => {
           setCanContinue(response.data.canContinue);
           setIsGroupLeader(response.data.isGroupLeader || false);
         } else {
-          // Check if error is due to already registered
           if (response.message && response.message.includes('already registered')) {
             const currentProjects = roleData?.currentProjects || [];
             const sem6Project = currentProjects.find(p => p.semester === 6 && p.projectType === 'minor3');
@@ -116,7 +117,6 @@ const Sem6Registration = () => {
             }
           }
           
-          // Check if error is due to no faculty allocated
           if (response.message && (response.message.includes('allocated faculty') || response.message.includes('does not have an allocated faculty'))) {
             toast.error('Your group does not have an allocated faculty. Please contact your admin.');
             setTimeout(() => navigate('/dashboard/student'), 1500);
@@ -127,11 +127,10 @@ const Sem6Registration = () => {
           navigate('/dashboard/student');
         }
       } catch (error) {
-        if (!isMounted) return; // Component unmounted, don't show error
+        if (!isMounted) return;
         
         console.error('Error loading Sem 5 data:', error);
         
-        // Check if error is due to already registered
         if (error.message && error.message.includes('already registered')) {
           const currentProjects = roleData?.currentProjects || [];
           const sem6Project = currentProjects.find(p => p.semester === 6 && p.projectType === 'minor3');
@@ -143,7 +142,6 @@ const Sem6Registration = () => {
           }
         }
         
-        // Check if error is due to no faculty allocated
         if (error.message && (error.message.includes('allocated faculty') || error.message.includes('does not have an allocated faculty'))) {
           toast.error('Your group does not have an allocated faculty. Please contact your admin.');
           setTimeout(() => navigate('/dashboard/student'), 1500);
@@ -162,7 +160,7 @@ const Sem6Registration = () => {
     loadSem5Data();
     
     return () => {
-      isMounted = false; // Cleanup: prevent state updates after unmount
+      isMounted = false;
     };
   }, [navigate, roleData]);
 
@@ -175,191 +173,96 @@ const Sem6Registration = () => {
     }
   }, [roleData, user, navigate]);
 
-  // Step 1: Show Group Details
+  // Step 1: Group & Faculty Verification (Combined)
   const renderStep1 = () => (
-    <div className="space-y-6">
-      <div className="text-center mb-6">
-        <h2 className="text-2xl font-bold text-gray-900 mb-2">Step 1: Your Group</h2>
-        <p className="text-gray-600">
-          Your group from Semester 5 will continue in Semester 6 with the same members.
-        </p>
-      </div>
+    <div className="space-y-3">
 
+      {/* Leader Warning */}
       {!isGroupLeader && (
-        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
-          <div className="flex items-start">
-            <div className="flex-shrink-0">
-              <svg className="h-5 w-5 text-yellow-400" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-              </svg>
-            </div>
-            <div className="ml-3">
-              <h3 className="text-sm font-medium text-yellow-800">Note: You are not the group leader</h3>
-              <div className="mt-2 text-sm text-yellow-700">
-                <p>Only your group leader can register for Semester 6. Please ask your group leader ({groupData?.leader?.fullName}) to complete the registration.</p>
-              </div>
+        <div className="bg-warning-50 border border-warning-200 rounded-lg p-3">
+          <div className="flex items-start gap-2">
+            <FiAlertTriangle className="w-4 h-4 text-warning-600 mt-0.5 flex-shrink-0" />
+            <div className="flex-1">
+              <p className="text-xs font-semibold text-warning-900 mb-1">Only Group Leader Can Register</p>
+              <p className="text-xs text-warning-700">
+                Only your group leader ({groupData?.leader?.fullName}) can register for Semester 6. Please ask them to complete the registration.
+              </p>
             </div>
           </div>
         </div>
       )}
 
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
-        <div className="flex items-start">
-          <div className="flex-shrink-0">
-            <svg className="h-5 w-5 text-blue-400" fill="currentColor" viewBox="0 0 20 20">
-              <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-            </svg>
+      {/* Group Information Card */}
+      {groupData && (
+        <div className="bg-surface-50 border border-neutral-200 rounded-lg p-3">
+          <div className="flex items-center gap-2 mb-2">
+            <div className="w-6 h-6 bg-primary-100 rounded-lg flex items-center justify-center">
+              <FiUsers className="w-3.5 h-3.5 text-primary-600" />
           </div>
-          <div className="ml-3">
-            <h3 className="text-sm font-medium text-blue-800">Group Information</h3>
-            <div className="mt-2 text-sm text-blue-700">
-              <p>All group members from Semester 5 will continue working together in Semester 6.</p>
+            <h3 className="text-xs font-semibold text-neutral-900">Group Information</h3>
             </div>
-          </div>
-        </div>
+          
+          <div className="space-y-2">
+            <div>
+              <p className="text-[10px] font-medium text-neutral-500 mb-0.5">Group Name</p>
+              <p className="text-xs font-semibold text-neutral-900">{groupData.name}</p>
       </div>
 
-      {groupData && (
-        <div className="bg-white border border-gray-200 rounded-lg p-6">
-          <div className="mb-4">
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">
-              Group Name: {groupData.name}
-            </h3>
             {groupData.description && (
-              <p className="text-gray-600">{groupData.description}</p>
+              <div>
+                <p className="text-[10px] font-medium text-neutral-500 mb-0.5">Description</p>
+                <p className="text-xs text-neutral-700">{groupData.description}</p>
+              </div>
             )}
-          </div>
 
-          <div className="mt-4">
-            <h4 className="text-md font-medium text-gray-700 mb-3">Group Members</h4>
+            <div>
+              <p className="text-[10px] font-medium text-neutral-500 mb-1.5">Members</p>
             <GroupMemberList 
               members={groupData.members || []}
               showRoles={true}
               showContact={false}
               currentUserId={roleData?._id}
+                showStats={false}
             />
+            </div>
           </div>
         </div>
       )}
 
-      <div className="flex justify-between">
+      {/* Action Buttons */}
+      <div className="flex items-center justify-between pt-2 border-t border-neutral-200">
         <button
           type="button"
           onClick={() => navigate('/dashboard/student')}
-          className="px-6 py-3 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-500 transition-colors"
+          className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-neutral-700 bg-white border border-neutral-300 rounded-lg hover:bg-neutral-50 transition-colors"
         >
+          <FiX className="w-4 h-4" />
           Cancel
         </button>
         <button
           type="button"
           onClick={() => setCurrentStep(2)}
           disabled={!isGroupLeader}
-          className={`px-6 py-3 rounded-lg focus:outline-none focus:ring-2 transition-colors ${
+          className={`inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
             isGroupLeader
-              ? 'bg-blue-600 text-white hover:bg-blue-700 focus:ring-blue-500'
-              : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+              ? 'bg-primary-600 text-white hover:bg-primary-700'
+              : 'bg-neutral-300 text-neutral-500 cursor-not-allowed'
           }`}
-          title={!isGroupLeader ? 'Only the group leader can proceed with registration' : ''}
         >
           Continue
+          <FiArrowRight className="w-4 h-4" />
         </button>
       </div>
     </div>
   );
 
-  // Step 2: Show Allocated Faculty
+  // Step 2: Project Choice
   const renderStep2 = () => (
-    <div className="space-y-6">
-      <div className="text-center mb-6">
-        <h2 className="text-2xl font-bold text-gray-900 mb-2">Step 2: Allocated Faculty</h2>
-        <p className="text-gray-600">
-          Your allocated faculty from Semester 5 will continue supervising your group in Semester 6.
-        </p>
-      </div>
+    <div className="space-y-3">
 
-      <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
-        <div className="flex items-start">
-          <div className="flex-shrink-0">
-            <svg className="h-5 w-5 text-green-400" fill="currentColor" viewBox="0 0 20 20">
-              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-            </svg>
-          </div>
-          <div className="ml-3">
-            <h3 className="text-sm font-medium text-green-800">Faculty Allocation</h3>
-            <div className="mt-2 text-sm text-green-700">
-              <p>Your group will continue with the same faculty supervisor from Semester 5.</p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {facultyData && (
-        <div className="bg-white border border-gray-200 rounded-lg p-6">
-          <div className="flex items-start space-x-4">
-            <div className="flex-shrink-0">
-              <div className="w-16 h-16 bg-indigo-100 rounded-full flex items-center justify-center">
-                <span className="text-2xl">👨‍🏫</span>
-              </div>
-            </div>
-            <div className="flex-1">
-              <h3 className="text-xl font-semibold text-gray-900 mb-2">
-                {formatFacultyName(facultyData)}
-              </h3>
-              <div className="space-y-2 text-gray-600">
-                <div>
-                  <span className="font-medium">Department:</span> {facultyData.department || 'N/A'}
-                </div>
-                <div>
-                  <span className="font-medium">Designation:</span> {facultyData.designation || 'N/A'}
-                </div>
-                {facultyData.email && (
-                  <div>
-                    <span className="font-medium">Email:</span> {facultyData.email}
-                  </div>
-                )}
-                {facultyData.phone && (
-                  <div>
-                    <span className="font-medium">Phone:</span> {facultyData.phone}
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      <div className="flex justify-between">
-        <button
-          type="button"
-          onClick={() => setCurrentStep(1)}
-          className="px-6 py-3 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-500 transition-colors"
-        >
-          Back
-        </button>
-        <button
-          type="button"
-          onClick={() => setCurrentStep(3)}
-          className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
-        >
-          Continue
-        </button>
-      </div>
-    </div>
-  );
-
-  // Step 3: Project Continuation Choice
-  const renderStep3 = () => (
-    <div className="space-y-6">
-      <div className="text-center mb-6">
-        <h2 className="text-2xl font-bold text-gray-900 mb-2">Step 3: Project Choice</h2>
-        <p className="text-gray-600">
-          Choose whether to continue your Semester 5 project or start a new project for Semester 6.
-        </p>
-      </div>
-
-      {/* Project Choice Selection */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-        {/* Continue Project Option */}
+      {/* Project Choice Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Continue Project Card */}
         <div
           onClick={() => {
             if (canContinue) {
@@ -367,57 +270,65 @@ const Sem6Registration = () => {
               setProjectChoice('continue');
             }
           }}
-          className={`cursor-pointer border-2 rounded-lg p-6 transition-all ${
+          className={`cursor-pointer border-2 rounded-lg p-4 transition-all ${
             projectChoice === 'continue'
-              ? 'border-blue-500 bg-blue-50'
+              ? 'border-primary-500 bg-primary-50'
               : canContinue
-              ? 'border-gray-300 hover:border-blue-300 hover:bg-gray-50'
-              : 'border-gray-200 bg-gray-100 opacity-50 cursor-not-allowed'
+              ? 'border-neutral-300 hover:border-primary-300 hover:bg-neutral-50'
+              : 'border-neutral-200 bg-neutral-100 opacity-50 cursor-not-allowed'
           }`}
         >
-          <div className="text-center">
-            <div className="text-4xl mb-3">🔄</div>
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">
+          <div className="flex flex-col items-center text-center">
+            <div className={`w-12 h-12 rounded-lg flex items-center justify-center mb-3 ${
+              projectChoice === 'continue' ? 'bg-primary-100' : 'bg-neutral-100'
+            }`}>
+              <FiRefreshCw className={`w-6 h-6 ${projectChoice === 'continue' ? 'text-primary-600' : 'text-neutral-600'}`} />
+            </div>
+            <h3 className="text-sm font-semibold text-neutral-900 mb-1">
               Continue Sem 5 Project
             </h3>
-            <p className="text-sm text-gray-600 mb-4">
+            <p className="text-xs text-neutral-600 mb-3">
               Continue working on your Minor Project 2 as Minor Project 3
             </p>
             {sem5Project && (
-              <div className="bg-white rounded p-3 text-left">
-                <p className="text-xs text-gray-500 mb-1">Current Project:</p>
-                <p className="text-sm font-medium text-gray-900">{sem5Project.title}</p>
+              <div className="w-full bg-white rounded p-2 text-left">
+                <p className="text-[10px] text-neutral-500 mb-1">Current Project:</p>
+                <p className="text-xs font-medium text-neutral-900 line-clamp-2">{sem5Project.title}</p>
               </div>
             )}
             {!canContinue && (
-              <p className="text-xs text-red-600 mt-2">No Sem 5 project available to continue</p>
+              <p className="text-xs text-error-600 mt-2">No Sem 5 project available</p>
             )}
           </div>
         </div>
 
-        {/* New Project Option */}
+        {/* New Project Card */}
         <div
           onClick={() => {
             setIsContinuing(false);
             setProjectChoice('new');
           }}
-          className={`cursor-pointer border-2 rounded-lg p-6 transition-all ${
+          className={`cursor-pointer border-2 rounded-lg p-4 transition-all ${
             projectChoice === 'new'
-              ? 'border-blue-500 bg-blue-50'
-              : 'border-gray-300 hover:border-blue-300 hover:bg-gray-50'
+              ? 'border-primary-500 bg-primary-50'
+              : 'border-neutral-300 hover:border-primary-300 hover:bg-neutral-50'
           }`}
         >
-          <div className="text-center">
-            <div className="text-4xl mb-3">✨</div>
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">
+          <div className="flex flex-col items-center text-center">
+            <div className={`w-12 h-12 rounded-lg flex items-center justify-center mb-3 ${
+              projectChoice === 'new' ? 'bg-primary-100' : 'bg-neutral-100'
+            }`}>
+              <FiPlus className={`w-6 h-6 ${projectChoice === 'new' ? 'text-primary-600' : 'text-neutral-600'}`} />
+            </div>
+            <h3 className="text-sm font-semibold text-neutral-900 mb-1">
               Start New Project
             </h3>
-            <p className="text-sm text-gray-600 mb-4">
+            <p className="text-xs text-neutral-600 mb-3">
               Start a fresh Minor Project 3 for Semester 6
             </p>
-            <div className="bg-white rounded p-3 text-left">
-              <p className="text-xs text-gray-500 mb-1">You will need to:</p>
-              <ul className="text-xs text-gray-700 space-y-1">
+            <div className="w-full bg-white rounded p-2 text-left">
+              <p className="text-[10px] text-neutral-500 mb-1">You will need to:</p>
+              <ul className="text-xs text-neutral-700 space-y-0.5">
                 <li>• Enter project title</li>
                 <li>• Select project domain</li>
               </ul>
@@ -426,11 +337,11 @@ const Sem6Registration = () => {
         </div>
       </div>
 
-      {/* Show form if new project selected */}
+      {/* New Project Form */}
       {projectChoice === 'new' && (
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-6 bg-white border border-gray-200 rounded-lg p-6">
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 bg-white border border-neutral-200 rounded-lg p-4">
           <div>
-            <label htmlFor="title" className="block text-sm font-medium text-gray-700 mb-2">
+            <label htmlFor="title" className="block text-xs font-medium text-neutral-700 mb-1.5">
               Project Title *
             </label>
             <input
@@ -447,31 +358,39 @@ const Sem6Registration = () => {
                   message: 'Title cannot exceed 200 characters'
                 }
               })}
-              className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-                errors.title ? 'border-red-500' : 'border-gray-300'
+              className={`w-full px-3 py-2.5 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 ${
+                errors.title ? 'border-error-500' : 'border-neutral-300'
               }`}
               placeholder="Enter your Minor Project 3 title"
             />
             {errors.title && (
-              <p className="mt-1 text-sm text-red-600">{errors.title.message}</p>
+              <p className="mt-1 text-xs text-error-600">{errors.title.message}</p>
             )}
-            <p className="mt-2 text-sm text-gray-600">
-              💡 <strong>Not decided yet?</strong> You can write "TBD" (To Be Determined) as the project title. The title can be changed later from your project dashboard.
+            <p className="mt-1.5 text-xs text-neutral-600">
+              <FiInfo className="w-3 h-3 inline mr-1" />
+              <strong>Not decided yet?</strong> You can write "TBD" (To Be Determined). The title can be changed later.
             </p>
           </div>
 
           <div>
-            <label htmlFor="domain" className="block text-sm font-medium text-gray-700 mb-2">
+            <label htmlFor="domain" className="block text-xs font-medium text-neutral-700 mb-1.5">
               Project Domain *
             </label>
+            <div className="relative">
             <select
               id="domain"
               {...register('domain', {
                 required: 'Please select a project domain'
               })}
-              className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-                errors.domain ? 'border-red-500' : 'border-gray-300'
+                className={`w-full px-3 py-2.5 text-sm border rounded-lg appearance-none focus:outline-none focus:ring-2 focus:ring-primary-500 ${
+                  errors.domain ? 'border-error-500' : 'border-neutral-300'
               }`}
+                style={{
+                  backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23334155' d='M6 9L1 4h10z'/%3E%3C/svg%3E")`,
+                  backgroundRepeat: 'no-repeat',
+                  backgroundPosition: 'right 0.75rem center',
+                  paddingRight: '2.5rem'
+                }}
             >
               <option value="">Select a domain</option>
               <option value="Web Development">Web Development</option>
@@ -489,14 +408,14 @@ const Sem6Registration = () => {
               <option value="Operating Systems">Operating Systems</option>
               <option value="Other">Other</option>
             </select>
+            </div>
             {errors.domain && (
-              <p className="mt-1 text-sm text-red-600">{errors.domain.message}</p>
+              <p className="mt-1 text-xs text-error-600">{errors.domain.message}</p>
             )}
           
-            {/* Custom domain input - only show when "Other" is selected */}
             {watchedDomain === 'Other' && (
               <div className="mt-3">
-                <label htmlFor="customDomain" className="block text-sm font-medium text-gray-700 mb-2">
+                <label htmlFor="customDomain" className="block text-xs font-medium text-neutral-700 mb-1.5">
                   Specify Domain *
                 </label>
                 <input
@@ -504,58 +423,57 @@ const Sem6Registration = () => {
                   id="customDomain"
                   value={customDomain}
                   onChange={(e) => setCustomDomain(e.target.value)}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full px-3 py-2.5 text-sm border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
                   placeholder="Enter your custom domain"
                   required={watchedDomain === 'Other'}
                 />
                 {watchedDomain === 'Other' && !customDomain.trim() && (
-                  <p className="mt-1 text-sm text-red-600">Please specify the domain</p>
+                  <p className="mt-1 text-xs text-error-600">Please specify the domain</p>
                 )}
               </div>
             )}
           </div>
 
-          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-            <div className="flex items-start">
-              <div className="flex-shrink-0">
-                <svg className="h-5 w-5 text-yellow-400" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                </svg>
-              </div>
-              <div className="ml-3">
-                <h3 className="text-sm font-medium text-yellow-800">Note</h3>
-                <div className="mt-2 text-sm text-yellow-700">
-                  <p>Your Semester 5 project will be moved to the "Previous Projects" section after registration.</p>
-                </div>
-              </div>
+          <div className="bg-warning-50 border border-warning-200 rounded-lg p-3">
+            <div className="flex items-start gap-2">
+              <FiAlertTriangle className="w-4 h-4 text-warning-600 mt-0.5 flex-shrink-0" />
+              <p className="text-xs text-warning-700">
+                Your Semester 5 project will be moved to the "Previous Projects" section after registration.
+              </p>
             </div>
           </div>
         </form>
       )}
 
-      {/* Show continuation confirmation */}
+      {/* Continuation Confirmation */}
       {projectChoice === 'continue' && sem5Project && (
-        <div className="bg-white border border-gray-200 rounded-lg p-6">
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
-            <h3 className="text-lg font-semibold text-blue-900 mb-2">
+        <div className="bg-success-50 border border-success-200 rounded-lg p-4">
+          <div className="flex items-start gap-2 mb-2">
+            <FiCheckCircle className="w-4 h-4 text-success-600 mt-0.5 flex-shrink-0" />
+            <div className="flex-1">
+              <h3 className="text-sm font-semibold text-success-900 mb-1">
               Continue: {sem5Project.title}
             </h3>
-            <p className="text-blue-800 mb-2">
+              <p className="text-xs text-success-700 mb-2">
               Your project will be continued as <strong>Minor Project 3</strong> with the same title and description.
             </p>
-            <div className="mt-3 text-sm text-blue-700">
-              <p><strong>Description:</strong></p>
-              <p className="mt-1">{sem5Project.description || 'No description available'}</p>
+              {sem5Project.description && (
+                <div className="mt-2">
+                  <p className="text-xs font-medium text-success-800 mb-1">Description:</p>
+                  <p className="text-xs text-success-700">{sem5Project.description}</p>
+                </div>
+              )}
             </div>
           </div>
         </div>
       )}
 
-      <div className="flex justify-between">
+      {/* Action Buttons */}
+      <div className="flex items-center justify-between pt-2 border-t border-neutral-200">
         <button
           type="button"
-          onClick={() => setCurrentStep(2)}
-          className="px-6 py-3 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-500 transition-colors"
+          onClick={() => setCurrentStep(1)}
+          className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-neutral-700 bg-white border border-neutral-300 rounded-lg hover:bg-neutral-50 transition-colors"
         >
           Back
         </button>
@@ -563,13 +481,23 @@ const Sem6Registration = () => {
           type="button"
           onClick={handleSubmit(onSubmit)}
           disabled={!projectChoice || submitting || (projectChoice === 'new' && (!watchedTitle || !watchedDomain || (watchedDomain === 'Other' && !customDomain.trim())))}
-          className={`px-6 py-3 rounded-lg transition-colors ${
+          className={`inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
             !projectChoice || submitting || (projectChoice === 'new' && (!watchedTitle || !watchedDomain || (watchedDomain === 'Other' && !customDomain.trim())))
-              ? 'bg-gray-400 text-gray-600 cursor-not-allowed'
-              : 'bg-blue-600 text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500'
+              ? 'bg-neutral-400 text-neutral-600 cursor-not-allowed'
+              : 'bg-primary-600 text-white hover:bg-primary-700'
           }`}
         >
-          {submitting ? 'Registering...' : 'Register Project'}
+          {submitting ? (
+            <>
+              <FiLoader className="w-4 h-4 animate-spin" />
+              Registering...
+            </>
+          ) : (
+            <>
+              Register Project
+              <FiCheckCircle className="w-4 h-4" />
+            </>
+          )}
         </button>
       </div>
     </div>
@@ -601,7 +529,6 @@ const Sem6Registration = () => {
     try {
       setSubmitting(true);
 
-      // Determine the final domain value
       const finalDomain = projectChoice === 'new' 
         ? (data.domain === 'Other' ? customDomain.trim() : data.domain)
         : undefined;
@@ -637,10 +564,10 @@ const Sem6Registration = () => {
   if (loading) {
     return (
       <Layout>
-        <div className="min-h-screen flex items-center justify-center">
-          <div className="flex items-center space-x-3">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-            <p className="text-gray-600">Loading registration data...</p>
+        <div className="min-h-[calc(100vh-64px)] flex items-center justify-center bg-surface-200">
+          <div className="flex items-center gap-3">
+            <FiLoader className="w-6 h-6 animate-spin text-primary-600" />
+            <p className="text-sm text-neutral-600">Loading registration data...</p>
           </div>
         </div>
       </Layout>
@@ -649,45 +576,183 @@ const Sem6Registration = () => {
 
   return (
     <Layout>
-      <div className="max-w-4xl mx-auto py-8 px-4">
-        {/* Progress Indicator */}
-        <div className="mb-8">
-          <div className="flex items-center justify-between">
-            {[1, 2, 3].map((step) => (
-              <div key={step} className="flex items-center flex-1">
-                <div className="flex flex-col items-center">
-                  <div
-                    className={`w-10 h-10 rounded-full flex items-center justify-center font-semibold ${
-                      currentStep >= step
-                        ? 'bg-blue-600 text-white'
-                        : 'bg-gray-200 text-gray-600'
-                    }`}
-                  >
-                    {step}
-                  </div>
-                  <div className="mt-2 text-xs text-gray-600 text-center">
-                    {step === 1 && 'Group'}
-                    {step === 2 && 'Faculty'}
-                    {step === 3 && 'Project'}
+      <div className="h-[calc(100vh-64px)] bg-surface-200 overflow-hidden">
+        <div className="h-full w-full px-2 sm:px-4 lg:px-6 py-2 flex flex-col">
+          {/* Header */}
+          <div className="flex items-center justify-between pb-2 border-b border-neutral-200">
+            <div>
+              <h1 className="text-lg sm:text-xl font-bold text-neutral-900">
+                Minor Project 3 – Registration
+              </h1>
+              <p className="mt-0.5 text-xs text-neutral-600">
+                Register your Semester 6 Minor Project 3 (continue or new).
+              </p>
+            </div>
+            <button
+              onClick={() => navigate('/dashboard/student')}
+              className="p-1.5 rounded-md text-neutral-500 hover:text-neutral-800 hover:bg-neutral-100 transition-colors"
+            >
+              <FiX className="w-4 h-4" />
+            </button>
+          </div>
+
+          {/* Main layout */}
+          <div className="mt-3 flex flex-col lg:flex-row gap-3 lg:gap-4 flex-1 min-h-0">
+            {/* Left Column - Form Content (65%) */}
+            <div className="w-full lg:flex-[0.65] flex flex-col h-full min-h-0 space-y-3 overflow-y-auto custom-scrollbar pr-1">
+              {/* Step card */}
+              <div className="bg-white rounded-xl border border-neutral-200 flex flex-col">
+                <div className="px-4 py-3 border-b border-neutral-200 flex items-center justify-between gap-2">
+                  <div>
+                    <h2 className="text-sm font-semibold text-neutral-900">
+                      {currentStep === 1 && 'Step 1 · Group & Faculty Verification'}
+                      {currentStep === 2 && 'Step 2 · Project Choice'}
+                    </h2>
+                    <p className="text-[11px] text-neutral-500">
+                      {currentStep === 1 && 'Review your group and faculty information.'}
+                      {currentStep === 2 && 'Choose whether to continue your Sem 5 project or start a new one.'}
+                    </p>
                   </div>
                 </div>
-                {step < 3 && (
-                  <div
-                    className={`flex-1 h-1 mx-2 ${
-                      currentStep > step ? 'bg-blue-600' : 'bg-gray-200'
-                    }`}
-                  />
+
+                <div className="px-4 py-3 flex-1 min-h-0 overflow-visible">
+                  {currentStep === 1 && renderStep1()}
+                  {currentStep === 2 && renderStep2()}
+                </div>
+              </div>
+            </div>
+
+            {/* Right Column - Progress & Info (35%) */}
+            <div className="w-full lg:flex-[0.35] flex flex-col h-full min-h-0 space-y-3 mt-4 lg:mt-0 overflow-y-auto custom-scrollbar pl-1">
+              {/* Registration Progress */}
+              <div className="bg-surface-100 rounded-xl border border-neutral-200 p-3">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <div className="w-6 h-6 rounded-full bg-primary-50 flex items-center justify-center">
+                      <FiTarget className="w-3.5 h-3.5 text-primary-600" />
+                    </div>
+                    <p className="text-xs font-semibold text-neutral-800">Registration progress</p>
+                  </div>
+                  <span className="text-[11px] text-neutral-500">
+                    Step {currentStep} of 2
+                  </span>
+                </div>
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    {currentStep >= 1 ? (
+                      <div className="w-6 h-6 rounded-full bg-success-600 text-white flex items-center justify-center">
+                        <FiCheckCircle className="w-3.5 h-3.5" />
+                      </div>
+                    ) : (
+                      <div className="w-6 h-6 rounded-full border-2 border-neutral-300"></div>
+                    )}
+                    <div className="flex-1">
+                      <p className="text-xs font-medium text-neutral-800">Group & Faculty</p>
+                      <p className="text-[11px] text-neutral-600">
+                        {currentStep >= 1 ? 'Completed' : 'In progress'}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {currentStep >= 2 ? (
+                      <div className="w-6 h-6 rounded-full bg-success-600 text-white flex items-center justify-center">
+                        <FiCheckCircle className="w-3.5 h-3.5" />
+                      </div>
+                    ) : (
+                      <div className="w-6 h-6 rounded-full border-2 border-neutral-300"></div>
+                    )}
+                    <div className="flex-1">
+                      <p className="text-xs font-medium text-neutral-800">Project Choice</p>
+                      <p className="text-[11px] text-neutral-600">
+                        {currentStep >= 2 ? 'Completed' : currentStep === 1 ? 'Next step' : 'Not started'}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Faculty Guide */}
+              {facultyData && (
+                <div className="bg-success-50 rounded-xl border border-success-200 p-3">
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="w-6 h-6 rounded-full bg-success-100 flex items-center justify-center">
+                      <FiUserCheck className="w-3.5 h-3.5 text-success-600" />
+                    </div>
+                    <p className="text-xs font-semibold text-success-900">Faculty Guide</p>
+                  </div>
+                  <div className="space-y-2">
+                    <div>
+                      <p className="text-[10px] font-medium text-success-700 mb-0.5">Name</p>
+                      <p className="text-xs font-semibold text-success-900">{formatFacultyName(facultyData)}</p>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <p className="text-[10px] font-medium text-success-700 mb-0.5">Department</p>
+                        <p className="text-xs text-success-800">{facultyData.department || 'N/A'}</p>
+                  </div>
+                      <div>
+                        <p className="text-[10px] font-medium text-success-700 mb-0.5">Designation</p>
+                        <p className="text-xs text-success-800">{facultyData.designation || 'N/A'}</p>
+                  </div>
+                </div>
+                    {facultyData.email && (
+                      <div className="flex items-center gap-1.5">
+                        <FiMail className="w-3 h-3 text-success-600" />
+                        <p className="text-xs text-success-800">{facultyData.email}</p>
+                      </div>
+                    )}
+                    {facultyData.phone && (
+                      <div className="flex items-center gap-1.5">
+                        <FiPhone className="w-3 h-3 text-success-600" />
+                        <p className="text-xs text-success-800">{facultyData.phone}</p>
+                      </div>
                 )}
               </div>
-            ))}
+                </div>
+              )}
+
+              {/* About Minor Project 3 */}
+              <div className="bg-info-50 rounded-xl border border-info-200 p-3">
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="w-6 h-6 rounded-full bg-info-100 flex items-center justify-center">
+                    <FiInfo className="w-3.5 h-3.5 text-info-600" />
+                  </div>
+                  <p className="text-xs font-semibold text-info-900">About Minor Project 3</p>
+                </div>
+                <div className="space-y-1.5 text-xs text-info-800">
+                  <p>• Group project (4-5 members)</p>
+                  <p>• Continue Sem 5 OR new</p>
+                  <p>• Same group & faculty</p>
+                  <p>• Duration: 4-5 months</p>
           </div>
         </div>
 
-        {/* Step Content */}
-        <div className="bg-white rounded-lg shadow-lg p-8">
-          {currentStep === 1 && renderStep1()}
-          {currentStep === 2 && renderStep2()}
-          {currentStep === 3 && renderStep3()}
+              {/* Tips */}
+              <div className="bg-warning-50 rounded-xl border border-warning-200 p-3">
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="w-6 h-6 rounded-full bg-warning-100 flex items-center justify-center">
+                    <FiAlertCircle className="w-3.5 h-3.5 text-warning-600" />
+                  </div>
+                  <p className="text-xs font-semibold text-warning-900">Tips</p>
+                </div>
+                <div className="space-y-1.5 text-xs text-warning-800">
+                  {currentStep === 1 ? (
+                    <>
+                      <p><FiUsers className="w-3 h-3 inline mr-1" />Your Sem 5 group continues</p>
+                      <p><FiUserCheck className="w-3 h-3 inline mr-1" />Same faculty supervisor</p>
+                      <p><FiInfo className="w-3 h-3 inline mr-1" />Only leader can register</p>
+                    </>
+                  ) : (
+                    <>
+                      <p><FiRefreshCw className="w-3 h-3 inline mr-1" />Continue if project is ongoing</p>
+                      <p><FiPlus className="w-3 h-3 inline mr-1" />Start new for different topic</p>
+                      <p><FiFileText className="w-3 h-3 inline mr-1" />Title can be "TBD" initially</p>
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </Layout>
@@ -695,4 +760,3 @@ const Sem6Registration = () => {
 };
 
 export default Sem6Registration;
-

@@ -8,6 +8,11 @@ import { studentAPI } from '../../utils/api';
 import { toast } from 'react-hot-toast';
 import Layout from '../../components/common/Layout';
 import { formatFacultyName } from '../../utils/formatUtils';
+import { 
+  FiArrowLeft, FiX, FiInfo, FiCheckCircle, FiAlertCircle, FiAlertTriangle, 
+  FiTarget, FiFileText, FiUsers, FiUserPlus, FiChevronUp, FiChevronDown, 
+  FiSearch, FiLoader, FiZap 
+} from 'react-icons/fi';
 
 const Internship1Registration = () => {
   const navigate = useNavigate();
@@ -40,31 +45,42 @@ const Internship1Registration = () => {
   const isType1 = isSem8 && sem8Status?.studentType === 'type1';
   
   // Use appropriate status and project based on semester
-  const internship1Status = isSem8 ? null : sem7Internship1Status; // Will load separately for Sem 8
-  const internship1Project = isSem8 ? null : sem7Internship1Project; // Will load separately for Sem 8
+  const internship1Status = isSem8 ? null : sem7Internship1Status;
+  const internship1Project = isSem8 ? null : sem7Internship1Project;
   const loading = isSem8 ? sem8Loading : sem7Loading;
 
-  const [currentStep, setCurrentStep] = useState(1);
+  // Initialize state from localStorage or defaults
+  const [currentStep, setCurrentStep] = useState(() => {
+    const saved = localStorage.getItem(`internship1Registration_${isInternship2Route ? 'internship2' : 'internship1'}_currentStep`);
+    return saved ? parseInt(saved) : 1;
+  });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [facultyList, setFacultyList] = useState([]);
-  const [facultyPreferences, setFacultyPreferences] = useState([]);
+  const [facultyPreferences, setFacultyPreferences] = useState(() => {
+    const saved = localStorage.getItem(`internship1Registration_${isInternship2Route ? 'internship2' : 'internship1'}_facultyPreferences`);
+    return saved ? JSON.parse(saved) : [];
+  });
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedDepartment, setSelectedDepartment] = useState('all');
   const [windowStatus, setWindowStatus] = useState(null);
-  const [facultyPreferenceLimit, setFacultyPreferenceLimit] = useState(5); // Default to 5
+  const [facultyPreferenceLimit, setFacultyPreferenceLimit] = useState(5);
   const [allowedFacultyTypes, setAllowedFacultyTypes] = useState(['Regular', 'Adjunct', 'On Lien']);
-
-  const [customDomain, setCustomDomain] = useState('');
+  const [customDomain, setCustomDomain] = useState(() => {
+    const saved = localStorage.getItem(`internship1Registration_${isInternship2Route ? 'internship2' : 'internship1'}_customDomain`);
+    return saved || '';
+  });
+  const [isRestoredFromStorage, setIsRestoredFromStorage] = useState(false);
 
   const {
     register,
     handleSubmit,
     formState: { errors },
-    watch
+    watch,
+    reset
   } = useForm({
     defaultValues: {
-      title: '',
-      domain: ''
+      title: localStorage.getItem(`internship1Registration_${isInternship2Route ? 'internship2' : 'internship1'}_title`) || '',
+      domain: localStorage.getItem(`internship1Registration_${isInternship2Route ? 'internship2' : 'internship1'}_domain`) || ''
     }
   });
 
@@ -72,12 +88,16 @@ const Internship1Registration = () => {
   const [sem8Internship1Status, setSem8Internship1Status] = useState(null);
   const [sem8Internship1Project, setSem8Internship1Project] = useState(null);
   
+  // Determine labels based on route
+  const internshipLabel = isInternship2Route ? 'Internship 2' : 'Internship 1';
+  const internshipProjectLabel = isInternship2Route ? 'Internship 2 Project' : 'Internship 1 Project';
+  const storageKey = isInternship2Route ? 'internship2' : 'internship1';
+  
   // Load eligibility status first
   useEffect(() => {
     if (isSem7 && !internship1Status && !sem7Loading) {
       fetchSem7Data();
     } else if (isSem8 && !isInternship2Route && !sem8Internship1Status && !sem8Loading) {
-      // Load Internship 1 status for Sem 8 Type 1 students (not Internship 2)
       const loadSem8Internship1Status = async () => {
         try {
           const response = await studentAPI.checkInternship1Status();
@@ -93,7 +113,6 @@ const Internship1Registration = () => {
       };
       loadSem8Internship1Status();
     }
-    // For Internship 2 route, status is already loaded via useSem8 hook
   }, [isSem7, isSem8, isInternship2Route, internship1Status, sem7Loading, sem8Internship1Status, sem8Loading, fetchSem7Data]);
   
   // Use the appropriate status and project based on route and semester
@@ -105,64 +124,70 @@ const Internship1Registration = () => {
     : (isSem8 ? sem8Internship1Project : internship1Project);
 
   // Combined validation: Check eligibility, track choice, and project status
-  // Only run after all data is loaded to avoid false positives and duplicate errors
   useEffect(() => {
-    // Don't validate while loading
     if (loading) return;
     
-    // Wait for data to be loaded
     if (!isSem7 && !isSem8) {
-      const internshipLabel = isInternship2Route ? 'Internship 2' : 'Internship 1';
       toast.error(`${internshipLabel} registration is only available for Semester 7 or Semester 8 students`);
       navigate('/dashboard/student');
       return;
     }
     
-    // For Sem 8 Internship 1, check if Type 1 student
     if (isSem8 && !isInternship2Route && !isType1) {
-      toast.error('Only Type 1 students (who completed 6-month internship in Sem 7) can register for Internship 1 in Sem 8');
+      toast.error(`Only Type 1 students (who completed 6-month internship in Sem 7) can register for ${internshipLabel} in Sem 8`);
       navigate('/dashboard/student');
       return;
     }
-    
-    // For Sem 8 Internship 2, Type 1 students are eligible (summer internship failed/absent)
-    // Eligibility is checked via internship2Status from backend
 
-    // Check if already registered (exclude cancelled projects)
     if (effectiveInternship1Project && effectiveInternship1Project.status !== 'cancelled') {
-      const internshipLabel = isInternship2Route ? 'Internship 2' : 'Internship 1';
       toast(`You have already registered for ${internshipLabel}`, { icon: 'ℹ️' });
       navigate(isInternship2Route ? '/student/sem8/internship2/dashboard' : '/dashboard/student');
       return;
     }
 
-    // Check eligibility status from backend (this includes track choice check)
-    // This is the single source of truth - don't duplicate track choice check
     if (effectiveInternship1Status) {
       if (!effectiveInternship1Status.eligible) {
-        // Only show error if we have a reason (backend should provide it)
         if (effectiveInternship1Status.reason) {
           toast.error(effectiveInternship1Status.reason);
         }
         navigate('/dashboard/student');
         return;
       }
-      // If eligible, allow access to registration form
-    } else {
-      // If no eligibility status yet, wait (data might still be loading)
-      // Don't show error yet
-      return;
     }
-  }, [isSem7, isSem8, isType1, effectiveInternship1Status, effectiveInternship1Project, loading, navigate]);
+  }, [isSem7, isSem8, isType1, effectiveInternship1Status, effectiveInternship1Project, loading, navigate, internshipLabel, isInternship2Route]);
+
+  // Check if form was restored from localStorage
+  useEffect(() => {
+    const hasStoredData = localStorage.getItem(`internship1Registration_${storageKey}_currentStep`) ||
+                         localStorage.getItem(`internship1Registration_${storageKey}_title`) ||
+                         localStorage.getItem(`internship1Registration_${storageKey}_domain`) ||
+                         localStorage.getItem(`internship1Registration_${storageKey}_facultyPreferences`);
+    
+    if (hasStoredData) {
+      setIsRestoredFromStorage(true);
+      setTimeout(() => setIsRestoredFromStorage(false), 5000);
+    }
+  }, [storageKey]);
+
+  // Persist state changes to localStorage
+  useEffect(() => {
+    localStorage.setItem(`internship1Registration_${storageKey}_currentStep`, currentStep.toString());
+  }, [currentStep, storageKey]);
+
+  useEffect(() => {
+    localStorage.setItem(`internship1Registration_${storageKey}_facultyPreferences`, JSON.stringify(facultyPreferences));
+  }, [facultyPreferences, storageKey]);
+
+  useEffect(() => {
+    localStorage.setItem(`internship1Registration_${storageKey}_customDomain`, customDomain);
+  }, [customDomain, storageKey]);
 
   // Load faculty preference limit and allowed faculty types from system config
   useEffect(() => {
     const loadSystemConfigs = async () => {
       try {
-        // Try semester-specific Internship configs first
         if (isSem8) {
           if (isInternship2Route) {
-            // For Internship 2: Try Sem 8 Internship 2 configs, then defaults
             const [limitResponse, typesResponse] = await Promise.allSettled([
               studentAPI.getSystemConfig('sem8.internship2.facultyPreferenceLimit').catch(() => ({ success: false })),
               studentAPI.getSystemConfig('sem8.internship2.allowedFacultyTypes').catch(() => ({ success: false }))
@@ -171,14 +196,13 @@ const Internship1Registration = () => {
             if (limitResponse.status === 'fulfilled' && limitResponse.value?.success && limitResponse.value?.data?.value) {
               setFacultyPreferenceLimit(limitResponse.value.data.value);
             } else {
-              setFacultyPreferenceLimit(5); // Default
+              setFacultyPreferenceLimit(5);
             }
             
             if (typesResponse.status === 'fulfilled' && typesResponse.value?.success && typesResponse.value?.data?.value && Array.isArray(typesResponse.value.data.value)) {
               setAllowedFacultyTypes(typesResponse.value.data.value);
             }
           } else {
-            // For Sem 8 Internship 1: Try Sem 8 specific configs, then Sem 7 configs, then defaults
             const [limitResponse, typesResponse] = await Promise.allSettled([
               studentAPI.getSystemConfig('sem8.internship1.facultyPreferenceLimit').catch(() => ({ success: false })),
               studentAPI.getSystemConfig('sem8.internship1.allowedFacultyTypes').catch(() => ({ success: false }))
@@ -187,7 +211,6 @@ const Internship1Registration = () => {
             if (limitResponse.status === 'fulfilled' && limitResponse.value?.success && limitResponse.value?.data?.value) {
               setFacultyPreferenceLimit(limitResponse.value.data.value);
             } else {
-              // Fallback to Sem 7 Internship 1 limit
               try {
                 const response = await studentAPI.getSystemConfig('sem7.internship1.facultyPreferenceLimit');
                 if (response.success && response.data?.value) {
@@ -203,7 +226,6 @@ const Internship1Registration = () => {
             if (typesResponse.status === 'fulfilled' && typesResponse.value?.success && typesResponse.value?.data?.value && Array.isArray(typesResponse.value.data.value)) {
               setAllowedFacultyTypes(typesResponse.value.data.value);
             } else {
-              // Fallback to Sem 7 Internship 1 types
               try {
                 const response = await studentAPI.getSystemConfig('sem7.internship1.allowedFacultyTypes');
                 if (response.success && response.data?.value && Array.isArray(response.data.value)) {
@@ -215,7 +237,6 @@ const Internship1Registration = () => {
             }
           }
         } else {
-          // For Sem 7 Internship 1: Load Sem 7 specific configs
           const [limitResponse, typesResponse] = await Promise.allSettled([
             studentAPI.getSystemConfig('sem7.internship1.facultyPreferenceLimit').catch(() => ({ success: false })),
             studentAPI.getSystemConfig('sem7.internship1.allowedFacultyTypes').catch(() => ({ success: false }))
@@ -224,7 +245,7 @@ const Internship1Registration = () => {
           if (limitResponse.status === 'fulfilled' && limitResponse.value?.success && limitResponse.value?.data?.value) {
             setFacultyPreferenceLimit(limitResponse.value.data.value);
           } else {
-            setFacultyPreferenceLimit(5); // Default
+            setFacultyPreferenceLimit(5);
           }
           
           if (typesResponse.status === 'fulfilled' && typesResponse.value?.success && typesResponse.value?.data?.value && Array.isArray(typesResponse.value.data.value)) {
@@ -232,11 +253,9 @@ const Internship1Registration = () => {
           }
         }
       } catch (error) {
-        // Only log non-404 errors to avoid console noise
         if (error.message && !error.message.includes('404') && !error.message.includes('not found')) {
           console.error('Failed to load system configs, using defaults:', error);
         }
-        // Keep default values
       }
     };
 
@@ -247,7 +266,6 @@ const Internship1Registration = () => {
   useEffect(() => {
     const checkWindow = async () => {
       try {
-        // Try semester-specific window first
         const configKey = isSem8 
           ? (isInternship2Route ? 'sem8.internship2.registrationWindow' : 'sem8.internship1.registrationWindow')
           : 'sem7.internship1.registrationWindow';
@@ -257,7 +275,6 @@ const Internship1Registration = () => {
           }
         });
         
-        // Fallback to Sem 7 window if Sem 8 window doesn't exist (only for Internship 1, not Internship 2)
         if (!response.ok && isSem8 && !isInternship2Route) {
           response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/student/system-config/sem7.internship1.registrationWindow`, {
             headers: {
@@ -277,7 +294,7 @@ const Internship1Registration = () => {
       }
     };
     checkWindow();
-  }, [isSem8]);
+  }, [isSem8, isInternship2Route]);
 
   // Load faculty list for preferences
   useEffect(() => {
@@ -334,22 +351,24 @@ const Internship1Registration = () => {
         facultyPreferences: facultyPreferences
       };
 
-      // Use appropriate registration function based on route
+      // Clear localStorage on successful submission
+      localStorage.removeItem(`internship1Registration_${storageKey}_currentStep`);
+      localStorage.removeItem(`internship1Registration_${storageKey}_facultyPreferences`);
+      localStorage.removeItem(`internship1Registration_${storageKey}_title`);
+      localStorage.removeItem(`internship1Registration_${storageKey}_domain`);
+      localStorage.removeItem(`internship1Registration_${storageKey}_customDomain`);
+
       if (isInternship2Route) {
-        // Register Internship 2 using Sem8Context function
         await sem8RegisterInternship2(projectData);
         toast.success('Internship 2 registered successfully!');
         navigate('/student/sem8/internship2/dashboard');
       } else if (isSem8) {
-        // Register Internship 1 for Sem 8 Type 1 students
         const response = await studentAPI.registerInternship1(projectData);
         if (response.success) {
-          // Refresh Sem 8 data - response.data contains { project, facultyPreference, allocationStatus }
           const project = response.data?.project || response.data;
           if (project) {
             setSem8Internship1Project(project);
           }
-          // Refresh status
           const statusResponse = await studentAPI.checkInternship1Status();
           if (statusResponse.success && statusResponse.data) {
             setSem8Internship1Status(statusResponse.data);
@@ -360,7 +379,6 @@ const Internship1Registration = () => {
         toast.success(`${internshipLabel} registered successfully!`);
         navigate('/dashboard/student');
       } else {
-        // Register Internship 1 for Sem 7
         await sem7RegisterInternship1(projectData);
         toast.success(`${internshipLabel} registered successfully!`);
         navigate('/dashboard/student');
@@ -373,6 +391,12 @@ const Internship1Registration = () => {
   };
 
   const onCancel = () => {
+    reset();
+    localStorage.removeItem(`internship1Registration_${storageKey}_currentStep`);
+    localStorage.removeItem(`internship1Registration_${storageKey}_facultyPreferences`);
+    localStorage.removeItem(`internship1Registration_${storageKey}_title`);
+    localStorage.removeItem(`internship1Registration_${storageKey}_domain`);
+    localStorage.removeItem(`internship1Registration_${storageKey}_customDomain`);
     navigate('/dashboard/student');
   };
 
@@ -444,62 +468,67 @@ const Internship1Registration = () => {
     });
   };
 
+  const watchedTitle = watch('title');
   const watchedDomain = watch('domain');
 
-  // Determine labels based on route
-  const internshipLabel = isInternship2Route ? 'Internship 2' : 'Internship 1';
-  const internshipProjectLabel = isInternship2Route ? 'Internship 2 Project' : 'Internship 1 Project';
+  // Persist form data
+  useEffect(() => {
+    if (watchedTitle !== undefined) {
+      localStorage.setItem(`internship1Registration_${storageKey}_title`, watchedTitle || '');
+    }
+  }, [watchedTitle, storageKey]);
+
+  useEffect(() => {
+    if (watchedDomain !== undefined) {
+      localStorage.setItem(`internship1Registration_${storageKey}_domain`, watchedDomain || '');
+    }
+  }, [watchedDomain, storageKey]);
 
   const renderStep1 = () => (
-    <div className="space-y-6">
-      <div className="text-center mb-6">
-        <h2 className="text-2xl font-bold text-gray-900 mb-2">Step 1: Project Details</h2>
-        <p className="text-gray-600">Enter your {internshipLabel} project details</p>
+    <div className="space-y-5">
+      <div>
+        <label htmlFor="title" className="block text-xs font-medium text-neutral-600 mb-1.5">
+          Proposed Title *
+        </label>
+        <input
+          type="text"
+          id="title"
+          {...register('title', {
+            required: 'Project title is required',
+            minLength: {
+              value: 2,
+              message: 'Title must be at least 2 characters long'
+            },
+            maxLength: {
+              value: 200,
+              message: 'Title cannot exceed 200 characters'
+            }
+          })}
+          className={`w-full px-3 py-2.5 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-sm ${
+            errors.title ? 'border-error-500' : 'border-neutral-300'
+          }`}
+          placeholder="Enter your proposed project title (you can write 'TBD' if not decided yet)"
+        />
+        {errors.title && (
+          <p className="mt-1 text-xs text-error-600">{errors.title.message}</p>
+        )}
+        <p className="mt-1 text-xs text-neutral-500">
+          Note: You can write "TBD" if not decided yet. This can be changed later.
+        </p>
       </div>
 
-      <form onSubmit={handleSubmit(nextStep)} className="space-y-6">
-        <div>
-          <label htmlFor="title" className="block text-sm font-medium text-gray-700 mb-2">
-            Proposed Title *
-          </label>
-          <input
-            type="text"
-            id="title"
-            {...register('title', {
-              required: 'Project title is required',
-              minLength: {
-                value: 2,
-                message: 'Title must be at least 2 characters long'
-              },
-              maxLength: {
-                value: 200,
-                message: 'Title cannot exceed 200 characters'
-              }
-            })}
-            className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-              errors.title ? 'border-red-500' : 'border-gray-300'
-            }`}
-            placeholder="Enter your proposed project title (you can write 'TBD' if not decided yet)"
-          />
-          {errors.title && (
-            <p className="mt-1 text-sm text-red-600">{errors.title.message}</p>
-          )}
-          <p className="mt-1 text-xs text-gray-500">
-            Note: You can write "TBD" if not decided yet. This can be changed later.
-          </p>
-        </div>
-
-        <div>
-          <label htmlFor="domain" className="block text-sm font-medium text-gray-700 mb-2">
-            Domain *
-          </label>
+      <div>
+        <label htmlFor="domain" className="block text-xs font-medium text-neutral-600 mb-1.5">
+          Domain *
+        </label>
+        <div className="relative">
           <select
             id="domain"
             {...register('domain', {
               required: 'Please select a project domain'
             })}
-            className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-              errors.domain ? 'border-red-500' : 'border-gray-300'
+            className={`w-full px-3 py-2.5 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 appearance-none text-sm pr-10 ${
+              errors.domain ? 'border-error-500' : 'border-neutral-300'
             }`}
           >
             <option value="">Select a domain</option>
@@ -518,182 +547,153 @@ const Internship1Registration = () => {
             <option value="Operating Systems">Operating Systems</option>
             <option value="Other">Other</option>
           </select>
-          {errors.domain && (
-            <p className="mt-1 text-sm text-red-600">{errors.domain.message}</p>
-          )}
-      
-          {/* Custom domain input - only show when "Other" is selected */}
-          {watchedDomain === 'Other' && (
-            <div className="mt-3">
-              <label htmlFor="customDomain" className="block text-sm font-medium text-gray-700 mb-2">
-                Specify Domain *
-              </label>
-              <input
-                type="text"
-                id="customDomain"
-                value={customDomain}
-                onChange={(e) => setCustomDomain(e.target.value)}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                placeholder="Enter your custom domain"
-                required={watchedDomain === 'Other'}
-              />
-              {watchedDomain === 'Other' && !customDomain.trim() && (
-                <p className="mt-1 text-sm text-red-600">Please specify the domain</p>
-              )}
-            </div>
-          )}
-        </div>
-
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-          <div className="flex items-start">
-            <div className="flex-shrink-0">
-              <svg className="h-5 w-5 text-blue-400" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-              </svg>
-            </div>
-            <div className="ml-3">
-              <h3 className="text-sm font-medium text-blue-800">About {internshipLabel}</h3>
-              <div className="mt-2 text-sm text-blue-700">
-                <p>This is a solo project that you will complete under a faculty mentor. You need to select {facultyPreferenceLimit} faculty preferences.</p>
-                <p className="mt-1">Note: You can write "TBD" for the proposed title if not decided yet. This can be changed later.</p>
-              </div>
-            </div>
+          <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+            <svg className="w-4 h-4 text-neutral-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
           </div>
         </div>
+        {errors.domain && (
+          <p className="mt-1 text-xs text-error-600">{errors.domain.message}</p>
+        )}
+      
+        {watchedDomain === 'Other' && (
+          <div className="mt-3">
+            <label htmlFor="customDomain" className="block text-xs font-medium text-neutral-600 mb-1.5">
+              Specify Domain *
+            </label>
+            <input
+              type="text"
+              id="customDomain"
+              value={customDomain}
+              onChange={(e) => setCustomDomain(e.target.value)}
+              className="w-full px-3 py-2.5 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-sm"
+              placeholder="Enter your custom domain"
+              required={watchedDomain === 'Other'}
+            />
+            {watchedDomain === 'Other' && !customDomain.trim() && (
+              <p className="mt-1 text-xs text-error-600">Please specify the domain</p>
+            )}
+          </div>
+        )}
+      </div>
 
-        <div className="flex justify-between">
-          <button
-            type="button"
-            onClick={onCancel}
-            className="px-6 py-3 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-500 transition-colors"
-          >
-            Cancel
-          </button>
-          <button
-            type="submit"
-            disabled={watchedDomain === 'Other' && !customDomain.trim()}
-            className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            Continue to Faculty Preferences
-          </button>
-        </div>
-      </form>
+      <div className="flex justify-between pt-2">
+        <button
+          type="button"
+          onClick={onCancel}
+          className="px-4 py-2.5 text-sm text-neutral-700 bg-white border border-neutral-300 rounded-lg hover:bg-neutral-50 focus:outline-none focus:ring-2 focus:ring-neutral-500 transition-colors"
+        >
+          Cancel
+        </button>
+        <button
+          type="submit"
+          disabled={watchedDomain === 'Other' && !customDomain.trim()}
+          className="px-4 py-2.5 text-sm bg-primary-600 text-white rounded-lg hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          Continue to Faculty Preferences
+        </button>
+      </div>
     </div>
   );
 
   const renderStep2 = () => {
     if (facultyList.length === 0) {
       return (
-        <div className="space-y-6">
-          <div className="text-center mb-6">
-            <h2 className="text-2xl font-bold text-gray-900 mb-2">Step 2: Faculty Preferences</h2>
-            <p className="text-gray-600">Loading faculty list...</p>
-          </div>
-          <div className="flex items-center justify-center py-8">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-            <span className="ml-2 text-gray-600">Loading faculty members...</span>
+        <div className="flex items-center justify-center py-12">
+          <div className="text-center">
+            <FiLoader className="w-8 h-8 text-primary-600 animate-spin mx-auto mb-3" />
+            <p className="text-sm text-neutral-600">Loading faculty members...</p>
           </div>
         </div>
       );
     }
     
     return (
-      <div className="space-y-6">
+      <div className="space-y-4">
         {/* Instructions */}
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
-          <div className="flex items-start">
-            <div className="flex-shrink-0">
-              <svg className="h-5 w-5 text-blue-400" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-              </svg>
-            </div>
-            <div className="ml-3">
-              <h3 className="text-sm font-medium text-blue-800">How to Select Faculty Preferences</h3>
-              <div className="mt-2 text-sm text-blue-700 space-y-1">
-                <p><strong>1. Browse Faculty:</strong> Use the search box to find faculty by name, or filter by department</p>
-                <p><strong>2. Add Faculty:</strong> Click on any faculty member from the right panel to add them to your preferences</p>
-                <p><strong>3. Reorder:</strong> Use the ↑ ↓ arrows next to each selected faculty to change their priority order</p>
-                <p><strong>4. Remove:</strong> Click the × button to remove any faculty from your preferences</p>
-                <p><strong>5. Complete:</strong> Select exactly {facultyPreferenceLimit} faculty members and click "Complete Registration"</p>
-                <p className="text-red-600 font-semibold"><strong>⚠️ Required:</strong> You must select exactly {facultyPreferenceLimit} faculty preferences to proceed</p>
+        <div className="bg-info-50 border border-info-200 rounded-lg p-3">
+          <div className="flex items-start gap-2">
+            <FiInfo className="w-4 h-4 text-info-600 flex-shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <h3 className="text-xs font-medium text-info-800 mb-1.5">How to Select Faculty Preferences</h3>
+              <div className="text-xs text-info-700 space-y-1">
+                <p><strong>1. Browse Faculty:</strong> Use search or filter by department</p>
+                <p><strong>2. Add Faculty:</strong> Click on any faculty member to add them</p>
+                <p><strong>3. Reorder:</strong> Use ↑ ↓ arrows to change priority</p>
+                <p><strong>4. Remove:</strong> Click × button to remove</p>
+                <p><strong>5. Complete:</strong> Select exactly {facultyPreferenceLimit} faculty members</p>
+                <p className="text-error-600 font-semibold mt-1.5">⚠️ Required: You must select exactly {facultyPreferenceLimit} faculty preferences</p>
               </div>
             </div>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {/* Selected Preferences */}
-          <div className="space-y-4">
-            <h3 className="text-lg font-semibold text-gray-900">
-              Your Preferences ({facultyPreferences.length}/{facultyPreferenceLimit})
-              {facultyPreferences.length === facultyPreferenceLimit && (
-                <span className="ml-2 text-sm text-green-600 font-medium">✓ Complete</span>
-              )}
-            </h3>
+          <div className="flex flex-col h-[22rem]">
+            <div className="flex-shrink-0 mb-2">
+              <h3 className="text-sm font-semibold text-neutral-900">
+                Your Preferences ({facultyPreferences.length}/{facultyPreferenceLimit})
+                {facultyPreferences.length === facultyPreferenceLimit && (
+                  <span className="ml-2 text-xs text-success-600 font-medium">✓ Complete</span>
+                )}
+              </h3>
+            </div>
             
             {facultyPreferences.length === 0 ? (
-              <div className="bg-gray-50 border-2 border-dashed border-gray-300 rounded-lg p-8 text-center">
-                <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                </svg>
-                <p className="mt-2 text-sm text-gray-500">No faculty selected yet</p>
-                <p className="text-xs text-gray-400">Click on faculty members from the right panel to add them to your preferences</p>
-                <p className="text-xs text-red-500 font-medium mt-2">⚠️ You need to select exactly {facultyPreferenceLimit} faculty members</p>
+              <div className="flex-1 bg-neutral-50 border-2 border-dashed border-neutral-300 rounded-lg p-6 text-center flex flex-col items-center justify-center">
+                <FiUserPlus className="w-8 h-8 text-neutral-400 mb-2" />
+                <p className="text-xs text-neutral-500 mb-1">No faculty selected yet</p>
+                <p className="text-[10px] text-neutral-400">Click on faculty members from the right panel</p>
+                <p className="text-[10px] text-error-500 font-medium mt-2">⚠️ You need to select exactly {facultyPreferenceLimit} faculty members</p>
               </div>
             ) : (
-              <div className="max-h-80 overflow-y-auto space-y-2 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100 pr-2">
+              <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar space-y-2 pr-1">
                 {facultyPreferences.map((preference, index) => (
                   <div
                     key={preference.faculty._id}
-                    className="bg-white border border-gray-200 rounded-lg px-3 py-2 shadow-sm hover:shadow-md transition-shadow"
+                    className="bg-white border border-neutral-200 rounded-lg px-3 py-2.5 shadow-sm hover:shadow-md transition-shadow"
                   >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-3 flex-1 min-w-0">
-                        <div className="flex-shrink-0">
-                          <div className="w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center">
-                            <span className="text-xs font-medium text-blue-600">{index + 1}</span>
-                          </div>
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2 flex-1 min-w-0">
+                        <div className="w-6 h-6 bg-primary-100 rounded-full flex items-center justify-center flex-shrink-0">
+                          <span className="text-xs font-medium text-primary-600">{index + 1}</span>
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-gray-900 truncate">
+                          <p className="text-xs font-medium text-neutral-900 truncate">
                             {formatFacultyName(preference.faculty)}
                           </p>
                         </div>
-                        <div className="text-xs text-gray-500">
+                        <div className="text-[10px] text-neutral-500 flex-shrink-0">
                           {preference.faculty.department}
                         </div>
                       </div>
-                      <div className="flex items-center space-x-1 ml-2">
+                      <div className="flex items-center gap-1 flex-shrink-0">
                         {index > 0 && (
                           <button
                             onClick={() => movePreference(index, index - 1)}
-                            className="p-1 text-gray-400 hover:text-gray-600"
+                            className="p-1 text-neutral-400 hover:text-neutral-600 transition-colors"
                             title="Move up"
                           >
-                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
-                            </svg>
+                            <FiChevronUp className="w-3 h-3" />
                           </button>
                         )}
                         {index < facultyPreferences.length - 1 && (
                           <button
                             onClick={() => movePreference(index, index + 1)}
-                            className="p-1 text-gray-400 hover:text-gray-600"
+                            className="p-1 text-neutral-400 hover:text-neutral-600 transition-colors"
                             title="Move down"
                           >
-                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                            </svg>
+                            <FiChevronDown className="w-3 h-3" />
                           </button>
                         )}
                         <button
                           onClick={() => removeFacultyPreference(preference.faculty._id)}
-                          className="p-1 text-red-400 hover:text-red-600"
+                          className="p-1 text-error-400 hover:text-error-600 transition-colors"
                           title="Remove"
                         >
-                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                          </svg>
+                          <FiX className="w-3 h-3" />
                         </button>
                       </div>
                     </div>
@@ -704,63 +704,67 @@ const Internship1Registration = () => {
           </div>
 
           {/* Available Faculty */}
-          <div className="space-y-4">
-            <h3 className="text-lg font-semibold text-gray-900">Available Faculty</h3>
+          <div className="flex flex-col h-[22rem]">
+            <div className="flex-shrink-0 mb-2">
+              <h3 className="text-sm font-semibold text-neutral-900">Available Faculty</h3>
+            </div>
             
             {/* Search and Filter */}
-            <div className="space-y-3">
-              <div>
+            <div className="flex-shrink-0 space-y-2 mb-2">
+              <div className="relative">
+                <FiSearch className="absolute left-2.5 top-1/2 transform -translate-y-1/2 w-3.5 h-3.5 text-neutral-400" />
                 <input
                   type="text"
                   placeholder="Search by faculty name..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full pl-8 pr-3 py-2 text-xs border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                 />
               </div>
-              <div>
+              <div className="relative">
                 <select
                   value={selectedDepartment}
                   onChange={(e) => setSelectedDepartment(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full px-3 py-2 text-xs border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 appearance-none pr-8"
                 >
                   <option value="all">All Departments</option>
                   <option value="CSE">CSE</option>
                   <option value="ECE">ECE</option>
                   <option value="ASH">ASH</option>
                 </select>
+                <div className="absolute inset-y-0 right-0 flex items-center pr-2 pointer-events-none">
+                  <svg className="w-3 h-3 text-neutral-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </div>
               </div>
             </div>
 
             {/* Faculty List */}
-            <div className="max-h-80 overflow-y-auto space-y-1 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100 pr-2">
+            <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar space-y-1 pr-1">
               {getFilteredFaculty().length === 0 ? (
-                <div className="text-center py-8 text-gray-500">
-                  <p>No faculty members found</p>
-                  <p className="text-sm">Try adjusting your search or filter</p>
+                <div className="text-center py-8 text-neutral-500">
+                  <p className="text-xs">No faculty members found</p>
+                  <p className="text-[10px] mt-1">Try adjusting your search or filter</p>
                 </div>
               ) : (
                 getFilteredFaculty().map(faculty => (
                   <div
                     key={faculty._id}
-                    className="bg-white border border-gray-200 rounded-lg px-3 py-2 hover:border-blue-300 hover:shadow-sm transition-all cursor-pointer"
+                    className="bg-white border border-neutral-200 rounded-lg px-3 py-2 hover:border-primary-300 hover:shadow-sm transition-all cursor-pointer"
                     onClick={() => addFacultyPreference(faculty)}
                   >
-                    <div className="flex items-center justify-between">
-                      <div className="flex-1 min-w-0 flex items-center space-x-3">
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-gray-900 truncate">
-                            {formatFacultyName(faculty)}
-                          </p>
-                        </div>
-                        <div className="text-xs text-gray-500">
-                          {faculty.department}
-                        </div>
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-medium text-neutral-900 truncate">
+                          {formatFacultyName(faculty)}
+                        </p>
                       </div>
-                      <div className="flex-shrink-0 ml-2">
-                        <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                        </svg>
+                      <div className="text-[10px] text-neutral-500 flex-shrink-0">
+                        {faculty.department}
+                      </div>
+                      <div className="flex-shrink-0 ml-1">
+                        <FiUserPlus className="w-3.5 h-3.5 text-neutral-400" />
                       </div>
                     </div>
                   </div>
@@ -771,11 +775,11 @@ const Internship1Registration = () => {
         </div>
 
         {/* Action Buttons */}
-        <div className="flex justify-between pt-6 border-t border-gray-200">
+        <div className="flex justify-between pt-4 border-t border-neutral-200">
           <button
             type="button"
             onClick={prevStep}
-            className="px-6 py-3 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-500 transition-colors"
+            className="px-4 py-2.5 text-sm text-neutral-700 bg-white border border-neutral-300 rounded-lg hover:bg-neutral-50 focus:outline-none focus:ring-2 focus:ring-neutral-500 transition-colors"
           >
             Back
           </button>
@@ -783,18 +787,15 @@ const Internship1Registration = () => {
             type="button"
             onClick={handleSubmit(onSubmit)}
             disabled={facultyPreferences.length !== facultyPreferenceLimit || isSubmitting || loading || !isWindowOpen()}
-            className={`px-6 py-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors flex items-center ${
+            className={`px-6 py-3 text-sm rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 transition-colors flex items-center gap-2 ${
               facultyPreferences.length === facultyPreferenceLimit && isWindowOpen()
-                ? 'bg-blue-600 text-white hover:bg-blue-700'
-                : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                ? 'bg-primary-600 text-white hover:bg-primary-700'
+                : 'bg-neutral-300 text-neutral-500 cursor-not-allowed'
             }`}
           >
             {isSubmitting ? (
               <>
-                <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                </svg>
+                <FiLoader className="w-4 h-4 animate-spin" />
                 Registering...
               </>
             ) : facultyPreferences.length === facultyPreferenceLimit ? (
@@ -804,15 +805,6 @@ const Internship1Registration = () => {
             )}
           </button>
         </div>
-
-        {facultyPreferences.length !== facultyPreferenceLimit && (
-          <div className="text-center text-sm text-gray-500">
-            {facultyPreferences.length === 0 
-              ? `Please select exactly ${facultyPreferenceLimit} faculty preferences to complete registration`
-              : `Please select ${facultyPreferenceLimit - facultyPreferences.length} more faculty preferences to complete registration`
-            }
-          </div>
-        )}
       </div>
     );
   };
@@ -820,10 +812,10 @@ const Internship1Registration = () => {
   if (loading) {
     return (
       <Layout>
-        <div className="flex items-center justify-center min-h-screen">
+        <div className="flex items-center justify-center min-h-[calc(100vh-64px)]">
           <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-            <p className="mt-4 text-gray-600">Loading...</p>
+            <FiLoader className="w-12 h-12 text-primary-600 animate-spin mx-auto mb-4" />
+            <p className="text-neutral-600">Loading...</p>
           </div>
         </div>
       </Layout>
@@ -834,113 +826,217 @@ const Internship1Registration = () => {
 
   return (
     <Layout>
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">{internshipLabel} Registration</h1>
-          <p className="text-gray-600">
-            Register for your solo {internshipLabel} project (2-month internship project under faculty mentor)
-          </p>
+      <div className="h-[calc(100vh-64px)] bg-surface-200 overflow-hidden flex flex-col">
+        {/* Header */}
+        <div className="flex-shrink-0 bg-white border-b border-neutral-200 px-4 py-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => navigate('/dashboard/student')}
+                className="p-1.5 hover:bg-neutral-100 rounded-lg transition-colors"
+                title="Back"
+              >
+                <FiArrowLeft className="w-5 h-5 text-neutral-600" />
+              </button>
+              <div>
+                <h1 className="text-lg font-semibold text-neutral-900">{internshipLabel} Registration</h1>
+                <p className="text-xs text-neutral-600">Solo Project • Faculty Mentored</p>
+              </div>
+            </div>
+            <button
+              onClick={onCancel}
+              className="p-1.5 hover:bg-neutral-100 rounded-lg transition-colors"
+              title="Close"
+            >
+              <FiX className="w-5 h-5 text-neutral-600" />
+            </button>
+          </div>
         </div>
 
-        {/* Eligibility Status */}
-        {effectiveInternship1Status && (
-          <div className={`mb-6 p-4 rounded-lg border ${
-            effectiveInternship1Status.eligible 
-              ? 'bg-green-50 border-green-200' 
-              : 'bg-red-50 border-red-200'
-          }`}>
-            <div className="flex items-center">
-              <div className="flex-shrink-0">
-                {effectiveInternship1Status.eligible ? (
-                  <svg className="h-5 w-5 text-green-400" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                  </svg>
-                ) : (
-                  <svg className="h-5 w-5 text-red-400" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                  </svg>
-                )}
-              </div>
-              <div className="ml-3">
-                <h3 className={`text-sm font-medium ${
-                  effectiveInternship1Status.eligible ? 'text-green-800' : 'text-red-800'
+        {/* Main Content */}
+        <div className="flex-1 min-h-0 w-full px-3 py-3">
+          <div className="h-full flex flex-col lg:flex-row gap-3 lg:gap-4">
+            {/* Left Column */}
+            <div className="flex-[0.65] flex flex-col h-full min-h-0 space-y-3 overflow-y-auto custom-scrollbar pr-1">
+              {/* Restoration Banner */}
+              {isRestoredFromStorage && (
+                <div className="flex-shrink-0 bg-info-50 border border-info-200 rounded-lg p-3">
+                  <div className="flex items-start gap-2">
+                    <FiInfo className="w-4 h-4 text-info-600 flex-shrink-0 mt-0.5" />
+                    <div className="flex-1">
+                      <p className="text-xs text-info-800">
+                        We found your previous progress. Your form data has been restored.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Eligibility Status Banner */}
+              {effectiveInternship1Status && (
+                <div className={`flex-shrink-0 rounded-lg p-3 border ${
+                  effectiveInternship1Status.eligible 
+                    ? 'bg-success-50 border-success-200' 
+                    : 'bg-error-50 border-error-200'
                 }`}>
-                  {effectiveInternship1Status.eligible ? `Eligible for ${internshipLabel}` : 'Not Eligible'}
-                </h3>
-                {effectiveInternship1Status.reason && (
-                  <p className={`text-sm mt-1 ${
-                    effectiveInternship1Status.eligible ? 'text-green-700' : 'text-red-700'
-                  }`}>
-                    {effectiveInternship1Status.reason}
+                  <div className="flex items-start gap-2">
+                    {effectiveInternship1Status.eligible ? (
+                      <FiCheckCircle className="w-4 h-4 text-success-600 flex-shrink-0 mt-0.5" />
+                    ) : (
+                      <FiAlertCircle className="w-4 h-4 text-error-600 flex-shrink-0 mt-0.5" />
+                    )}
+                    <div className="flex-1">
+                      <h3 className={`text-xs font-medium ${
+                        effectiveInternship1Status.eligible ? 'text-success-800' : 'text-error-800'
+                      }`}>
+                        {effectiveInternship1Status.eligible ? `Eligible for ${internshipLabel}` : 'Not Eligible'}
+                      </h3>
+                      {effectiveInternship1Status.reason && (
+                        <p className={`text-xs mt-1 ${
+                          effectiveInternship1Status.eligible ? 'text-success-700' : 'text-error-700'
+                        }`}>
+                          {effectiveInternship1Status.reason}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Window Status Banner */}
+              {!windowOpen && (
+                <div className="flex-shrink-0 bg-warning-50 border border-warning-200 rounded-lg p-3">
+                  <div className="flex items-start gap-2">
+                    <FiAlertTriangle className="w-4 h-4 text-warning-600 flex-shrink-0 mt-0.5" />
+                    <p className="text-xs text-warning-800">
+                      The registration window is currently closed. Please contact admin for more information.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Step Card */}
+              <div className="flex-shrink-0 bg-white rounded-xl shadow-sm border border-neutral-200">
+                <div className="px-4 py-3 border-b border-neutral-200">
+                  <h2 className="text-sm font-semibold text-neutral-900">
+                    Step {currentStep} · {currentStep === 1 ? 'Project Details' : 'Faculty Preferences'}
+                  </h2>
+                  <p className="text-xs text-neutral-600 mt-0.5">
+                    {currentStep === 1 && 'Enter your project title and proposed area'}
+                    {currentStep === 2 && `Select ${facultyPreferenceLimit} preferred faculty members`}
                   </p>
-                )}
+                </div>
+                <div className="px-4 py-3 flex-1 min-h-0 overflow-visible">
+                  {currentStep === 1 && <form onSubmit={handleSubmit(nextStep)}>{renderStep1()}</form>}
+                  {currentStep === 2 && renderStep2()}
+                </div>
               </div>
             </div>
-          </div>
-        )}
 
-        {/* Window Status */}
-        {!windowOpen && (
-          <div className="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-            <p className="text-sm text-yellow-800">
-              The registration window is currently closed. Please contact admin for more information.
-            </p>
-          </div>
-        )}
-
-        {/* Progress Indicator */}
-        <div className="mb-8">
-          <div className="flex items-center space-x-4">
-            <div className="flex items-center">
-              <div className={`w-8 h-8 ${currentStep >= 1 ? 'bg-blue-600' : 'bg-gray-300'} text-white rounded-full flex items-center justify-center text-sm font-medium`}>
-                1
+            {/* Right Column */}
+            <div className="flex-[0.35] flex flex-col h-full min-h-0 space-y-3 mt-4 lg:mt-0 overflow-y-auto custom-scrollbar pl-1">
+              {/* Registration Progress */}
+              <div className="flex-shrink-0 bg-surface-100 rounded-xl p-4 border border-neutral-200">
+                <div className="flex items-center gap-2 mb-3">
+                  <FiTarget className="w-4 h-4 text-primary-600" />
+                  <h3 className="text-xs font-semibold text-neutral-900">Registration Progress</h3>
+                </div>
+                <p className="text-[10px] text-neutral-600 mb-3">Step {currentStep} of 2</p>
+                <div className="space-y-2.5">
+                  <div className="flex items-center gap-2">
+                    {currentStep > 1 ? (
+                      <FiCheckCircle className="w-4 h-4 text-success-600 flex-shrink-0" />
+                    ) : (
+                      <div className="w-4 h-4 border-2 border-neutral-300 rounded-full flex-shrink-0" />
+                    )}
+                    <div className="flex-1">
+                      <p className="text-xs font-medium text-neutral-800">Project Details</p>
+                      <p className="text-[10px] text-neutral-600">{currentStep > 1 ? 'Completed' : currentStep === 1 ? 'In Progress' : 'Pending'}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {currentStep >= 2 && facultyPreferences.length === facultyPreferenceLimit ? (
+                      <FiCheckCircle className="w-4 h-4 text-success-600 flex-shrink-0" />
+                    ) : (
+                      <div className={`w-4 h-4 border-2 rounded-full flex-shrink-0 ${
+                        currentStep === 2 ? 'border-primary-500 bg-primary-50' : 'border-neutral-300'
+                      }`} />
+                    )}
+                    <div className="flex-1">
+                      <p className="text-xs font-medium text-neutral-800">Faculty Preferences</p>
+                      <p className="text-[10px] text-neutral-600">
+                        {currentStep >= 2 && facultyPreferences.length === facultyPreferenceLimit 
+                          ? 'Completed' 
+                          : currentStep === 2 
+                          ? 'In Progress' 
+                          : 'Pending'}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                <div className="mt-3 h-1 bg-neutral-200 rounded-full overflow-hidden">
+                  <div 
+                    className="h-full bg-primary-600 transition-all duration-300"
+                    style={{ width: `${(currentStep / 2) * 100}%` }}
+                  />
+                </div>
               </div>
-              <span className={`ml-2 text-sm ${currentStep >= 1 ? 'font-medium text-blue-600' : 'text-gray-500'}`}>
-                Project Details
-              </span>
-            </div>
-            <div className="flex-1 h-0.5 bg-gray-200">
-              <div className={`h-full ${currentStep >= 2 ? 'bg-blue-600' : 'bg-gray-200'} w-1/2`}></div>
-            </div>
-            <div className="flex items-center">
-              <div className={`w-8 h-8 ${currentStep >= 2 ? 'bg-blue-600' : 'bg-gray-300'} text-white rounded-full flex items-center justify-center text-sm font-medium`}>
-                2
+
+              {/* About Internship 1 */}
+              <div className="flex-shrink-0 bg-info-50 rounded-xl p-4 border border-info-200">
+                <div className="flex items-center gap-2 mb-3">
+                  <FiInfo className="w-4 h-4 text-info-600" />
+                  <h3 className="text-xs font-semibold text-info-900">About {internshipLabel}</h3>
+                </div>
+                <div className="text-xs text-info-800 space-y-1.5">
+                  <p>• <strong>Type:</strong> Solo project under faculty mentor</p>
+                  <p>• <strong>Eligibility:</strong> Students who have not completed an approved 2-month summer internship</p>
+                  <p>• <strong>Faculty Preferences:</strong> Select exactly {facultyPreferenceLimit} faculty members</p>
+                  <p>• <strong>Duration:</strong> Continues throughout {isSem8 ? 'Semester 8' : 'Semester 7'}</p>
+                  <p>• <strong>Next Steps:</strong> After registration, faculty allocation will be processed based on your preferences</p>
+                </div>
               </div>
-              <span className={`ml-2 text-sm ${currentStep >= 2 ? 'font-medium text-blue-600' : 'text-gray-500'}`}>
-                Faculty Preferences
-              </span>
+
+              {/* Tips & Guidelines */}
+              <div className="flex-shrink-0 bg-surface-100 rounded-xl p-4 border border-neutral-200">
+                <div className="flex items-center gap-2 mb-3">
+                  <FiZap className="w-4 h-4 text-warning-600" />
+                  <h3 className="text-xs font-semibold text-neutral-900">Tips & Guidelines</h3>
+                </div>
+                <div className="text-xs text-neutral-700 space-y-1.5">
+                  {currentStep === 1 ? (
+                    <>
+                      <p>• Write a clear, descriptive title</p>
+                      <p>• You can use "TBD" if title is not finalized</p>
+                      <p>• Choose a domain that matches your project focus</p>
+                      <p>• Title and domain can be updated later</p>
+                    </>
+                  ) : (
+                    <>
+                      <p>• Research faculty expertise before selecting</p>
+                      <p>• Consider faculty availability and workload</p>
+                      <p>• Order preferences by priority (1 = highest)</p>
+                      <p>• You can reorder preferences before submitting</p>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              {/* Important Notes */}
+              <div className="flex-shrink-0 bg-warning-50 rounded-xl p-4 border border-warning-200">
+                <div className="flex items-center gap-2 mb-3">
+                  <FiAlertTriangle className="w-4 h-4 text-warning-600" />
+                  <h3 className="text-xs font-semibold text-warning-900">Important Notes</h3>
+                </div>
+                <div className="text-xs text-warning-800 space-y-1.5">
+                  <p>• Registration window may have time restrictions</p>
+                  <p>• Faculty allocation is based on preferences and availability</p>
+                  <p>• You will be notified once a faculty member is assigned</p>
+                  <p>• Project details can be updated after registration</p>
+                  <p>• Contact admin if you have questions</p>
+                </div>
+              </div>
             </div>
-          </div>
-        </div>
-
-        {/* Step Content */}
-        <div className="bg-white rounded-lg shadow-lg">
-          <div className="px-6 py-4 border-b border-gray-200">
-            <h2 className="text-xl font-semibold text-gray-900">
-              {currentStep === 1 && 'Step 1: Project Details'}
-              {currentStep === 2 && 'Step 2: Faculty Preferences'}
-            </h2>
-            <p className="text-gray-600 mt-1">
-              {currentStep === 1 && 'Enter your project title and proposed area'}
-              {currentStep === 2 && 'Select 1 to 5 preferred faculty members'}
-            </p>
-          </div>
-
-          <div className="p-6">
-            {currentStep === 1 && renderStep1()}
-            {currentStep === 2 && renderStep2()}
-          </div>
-        </div>
-
-        {/* Information Card */}
-        <div className="mt-8 bg-blue-50 rounded-lg p-6">
-          <h3 className="text-lg font-semibold text-blue-900 mb-4">About {internshipLabel}</h3>
-          <div className="text-blue-800 space-y-2">
-            <p>• <strong>Type:</strong> Solo project under faculty mentor</p>
-            <p>• <strong>Eligibility:</strong> Students who have not completed an approved 2-month summer internship</p>
-            <p>• <strong>Faculty Preferences:</strong> Select exactly {facultyPreferenceLimit} faculty members as your preferences</p>
-            <p>• <strong>Duration:</strong> Continues throughout Semester 7</p>
-            <p>• <strong>Next Steps:</strong> After registration, faculty allocation will be processed based on your preferences</p>
           </div>
         </div>
       </div>
@@ -949,4 +1045,3 @@ const Internship1Registration = () => {
 };
 
 export default Internship1Registration;
-

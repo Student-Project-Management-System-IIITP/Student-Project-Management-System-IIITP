@@ -84,7 +84,16 @@ export const Sem8Provider = ({ children }) => {
       try {
         const groupsResponse = await studentAPI.getGroups({ semester: 8 });
         if (groupsResponse.success && groupsResponse.data && groupsResponse.data.length > 0) {
-          setMajorProject2Group(groupsResponse.data[0]);
+          // CRITICAL: Filter to ensure only Sem 8 groups are set
+          // This prevents Sem 6 groups from being incorrectly set
+          const sem8Groups = groupsResponse.data.filter(group => 
+            group.semester === 8 || group.semester === '8'
+          );
+          if (sem8Groups.length > 0) {
+            setMajorProject2Group(sem8Groups[0]);
+          } else {
+            setMajorProject2Group(null);
+          }
         } else {
           setMajorProject2Group(null);
         }
@@ -104,7 +113,15 @@ export const Sem8Provider = ({ children }) => {
             const groupId = projectsResponse.data[0].group._id || projectsResponse.data[0].group;
             const groupResponse = await studentAPI.getGroupDetails(groupId);
             if (groupResponse.success && groupResponse.data && groupResponse.data.group) {
-              setMajorProject2Group(groupResponse.data.group);
+              // CRITICAL: Filter to ensure only Sem 8 groups are set
+              // This prevents Sem 6/7 groups from being loaded for Sem 8 students
+              const group = groupResponse.data.group;
+              if (group.semester === 8 || group.semester === '8') {
+                setMajorProject2Group(group);
+              } else {
+                console.warn(`Ignoring non-Sem 8 group loaded from project: semester ${group.semester}`);
+                setMajorProject2Group(null);
+              }
             }
           } catch (error) {
             console.error('Failed to load group details from project:', error);

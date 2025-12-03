@@ -77,4 +77,29 @@
   .alert-error { @apply bg-error-50 border border-error-200 text-error-700; }
   .alert-warning { @apply bg-warning-50 border border-warning-200 text-warning-700; }
   .alert-info { @apply bg-info-50 border border-info-200 text-info-700; }
+  
+  /* Custom Transparent Thin Scrollbar */
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 4px;
+    height: 4px;
+  }
+  
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    @apply bg-neutral-300;
+    border-radius: 2px;
+  }
+  
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    @apply bg-neutral-400;
+  }
+  
+  /* Firefox */
+  .custom-scrollbar {
+    scrollbar-width: thin;
+    scrollbar-color: theme('colors.neutral.300') transparent;
+  }
 }
