@@ -10,6 +10,12 @@ import StatusBadge from '../../components/common/StatusBadge';
 import StudentSearch from '../../components/groups/StudentSearch';
 import Layout from '../../components/common/Layout';
 import { formatFacultyName } from '../../utils/formatUtils';
+import {
+  FiUsers, FiUser, FiUserCheck, FiX, FiCheckCircle, FiAlertCircle,
+  FiMail, FiHash, FiStar, FiLogOut, FiUserPlus, FiLock,
+  FiUnlock, FiArrowRight, FiLoader, FiSearch, FiXCircle, FiCheck,
+  FiClock, FiAlertTriangle, FiInfo, FiBook, FiUserX, FiTrash2, FiFile
+} from 'react-icons/fi';
 
 const GroupDashboard = () => {
   const navigate = useNavigate();
@@ -573,16 +579,31 @@ const GroupDashboard = () => {
           }
           return invite;
         }));
+
+        // Also refresh context data to ensure consistency
+        await fetchSem5Data();
+        
+        // Refresh group details to get the latest data
+        await refreshGroupData();
+
+        // Determine project name based on group semester
+        const semester = groupDetails.semester || roleData?.semester || user?.semester;
+        let projectLabel = 'project';
+        if (semester === 4) {
+          projectLabel = 'Minor Project 1';
+        } else if (semester === 5) {
+          projectLabel = 'Minor Project 2';
+        } else if (semester === 6) {
+          projectLabel = 'Minor Project 3';
+        } else if (semester === 7) {
+          projectLabel = 'Major Project 1';
+        } else if (semester === 8) {
+          projectLabel = 'Major Project 2';
+        }
+        
+        // Show success toast guiding next action
+        toast.success(`Group finalized successfully. Now go to the dashboard and register for ${projectLabel}.`);
       }
-      
-      // Also refresh context data to ensure consistency
-      await fetchSem5Data();
-      
-      // Refresh group details to get the latest data
-      await refreshGroupData();
-      
-      // Show success message
-      toast.success('Group has been finalized successfully!');
     } catch (error) {
       console.error('Error finalizing group:', error);
       
@@ -1132,14 +1153,14 @@ const GroupDashboard = () => {
                       }`}>
                         <span className="text-lg">
                           {isSelected
-                            ? '✓'
+                            ? <FiCheck className="w-4 h-4" />
                             : inviteStatus.disabled
-                            ? '🚫'
+                            ? <FiXCircle className="w-4 h-4" />
                             : inviteStatus.status === 'available'
-                            ? '👤'
+                            ? <FiUser className="w-4 h-4" />
                             : inviteStatus.status === 'in_group'
-                            ? '👥'
-                            : '📋'}
+                            ? <FiUsers className="w-4 h-4" />
+                            : <FiFile className="w-4 h-4" />}
                         </span>
                       </div>
                     </div>
@@ -1297,127 +1318,204 @@ const GroupDashboard = () => {
 
 
 
+  // Determine project type based on semester
+  const groupSemester = groupDetails?.semester || roleData?.semester || user?.semester || 5;
+  const projectType = groupSemester === 7 ? 'Major Project 1' : 
+                      groupSemester === 8 ? 'Major Project 2' : 
+                      'Minor Project 2';
+
   return (
     <Layout>
-      <style>
-        {`
-          .custom-scrollbar::-webkit-scrollbar {
-            width: 12px;
-          }
-          .custom-scrollbar::-webkit-scrollbar-track {
-            background: #f1f5f9;
-            border-radius: 6px;
-          }
-          .custom-scrollbar::-webkit-scrollbar-thumb {
-            background: #3b82f6;
-            border-radius: 6px;
-            border: 2px solid #f1f5f9;
-          }
-          .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-            background: #2563eb;
-          }
-        `}
-      </style>
-      <div className="py-8">
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-        {/* Header with Real-time Status */}
-        <div className="mb-8">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900">
-                Group Dashboard
-                {groupDetails.status === 'finalized' && (
-                  <span className="ml-2 text-sm bg-green-100 text-green-800 px-2 py-1 rounded-full font-medium">
-                    FINALIZED
-                  </span>
-                )}
-                {canFinalizeGroup() && groupDetails.status !== 'finalized' && (
-                  <span className="ml-2 text-sm bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full font-medium">
-                    READY TO FINALIZE
-                  </span>
-                )}
-                {groupDetails.status === 'complete' && !canFinalizeGroup() && (
-                  <span className="ml-2 text-sm bg-blue-100 text-blue-800 px-2 py-1 rounded-full font-medium">
-                    READY
-                  </span>
-                )}
-              </h1>
-              <p className="mt-2 text-gray-600">
-                {groupDetails.name} - Minor Project 2
-              </p>
+      <div className="bg-gradient-to-br from-surface-200 via-primary-50 to-secondary-50 overflow-hidden" style={{ height: 'calc(100vh - 64px)' }}>
+        <div className="w-full pt-3">
+          {/* Compact Header */}
+          <div className="bg-white rounded-xl shadow-sm border border-neutral-200 p-3 mb-3 mx-3 flex items-center justify-between flex-shrink-0">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 bg-gradient-to-br from-primary-600 to-secondary-600 rounded-lg flex items-center justify-center flex-shrink-0 shadow-md">
+                <FiUsers className="w-5 h-5 text-white" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h1 className="text-lg font-bold text-neutral-800">{groupDetails.name}</h1>
+                  {groupDetails.status === 'finalized' && (
+                    <span className="text-xs bg-success-100 text-success-700 px-2 py-0.5 rounded-full font-semibold">
+                      FINALIZED
+                    </span>
+                  )}
+                  {canFinalizeGroup() && groupDetails.status !== 'finalized' && (
+                    <span className="text-xs bg-warning-100 text-warning-700 px-2 py-0.5 rounded-full font-semibold">
+                      READY TO FINALIZE
+                    </span>
+                  )}
+                  {groupDetails.status === 'complete' && !canFinalizeGroup() && (
+                    <span className="text-xs bg-info-100 text-info-700 px-2 py-0.5 rounded-full font-semibold">
+                      READY
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-neutral-600 mt-0.5">{projectType}</p>
+              </div>
             </div>
             
-            <div className="flex items-center space-x-4">
-              {/* Real-time status indicator */}
-              <div className="flex items-center space-x-2 text-sm text-gray-600">
-                <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                <span>Live</span>
-              </div>
-              
-              <button
-                onClick={() => navigate('/dashboard/student')}
-                className="px-4 py-2 text-gray-600 hover:text-gray-800 transition-colors"
-              >
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
+            {/* Live Status Indicator */}
+            <div className="flex items-center gap-2 text-xs text-neutral-600">
+              <div className="w-2 h-2 bg-success-500 rounded-full animate-pulse"></div>
+              <span className="font-medium">Live</span>
             </div>
           </div>
-          
-          {/* Real-time updates feed */}
-          {realTimeUpdates.length > 0 && (
-            <div className="mt-4 bg-blue-50 border border-blue-200 rounded-lg p-3 max-h-32 overflow-y-auto">
-              <div className="flex items-center justify-between mb-2">
-                <h3 className="text-sm font-medium text-blue-900">Latest Updates</h3>
-                <button 
-                  onClick={() => setRealTimeUpdates([])}
-                  className="text-blue-600 text-xs hover:text-blue-800"
-                >
-                  Clear
-                </button>
-              </div>
-              <div className="space-y-1">
-                {realTimeUpdates.slice(-3).reverse().map((update, index) => (
-                  <div key={index} className={`text-xs ${update.isPositive ? 'text-green-700' : 'text-orange-700'}`}>
-                    <span className="font-medium">{new Date(update.timestamp).toLocaleTimeString()}:</span>
-                    {update.message}
+
+          {/* 3-Column Layout */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 px-3 overflow-hidden" style={{ height: 'calc(100vh - 126px)' }}>
+            {/* Left Column (20%) - Role, Stats, Status */}
+            <div className="lg:col-span-2 flex flex-col gap-2.5 overflow-y-auto custom-scrollbar lg:pr-1" style={{ minHeight: 0 }}>
+              {/* Your Role */}
+              <div className="bg-surface-100 rounded-xl shadow-sm border border-neutral-200 p-4">
+                <h3 className="text-sm font-bold text-neutral-800 mb-3 flex items-center gap-2">
+                  <FiUser className="w-4 h-4 text-primary-600" />
+                  Your Role
+                </h3>
+                <div className="flex items-center gap-2">
+                  <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
+                    isGroupLeader ? 'bg-gradient-to-br from-primary-600 to-secondary-600 text-white' : 'bg-neutral-200 text-neutral-600'
+                  }`}>
+                    {isGroupLeader ? <FiStar className="w-5 h-5" /> : <FiUser className="w-5 h-5" />}
                   </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Main Content */}
-          <div className="lg:col-span-2 space-y-8">
-
-            {/* Group Members */}
-            <div className="bg-white rounded-lg shadow-lg">
-              <div className="px-6 py-4 border-b border-gray-200">
-                <h2 className="text-xl font-semibold text-gray-900">Group Members</h2>
-              </div>
-              <div className="p-6">
-                <GroupMemberList 
-                  members={groupDetails.members || []}
-                  showRoles={true}
-                  showContact={true}
-                  currentUserId={user._id}
-                  canManage={isGroupLeader}
-                />
-              </div>
-            </div>
-
-            {/* Invited Members */}
-            {populatedInvites && populatedInvites.length > 0 && (
-              <div className="bg-white rounded-lg shadow-lg">
-                <div className="px-6 py-4 border-b border-gray-200">
-                  <h2 className="text-xl font-semibold text-gray-900">Invited Members</h2>
-                  <p className="text-sm text-gray-600 mt-1">Students who have been invited to join this group</p>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-semibold text-neutral-800 text-sm">
+                      {isGroupLeader ? 'Group Leader' : 'Group Member'}
+                    </p>
+                    <p className="text-xs text-neutral-600 mt-0.5">
+                      {isGroupLeader ? 'Manage group & preferences' : 'View details & participate'}
+                    </p>
+                  </div>
                 </div>
-                <div className="p-6">
-                  <div className="space-y-3">
+              </div>
+
+              {/* Group Stats */}
+              <div className="bg-surface-100 rounded-xl shadow-sm border border-neutral-200 p-4">
+                <h3 className="text-sm font-bold text-neutral-800 mb-3 flex items-center gap-2">
+                  <FiUsers className="w-4 h-4 text-primary-600" />
+                  Group Stats
+                </h3>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-neutral-600">Current:</span>
+                    <span className="font-bold text-neutral-800">
+                      {groupDetails?.activeMemberCount ?? (groupDetails.members?.filter?.(m => m.isActive).length || 0)}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-neutral-600">Min Required:</span>
+                    <span className={`font-bold ${(groupDetails?.activeMemberCount ?? (groupDetails.members?.filter?.(m => m.isActive).length || 0)) >= (minGroupMembers || groupDetails?.minMembers) ? 'text-success-700' : 'text-warning-700'}`}>
+                      {minGroupMembers || groupDetails?.minMembers}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-neutral-600">Max Allowed:</span>
+                    <span className="font-bold text-neutral-800">{maxGroupMembers || groupDetails?.maxMembers}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Group Status */}
+              <div className="bg-surface-100 rounded-xl shadow-sm border border-neutral-200 p-4">
+                <h3 className="text-sm font-bold text-neutral-800 mb-3 flex items-center gap-2">
+                  <FiInfo className="w-4 h-4 text-primary-600" />
+                  Status
+                </h3>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-neutral-600">Group Status:</span>
+                    <StatusBadge 
+                      status={groupDetails.status === 'finalized' ? 'success' : 
+                              groupDetails.status === 'complete' ? 'info' : 'warning'} 
+                      text={groupDetails.status === 'finalized' ? 'Finalized' : 
+                            groupDetails.status === 'complete' ? 'Complete' : 'Forming'} 
+                    />
+                  </div>
+                  {groupDetails.finalizedAt && (
+                    <div className="text-xs text-neutral-600 pt-2 border-t border-neutral-200">
+                      <span className="flex items-center gap-1">
+                        <FiClock className="w-3 h-3" />
+                        Finalized: {new Date(groupDetails.finalizedAt).toLocaleDateString()}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Leave Group - Only for non-leaders */}
+              {canLeaveGroup() && !isGroupLeader && (
+                <div className="bg-surface-100 rounded-xl shadow-sm border border-neutral-200 p-4">
+                  <h3 className="text-sm font-bold text-neutral-800 mb-3 flex items-center gap-2">
+                    <FiLogOut className="w-4 h-4 text-error-600" />
+                    Group Actions
+                  </h3>
+                  <div className="bg-warning-50 border border-warning-200 rounded-lg p-2 mb-3">
+                    <p className="text-xs text-warning-800 flex items-start gap-1">
+                      <FiAlertTriangle className="w-3 h-3 mt-0.5 flex-shrink-0" />
+                      You can leave before finalization
+                    </p>
+                  </div>
+                  <button
+                    onClick={handleLeaveGroup}
+                    disabled={leaveLoading || !canLeaveGroup()}
+                    className="w-full btn-danger inline-flex items-center justify-center gap-2 text-sm"
+                  >
+                    {leaveLoading ? (
+                      <>
+                        <FiLoader className="w-4 h-4 animate-spin" />
+                        Leaving...
+                      </>
+                    ) : (
+                      <>
+                        <FiLogOut className="w-4 h-4" />
+                        Leave Group
+                      </>
+                    )}
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Center Column (55%) - Main Content */}
+            <div className="lg:col-span-7 flex flex-col gap-3 overflow-y-auto custom-scrollbar pb-3" style={{ minHeight: 0 }}>
+
+              {/* Group Members */}
+              <div className="bg-surface-100 rounded-xl shadow-sm border border-neutral-200 flex-shrink-0">
+                <div className="bg-gradient-to-r from-primary-50 to-secondary-50 px-4 py-3 border-b border-neutral-200">
+                  <h2 className="text-base font-bold text-neutral-800 flex items-center gap-2">
+                    <div className="w-8 h-8 bg-gradient-to-br from-primary-600 to-secondary-600 rounded-lg flex items-center justify-center">
+                      <FiUsers className="w-4 h-4 text-white" />
+                    </div>
+                    Group Members
+                  </h2>
+                </div>
+                <div className="p-4">
+                  <GroupMemberList 
+                    members={groupDetails.members || []}
+                    showRoles={true}
+                    showContact={true}
+                    currentUserId={user._id}
+                    canManage={isGroupLeader}
+                  />
+                </div>
+              </div>
+
+              {/* Invited Members */}
+              {populatedInvites && populatedInvites.length > 0 && (
+                <div className="bg-surface-100 rounded-xl shadow-sm border border-neutral-200 flex-shrink-0">
+                  <div className="bg-gradient-to-r from-info-50 to-primary-50 px-4 py-3 border-b border-neutral-200">
+                    <h2 className="text-base font-bold text-neutral-800 flex items-center gap-2">
+                      <div className="w-8 h-8 bg-gradient-to-br from-info-600 to-primary-600 rounded-lg flex items-center justify-center">
+                        <FiMail className="w-4 h-4 text-white" />
+                      </div>
+                      Invited Members
+                    </h2>
+                    <p className="text-xs text-neutral-600 mt-1.5">Students invited to join this group</p>
+                  </div>
+                  <div className="p-4">
+                  <div className="space-y-2">
         {populatedInvites && populatedInvites.length > 0 ? (() => {
           // Filter out leader from invites
           const leaderId = groupDetails.leader?._id || groupDetails.leader;
@@ -1477,58 +1575,72 @@ const GroupDashboard = () => {
           
           return uniqueInvites.map((invite, index) => {
                       return (
-                      <div key={index} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-                        <div className="flex items-center space-x-3">
-                          <div className="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center text-white text-sm font-medium">
+                      <div key={index} className="flex items-center justify-between p-2.5 bg-white rounded-lg border border-neutral-200 hover:bg-neutral-50 transition-colors">
+                        <div className="flex items-center gap-2.5 flex-1 min-w-0">
+                          <div className="w-9 h-9 bg-gradient-to-br from-primary-500 to-secondary-500 rounded-lg flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
                             {invite.student?.fullName?.charAt(0) || '?'}
                           </div>
-                          <div>
-                            <h4 className="font-medium text-gray-900">
-                              {invite.student?.fullName || 'Unknown Student'}
-                            </h4>
-                            <p className="text-sm text-gray-600">
-                              {invite.student?.misNumber || 'MIS# -'} 
-                              {invite.student?.branch && ` • ${invite.student.branch}`}
-                            </p>
-                            <p className="text-xs text-gray-500">
-                              Invited: {invite.invitedAt ? new Date(invite.invitedAt).toLocaleDateString() : 'N/A'}
-                            </p>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <h4 className="font-semibold text-neutral-800 text-sm">
+                                {invite.student?.fullName || 'Unknown Student'}
+                              </h4>
+                              <span className="text-xs text-neutral-500">•</span>
+                              <span className="text-xs text-neutral-600 font-medium">
+                                {invite.student?.misNumber || 'MIS# -'}
+                              </span>
+                              {invite.student?.branch && (
+                                <>
+                                  <span className="text-xs text-neutral-400">•</span>
+                                  <span className="text-xs text-neutral-500">{invite.student.branch}</span>
+                                </>
+                              )}
+                            </div>
                           </div>
                         </div>
-                        <div className="text-right">
-                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                        <div className="flex-shrink-0 ml-2">
+                          <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-semibold ${
                             invite.status === 'pending' 
-                              ? 'bg-yellow-100 text-yellow-800' 
+                              ? 'bg-warning-100 text-warning-700 border border-warning-200' 
                               : invite.status === 'accepted'
-                              ? 'bg-green-100 text-green-800'
+                              ? 'bg-success-100 text-success-700 border border-success-200'
                               : invite.status === 'rejected'
-                              ? 'bg-red-100 text-red-800'
+                              ? 'bg-error-100 text-error-700 border border-error-200'
                               : invite.status === 'auto-rejected'
-                              ? 'bg-orange-100 text-orange-800'
-                              : 'bg-gray-100 text-gray-800'
+                              ? 'bg-warning-100 text-warning-700 border border-warning-200'
+                              : 'bg-neutral-100 text-neutral-700 border border-neutral-200'
                           }`}>
-                            {invite.status === 'pending' && '⏳ Pending'}
-                            {invite.status === 'accepted' && '✅ Accepted'}
-                            {invite.status === 'rejected' && '❌ Rejected'}
-                            {invite.status === 'auto-rejected' && '🔄 Auto-Rejected'}
-                            {!['pending', 'accepted', 'rejected', 'auto-rejected'].includes(invite.status) && '❓ Unknown'}
+                            {invite.status === 'pending' && (
+                              <>
+                                <FiClock className="w-3 h-3" />
+                                Pending
+                              </>
+                            )}
+                            {invite.status === 'accepted' && (
+                              <>
+                                <FiCheckCircle className="w-3 h-3" />
+                                Accepted
+                              </>
+                            )}
+                            {invite.status === 'rejected' && (
+                              <>
+                                <FiXCircle className="w-3 h-3" />
+                                Rejected
+                              </>
+                            )}
+                            {invite.status === 'auto-rejected' && (
+                              <>
+                                <FiAlertCircle className="w-3 h-3" />
+                                Auto-Rejected
+                              </>
+                            )}
+                            {!['pending', 'accepted', 'rejected', 'auto-rejected'].includes(invite.status) && (
+                              <>
+                                <FiAlertTriangle className="w-3 h-3" />
+                                Unknown
+                              </>
+                            )}
                           </span>
-                          {invite.status === 'accepted' && (
-                            <p className="text-xs text-gray-500 mt-1">
-                              Joined: {invite.respondedAt ? new Date(invite.respondedAt).toLocaleDateString() : 'N/A'}
-                            </p>
-                          )}
-                          {invite.status === 'rejected' && (
-                            <p className="text-xs text-gray-500 mt-1">
-                              Declined: {invite.respondedAt ? new Date(invite.respondedAt).toLocaleDateString() : 'N/A'}
-                            </p>
-                          )}
-                          {invite.status === 'auto-rejected' && (
-                            <p className="text-xs text-gray-500 mt-1">
-                              Auto-Rejected: {invite.respondedAt ? new Date(invite.respondedAt).toLocaleDateString() : 'N/A'}
-                              {invite.rejectionReason && ` • ${invite.rejectionReason}`}
-                            </p>
-                          )}
                         </div>
                       </div>
                       );
@@ -1541,42 +1653,47 @@ const GroupDashboard = () => {
                   </div>
                   
                   {/* Invitation Summary */}
-                  <div className="mt-4 p-3 bg-blue-50 rounded-lg">
-                    <div className="flex justify-between text-sm">
-                      <span className="text-blue-800">
-                        <strong>Total Invited:</strong> {groupDetails.invites ? groupDetails.invites.filter(invite => {
+                  <div className="mt-4 mb-2 p-3.5 bg-info-50 border border-info-200 rounded-xl">
+                    <div className="flex flex-wrap justify-between gap-3 text-xs">
+                      <span className="flex items-center gap-1.5 text-info-700">
+                        <span className="font-bold">Total:</span>
+                        <span className="font-semibold">{groupDetails.invites ? groupDetails.invites.filter(invite => {
                           const studentId = invite.student?._id || invite.student;
                           const leaderId = groupDetails.leader?._id || groupDetails.leader;
                           return !(leaderId && studentId && studentId === leaderId);
-                        }).length : 0}
+                        }).length : 0}</span>
                       </span>
-                      <span className="text-blue-800">
-                        <strong>Pending:</strong> {groupDetails.invites ? groupDetails.invites.filter(i => {
+                      <span className="flex items-center gap-1.5 text-warning-700">
+                        <span className="font-bold">Pending:</span>
+                        <span className="font-semibold">{groupDetails.invites ? groupDetails.invites.filter(i => {
                           const studentId = i.student?._id || i.student;
                           const leaderId = groupDetails.leader?._id || groupDetails.leader;
                           return i.status === 'pending' && !(leaderId && studentId && studentId === leaderId);
-                        }).length : 0}
+                        }).length : 0}</span>
                       </span>
-                      <span className="text-green-800">
-                        <strong>Accepted:</strong> {groupDetails.invites ? groupDetails.invites.filter(i => {
+                      <span className="flex items-center gap-1.5 text-success-700">
+                        <span className="font-bold">Accepted:</span>
+                        <span className="font-semibold">{groupDetails.invites ? groupDetails.invites.filter(i => {
                           const studentId = i.student?._id || i.student;
                           const leaderId = groupDetails.leader?._id || groupDetails.leader;
                           return i.status === 'accepted' && !(leaderId && studentId && studentId === leaderId);
-                        }).length : 0}
+                        }).length : 0}</span>
                       </span>
-                      <span className="text-red-800">
-                        <strong>Rejected:</strong> {groupDetails.invites ? groupDetails.invites.filter(i => {
+                      <span className="flex items-center gap-1.5 text-error-700">
+                        <span className="font-bold">Rejected:</span>
+                        <span className="font-semibold">{groupDetails.invites ? groupDetails.invites.filter(i => {
                           const studentId = i.student?._id || i.student;
                           const leaderId = groupDetails.leader?._id || groupDetails.leader;
                           return i.status === 'rejected' && !(leaderId && studentId && studentId === leaderId);
-                        }).length : 0}
+                        }).length : 0}</span>
                       </span>
-                      <span className="text-orange-800">
-                        <strong>Auto-Rejected:</strong> {groupDetails.invites ? groupDetails.invites.filter(i => {
+                      <span className="flex items-center gap-1.5 text-warning-700">
+                        <span className="font-bold">Auto-Rejected:</span>
+                        <span className="font-semibold">{groupDetails.invites ? groupDetails.invites.filter(i => {
                           const studentId = i.student?._id || i.student;
                           const leaderId = groupDetails.leader?._id || groupDetails.leader;
                           return i.status === 'auto-rejected' && !(leaderId && studentId && studentId === leaderId);
-                        }).length : 0}
+                        }).length : 0}</span>
                       </span>
                     </div>
                   </div>
@@ -1584,598 +1701,416 @@ const GroupDashboard = () => {
               </div>
             )}
 
-            {/* Faculty Information */}
-            {groupDetails.allocatedFaculty && (
-              <div className="bg-white rounded-lg shadow-lg">
-                <div className="px-6 py-4 border-b border-gray-200">
-                  <h2 className="text-xl font-semibold text-gray-900">Allocated Faculty</h2>
-                </div>
-                <div className="p-6">
-                  <div className="flex items-center space-x-4">
-                    <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center">
-                      <span className="text-2xl">👨‍🏫</span>
-                    </div>
-                    <div className="flex-1">
-                      <h3 className="text-lg font-semibold text-gray-900">
-                        {formatFacultyName(groupDetails.allocatedFaculty)}
-                      </h3>
-                      <p className="text-gray-600">
-                        {groupDetails.allocatedFaculty.facultyId} • {groupDetails.allocatedFaculty.department}
-                      </p>
-                      <p className="text-sm text-gray-500">
-                        {groupDetails.allocatedFaculty.designation}
-                      </p>
-                    </div>
-                    <div className="text-right">
-                      <span className={`px-2 py-1 text-xs rounded-full font-medium ${
-                        groupDetails.allocatedFaculty.mode === 'Regular' ? 'bg-green-100 text-green-800' :
-                        groupDetails.allocatedFaculty.mode === 'Adjunct' ? 'bg-blue-100 text-blue-800' :
-                        'bg-orange-100 text-orange-800'
-                      }`}>
-                        {groupDetails.allocatedFaculty.mode}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
+            </div>
 
-            {/* Project Information */}
-            {groupDetails.project && (
-              <div className="bg-white rounded-lg shadow-lg">
-                <div className="px-6 py-4 border-b border-gray-200">
-                  <h2 className="text-xl font-semibold text-gray-900">Project Information</h2>
-                </div>
-                <div className="p-6">
-                  <div className="space-y-4">
-                    <div>
-                      <h3 className="text-lg font-semibold text-gray-900">
-                        {groupDetails.project.title}
-                      </h3>
-                      <p className="text-gray-600 mt-1">
-                        {groupDetails.project.description}
-                      </p>
-                    </div>
-                    
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <span className="text-sm font-medium text-gray-500">Domain:</span>
-                        <p className="text-gray-900">{groupDetails.project.domain}</p>
+            {/* Right Column (25%) - Updates, Actions, Invite/Finalize */}
+            <div className="lg:col-span-3 flex flex-col gap-3 overflow-y-auto custom-scrollbar" style={{ minHeight: 0 }}>
+
+              {/* Allocated Faculty */}
+              {groupDetails.allocatedFaculty && (
+                <div className="bg-surface-100 rounded-xl shadow-sm border border-neutral-200 p-4 flex-shrink-0">
+                  <div className="flex items-center gap-2 mb-3">
+                    <FiUserCheck className="w-4 h-4 text-primary-600" />
+                    <h3 className="text-sm font-bold text-neutral-800">Allocated Faculty</h3>
+                  </div>
+                  <div className="bg-gradient-to-br from-primary-50 to-secondary-50 rounded-lg p-3 border border-primary-100">
+                    <div className="flex items-start gap-3">
+                      <div className="w-10 h-10 bg-gradient-to-br from-primary-600 to-secondary-600 rounded-lg flex items-center justify-center flex-shrink-0 shadow-md">
+                        <FiUserCheck className="w-5 h-5 text-white" />
                       </div>
-                      <div>
-                        <span className="text-sm font-medium text-gray-500">Status:</span>
-                        <span className={`ml-2 px-2 py-1 text-xs rounded-full font-medium ${
-                          groupDetails.project.status === 'registered' ? 'bg-blue-100 text-blue-800' :
-                          groupDetails.project.status === 'faculty_allocated' ? 'bg-green-100 text-green-800' :
-                          groupDetails.project.status === 'active' ? 'bg-yellow-100 text-yellow-800' :
-                          groupDetails.project.status === 'completed' ? 'bg-green-100 text-green-800' :
-                          'bg-red-100 text-red-800'
+                      <div className="flex-1 min-w-0">
+                        <h4 className="text-sm font-bold text-neutral-800 mb-1">
+                          {formatFacultyName(groupDetails.allocatedFaculty)}
+                        </h4>
+                        <div className="space-y-0.5 text-xs text-neutral-600">
+                          <p className="font-medium">
+                            {groupDetails.allocatedFaculty.facultyId} • {groupDetails.allocatedFaculty.department}
+                          </p>
+                          <p>{groupDetails.allocatedFaculty.designation}</p>
+                        </div>
+                      </div>
+                      <div className="flex-shrink-0">
+                        <span className={`inline-flex items-center px-2 py-0.5 text-[10px] rounded-full font-semibold ${
+                          groupDetails.allocatedFaculty.mode === 'Regular' 
+                            ? 'bg-success-100 text-success-700 border border-success-200' :
+                          groupDetails.allocatedFaculty.mode === 'Adjunct' 
+                            ? 'bg-info-100 text-info-700 border border-info-200' :
+                            'bg-warning-100 text-warning-700 border border-warning-200'
                         }`}>
-                          {groupDetails.project.status?.replace('_', ' ').toUpperCase()}
+                          {groupDetails.allocatedFaculty.mode}
                         </span>
                       </div>
                     </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Project Information */}
+              {groupDetails.project && (
+                <div className="bg-surface-100 rounded-xl shadow-sm border border-neutral-200 p-4 flex-shrink-0">
+                  <div className="flex items-center gap-2 mb-3">
+                    <FiBook className="w-4 h-4 text-primary-600" />
+                    <h3 className="text-sm font-bold text-neutral-800">Project Information</h3>
+                  </div>
+                  <div className="bg-white rounded-lg p-3 border border-neutral-200 space-y-3">
+                    <div>
+                      <h4 className="text-sm font-bold text-neutral-800 mb-1">
+                        {groupDetails.project.title}
+                      </h4>
+                      {groupDetails.project.description && (
+                        <p className="text-xs text-neutral-600 leading-relaxed line-clamp-2">
+                          {groupDetails.project.description}
+                        </p>
+                      )}
+                    </div>
+                    
+                    <div className="space-y-2 pt-2 border-t border-neutral-200">
+                      {groupDetails.project.domain && (
+                        <div>
+                          <span className="text-[10px] font-semibold text-neutral-500 uppercase tracking-wide block mb-0.5">Domain</span>
+                          <p className="text-xs font-medium text-neutral-800">{groupDetails.project.domain}</p>
+                        </div>
+                      )}
+                      {groupDetails.project.status && (
+                        <div>
+                          <span className="text-[10px] font-semibold text-neutral-500 uppercase tracking-wide block mb-0.5">Status</span>
+                          <span className={`inline-flex items-center px-2 py-0.5 text-[10px] rounded-full font-semibold ${
+                            groupDetails.project.status === 'registered' ? 'bg-info-100 text-info-700 border border-info-200' :
+                            groupDetails.project.status === 'faculty_allocated' ? 'bg-success-100 text-success-700 border border-success-200' :
+                            groupDetails.project.status === 'active' ? 'bg-warning-100 text-warning-700 border border-warning-200' :
+                            groupDetails.project.status === 'completed' ? 'bg-success-100 text-success-700 border border-success-200' :
+                            'bg-error-100 text-error-700 border border-error-200'
+                          }`}>
+                            {groupDetails.project.status?.replace('_', ' ').toUpperCase()}
+                          </span>
+                        </div>
+                      )}
+                    </div>
 
                     {groupDetails.project.technicalRequirements && (
-                      <div>
-                        <span className="text-sm font-medium text-gray-500">Technical Requirements:</span>
-                        <p className="text-gray-900 mt-1">{groupDetails.project.technicalRequirements}</p>
+                      <div className="pt-2 border-t border-neutral-200">
+                        <span className="text-[10px] font-semibold text-neutral-500 uppercase tracking-wide block mb-1">Technical Requirements</span>
+                        <p className="text-xs text-neutral-700 leading-relaxed line-clamp-3">{groupDetails.project.technicalRequirements}</p>
                       </div>
                     )}
                   </div>
                 </div>
-              </div>
-            )}
-          </div>
+              )}
 
-          {/* Sidebar */}
-          <div className="space-y-6">
-
-            {/* Your Role */}
-            <div className="bg-white rounded-lg shadow-lg p-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Your Role</h3>
-              <div className="flex items-center space-x-3">
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
-                  (groupDetails.leader && 
-                   ((typeof groupDetails.leader === 'object' && groupDetails.leader._id === roleData?._id) ||
-                    (typeof groupDetails.leader === 'string' && groupDetails.leader === roleData?._id)))
-                    ? 'bg-purple-100 text-purple-800' 
-                    : 'bg-blue-100 text-blue-800'
-                }`}>
-                  {(groupDetails.leader && 
-                    ((typeof groupDetails.leader === 'object' && groupDetails.leader._id === roleData?._id) ||
-                     (typeof groupDetails.leader === 'string' && groupDetails.leader === roleData?._id))) 
-                    ? '👑' : '👤'}
-                </div>
-                <div>
-                  <p className="font-medium text-gray-900">
-                    {(groupDetails.leader && 
-                      ((typeof groupDetails.leader === 'object' && groupDetails.leader._id === roleData?._id) ||
-                       (typeof groupDetails.leader === 'string' && groupDetails.leader === roleData?._id))) 
-                      ? 'Group Leader' : 'Group Member'}
-                  </p>
-                  <p className="text-sm text-gray-600">
-                    {(groupDetails.leader && 
-                      ((typeof groupDetails.leader === 'object' && groupDetails.leader._id === roleData?._id) ||
-                       (typeof groupDetails.leader === 'string' && groupDetails.leader === roleData?._id)))
-                      ? 'You can manage the group and submit preferences'
-                      : 'You can view group details and participate in discussions'
-                    }
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* Leave Group Section - Only for non-leader members before finalization */}
-            {canLeaveGroup() && !isGroupLeader && (
-              <div className="bg-white rounded-lg shadow-lg p-6">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">Group Actions</h3>
-                <div className="space-y-3">
-                  <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-                    <div className="flex items-start space-x-2 mb-2">
-                      <span className="text-yellow-600 text-sm">⚠️</span>
-                      <p className="text-xs text-yellow-700">
-                        You can leave this group before it's finalized by the leader.
-                      </p>
-                    </div>
+              {/* Real-time Updates Feed */}
+              {realTimeUpdates.length > 0 && (
+                <div className="bg-surface-100 rounded-xl shadow-sm border border-neutral-200 p-4 flex-shrink-0">
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="text-sm font-bold text-neutral-800 flex items-center gap-2">
+                      <FiClock className="w-4 h-4 text-primary-600" />
+                      Latest Updates
+                    </h3>
+                    <button 
+                      onClick={() => setRealTimeUpdates([])}
+                      className="text-neutral-400 hover:text-neutral-600 transition-colors p-1 hover:bg-neutral-100 rounded"
+                      aria-label="Clear updates"
+                    >
+                      <FiXCircle className="w-3.5 h-3.5" />
+                    </button>
                   </div>
-                  
-                  <button
-                    onClick={handleLeaveGroup}
-                    disabled={leaveLoading || !canLeaveGroup()}
-                    className="w-full px-4 py-3 bg-red-500 hover:bg-red-600 text-white rounded-lg font-semibold transition-all duration-300 transform hover:scale-105 active:scale-95 shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2"
-                  >
-                    {leaveLoading ? (
-                      <>
-                        <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent"></div>
-                        <span>Leaving...</span>
-                      </>
-                    ) : (
-                      <>
-                        <span className="text-lg">🚪</span>
-                        <span>Leave Group</span>
-                      </>
-                    )}
-                  </button>
-                </div>
-              </div>
-            )}
-
-             {/* Invite Members Section - Visible to all members */}
-                {(
-               <div className="bg-gradient-to-br from-white via-blue-50 to-purple-50 rounded-2xl shadow-xl border border-blue-100 p-6 relative overflow-hidden">
-                 {/* Background decoration */}
-                 <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-bl from-blue-100 to-transparent rounded-full -translate-y-16 translate-x-16 opacity-50"></div>
-                 <div className="absolute bottom-0 left-0 w-24 h-24 bg-gradient-to-tr from-purple-100 to-transparent rounded-full translate-y-12 -translate-x-12 opacity-50"></div>
-                 
-                 <div className="relative z-10">
-                   <div className="flex items-center space-x-3 mb-6">
-                     <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center shadow-lg">
-                       <span className="text-white text-xl">👥</span>
-                     </div>
-                     <div>
-                       <h3 className="text-xl font-bold text-gray-900">Invite Members</h3>
-                       <p className="text-sm text-gray-600">Expand your team</p>
-                     </div>
-                   </div>
-                   
-                   <div className="space-y-6">
-                     {/* Capacity Info - Only show for non-finalized groups */}
-                     {!isGroupFinalized() && (
-                     <div className="bg-white/80 backdrop-blur-sm rounded-xl p-4 border border-white/50 shadow-sm">
-                       <div className="grid grid-cols-3 gap-4 mb-4">
-                         <div className="text-center">
-                           <p className="text-xs text-gray-500 mb-1">Current</p>
-                           <p className="text-2xl font-bold text-gray-900">
-                            {groupDetails?.activeMemberCount ?? (groupDetails.members?.filter?.(m => m.isActive).length || 0)}
-                          </p>
-                         </div>
-                         <div className="text-center">
-                           <p className="text-xs text-gray-500 mb-1">Min Required</p>
-                            <p className="text-lg font-semibold text-orange-600">{minGroupMembers || groupDetails?.minMembers}</p>
-                         </div>
-                         <div className="text-center">
-                           <p className="text-xs text-gray-500 mb-1">Max Allowed</p>
-                            <p className="text-lg font-semibold text-blue-600">{maxGroupMembers || groupDetails?.maxMembers}</p>
-                         </div>
-                       </div>
-                       
-                       {/* Clean Progress bar with better design */}
-                       <div className="space-y-3">
-                         {/* Progress bar container */}
-                         <div className="w-full bg-gray-200 rounded-full h-3 relative overflow-hidden">
-                           {/* Progress fill with better color scheme */}
-                           <div 
-                             className="h-3 rounded-full transition-all duration-500 ease-out relative"
-                           style={{ 
-                               width: `${Math.min(100, (((groupDetails?.activeMemberCount ?? (groupDetails.members?.filter?.(m => m.isActive).length || 0)) / (maxGroupMembers || groupDetails.maxMembers)) * 100))}%`,
-                               background: `linear-gradient(90deg, 
-                                 ${(() => {
-                                   const current = groupDetails?.activeMemberCount ?? (groupDetails.members?.filter?.(m => m.isActive).length || 0);
-                                   const min = minGroupMembers || groupDetails?.minMembers;
-                                   const max = maxGroupMembers || groupDetails?.maxMembers;
-                                   const progress = (current / max) * 100;
-                                   const minProgress = (min / max) * 100;
-                                   
-                                   if (progress < minProgress) {
-                                     return '#f59e0b, #f97316'; // Amber to orange
-                                   } else if (progress < 100) {
-                                     return '#3b82f6, #6366f1'; // Blue to indigo
-                                   } else {
-                                     return '#10b981, #059669'; // Emerald green
-                                   }
-                                 })()})`
-                             }}
-                           >
-                             {/* Subtle shine effect */}
-                             <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent"></div>
-                           </div>
-                       </div>
-                       
-                         {/* Progress labels with better styling */}
-                         <div className="flex justify-between items-center text-sm">
-                           <div className="flex items-center space-x-2">
-                             <div className="w-3 h-3 rounded-full bg-gray-400"></div>
-                             <span className="text-gray-600 font-medium">0</span>
-                           </div>
-                           <div className="flex items-center space-x-2">
-                             <div className="w-3 h-3 rounded-full bg-amber-500"></div>
-                             <span className="text-amber-700 font-semibold">Min: {minGroupMembers || groupDetails?.minMembers}</span>
-                           </div>
-                           <div className="flex items-center space-x-2">
-                             <div className="w-3 h-3 rounded-full bg-blue-500"></div>
-                             <span className="text-blue-700 font-semibold">Max: {maxGroupMembers || groupDetails?.maxMembers}</span>
-                           </div>
-                         </div>
-                         
-                         {/* Progress percentage and status */}
-                         <div className="text-center">
-                           <span className="text-lg font-bold text-gray-800">
-                            {(() => {
-                              const current = groupDetails?.activeMemberCount ?? (groupDetails.members?.filter?.(m => m.isActive).length || 0);
-                              const max = maxGroupMembers || groupDetails?.maxMembers;
-                              return Math.round((current / max) * 100);
-                            })()}%
-                          </span>
-                          <span className="text-sm text-gray-600 ml-2">
-                            ({(groupDetails?.activeMemberCount ?? (groupDetails.members?.filter?.(m => m.isActive).length || 0))} of {maxGroupMembers || groupDetails?.maxMembers} members)
-                          </span>
-                         </div>
-                       </div>
-                       
-                       {/* Status message */}
-                       <div className="mt-3 text-center">
-                         {(() => {
-                           const current = groupDetails?.activeMemberCount ?? (groupDetails.members?.filter?.(m => m.isActive).length || 0);
-                          const min = minGroupMembers || groupDetails?.minMembers;
-                           const max = maxGroupMembers || groupDetails?.maxMembers;
-                           
-                           if (current < min) {
-                             return (
-                               <p className="text-sm text-orange-600 font-medium">
-                                 Need {min - current} more member{min - current !== 1 ? 's' : ''} to meet minimum requirement
-                               </p>
-                             );
-                           } else if (current >= min && current < max) {
-                             return (
-                               <p className="text-sm text-green-600 font-medium">
-                                 Group meets minimum requirement! Can add {max - current} more member{max - current !== 1 ? 's' : ''}
-                               </p>
-                             );
-                           } else if (current >= max) {
-                             return (
-                               <p className="text-sm text-blue-600 font-medium">
-                                 Group is at maximum capacity
-                               </p>
-                             );
-                           }
-                         })()}
-                     </div>
-                       </div>
-                     )}
-                     
-                     {/* Invite Button */}
-                     {isGroupFinalized() ? (
-                       <div className="w-full px-6 py-4 rounded-xl bg-gray-100 border-2 border-dashed border-gray-300 text-center">
-                         <div className="flex items-center justify-center space-x-3 mb-2">
-                           <span className="text-xl">🔒</span>
-                           <span className="font-semibold text-gray-600">Invite New Members</span>
-                         </div>
-                         <p className="text-sm text-gray-500">
-                           Group has been finalized - no changes allowed
-                         </p>
-                       </div>
-                     ) : isGroupLeader ? (
-                  <button
-                       onClick={() => setShowInviteModal(true)}
-                       disabled={!canInviteMembers()}
-                       className={`w-full px-6 py-4 rounded-xl font-semibold text-white transition-all duration-300 transform hover:scale-105 active:scale-95 shadow-lg hover:shadow-xl flex items-center justify-center space-x-3 ${
-                         canInviteMembers() 
-                           ? 'bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700' 
-                           : 'bg-gray-300 cursor-not-allowed'
-                       }`}
-                     >
-                       <span className="text-xl">👥</span>
-                       <span>Invite New Members</span>
-                  </button>
-                     ) : (
-                       <div className="w-full px-6 py-4 rounded-xl bg-gray-100 border-2 border-dashed border-gray-300 text-center">
-                         <div className="flex items-center justify-center space-x-3 mb-2">
-                           <span className="text-xl">👥</span>
-                           <span className="font-semibold text-gray-600">Invite New Members</span>
-                         </div>
-                         <p className="text-sm text-gray-500">
-                           Only the group leader can invite new members
-                         </p>
-                       </div>
-                     )}
-                     
-                     {/* Finalize Group Section - Visible to all members */}
-                     {isGroupFinalized() ? (
-                       <div className="rounded-xl p-4 border bg-gradient-to-r from-green-50 to-emerald-50 border-green-200">
-                         <div className="text-center mb-4">
-                           <div className="w-12 h-12 rounded-xl flex items-center justify-center mx-auto mb-3 shadow-lg bg-gradient-to-br from-green-500 to-emerald-600">
-                             <span className="text-white text-xl">✅</span>
-                           </div>
-                           <h4 className="font-semibold mb-1 text-green-900">
-                             Group Finalized!
-                           </h4>
-                           <p className="text-xs text-green-700">
-                             This group has been finalized and is ready for project allocation
-                           </p>
-                           {groupDetails.finalizedAt && (
-                             <p className="text-xs text-green-600 mt-1">
-                               Finalized on: {new Date(groupDetails.finalizedAt).toLocaleDateString()}
-                             </p>
-                           )}
-                         </div>
-                         
-                         <div className="w-full px-4 py-3 bg-green-100 border-2 border-green-200 rounded-xl text-center">
-                           <div className="flex items-center justify-center space-x-2 mb-1">
-                             <span className="text-lg">🔒</span>
-                             <span className="font-semibold text-green-700">Group Locked</span>
-                           </div>
-                           <p className="text-sm text-green-600">
-                             No changes can be made to this group
-                           </p>
-                         </div>
-                       </div>
-                     ) : (
-                       <div className={`rounded-xl p-4 border ${
-                         canFinalizeGroup() && isGroupLeader
-                           ? 'bg-gradient-to-r from-green-50 to-emerald-50 border-green-200'
-                           : 'bg-gradient-to-r from-gray-50 to-slate-50 border-gray-200'
-                       }`}>
-                         <div className="text-center mb-4">
-                           <div className={`w-12 h-12 rounded-xl flex items-center justify-center mx-auto mb-3 shadow-lg ${
-                             canFinalizeGroup() && isGroupLeader
-                               ? 'bg-gradient-to-br from-green-500 to-emerald-600'
-                               : 'bg-gradient-to-br from-gray-400 to-gray-500'
-                           }`}>
-                             <span className="text-white text-xl">
-                               {canFinalizeGroup() && isGroupLeader ? '✅' : '🔒'}
-                             </span>
-                           </div>
-                           <h4 className={`font-semibold mb-1 ${
-                             canFinalizeGroup() && isGroupLeader ? 'text-green-900' : 'text-gray-600'
-                           }`}>
-                             {canFinalizeGroup() && isGroupLeader 
-                               ? 'Group Ready to Finalize!' 
-                               : 'Group Finalization'}
-                           </h4>
-                           <p className={`text-xs ${
-                             canFinalizeGroup() && isGroupLeader ? 'text-green-700' : 'text-gray-500'
-                           }`}>
-                             {canFinalizeGroup() && isGroupLeader
-                              ? (() => {
-                                  const current = groupDetails?.activeMemberCount ?? (groupDetails.members?.filter?.(m => m.isActive).length || 0);
-                                  return `All ${current} members have joined`;
-                                })()
-                              : isGroupLeader
-                                ? (() => {
-                                    const current = groupDetails?.activeMemberCount ?? (groupDetails.members?.filter?.(m => m.isActive).length || 0);
-                                    const min = minGroupMembers || groupDetails?.minMembers;
-                                    const needed = Math.max(0, min - current);
-                                    return `Need ${needed} more member${needed !== 1 ? 's' : ''} to finalize`;
-                                  })()
-                                : 'Group leader can finalize once minimum members join'
-                            }
-                           </p>
-                         </div>
-                         
-                         {isGroupLeader ? (
-                           <button
-                             onClick={handleFinalizeGroup}
-                             disabled={finalizeLoading || !canFinalizeGroup()}
-                             className={`w-full px-4 py-3 rounded-xl font-semibold transition-all duration-300 transform hover:scale-105 active:scale-95 shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2 ${
-                               canFinalizeGroup()
-                                 ? 'bg-gradient-to-r from-green-500 to-emerald-600 text-white'
-                                 : 'bg-gray-300 text-gray-500'
-                             }`}
-                           >
-                             {finalizeLoading ? (
-                               <>
-                                 <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent"></div>
-                                 <span>Finalizing...</span>
-                               </>
-                             ) : (
-                               <>
-                                 <span className="text-lg">🔒</span>
-                                 <span>Finalize Group</span>
-                               </>
-                             )}
-                           </button>
-                         ) : (
-                           <div className="w-full px-4 py-3 bg-gray-100 border-2 border-dashed border-gray-300 rounded-xl text-center">
-                             <div className="flex items-center justify-center space-x-2 mb-1">
-                               <span className="text-lg">👑</span>
-                               <span className="font-semibold text-gray-600">Leader Only Action</span>
-                             </div>
-                             <p className="text-sm text-gray-500">
-                               Only the group leader can finalize the group
-                             </p>
-                           </div>
-                         )}
-                       </div>
-                     )}
-
-                     {/* Status Messages - Only for leaders and non-finalized groups */}
-                     {isGroupLeader && !canInviteMembers() && !canFinalizeGroup() && !isGroupFinalized() && (
-                       <div className={`rounded-xl p-4 text-center ${
-                         getAvailableSlots() === 0 
-                           ? 'bg-gradient-to-r from-red-50 to-pink-50 border border-red-200' 
-                           : 'bg-gradient-to-r from-yellow-50 to-orange-50 border border-yellow-200'
-                       }`}>
-                         <div className="flex items-center justify-center space-x-2 mb-2">
-                           <span className="text-lg">
-                             {getAvailableSlots() === 0 ? '🔒' : '⚠️'}
-                           </span>
-                           <p className="font-medium text-sm">
-                             {getAvailableSlots() === 0 ? 'Group is Full' : 'Group is Finalized'}
-                           </p>
-              </div>
-                         <p className="text-xs text-gray-600">
-                           {getAvailableSlots() === 0 
-                             ? 'No more members can be added to this group.' 
-                             : 'This group has been finalized and no changes are allowed.'}
-                         </p>
-            </div>
-                     )}
-                     
-                     {/* Quick Stats */}
-                     {groupDetails.invites && groupDetails.invites.length > 0 && (
-                       <div className="bg-white/60 backdrop-blur-sm rounded-xl p-3 border border-white/50">
-                         <div className="flex items-center justify-between text-xs">
-                           <span className="text-gray-600">
-                             <span className="font-semibold text-yellow-600">
-                               {groupDetails.invites.filter(i => i.status === 'pending').length}
-                             </span> pending
-                           </span>
-                           <span className="text-gray-600">
-                             <span className="font-semibold text-green-600">
-                               {groupDetails.invites.filter(i => i.status === 'accepted').length}
-                             </span> accepted
-                           </span>
-                           <span className="text-gray-600">
-                             <span className="font-semibold text-red-600">
-                               {groupDetails.invites.filter(i => i.status === 'rejected').length}
-                             </span> declined
-                    </span>
+                  <div className="space-y-2 max-h-40 overflow-y-auto custom-scrollbar">
+                    {realTimeUpdates.slice(-3).reverse().map((update, index) => (
+                      <div key={index} className={`text-xs p-2.5 rounded-lg ${
+                        update.isPositive ? 'bg-success-50 text-success-700 border border-success-100' : 'bg-warning-50 text-warning-700 border border-warning-100'
+                      }`}>
+                        <span className="font-semibold">{new Date(update.timestamp).toLocaleTimeString()}:</span>
+                        <span className="ml-1.5">{update.message}</span>
+                      </div>
+                    ))}
                   </div>
                 </div>
-                     )}
+              )}
+
+              {/* Invite Members Section */}
+              <div className="bg-surface-100 rounded-xl shadow-sm border border-neutral-200 p-4 flex-shrink-0">
+                <div className="flex items-center gap-2.5 mb-4">
+                  <div className="w-9 h-9 bg-gradient-to-br from-primary-600 to-secondary-600 rounded-lg flex items-center justify-center flex-shrink-0 shadow-md">
+                    <FiUserPlus className="w-5 h-5 text-white" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="text-sm font-bold text-neutral-800">Invite Members</h3>
+                    <p className="text-xs text-neutral-600 mt-0.5">Expand your team</p>
                   </div>
                 </div>
-               </div>
-             )}
-
-                  </div>
-                </div>
-
-        
-
-
-              </div>
-
-       {/* Invite Members Modal */}
-       {showInviteModal && (
-         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-2 sm:p-4 animate-in fade-in duration-300">
-           <div className="bg-white rounded-3xl shadow-2xl w-full max-w-6xl max-h-[95vh] overflow-hidden flex flex-col border border-gray-100 animate-in slide-in-from-bottom-4 duration-500">
-             {/* Modal Header */}
-             <div className="bg-gradient-to-r from-gray-50 to-blue-50 flex items-center justify-between p-6 border-b border-gray-100 flex-shrink-0 relative overflow-hidden">
-               {/* Background decoration */}
-               <div className="absolute top-0 right-0 w-40 h-40 bg-gradient-to-bl from-blue-100/50 to-transparent rounded-full -translate-y-20 translate-x-20"></div>
-               <div className="absolute bottom-0 left-0 w-32 h-32 bg-gradient-to-tr from-purple-100/50 to-transparent rounded-full translate-y-16 -translate-x-16"></div>
-               
-               <div className="flex items-center space-x-4 relative z-10">
-                 <div className="w-14 h-14 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl flex items-center justify-center shadow-lg">
-                   <span className="text-white text-2xl">👥</span>
-            </div>
-                 <div>
-                   <h2 className="text-2xl font-bold text-gray-900">Invite Members</h2>
-                   <p className="text-gray-600">Search and select students to join your group</p>
-          </div>
-        </div>
-
-               <button
-                 onClick={handleCloseInviteModal}
-                 className="text-gray-400 hover:text-gray-600 transition-all duration-200 p-2 hover:bg-white/80 rounded-xl relative z-10"
-               >
-                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                 </svg>
-               </button>
-             </div>
-             
-                  {/* Modal Body - Scrollable Structure */}
-                  <div className="flex-1 overflow-y-auto custom-scrollbar bg-gradient-to-b from-gray-50 to-white">
-                    {/* Instructions - Fixed */}
-                    <div className="flex-shrink-0 p-6 pb-4">
-                      <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-4 border border-gray-100 shadow-sm">
-                        <div className="flex items-center space-x-3">
-                          <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                            <span className="text-blue-600 text-sm">💡</span>
-                          </div>
-                          <div className="flex-1">
-                            <p className="text-gray-600 text-sm">
-                              Search for students by name, MIS number, or email. You can invite up to <span className="font-semibold text-blue-600">{getAvailableSlots()}</span> more students.
-                            </p>
-                          </div>
-                        </div>
+                
+                {/* Capacity Info - Only show for non-finalized groups */}
+                {!isGroupFinalized() && (
+                  <div className="bg-white rounded-lg p-3.5 border border-neutral-200 mb-4">
+                    <div className="grid grid-cols-3 gap-3 mb-3.5">
+                      <div className="text-center">
+                        <p className="text-[10px] text-neutral-500 mb-1.5 font-medium uppercase tracking-wide">Current</p>
+                        <p className="text-xl font-bold text-neutral-800">
+                          {groupDetails?.activeMemberCount ?? (groupDetails.members?.filter?.(m => m.isActive).length || 0)}
+                        </p>
+                      </div>
+                      <div className="text-center">
+                        <p className="text-[10px] text-neutral-500 mb-1.5 font-medium uppercase tracking-wide">Min</p>
+                        <p className="text-base font-bold text-warning-700">{minGroupMembers || groupDetails?.minMembers}</p>
+                      </div>
+                      <div className="text-center">
+                        <p className="text-[10px] text-neutral-500 mb-1.5 font-medium uppercase tracking-wide">Max</p>
+                        <p className="text-base font-bold text-primary-700">{maxGroupMembers || groupDetails?.maxMembers}</p>
                       </div>
                     </div>
                     
-                    {/* Selected Students - Fixed */}
-                    {selectedStudents.length > 0 && (
-                      <div className="flex-shrink-0 px-6 pb-4">
-                        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm">
-                          <div className="flex items-center justify-between p-4 border-b border-gray-100">
-                            <div className="flex items-center space-x-3">
-                              <div className="w-7 h-7 bg-gradient-to-br from-green-500 to-emerald-600 rounded-lg flex items-center justify-center">
-                                <span className="text-white text-xs font-bold">{selectedStudents.length}</span>
-                              </div>
-                              <h3 className="font-semibold text-gray-900">
-                                Selected ({selectedStudents.length})
-                              </h3>
-                            </div>
+                    {/* Progress Bar */}
+                    <div className="w-full bg-neutral-200 rounded-full h-2.5 mb-2.5 overflow-hidden">
+                      <div 
+                        className="h-2.5 rounded-full transition-all duration-500"
+                        style={{ 
+                          width: `${Math.min(100, (((groupDetails?.activeMemberCount ?? (groupDetails.members?.filter?.(m => m.isActive).length || 0)) / (maxGroupMembers || groupDetails.maxMembers)) * 100))}%`,
+                          background: (() => {
+                            const current = groupDetails?.activeMemberCount ?? (groupDetails.members?.filter?.(m => m.isActive).length || 0);
+                            const min = minGroupMembers || groupDetails?.minMembers;
+                            const max = maxGroupMembers || groupDetails?.maxMembers;
+                            const progress = (current / max) * 100;
+                            const minProgress = (min / max) * 100;
+                            if (progress < minProgress) return 'linear-gradient(90deg, #f59e0b, #f97316)';
+                            if (progress < 100) return 'linear-gradient(90deg, #3b82f6, #6366f1)';
+                            return 'linear-gradient(90deg, #10b981, #059669)';
+                          })()
+                        }}
+                      ></div>
+                    </div>
+                    <p className="text-xs text-center text-neutral-600 font-medium">
+                      {(() => {
+                        const current = groupDetails?.activeMemberCount ?? (groupDetails.members?.filter?.(m => m.isActive).length || 0);
+                        const min = minGroupMembers || groupDetails?.minMembers;
+                        if (current < min) return `Need ${min - current} more member${min - current !== 1 ? 's' : ''}`;
+                        return `${current}/${maxGroupMembers || groupDetails?.maxMembers} members`;
+                      })()}
+                    </p>
+                  </div>
+                )}
+                
+                {/* Invite Button */}
+                {isGroupFinalized() ? (
+                  <div className="w-full p-3 rounded-lg bg-neutral-100 border border-neutral-300 text-center">
+                    <div className="flex items-center justify-center gap-2 mb-1.5">
+                      <FiLock className="w-4 h-4 text-neutral-600" />
+                      <span className="text-xs font-semibold text-neutral-600">Invite Disabled</span>
+                    </div>
+                    <p className="text-xs text-neutral-500">Group finalized</p>
+                  </div>
+                ) : isGroupLeader ? (
                   <button
-                              onClick={() => setSelectedStudents([])}
-                              className="text-xs text-gray-500 hover:text-red-600 transition-colors px-2 py-1 hover:bg-red-50 rounded"
-                            >
-                              Clear all
-                            </button>
+                    onClick={() => setShowInviteModal(true)}
+                    disabled={!canInviteMembers()}
+                    className={`w-full btn-primary inline-flex items-center justify-center gap-2 text-sm py-2.5 ${
+                      !canInviteMembers() ? 'opacity-50 cursor-not-allowed' : ''
+                    }`}
+                  >
+                    <FiUserPlus className="w-4 h-4" />
+                    Invite Members
+                  </button>
+                ) : (
+                  <div className="w-full p-3 rounded-lg bg-neutral-100 border border-neutral-300 text-center">
+                    <div className="flex items-center justify-center gap-2 mb-1.5">
+                      <FiUserPlus className="w-4 h-4 text-neutral-600" />
+                      <span className="text-xs font-semibold text-neutral-600">Invite Members</span>
                     </div>
-                          
-                          <div className="max-h-32 overflow-y-auto p-4">
-                            <div className="grid grid-cols-1 gap-2">
-                              {selectedStudents.map((student) => (
-                                <div key={student._id} className="flex items-center justify-between bg-gradient-to-r from-blue-50 to-purple-50 p-3 rounded-lg border border-blue-100 hover:shadow-sm transition-all duration-200">
-                                  <div className="flex items-center space-x-3 min-w-0 flex-1">
-                                    <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center flex-shrink-0">
-                                      <span className="text-white font-bold text-xs">
-                                        {student.fullName?.charAt(0) || '?'}
-                                      </span>
-                    </div>
-                                    <div className="min-w-0 flex-1">
-                                      <p className="font-medium text-gray-900 text-sm truncate">{student.fullName}</p>
-                                      <p className="text-xs text-gray-600 truncate">{student.misNumber}</p>
+                    <p className="text-xs text-neutral-500">Leader only</p>
+                  </div>
+                )}
               </div>
-                                  </div>
-                <button
-                                    onClick={() => setSelectedStudents(prev => prev.filter(s => s._id !== student._id))}
-                                    className="text-red-500 hover:text-red-700 hover:bg-red-50 p-1 rounded transition-all duration-200 flex-shrink-0"
-                >
-                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                    </svg>
-                </button>
-                                </div>
-                              ))}
-                            </div>
+                     
+              {/* Finalize Group Section */}
+              <div className="bg-surface-100 rounded-xl shadow-sm border border-neutral-200 p-4 flex-shrink-0">
+                <h3 className="text-sm font-bold text-neutral-800 mb-3 flex items-center gap-2">
+                  <FiLock className="w-4 h-4 text-primary-600" />
+                  Finalize Group
+                </h3>
+                
+                {isGroupFinalized() ? (
+                  <div className="bg-success-50 border border-success-200 rounded-lg p-4 text-center">
+                    <div className="w-12 h-12 bg-gradient-to-br from-success-500 to-success-600 rounded-lg flex items-center justify-center mx-auto mb-3 shadow-md">
+                      <FiCheckCircle className="w-6 h-6 text-white" />
+                    </div>
+                    <h4 className="font-bold text-success-900 text-sm mb-1.5">Group Finalized!</h4>
+                    <p className="text-xs text-success-700 mb-2.5">Ready for project allocation</p>
+                    {groupDetails.finalizedAt && (
+                      <p className="text-xs text-success-600 mb-3 font-medium">
+                        {new Date(groupDetails.finalizedAt).toLocaleDateString()}
+                      </p>
+                    )}
+                    <div className="mt-3 bg-success-100 border border-success-200 rounded-lg p-2.5">
+                      <div className="flex items-center justify-center gap-1.5 mb-1">
+                        <FiLock className="w-3.5 h-3.5 text-success-700" />
+                        <span className="text-xs font-semibold text-success-700">Group Locked</span>
+                      </div>
+                      <p className="text-xs text-success-600">No changes allowed</p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className={`rounded-lg p-4 border ${
+                    canFinalizeGroup() && isGroupLeader
+                      ? 'bg-success-50 border-success-200'
+                      : 'bg-neutral-50 border-neutral-200'
+                  }`}>
+                    <div className="text-center mb-4">
+                      <div className={`w-12 h-12 rounded-lg flex items-center justify-center mx-auto mb-3 shadow-md ${
+                        canFinalizeGroup() && isGroupLeader
+                          ? 'bg-gradient-to-br from-success-500 to-success-600'
+                          : 'bg-neutral-400'
+                      }`}>
+                        {canFinalizeGroup() && isGroupLeader ? (
+                          <FiCheckCircle className="w-6 h-6 text-white" />
+                        ) : (
+                          <FiLock className="w-6 h-6 text-white" />
+                        )}
+                      </div>
+                      <h4 className={`font-bold text-sm mb-1.5 ${
+                        canFinalizeGroup() && isGroupLeader ? 'text-success-900' : 'text-neutral-700'
+                      }`}>
+                        {canFinalizeGroup() && isGroupLeader 
+                          ? 'Ready to Finalize!' 
+                          : 'Finalization'}
+                      </h4>
+                      <p className={`text-xs leading-relaxed ${
+                        canFinalizeGroup() && isGroupLeader ? 'text-success-700' : 'text-neutral-500'
+                      }`}>
+                        {canFinalizeGroup() && isGroupLeader
+                          ? (() => {
+                              const current = groupDetails?.activeMemberCount ?? (groupDetails.members?.filter?.(m => m.isActive).length || 0);
+                              return `All ${current} members joined`;
+                            })()
+                          : isGroupLeader
+                            ? (() => {
+                                const current = groupDetails?.activeMemberCount ?? (groupDetails.members?.filter?.(m => m.isActive).length || 0);
+                                const min = minGroupMembers || groupDetails?.minMembers;
+                                const needed = Math.max(0, min - current);
+                                return `Need ${needed} more member${needed !== 1 ? 's' : ''}`;
+                              })()
+                            : 'Leader can finalize when ready'
+                        }
+                      </p>
+                    </div>
+                    
+                    {isGroupLeader ? (
+                      <button
+                        onClick={handleFinalizeGroup}
+                        disabled={finalizeLoading || !canFinalizeGroup()}
+                        className={`w-full btn-success inline-flex items-center justify-center gap-2 text-sm py-2.5 ${
+                          !canFinalizeGroup() ? 'opacity-50 cursor-not-allowed' : ''
+                        }`}
+                      >
+                        {finalizeLoading ? (
+                          <>
+                            <FiLoader className="w-4 h-4 animate-spin" />
+                            Finalizing...
+                          </>
+                        ) : (
+                          <>
+                            <FiCheckCircle className="w-4 h-4" />
+                            Finalize Group
+                          </>
+                        )}
+                      </button>
+                    ) : (
+                      <div className="w-full p-2.5 rounded-lg bg-neutral-100 border border-neutral-300 text-center">
+                        <p className="text-xs text-neutral-500">Leader only</p>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           </div>
-)}
+        </div>
+
+        {/* Invite Members Modal */}
+      {showInviteModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-2 sm:p-4">
+          <div className="bg-surface-100 rounded-xl shadow-xl w-full max-w-6xl max-h-[95vh] overflow-hidden flex flex-col border border-neutral-200">
+            {/* Modal Header */}
+            <div className="bg-gradient-to-r from-primary-50 to-secondary-50 flex items-center justify-between p-4 border-b border-neutral-200 flex-shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-gradient-to-br from-primary-600 to-secondary-600 rounded-lg flex items-center justify-center shadow-md">
+                  <FiUserPlus className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-bold text-neutral-800">Invite Members</h2>
+                  <p className="text-xs text-neutral-600">Search and select students to join your group</p>
+                </div>
+              </div>
+
+              <button
+                onClick={handleCloseInviteModal}
+                className="text-neutral-500 hover:text-neutral-700 transition-colors p-1.5"
+                aria-label="Close"
+              >
+                <FiX className="w-5 h-5" />
+              </button>
+            </div>
+             
+            {/* Modal Body - Scrollable */}
+            <div className="flex-1 overflow-y-auto custom-scrollbar bg-surface-200">
+              {/* Instructions */}
+              <div className="flex-shrink-0 p-4">
+                <div className="bg-info-50 rounded-xl p-3 border border-info-200">
+                  <div className="flex items-center gap-2">
+                    <FiInfo className="w-4 h-4 text-info-600 flex-shrink-0" />
+                    <p className="text-xs text-info-800">
+                      Search by name, MIS, or email. You can invite up to <span className="font-semibold text-info-700">{getAvailableSlots()}</span> more students.
+                    </p>
+                  </div>
+                </div>
+              </div>
+                    
+              {/* Selected Students */}
+              {selectedStudents.length > 0 && (
+                <div className="flex-shrink-0 px-4 pb-3">
+                  <div className="bg-white rounded-xl border border-neutral-200 shadow-sm">
+                    <div className="flex items-center justify-between p-3 border-b border-neutral-200">
+                      <div className="flex items-center gap-2">
+                        <div className="w-8 h-8 bg-gradient-to-br from-success-500 to-success-600 rounded-lg flex items-center justify-center">
+                          <span className="text-white text-xs font-bold">{selectedStudents.length}</span>
+                        </div>
+                        <h3 className="font-semibold text-neutral-800 text-sm">
+                          Selected ({selectedStudents.length})
+                        </h3>
+                      </div>
+                      <button
+                        onClick={() => setSelectedStudents([])}
+                        className="text-xs text-neutral-500 hover:text-error-600 transition-colors px-2 py-1 hover:bg-error-50 rounded"
+                      >
+                        <FiXCircle className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                    
+                    <div className="max-h-32 overflow-y-auto custom-scrollbar p-3">
+                      <div className="space-y-2">
+                        {selectedStudents.map((student) => (
+                          <div key={student._id} className="flex items-center justify-between bg-primary-50 p-2 rounded-lg border border-primary-200">
+                            <div className="flex items-center gap-2 min-w-0 flex-1">
+                              <div className="w-7 h-7 bg-gradient-to-br from-primary-600 to-secondary-600 rounded-lg flex items-center justify-center flex-shrink-0">
+                                <span className="text-white font-bold text-xs">
+                                  {student.fullName?.charAt(0) || '?'}
+                                </span>
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <p className="font-medium text-neutral-800 text-xs truncate">{student.fullName}</p>
+                                <p className="text-[11px] text-neutral-600 truncate">{student.misNumber}</p>
+                              </div>
+                            </div>
+                            <button
+                              onClick={() => setSelectedStudents(prev => prev.filter(s => s._id !== student._id))}
+                              className="text-error-600 hover:text-error-700 hover:bg-error-50 p-1 rounded transition-colors flex-shrink-0"
+                            >
+                              <FiX className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
 
                     {/* Search Section - Auto-expanding */}
                     <div className="px-6 pb-6">
@@ -2244,49 +2179,47 @@ const GroupDashboard = () => {
                     </div>
                   </div>
              
-             {/* Modal Footer - Fixed */}
-             <div className="bg-gradient-to-r from-gray-50 to-blue-50 flex items-center justify-between p-6 border-t border-gray-100 flex-shrink-0">
-               <div className="text-sm text-gray-600">
-                 {selectedStudents.length > 0 ? (
-                   <span className="font-medium">
-                     {selectedStudents.length} student{selectedStudents.length !== 1 ? 's' : ''} selected
-                   </span>
-                 ) : (
-                   <span>No students selected</span>
-                 )}
-               </div>
-               
-               <div className="flex items-center space-x-4">
-                <button
-                   onClick={handleCloseInviteModal}
-                   className="px-6 py-3 text-sm font-semibold text-gray-700 bg-white border border-gray-300 rounded-xl hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all duration-200 shadow-sm hover:shadow-md"
-                 >
-                   Cancel
-                </button>
-                <button
-                   onClick={handleSendInvitations}
-                   disabled={selectedStudents.length === 0 || inviteLoading}
-                   className={`px-8 py-3 text-sm font-semibold text-white rounded-xl focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 flex items-center space-x-3 transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105 active:scale-95 ${
-                     selectedStudents.length === 0 || inviteLoading
-                       ? 'bg-gray-300 cursor-not-allowed'
-                       : 'bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700'
-                   }`}
-                 >
-                   {inviteLoading ? (
-                     <>
-                       <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent"></div>
-                       <span>Sending Invitations...</span>
-                     </>
-                   ) : (
-                     <>
-                       <span className="text-lg">👥</span>
-                       <span className="hidden sm:inline">Send Invitations ({selectedStudents.length})</span>
-                       <span className="sm:hidden">Send ({selectedStudents.length})</span>
-                     </>
-                   )}
-                </button>
+              {/* Modal Footer */}
+              <div className="bg-gradient-to-r from-primary-50 to-secondary-50 flex items-center justify-between p-4 border-t border-neutral-200 flex-shrink-0">
+                <div className="text-xs text-neutral-600">
+                  {selectedStudents.length > 0 ? (
+                    <span className="font-semibold">
+                      {selectedStudents.length} student{selectedStudents.length !== 1 ? 's' : ''} selected
+                    </span>
+                  ) : (
+                    <span>No students selected</span>
+                  )}
+                </div>
+                
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={handleCloseInviteModal}
+                    className="btn-secondary text-sm px-4 py-2"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleSendInvitations}
+                    disabled={selectedStudents.length === 0 || inviteLoading}
+                    className={`btn-primary inline-flex items-center gap-2 text-sm ${
+                      selectedStudents.length === 0 || inviteLoading ? 'opacity-50 cursor-not-allowed' : ''
+                    }`}
+                  >
+                    {inviteLoading ? (
+                      <>
+                        <FiLoader className="w-4 h-4 animate-spin" />
+                        Sending...
+                      </>
+                    ) : (
+                      <>
+                        <FiUserPlus className="w-4 h-4" />
+                        <span className="hidden sm:inline">Send ({selectedStudents.length})</span>
+                        <span className="sm:hidden">Send</span>
+                      </>
+                    )}
+                  </button>
+                </div>
               </div>
-            </div>
             </div>
           </div>
         )}

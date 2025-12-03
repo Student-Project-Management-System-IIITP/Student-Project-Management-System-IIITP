@@ -223,7 +223,7 @@ const getProjectDetails = async (req, res) => {
       })
       .populate({
         path: 'faculty',
-        select: 'fullName email department designation mode user',
+        select: 'fullName email department designation mode user prefix',
         populate: {
           path: 'user',
           select: 'email'
@@ -557,7 +557,7 @@ const getStudentCurrentProject = async (req, res) => {
         })
         .populate({
           path: 'faculty',
-          select: 'fullName email department designation mode user',
+          select: 'fullName email department designation mode user prefix',
           populate: {
             path: 'user',
             select: 'email'
@@ -589,7 +589,7 @@ const getStudentCurrentProject = async (req, res) => {
               })
               .populate({
                 path: 'faculty',
-                select: 'fullName email department designation mode user',
+                select: 'fullName email department designation mode user prefix',
                 populate: {
                   path: 'user',
                   select: 'email'
@@ -668,7 +668,7 @@ const getFacultyAllocatedProjects = async (req, res) => {
       .populate('student', 'fullName misNumber')
       .populate({
         path: 'faculty',
-        select: 'fullName email department designation mode user',
+        select: 'fullName email department designation mode user prefix',
         populate: {
           path: 'user',
           select: 'email'
@@ -1379,6 +1379,92 @@ const downloadDeliverable = async (req, res) => {
   }
 };
 
+// Delete a deliverable file
+const deleteDeliverable = async (req, res) => {
+  try {
+    const { projectId, deliverableType } = req.params;
+    const userId = req.user.id;
+    const userRole = req.user.role;
+
+    if (userRole !== 'student') {
+      return res.status(403).json({ success: false, message: 'Only students can delete deliverables' });
+    }
+
+    const project = await Project.findById(projectId);
+    if (!project) {
+      return res.status(404).json({ success: false, message: 'Project not found' });
+    }
+
+    // Access control: ensure student is part of the project
+    const student = await Student.findOne({ user: userId });
+    let hasAccess = false;
+    if (student) {
+      if (project.group) {
+        const group = await Group.findById(project.group);
+        hasAccess = group.members.some(member => member.student.toString() === student._id.toString());
+      } else if (project.student) {
+        hasAccess = project.student.toString() === student._id.toString();
+      }
+    }
+
+    if (!hasAccess) {
+      return res.status(403).json({ success: false, message: 'You do not have access to this project' });
+    }
+
+    // Block deletions for previous semester projects
+    if (student && project.semester && student.semester && project.semester < student.semester) {
+      return res.status(403).json({ 
+        success: false, 
+        message: 'File deletion is not allowed for previous semester projects' 
+      });
+    }
+
+    const nameMap = {
+      mid: 'Mid Sem Presentation',
+      end: 'End Sem Presentation',
+      report: 'Project Report'
+    };
+    const deliverableName = nameMap[deliverableType];
+
+    if (!deliverableName) {
+      return res.status(400).json({ success: false, message: 'Invalid deliverable type' });
+    }
+
+    // Find the deliverable
+    const deliverableIndex = project.deliverables.findIndex(d => d.name === deliverableName);
+    if (deliverableIndex === -1) {
+      return res.status(404).json({ success: false, message: 'Deliverable not found' });
+    }
+
+    const deliverable = project.deliverables[deliverableIndex];
+
+    // Delete the file from filesystem if it exists
+    const fs = require('fs');
+    const path = require('path');
+    if (deliverable.filename) {
+      const filePath = path.join(deliverableUploadDir, deliverable.filename);
+      if (fs.existsSync(filePath)) {
+        try {
+          fs.unlinkSync(filePath);
+        } catch (fileError) {
+          console.error('Error deleting file from filesystem:', fileError);
+          // Continue with database deletion even if file deletion fails
+        }
+      }
+    }
+
+    // Remove the deliverable from the array
+    project.deliverables.splice(deliverableIndex, 1);
+    await project.save();
+
+    res.json({ success: true, message: 'Deliverable deleted successfully', data: project.deliverables });
+
+  } catch (error) {
+    console.error('Error deleting deliverable:', error);
+    res.status(500).json({ success: false, message: 'Error deleting deliverable', error: error.message });
+  }
+};
+
 module.exports = {
   getProjectDetails,
   getProjectMessages,
@@ -1395,5 +1481,6 @@ module.exports = {
   completeMeeting,
   uploadDeliverable,
   downloadDeliverable,
+  deleteDeliverable,
   getProjectMedia
 };

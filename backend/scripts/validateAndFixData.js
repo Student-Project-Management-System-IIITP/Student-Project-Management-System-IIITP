@@ -405,9 +405,25 @@ async function validateAndFixGroups() {
         if (validMembers.length > 0) {
           const firstMember = await Student.findById(validMembers[0].student);
           if (firstMember && firstMember.semester) {
-            group.semester = firstMember.semester;
+            const memberSemester = firstMember.semester;
+            // CRITICAL: Only update group semester if:
+            // 1. Group semester is completely invalid (null/undefined/out of range), OR
+            // 2. It's a Sem 5->6 promotion (group was 5, member is 6)
+            // For Sem 6->7 and Sem 7->8, groups should NOT be updated - students create new groups
+            const isInvalidSemester = !group.semester || group.semester < 1 || group.semester > 8;
+            const isSem5To6Migration = group.semester === 5 && memberSemester === 6;
+            
+            if (isInvalidSemester || isSem5To6Migration) {
+              group.semester = memberSemester;
             needsUpdate = true;
-            console.log(`  ✓ Fixed invalid semester for group: ${group._id}`);
+              if (isSem5To6Migration) {
+                console.log(`  ✓ Fixed semester for group: ${group._id} (Sem 5->6 migration)`);
+              } else {
+                console.log(`  ✓ Fixed invalid semester for group: ${group._id} (was invalid, set to member semester ${memberSemester})`);
+              }
+            } else {
+              console.log(`  ⚠ Skipped semester update for group: ${group._id} (group semester: ${group.semester}, member semester: ${memberSemester}) - not a Sem 5->6 migration`);
+            }
           }
         }
       }

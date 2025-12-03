@@ -31,7 +31,7 @@ const Home = () => {
               <h1 className="text-4xl sm:text-5xl lg:text-6xl xl:text-7xl font-extrabold tracking-tight text-neutral-800 mb-6">
                 <span className="block">Manage Projects</span>
                 <span className="block text-primary-600">With Clarity</span>
-              </h1>
+          </h1>
               
               <p className="text-lg sm:text-xl text-neutral-600 max-w-xl mx-auto lg:mx-0 mb-8 leading-relaxed">
                 A unified workspace for IIIT Pune where students register projects, 
@@ -113,7 +113,7 @@ const Home = () => {
                 <p className="text-sm text-white/90">
                   <span className="font-semibold text-white">Built for IIIT Pune:</span> Supports B.Tech (Sem 4-8) and M.Tech (Sem 1-4) 
                   with project rules, evaluation windows, and internship workflows aligned to institute policies.
-                </p>
+          </p>
               </div>
             </div>
           </div>
@@ -215,7 +215,7 @@ const Home = () => {
         </div>
       </section>
 
-      {/* CTA Section */}
+          {/* CTA Section */}
       <section className="bg-gradient-to-br from-primary-600 via-primary-700 to-secondary-700 py-20 relative overflow-hidden">
         {/* Background decoration */}
         <div className="absolute inset-0 overflow-hidden">

@@ -152,6 +152,7 @@ router.post('/internships', studentController.addInternship);
 // Sem 4 specific routes
 router.post('/projects/:id/submit-ppt', uploadPPTForProject, handleUploadError, studentController.submitPPT);
 router.delete('/projects/:id/remove-ppt', studentController.removePPT);
+router.get('/projects/:id/download-ppt', studentController.downloadPPT);
 router.post('/projects/:id/schedule-presentation', studentController.schedulePresentation);
 router.get('/projects/:id/sem4-status', studentController.getSem4ProjectStatus);
 

@@ -8,7 +8,7 @@ const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 
-const OTP_SIGNUP_ENABLED = process.env.ENABLE_SIGNUP_OTP === 'true';
+const OTP_SIGNUP_ENABLED = process.env.ENABLE_SIGNUP_OTP !== 'false'; // Enabled by default, can be disabled via env var
 
 // Generate JWT Token
 const generateToken = (userId) => {

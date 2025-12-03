@@ -84,9 +84,20 @@ export const Sem7Provider = ({ children }) => {
       try {
         const groupsResponse = await studentAPI.getGroups({ semester: 7 });
         if (groupsResponse.success && groupsResponse.data && groupsResponse.data.length > 0) {
-          // getGroups already filters by active membership, so if we get a group here,
-          // the student is definitely an active member (not just invited)
-          setMajorProject1Group(groupsResponse.data[0]);
+          // CRITICAL: Filter to only include Sem 7 groups
+          // The backend might return Sem 6 groups due to promotion logic, so we need to filter here
+          const sem7Groups = groupsResponse.data.filter(group => 
+            group.semester === 7 || group.semester === '7'
+          );
+          
+          if (sem7Groups.length > 0) {
+            // getGroups already filters by active membership, so if we get a group here,
+            // the student is definitely an active member (not just invited)
+            setMajorProject1Group(sem7Groups[0]);
+          } else {
+            // No Sem 7 groups found
+            setMajorProject1Group(null);
+          }
         } else {
           // No groups returned = student is not an active member of any group
           // This includes students who only have pending invitations
@@ -112,7 +123,15 @@ export const Sem7Provider = ({ children }) => {
             if (groupResponse.success && groupResponse.data && groupResponse.data.group) {
               // getGroupDetails returns { data: { group: {...}, myInvites: [...], ... } }
               // So we need to access response.data.group, not response.data
-              setMajorProject1Group(groupResponse.data.group);
+              const group = groupResponse.data.group;
+              // CRITICAL: Only set if it's a Sem 7 group
+              if (group.semester === 7 || group.semester === '7') {
+                setMajorProject1Group(group);
+              } else {
+                // Group is not Sem 7, don't set it
+                console.warn('Project has group but it is not Sem 7:', group.semester);
+                setMajorProject1Group(null);
+              }
             }
           } catch (error) {
             console.error('Failed to load group details from project:', error);
@@ -256,7 +275,12 @@ export const Sem7Provider = ({ children }) => {
       await studentAPI.acceptGroupInvitation(invitation.group._id, invitationId);
       // Refresh data after accepting invitation
       // This will update isInGroup and clear invitations
-      await Promise.all([loadStudentSem7Data(), loadGroupInvitations()]);
+      // IMPORTANT: Force a full refresh to ensure group data is loaded for new members
+      await Promise.all([
+        loadStudentSem7Data(), 
+        loadGroupInvitations(),
+        fetchSem7Data() // Force full context refresh
+      ]);
       // Don't show toast here - let the calling component handle it
     } catch (error) {
       // Don't show toast here - let the calling component handle it
@@ -319,6 +343,14 @@ export const Sem7Provider = ({ children }) => {
       loadStudentSem7Data();
     };
 
+    // Handle new member joined events (for members who just joined)
+    const handleMemberJoined = (data) => {
+      console.log('Member joined event received:', data);
+      // Force full refresh to ensure new members see the group
+      fetchSem7Data();
+      loadStudentSem7Data();
+    };
+
     // Handle group finalization events
     const handleGroupFinalized = (data) => {
       console.log('Group finalized event received:', data);
@@ -343,6 +375,8 @@ export const Sem7Provider = ({ children }) => {
     subscribe('group_capacity_update', handleCapacityUpdate);
     subscribe('group_finalized', handleGroupFinalized);
     subscribe('group_invitation', handleNewInvitation);
+    subscribe('member_joined', handleMemberJoined);
+    subscribe('invitation_accepted', handleMemberJoined); // Also handle invitation_accepted for members who just joined
 
     // Cleanup on unmount
     return () => {
@@ -350,6 +384,8 @@ export const Sem7Provider = ({ children }) => {
       unsubscribe('group_capacity_update', handleCapacityUpdate);
       unsubscribe('group_finalized', handleGroupFinalized);
       unsubscribe('group_invitation', handleNewInvitation);
+      unsubscribe('member_joined', handleMemberJoined);
+      unsubscribe('invitation_accepted', handleMemberJoined);
     };
   }, [userRole, subscribe, unsubscribe, groupInvitations]);
 

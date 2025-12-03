@@ -2,9 +2,15 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useSem7Project } from '../../hooks/useSem7Project';
+import { studentAPI } from '../../utils/api';
 import { toast } from 'react-hot-toast';
 import Layout from '../../components/common/Layout';
 import StatusBadge from '../../components/common/StatusBadge';
+import { 
+  FiTarget, FiFileText, FiInfo, FiCheckCircle, FiAlertCircle, 
+  FiClock, FiUsers, FiBriefcase, FiX, FiLoader, FiArrowRight,
+  FiAlertTriangle, FiBook, FiCalendar, FiUserCheck
+} from 'react-icons/fi';
 
 const Sem7TrackSelection = () => {
   const navigate = useNavigate();
@@ -21,6 +27,8 @@ const Sem7TrackSelection = () => {
   const [selectedTrack, setSelectedTrack] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [windowStatus, setWindowStatus] = useState(null);
+  const [minGroupMembers, setMinGroupMembers] = useState(4); // Default fallback
+  const [maxGroupMembers, setMaxGroupMembers] = useState(5); // Default fallback
 
   // Check if student is in Sem 7
   useEffect(() => {
@@ -31,26 +39,41 @@ const Sem7TrackSelection = () => {
     }
   }, [roleData, user, navigate]);
 
-  // Load window status
+  // Load window status and group config
   useEffect(() => {
-    const checkWindow = async () => {
+    const loadConfig = async () => {
       try {
-        const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/student/system-config/sem7.choiceWindow`, {
+        // Load window status
+        const windowResponse = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/student/system-config/sem7.choiceWindow`, {
           headers: {
             'Authorization': `Bearer ${localStorage.getItem('token')}`
           }
         });
-        if (response.ok) {
-          const data = await response.json();
-          if (data.success && data.data) {
-            setWindowStatus(data.data);
+        if (windowResponse.ok) {
+          const windowData = await windowResponse.json();
+          if (windowData.success && windowData.data) {
+            setWindowStatus(windowData.data);
           }
         }
+
+        // Load group size config for Sem 7 Major Project 1
+        const [minResponse, maxResponse] = await Promise.allSettled([
+          studentAPI.getSystemConfig('sem7.major1.minGroupMembers').catch(() => ({ success: false })),
+          studentAPI.getSystemConfig('sem7.major1.maxGroupMembers').catch(() => ({ success: false }))
+        ]);
+
+        if (minResponse.status === 'fulfilled' && minResponse.value?.success && minResponse.value?.data?.value) {
+          setMinGroupMembers(parseInt(minResponse.value.data.value));
+        }
+
+        if (maxResponse.status === 'fulfilled' && maxResponse.value?.success && maxResponse.value?.data?.value) {
+          setMaxGroupMembers(parseInt(maxResponse.value.data.value));
+        }
       } catch (error) {
-        console.error('Failed to check window status:', error);
+        console.error('Failed to load config:', error);
       }
     };
-    checkWindow();
+    loadConfig();
   }, []);
 
   // Initialize selected track from existing choice
@@ -151,153 +174,309 @@ const Sem7TrackSelection = () => {
 
   return (
     <Layout>
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Semester 7 Track Selection</h1>
-          <p className="text-gray-600">
-            Choose between a 6-month internship or coursework for this semester
-          </p>
+      <div className="min-h-[calc(100vh-64px)] bg-surface-200 overflow-hidden flex flex-col">
+        {/* Header */}
+        <div className="bg-white border-b border-neutral-200 px-4 sm:px-6 lg:px-8 py-4 flex-shrink-0">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-xl font-bold text-neutral-800 flex items-center gap-2">
+                <FiTarget className="w-5 h-5 text-primary-600" />
+                Semester 7 Track Selection
+              </h1>
+              <p className="text-sm text-neutral-600 mt-1">
+                Choose your track for Semester 7
+              </p>
+            </div>
+            <button
+              onClick={() => navigate('/dashboard/student')}
+              className="p-2 rounded-lg hover:bg-neutral-100 transition-colors"
+              aria-label="Close"
+            >
+              <FiX className="w-5 h-5 text-neutral-600" />
+            </button>
+          </div>
         </div>
 
-        
+        {/* Main Content - 2 Column Layout */}
+        <div className="flex-1 min-h-0 w-full">
+          <div className="lg:grid lg:grid-cols-12 gap-3 lg:gap-4 flex-1 min-h-0 px-3 py-3">
+            {/* Left Column - Track Selection */}
+            <div className="lg:col-span-8 flex flex-col h-full min-h-0 space-y-3 overflow-y-auto custom-scrollbar pr-1">
+              {/* Current Status Banner */}
+              {trackChoice && (
+                <div className="bg-info-50 rounded-xl p-4 border border-info-200 flex-shrink-0">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-2">
+                        <FiInfo className="w-4 h-4 text-info-600" />
+                        <h3 className="text-sm font-semibold text-info-900">Current Status</h3>
+                      </div>
+                      <p className="text-xs text-info-800 mb-1">
+                        Selected Track: <span className="font-medium">{trackChoice.chosenTrack === 'internship' ? '6-Month Internship' : 'Coursework'}</span>
+                      </p>
+                      {trackChoice.finalizedTrack && (
+                        <p className="text-xs text-info-800">
+                          Finalized Track: <span className="font-medium">{trackChoice.finalizedTrack === 'internship' ? '6-Month Internship' : 'Coursework'}</span>
+                        </p>
+                      )}
+                      {trackChoice.adminRemarks && (
+                        <div className="mt-2 p-2 bg-white/60 rounded border border-info-300">
+                          <p className="text-xs font-medium text-info-900 mb-0.5">Admin Remarks:</p>
+                          <p className="text-xs text-info-800">{trackChoice.adminRemarks}</p>
+                        </div>
+                      )}
+                    </div>
+                    {getStatusBadge()}
+                  </div>
+                </div>
+              )}
 
-        {/* Current Status */}
-        {trackChoice && (
-          <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="font-semibold text-gray-900">Current Status</h3>
-                <p className="text-sm text-gray-600 mt-1">
-                  Selected Track: <span className="font-medium">{trackChoice.chosenTrack === 'internship' ? '6-Month Internship' : 'Coursework'}</span>
-                </p>
-                {trackChoice.finalizedTrack && (
-                  <p className="text-sm text-gray-600 mt-1">
-                    Finalized Track: <span className="font-medium">{trackChoice.finalizedTrack === 'internship' ? '6-Month Internship' : 'Coursework'}</span>
-                  </p>
-                )}
-              </div>
-              {getStatusBadge()}
+              {/* Window Status Warning */}
+              {!windowOpen && (
+                <div className="bg-warning-50 rounded-xl p-4 border border-warning-200 flex-shrink-0">
+                  <div className="flex items-start gap-2">
+                    <FiAlertTriangle className="w-4 h-4 text-warning-600 mt-0.5 flex-shrink-0" />
+                    <div>
+                      <p className="text-xs font-semibold text-warning-900 mb-1">Selection Window Closed</p>
+                      <p className="text-xs text-warning-800">
+                        The track selection window is currently closed. Please contact admin for more information.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Finalized Track Message */}
+              {finalizedTrack && !canSubmit && (
+                <div className="bg-success-50 rounded-xl p-4 border border-success-200 flex-shrink-0">
+                  <div className="flex items-start gap-2">
+                    <FiCheckCircle className="w-4 h-4 text-success-600 mt-0.5 flex-shrink-0" />
+                    <div>
+                      <p className="text-xs font-semibold text-success-900 mb-1">Track Finalized</p>
+                      <p className="text-xs text-success-800">
+                        Your track has been finalized as: <span className="font-medium">{finalizedTrack === 'internship' ? '6-Month Internship' : 'Coursework'}</span>
+                      </p>
+                      <p className="text-xs text-success-700 mt-1">
+                        Please proceed with the next steps for your selected track.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Track Selection Form */}
+              {canSubmit && (
+                <form onSubmit={handleSubmit} className="flex-1 min-h-0 flex flex-col">
+                  <div className="space-y-4 flex-1 min-h-0">
+                    {/* Coursework Track Card */}
+                    <div
+                      className={`relative p-5 rounded-xl border-2 cursor-pointer transition-all flex-shrink-0 ${
+                        selectedTrack === 'coursework'
+                          ? 'border-primary-500 bg-primary-50 shadow-md'
+                          : 'border-neutral-200 bg-white hover:border-primary-300 hover:shadow-sm'
+                      }`}
+                      onClick={() => handleTrackSelect('coursework')}
+                    >
+                      <div className="flex items-start gap-4">
+                        <div className="flex-shrink-0 mt-1">
+                          <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
+                            selectedTrack === 'coursework'
+                              ? 'border-primary-600 bg-primary-600'
+                              : 'border-neutral-300'
+                          }`}>
+                            {selectedTrack === 'coursework' && (
+                              <FiCheckCircle className="w-3 h-3 text-white" />
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-3">
+                            <div className="w-10 h-10 rounded-lg bg-primary-100 flex items-center justify-center">
+                              <FiFileText className="w-5 h-5 text-primary-600" />
+                            </div>
+                            <h3 className="text-lg font-bold text-neutral-900">Coursework Track</h3>
+                          </div>
+                          <p className="text-sm text-neutral-700 mb-4 leading-relaxed">
+                            Complete two components simultaneously: Major Project 1 (group) and Internship 1
+                          </p>
+                          <div className="grid grid-cols-2 gap-4 mb-4">
+                            <div className="flex items-start gap-2">
+                              <FiUsers className="w-4 h-4 text-primary-600 mt-0.5 flex-shrink-0" />
+                              <div>
+                                <p className="text-sm font-semibold text-neutral-800 mb-1">Major Project 1</p>
+                                <p className="text-xs text-neutral-600 leading-relaxed">Group project ({minGroupMembers}-{maxGroupMembers} members) with faculty guide</p>
+                              </div>
+                            </div>
+                            <div className="flex items-start gap-2">
+                              <FiBriefcase className="w-4 h-4 text-primary-600 mt-0.5 flex-shrink-0" />
+                              <div>
+                                <p className="text-sm font-semibold text-neutral-800 mb-1">Internship 1</p>
+                                <p className="text-xs text-neutral-600 leading-relaxed">Summer internship OR solo project (admin assigns)</p>
+                              </div>
+                            </div>
+                          </div>
+                          <div className="pt-3 border-t border-neutral-200">
+                            <p className="text-xs text-neutral-600 italic">
+                              Best for: Students who want structured on-campus work with faculty guidance
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* 6-Month Internship Track Card */}
+                    <div
+                      className={`relative p-5 rounded-xl border-2 cursor-pointer transition-all flex-shrink-0 ${
+                        selectedTrack === 'internship'
+                          ? 'border-purple-500 bg-purple-50 shadow-md'
+                          : 'border-neutral-200 bg-white hover:border-purple-300 hover:shadow-sm'
+                      }`}
+                      onClick={() => handleTrackSelect('internship')}
+                    >
+                      <div className="flex items-start gap-4">
+                        <div className="flex-shrink-0 mt-1">
+                          <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
+                            selectedTrack === 'internship'
+                              ? 'border-purple-600 bg-purple-600'
+                              : 'border-neutral-300'
+                          }`}>
+                            {selectedTrack === 'internship' && (
+                              <FiCheckCircle className="w-3 h-3 text-white" />
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-3">
+                            <div className="w-10 h-10 rounded-lg bg-purple-100 flex items-center justify-center">
+                              <FiTarget className="w-5 h-5 text-purple-600" />
+                            </div>
+                            <h3 className="text-lg font-bold text-neutral-900">6-Month Internship Track</h3>
+                          </div>
+                          <p className="text-sm text-neutral-700 mb-4 leading-relaxed">
+                            Focus on industry internship with company verification
+                          </p>
+                          <div className="grid grid-cols-3 gap-4 mb-4">
+                            <div className="flex items-start gap-2">
+                              <FiBriefcase className="w-4 h-4 text-purple-600 mt-0.5 flex-shrink-0" />
+                              <div>
+                                <p className="text-sm font-semibold text-neutral-800 mb-1">Submit Application</p>
+                                <p className="text-xs text-neutral-600 leading-relaxed">Company details, offer letter, and duration</p>
+                              </div>
+                            </div>
+                            <div className="flex items-start gap-2">
+                              <FiUserCheck className="w-4 h-4 text-purple-600 mt-0.5 flex-shrink-0" />
+                              <div>
+                                <p className="text-sm font-semibold text-neutral-800 mb-1">Admin Verification</p>
+                                <p className="text-xs text-neutral-600 leading-relaxed">Admin reviews and verifies internship completion</p>
+                              </div>
+                            </div>
+                            <div className="flex items-start gap-2">
+                              <FiCalendar className="w-4 h-4 text-purple-600 mt-0.5 flex-shrink-0" />
+                              <div>
+                                <p className="text-sm font-semibold text-neutral-800 mb-1">Semester 8</p>
+                                <p className="text-xs text-neutral-600 leading-relaxed">Coursework required</p>
+                              </div>
+                            </div>
+                          </div>
+                          <div className="pt-3 border-t border-neutral-200">
+                            <p className="text-xs text-neutral-600 italic">
+                              Best for: Students with confirmed 6-month industry internship offers
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Submit Button */}
+                  <div className="flex items-center justify-end gap-3 pt-4 border-t border-neutral-200 mt-4 flex-shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => navigate('/dashboard/student')}
+                      className="px-4 py-2 text-sm font-medium text-neutral-700 bg-white border border-neutral-300 rounded-lg hover:bg-neutral-50 transition-colors"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={!selectedTrack || isSubmitting}
+                      className="px-6 py-2 text-sm font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+                    >
+                      {isSubmitting ? (
+                        <>
+                          <FiLoader className="w-4 h-4 animate-spin" />
+                          Submitting...
+                        </>
+                      ) : (
+                        <>
+                          Submit Choice
+                          <FiArrowRight className="w-4 h-4" />
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </form>
+              )}
             </div>
-            
-            {trackChoice.adminRemarks && (
-              <div className="mt-3 p-3 bg-white rounded border border-gray-200">
-                <p className="text-sm font-medium text-gray-700">Admin Remarks:</p>
-                <p className="text-sm text-gray-600 mt-1">{trackChoice.adminRemarks}</p>
-              </div>
-            )}
-          </div>
-        )}
 
-        {/* Window Status */}
-        {!windowOpen && (
-          <div className="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-            <p className="text-sm text-yellow-800">
-              The track selection window is currently closed. Please contact admin for more information.
-            </p>
-          </div>
-        )}
-
-        {/* Track Selection Form */}
-        {canSubmit && (
-          <form onSubmit={handleSubmit} className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* 6-Month Internship Option */}
-              <div
-                className={`p-6 border-2 rounded-lg cursor-pointer transition-all ${
-                  selectedTrack === 'internship'
-                    ? 'border-blue-500 bg-blue-50'
-                    : 'border-gray-200 hover:border-gray-300'
-                }`}
-                onClick={() => handleTrackSelect('internship')}
-              >
-                <div className="flex items-start">
-                  <input
-                    type="radio"
-                    name="track"
-                    value="internship"
-                    checked={selectedTrack === 'internship'}
-                    onChange={() => handleTrackSelect('internship')}
-                    className="mt-1 h-4 w-4 text-blue-600 focus:ring-blue-500"
-                  />
-                  <div className="ml-4 flex-1">
-                    <h3 className="text-lg font-semibold text-gray-900">6-Month Internship</h3>
-                    <p className="text-sm text-gray-600 mt-2">
-                      Complete a 6-month internship with a company. You will need to submit company details and offer letter for verification.
-                    </p>
-                    <ul className="mt-3 text-sm text-gray-600 space-y-1">
-                      <li>• Submit company details and offer letter</li>
-                      <li>• Admin will verify and finalize your track</li>
-                      <li>• Coursework will be required in next semester</li>
-                    </ul>
+            {/* Right Column - Information */}
+            <div className="lg:col-span-4 flex flex-col h-full min-h-0 space-y-3 mt-4 lg:mt-0 overflow-y-auto custom-scrollbar pl-1">
+              {/* Selection Process */}
+              <div className="bg-info-50 rounded-xl p-4 border border-info-200 flex-shrink-0">
+                <div className="flex items-center gap-2 mb-3">
+                  <FiInfo className="w-4 h-4 text-info-600" />
+                  <h3 className="text-sm font-semibold text-neutral-800">Selection Process</h3>
+                </div>
+                <div className="space-y-2 text-xs text-info-800">
+                  <div className="flex items-start gap-2">
+                    <span className="font-medium text-info-900">1.</span>
+                    <span>Select your preferred track</span>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <span className="font-medium text-info-900">2.</span>
+                    <span>Admin reviews and approves your choice</span>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <span className="font-medium text-info-900">3.</span>
+                    <span>Proceed with track-specific requirements</span>
                   </div>
                 </div>
               </div>
 
-              {/* Coursework Option */}
-              <div
-                className={`p-6 border-2 rounded-lg cursor-pointer transition-all ${
-                  selectedTrack === 'coursework'
-                    ? 'border-blue-500 bg-blue-50'
-                    : 'border-gray-200 hover:border-gray-300'
-                }`}
-                onClick={() => handleTrackSelect('coursework')}
-              >
-                <div className="flex items-start">
-                  <input
-                    type="radio"
-                    name="track"
-                    value="coursework"
-                    checked={selectedTrack === 'coursework'}
-                    onChange={() => handleTrackSelect('coursework')}
-                    className="mt-1 h-4 w-4 text-blue-600 focus:ring-blue-500"
-                  />
-                  <div className="ml-4 flex-1">
-                    <h3 className="text-lg font-semibold text-gray-900">Coursework</h3>
-                    <p className="text-sm text-gray-600 mt-2">
-                      Complete coursework including Major Project 1 and Internship 1 (2-month internship project).
-                    </p>
-                    <ul className="mt-3 text-sm text-gray-600 space-y-1">
-                      <li>• Form a group for Major Project 1</li>
-                      <li>• Complete Internship 1 (solo project if needed)</li>
-                      <li>• Submit faculty preferences for allocation</li>
-                    </ul>
+              {/* Important Notes */}
+              <div className="bg-warning-50 rounded-xl p-4 border border-warning-200 flex-shrink-0">
+                <div className="flex items-center gap-2 mb-3">
+                  <FiAlertCircle className="w-4 h-4 text-warning-600" />
+                  <h3 className="text-sm font-semibold text-neutral-800">Important Notes</h3>
+                </div>
+                <div className="space-y-2 text-xs text-warning-800">
+                  <p>• Track selection requires admin approval</p>
+                  <p>• You can update your choice if needed</p>
+                  <p>• Once finalized, track cannot be changed</p>
+                  <p>• Contact admin for any questions</p>
+                </div>
+              </div>
+
+              {/* Track Comparison */}
+              <div className="bg-surface-100 rounded-xl p-4 border border-neutral-200 flex-shrink-0">
+                <div className="flex items-center gap-2 mb-3">
+                  <FiBook className="w-4 h-4 text-neutral-600" />
+                  <h3 className="text-sm font-semibold text-neutral-800">Quick Comparison</h3>
+                </div>
+                <div className="space-y-3 text-xs">
+                  <div>
+                    <p className="font-semibold text-neutral-800 mb-1">Coursework Track</p>
+                    <p className="text-neutral-600 text-[11px]">On-campus work with faculty guidance, group projects, structured timeline</p>
+                  </div>
+                  <div className="pt-2 border-t border-neutral-200">
+                    <p className="font-semibold text-neutral-800 mb-1">Internship Track</p>
+                    <p className="text-neutral-600 text-[11px]">Industry experience, company verification, flexible schedule</p>
                   </div>
                 </div>
               </div>
             </div>
-
-            {/* Submit Button */}
-            <div className="flex justify-end space-x-4">
-              <button
-                type="button"
-                onClick={() => navigate('/dashboard/student')}
-                className="px-6 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={!selectedTrack || isSubmitting}
-                className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {isSubmitting ? 'Submitting...' : 'Submit Choice'}
-              </button>
-            </div>
-          </form>
-        )}
-
-        {/* Finalized Track Message */}
-        {finalizedTrack && !canSubmit && (
-          <div className="p-6 bg-green-50 border border-green-200 rounded-lg">
-            <h3 className="font-semibold text-green-900 mb-2">Track Finalized</h3>
-            <p className="text-sm text-green-800">
-              Your track has been finalized as: <span className="font-medium">{finalizedTrack === 'internship' ? '6-Month Internship' : 'Coursework'}</span>
-            </p>
-            <p className="text-sm text-green-700 mt-2">
-              Please proceed with the next steps for your selected track.
-            </p>
           </div>
-        )}
+        </div>
       </div>
     </Layout>
   );

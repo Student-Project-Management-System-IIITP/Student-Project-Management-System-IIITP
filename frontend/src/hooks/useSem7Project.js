@@ -1,5 +1,6 @@
 import { useSem7 } from '../context/Sem7Context';
 import { useAuth } from '../context/AuthContext';
+import { useGroupManagement } from './useGroupManagement';
 
 export const useSem7Project = () => {
   const { user, userRole, roleData } = useAuth();
@@ -19,6 +20,15 @@ export const useSem7Project = () => {
     registerInternship1,
     fetchSem7Data,
   } = useSem7();
+  
+  // Also get isInGroup from useGroupManagement as a fallback
+  // This ensures members see updates even if majorProject1Group hasn't refreshed yet
+  const { isInGroup: isInGroupFromManagement, group: groupFromManagement } = useGroupManagement();
+  
+  // Use group from management if majorProject1Group is not available
+  // This ensures members see their group even if context hasn't refreshed
+  const effectiveMajorProject1Group = majorProject1Group || (groupFromManagement && (groupFromManagement.semester === 7 || groupFromManagement.semester === '7') ? groupFromManagement : null);
+  const effectiveIsInGroup = !!effectiveMajorProject1Group || isInGroupFromManagement;
 
   // Determine if student can choose track (do not restrict by degree)
   const canChooseTrack = () => {
@@ -51,7 +61,8 @@ export const useSem7Project = () => {
            user?.degree === 'B.Tech' &&
            user?.semester === 7 &&
            selectedTrack === 'coursework' &&
-           !majorProject1;
+           !majorProject1 &&
+           (effectiveMajorProject1Group?.status === 'finalized' || effectiveMajorProject1Group?.status === 'locked');
   };
 
   // Check if student can register for Internship 1
@@ -78,9 +89,28 @@ export const useSem7Project = () => {
   };
 
   // Check if Major Project 1 has faculty allocated
+  // Use both project data and group data as fallback
   const hasFacultyAllocated = () => {
-    return majorProject1 && 
-           (majorProject1.faculty || majorProject1Group?.allocatedFaculty);
+    if (majorProject1 && majorProject1.faculty) {
+      return true;
+    }
+    // Fallback: Check group's allocatedFaculty
+    if (effectiveMajorProject1Group?.allocatedFaculty) {
+      return true;
+    }
+    return false;
+  };
+  
+  // Check if project exists (either loaded or referenced in group)
+  const hasProject = () => {
+    if (majorProject1) {
+      return true;
+    }
+    // Fallback: If group is locked, it means project is registered
+    if (effectiveMajorProject1Group?.status === 'locked' || effectiveMajorProject1Group?.project) {
+      return true;
+    }
+    return false;
   };
 
   // Get next step for student
@@ -103,11 +133,11 @@ export const useSem7Project = () => {
 
     // Coursework path even before finalization
     if (!finalizedTrack && selectedTrack === 'coursework') {
-      if (!majorProject1Group) return 'create_group';
-      if (majorProject1Group.status !== 'finalized') return 'finalize_group';
-      if (!majorProject1) return 'register_major_project1';
+      if (!effectiveMajorProject1Group) return 'create_group';
+      if (effectiveMajorProject1Group.status !== 'finalized' && effectiveMajorProject1Group.status !== 'locked') return 'finalize_group';
+      if (!hasProject()) return 'register_major_project1';
       if (!hasFacultyAllocated()) {
-        if (majorProject1.facultyPreferences && majorProject1.facultyPreferences.length > 0) {
+        if (majorProject1?.facultyPreferences && majorProject1.facultyPreferences.length > 0) {
           return 'wait_for_faculty_allocation';
         }
         return 'submit_faculty_preferences';
@@ -130,12 +160,12 @@ export const useSem7Project = () => {
     }
     
     // Finalized coursework track
-    if (!majorProject1Group) return 'create_group';
-    if (majorProject1Group.status !== 'finalized') return 'finalize_group';
-    if (!majorProject1) return 'register_major_project1';
+    if (!effectiveMajorProject1Group) return 'create_group';
+    if (effectiveMajorProject1Group.status !== 'finalized' && effectiveMajorProject1Group.status !== 'locked') return 'finalize_group';
+    if (!hasProject()) return 'register_major_project1';
     if (!hasFacultyAllocated()) {
       // Check if preferences submitted
-      if (majorProject1.facultyPreferences && majorProject1.facultyPreferences.length > 0) {
+      if (majorProject1?.facultyPreferences && majorProject1.facultyPreferences.length > 0) {
         return 'wait_for_faculty_allocation';
       }
       return 'submit_faculty_preferences';
@@ -151,7 +181,182 @@ export const useSem7Project = () => {
     return 'coursework_active';
   };
 
-  // Get progress steps
+  // Get Major Project 1 progress steps
+  const getMajorProject1ProgressSteps = () => {
+    const currentStep = getNextStep();
+    const finalizedTrack = getFinalizedTrack();
+    const selectedTrack = getSelectedTrack();
+    
+    const steps = [];
+    
+    // Only show Major Project 1 steps if coursework track is selected
+    if (selectedTrack === 'coursework') {
+      steps.push({
+        id: 'create_group',
+        title: 'Create Group',
+        description: 'Form a group for Major Project 1',
+        status: effectiveIsInGroup ? 'completed' : (currentStep === 'create_group' ? 'current' : 'upcoming'),
+        completed: effectiveIsInGroup
+      });
+      
+      steps.push({
+        id: 'finalize_group',
+        title: 'Finalize Group',
+        description: 'Finalize your group formation',
+        status: (effectiveMajorProject1Group?.status === 'finalized' || effectiveMajorProject1Group?.status === 'locked') ? 'completed' : 
+                (currentStep === 'finalize_group' ? 'current' : 'upcoming'),
+        completed: effectiveMajorProject1Group?.status === 'finalized' || effectiveMajorProject1Group?.status === 'locked'
+      });
+      
+      steps.push({
+        id: 'register_major_project1',
+        title: 'Register Major Project 1',
+        description: 'Register project details and submit faculty preferences',
+        status: hasProject() ? 'completed' : (currentStep === 'register_major_project1' ? 'current' : 'upcoming'),
+        completed: hasProject()
+      });
+      
+      steps.push({
+        id: 'faculty_allocated',
+        title: 'Faculty Allocated',
+        description: hasFacultyAllocated() ? 'Faculty guide assigned' : 'Waiting for faculty allocation',
+        status: hasFacultyAllocated() ? 'completed' : (currentStep === 'wait_for_faculty_allocation' ? 'current' : 'upcoming'),
+        completed: hasFacultyAllocated()
+      });
+    }
+    
+    return steps;
+  };
+
+  // Get Internship 1 progress steps
+  const getInternship1ProgressSteps = () => {
+    const steps = [];
+    const summerApp = getInternshipApplication('summer');
+    const hasSummerApp = !!summerApp;
+    const hasProject = !!internship1Project && internship1Project.status !== 'cancelled';
+    const isApproved = hasApprovedSummerInternship;
+    
+    // Determine which path student has chosen
+    // If project exists, they chose "project under faculty"
+    // If summerApp exists, they chose "already completed"
+    // If neither exists, they haven't chosen yet
+    
+    if (!hasProject && !hasSummerApp) {
+      // No choice made yet
+      steps.push({
+        id: 'choose_internship1_path',
+        title: 'Choose Internship 1 Path',
+        description: 'Select how you want to complete Internship 1',
+        status: 'current',
+        completed: false
+      });
+    } else if (hasProject) {
+      // Student chose "project under faculty"
+      steps.push({
+        id: 'choose_internship1_path',
+        title: 'Choose Internship 1 Path',
+        description: 'Selected: Project under faculty',
+        status: 'completed',
+        completed: true
+      });
+      
+      steps.push({
+        id: 'register_internship1_project',
+        title: 'Register Internship 1 Project',
+        description: 'Register project details and submit faculty preferences',
+        status: hasProject ? 'completed' : 'current',
+        completed: hasProject
+      });
+      
+      steps.push({
+        id: 'submit_internship1_faculty_preferences',
+        title: 'Submit Faculty Preferences',
+        description: 'Select preferred faculty members',
+        status: hasProject ? 'completed' : 'current',
+        completed: hasProject
+      });
+      
+      steps.push({
+        id: 'internship1_faculty_allocated',
+        title: 'Faculty Allocated',
+        description: internship1Project?.faculty ? 'Faculty guide assigned' : 'Waiting for faculty allocation',
+        status: internship1Project?.faculty ? 'completed' : 'upcoming',
+        completed: !!internship1Project?.faculty
+      });
+    } else if (hasSummerApp) {
+      // Student chose "already completed"
+      steps.push({
+        id: 'choose_internship1_path',
+        title: 'Choose Internship 1 Path',
+        description: 'Selected: Already completed internship',
+        status: 'completed',
+        completed: true
+      });
+      
+      steps.push({
+        id: 'fill_internship1_form',
+        title: 'Fill Internship 1 Form',
+        description: summerApp.status === 'needs_info' 
+          ? 'Update required - Review admin remarks'
+          : summerApp.status === 'approved' || summerApp.status === 'verified_pass'
+          ? 'Form submitted and approved'
+          : 'Submit internship details and evidence',
+        status: hasSummerApp ? 'completed' : 'current',
+        completed: hasSummerApp
+      });
+      
+      if (summerApp.status === 'needs_info') {
+        steps.push({
+          id: 'update_internship1_form',
+          title: 'Update Form (Admin Remarks)',
+          description: 'Review and address admin feedback',
+          status: 'current',
+          completed: false
+        });
+      }
+      
+      // Determine status description based on admin review
+      let statusDescription = 'Waiting for admin review';
+      let stepStatus = 'upcoming';
+      let stepCompleted = false;
+      
+      if (summerApp.status === 'submitted') {
+        statusDescription = 'Waiting for admin review';
+        stepStatus = 'current';
+      } else if (summerApp.status === 'pending_verification') {
+        statusDescription = 'Pending verification';
+        stepStatus = 'current';
+      } else if (summerApp.status === 'verified_pass') {
+        statusDescription = 'Application verified (pass)';
+        stepStatus = 'completed';
+        stepCompleted = true;
+      } else if (summerApp.status === 'verified_fail') {
+        statusDescription = 'Application verified (fail)';
+        stepStatus = 'completed';
+        stepCompleted = true;
+      } else if (summerApp.status === 'absent') {
+        statusDescription = 'Absent for verification';
+        stepStatus = 'completed';
+        stepCompleted = true;
+      } else if (summerApp.status === 'needs_info') {
+        // If needs_info, the step above handles it, but we still show this step
+        statusDescription = 'Update required - Review admin remarks';
+        stepStatus = 'current';
+      }
+      
+      steps.push({
+        id: 'admin_review',
+        title: 'Admin Review',
+        description: statusDescription,
+        status: stepStatus,
+        completed: stepCompleted
+      });
+    }
+    
+    return steps;
+  };
+
+  // Get progress steps (legacy - kept for backward compatibility)
   const getProgressSteps = () => {
     const currentStep = getNextStep();
     const finalizedTrack = getFinalizedTrack();
@@ -205,52 +410,9 @@ export const useSem7Project = () => {
         completed: isApproved
       });
     } else if (selectedTrack === 'coursework') {
-      // Coursework track steps
-      steps.push({
-        id: 'create_group',
-        title: 'Create Group',
-        description: 'Form a group for Major Project 1',
-        status: majorProject1Group ? 'completed' : (currentStep === 'create_group' ? 'current' : 'upcoming'),
-        completed: !!majorProject1Group
-      });
-      
-      steps.push({
-        id: 'finalize_group',
-        title: 'Finalize Group',
-        description: 'Finalize your group formation',
-        status: majorProject1Group?.status === 'finalized' ? 'completed' : 
-                (currentStep === 'finalize_group' ? 'current' : 'upcoming'),
-        completed: majorProject1Group?.status === 'finalized'
-      });
-      
-      steps.push({
-        id: 'register_major_project1',
-        title: 'Register Major Project 1',
-        description: 'Register project details and submit faculty preferences',
-        status: majorProject1 ? 'completed' : (currentStep === 'register_major_project1' ? 'current' : 'upcoming'),
-        completed: !!majorProject1
-      });
-      
-      steps.push({
-        id: 'submit_faculty_preferences',
-        title: 'Submit Faculty Preferences',
-        description: 'Select preferred faculty members',
-        status: hasFacultyAllocated() ? 'completed' : 
-                (currentStep === 'submit_faculty_preferences' ? 'current' : 'upcoming'),
-        completed: hasFacultyAllocated()
-      });
-      
-      // Internship 1 step (if eligible)
-      if (internship1Status?.eligible) {
-        steps.push({
-          id: 'register_internship1',
-          title: 'Register Internship 1',
-          description: 'Register for solo internship project',
-          status: internship1Project ? 'completed' : 
-                  (currentStep === 'register_internship1' ? 'current' : 'upcoming'),
-          completed: !!internship1Project
-        });
-      }
+      // Coursework track steps - use Major Project 1 steps
+      const majorProject1Steps = getMajorProject1ProgressSteps();
+      steps.push(...majorProject1Steps);
       
       steps.push({
         id: 'coursework_active',
@@ -276,7 +438,7 @@ export const useSem7Project = () => {
     trackChoice,
     internshipApplications,
     majorProject1,
-    majorProject1Group,
+    majorProject1Group: effectiveMajorProject1Group, // Use effective group that includes fallback from useGroupManagement
     internship1Project,
     internship1Status,
     loading,
@@ -295,6 +457,8 @@ export const useSem7Project = () => {
     getNextStep,
     getProgressSteps,
     getProgressPercentage,
+    getMajorProject1ProgressSteps,
+    getInternship1ProgressSteps,
     
     // Actions
     setSem7Choice,

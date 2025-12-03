@@ -7,6 +7,11 @@ import Layout from '../../components/common/Layout';
 import StatusBadge from '../../components/common/StatusBadge';
 import FileUpload from '../../components/common/FileUpload';
 import { useFileUpload } from '../../hooks/useFileUpload';
+import { 
+  FiFileText, FiCalendar, FiClock, FiCheckCircle, FiAlertCircle,
+  FiUpload, FiTrash2, FiEye, FiAlertTriangle, FiBook, FiTarget,
+  FiUser, FiUsers, FiArrowLeft
+} from 'react-icons/fi';
 
 // API Configuration
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
@@ -21,6 +26,7 @@ const Sem4ProjectDashboard = () => {
   const [projectStatus, setProjectStatus] = useState(null);
   const [isRemoving, setIsRemoving] = useState(false);
   const [showReplaceUpload, setShowReplaceUpload] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
 
   // Check if student can modify this project
   // Students cannot modify previous semester projects
@@ -52,7 +58,6 @@ const Sem4ProjectDashboard = () => {
     uploadFile,
     resetUpload,
     removeSelectedFile,
-    getFileInfo,
   } = useFileUpload({
     maxSize: 50 * 1024 * 1024, // 50MB
     acceptedTypes: ['.ppt', '.pptx', '.pdf'],
@@ -151,13 +156,62 @@ const Sem4ProjectDashboard = () => {
     }
   };
 
+  const handleDownloadPPT = async () => {
+    if (!projectId || isDownloading) return;
+    
+    try {
+      setIsDownloading(true);
+      const token = localStorage.getItem('token');
+      
+      // Fetch file with authentication
+      const response = await fetch(`${API_BASE_URL}/student/projects/${projectId}/download-ppt`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to download file');
+      }
+
+      // Get filename from header or use default
+      const contentDisposition = response.headers.get('Content-Disposition');
+      let filename = projectStatus?.pptOriginalName || 'presentation.pptx';
+      if (contentDisposition) {
+        const matches = /filename="(.+)"/.exec(contentDisposition);
+        if (matches && matches[1]) {
+          filename = matches[1];
+        }
+      }
+
+      // Create blob and download
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+      
+      toast.success('File downloaded successfully');
+    } catch (error) {
+      console.error('Download error:', error);
+      toast.error('Failed to download file');
+    } finally {
+      setIsDownloading(false);
+    }
+  };
+
   if (loading) {
     return (
       <Layout>
-        <div className="min-h-screen flex items-center justify-center">
-          <div className="flex items-center space-x-3">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-            <p className="text-gray-600">Loading project dashboard...</p>
+        <div className="min-h-screen bg-gradient-to-br from-surface-200 via-primary-50 to-secondary-50 flex items-center justify-center">
+          <div className="flex flex-col items-center gap-3">
+            <div className="w-12 h-12 border-4 border-primary-200 border-t-primary-600 rounded-full animate-spin"></div>
+            <p className="text-neutral-700 font-medium">Loading project dashboard...</p>
           </div>
         </div>
       </Layout>
@@ -167,14 +221,18 @@ const Sem4ProjectDashboard = () => {
   if (!project) {
     return (
       <Layout>
-        <div className="min-h-screen flex items-center justify-center">
+        <div className="min-h-screen bg-gradient-to-br from-surface-200 via-primary-50 to-secondary-50 flex items-center justify-center">
           <div className="text-center">
-            <h2 className="text-2xl font-bold text-gray-900 mb-4">No Project Found</h2>
-            <p className="text-gray-600 mb-6">You haven't registered for Minor Project 1 yet.</p>
+            <div className="w-20 h-20 bg-neutral-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <FiFileText className="w-10 h-10 text-neutral-400" />
+            </div>
+            <h2 className="text-2xl font-bold text-neutral-800 mb-2">No Project Found</h2>
+            <p className="text-neutral-600 mb-6">You haven't registered for Minor Project 1 yet.</p>
             <button
               onClick={() => navigate('/student/projects/register')}
-              className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-medium transition-colors"
+              className="btn-primary inline-flex items-center gap-2"
             >
+              <FiFileText className="w-4 h-4" />
               Register Project
             </button>
           </div>
@@ -185,291 +243,420 @@ const Sem4ProjectDashboard = () => {
 
   return (
     <Layout>
-      <div className="min-h-screen bg-gray-50 py-6">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-          {/* Header */}
-          <div className="mb-8">
+      <div className="min-h-screen bg-gradient-to-br from-surface-200 via-primary-50 to-secondary-50">
+        {/* Compact Header */}
+        <div className="bg-white border-b border-neutral-200 shadow-sm">
+          <div className="max-w-[1400px] mx-auto px-4 lg:px-8 py-4">
             <div className="flex items-center justify-between">
-              <div>
-                <h1 className="text-3xl font-bold text-gray-900">Minor Project 1 Dashboard</h1>
-                <p className="text-gray-600 mt-1">Semester 4 - Individual Project</p>
-              </div>
-              <StatusBadge 
-                status={project.status} 
-                className="text-sm"
-              />
-            </div>
-          </div>
-
-          {/* Project Details Card */}
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 mb-6">
-            <div className="px-6 py-4 border-b border-gray-200">
-              <h2 className="text-lg font-semibold text-gray-900">Project Details</h2>
-            </div>
-            <div className="px-6 py-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <h3 className="text-sm font-medium text-gray-500 mb-2">Project Title</h3>
-                  <p className="text-gray-900 font-medium">{project.title}</p>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => navigate('/dashboard/student')}
+                  className="p-2 hover:bg-neutral-100 rounded-lg transition-colors"
+                >
+                  <FiArrowLeft className="w-5 h-5 text-neutral-600" />
+                </button>
+                <div className="w-10 h-10 bg-gradient-to-br from-primary-600 to-secondary-600 rounded-lg flex items-center justify-center flex-shrink-0">
+                  <FiFileText className="w-5 h-5 text-white" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-medium text-gray-500 mb-2">Project Type</h3>
-                  <p className="text-gray-900">Minor Project 1</p>
-                </div>
-                <div>
-                  <h3 className="text-sm font-medium text-gray-500 mb-2">Semester</h3>
-                  <p className="text-gray-900">Semester 4</p>
-                </div>
-                <div>
-                  <h3 className="text-sm font-medium text-gray-500 mb-2">Academic Year</h3>
-                  <p className="text-gray-900">{project.academicYear}</p>
-                </div>
-                <div>
-                  <h3 className="text-sm font-medium text-gray-500 mb-2">Start Date</h3>
-                  <p className="text-gray-900">
-                    {new Date(project.startDate).toLocaleDateString('en-US', {
-                      year: 'numeric',
-                      month: 'long',
-                      day: 'numeric'
-                    })}
+                  <h1 className="text-xl font-bold text-neutral-800">
+                    Minor Project 1 Dashboard
+                  </h1>
+                  <p className="text-xs text-neutral-600 mt-0.5">
+                    Sem 4 • Research & Presentation
                   </p>
                 </div>
-                <div>
-                  <h3 className="text-sm font-medium text-gray-500 mb-2">Status</h3>
-                  <StatusBadge status={project.status} />
-                </div>
               </div>
+              <StatusBadge status={project.status} />
             </div>
           </div>
+        </div>
 
-          {/* PPT Upload Status Card */}
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 mb-6">
-            <div className="px-6 py-4 border-b border-gray-200">
-              <h2 className="text-lg font-semibold text-gray-900">Presentation Upload</h2>
-            </div>
-            <div className="px-6 py-4">
-              {/* Warning banner for previous semester projects */}
-              {!canModifyProject() && (
-                <div className="mb-6 bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-                  <div className="flex items-start">
-                    <div className="flex-shrink-0">
-                      <svg className="h-5 w-5 text-yellow-400" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                      </svg>
-                    </div>
-                    <div className="ml-3">
-                      <h3 className="text-sm font-medium text-yellow-800">View-Only Mode</h3>
-                      <div className="mt-2 text-sm text-yellow-700">
-                        <p>This project belongs to a previous semester (Semester {project.semester}). You are currently in Semester {roleData?.semester || user?.semester}. Modifications to previous semester projects are not allowed.</p>
-                      </div>
-                    </div>
-                  </div>
+        {/* Main Content - Two Column Layout */}
+        <div className="max-w-[1400px] mx-auto px-4 lg:px-8 py-5 pb-8">
+          <div className="grid lg:grid-cols-3 gap-6">
+            
+            {/* Left Column - Main Content (65%) */}
+            <div className="lg:col-span-2 space-y-5">
+              
+              {/* Project Information Card - Compact */}
+              <div className="bg-surface-100 rounded-xl shadow-sm border border-neutral-200">
+                <div className="px-5 py-4 border-b border-neutral-200 bg-primary-50">
+                  <h2 className="text-lg font-bold text-neutral-800 flex items-center gap-2">
+                    <FiFileText className="w-5 h-5 text-primary-600" />
+                    Project Information
+                  </h2>
                 </div>
-              )}
-              {/* Current Uploaded PPT */}
-              {projectStatus && projectStatus.pptSubmitted && (
-                <div className="bg-green-50 border border-green-200 rounded-lg p-6 mb-6">
-                  <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-lg font-semibold text-green-900">📊 Current PPT</h3>
-                    <div className="flex items-center space-x-2">
-                      <span className="text-sm text-green-700 bg-green-100 px-2 py-1 rounded">
-                        ✓ Uploaded {new Date(projectStatus.pptSubmittedAt).toLocaleDateString()}
-                      </span>
-                    </div>
-                  </div>
-                  
-                  <div className="bg-white rounded-lg p-4 mb-4">
-                    <div className="flex items-center space-x-3 mb-2">
-                      <span className="text-2xl">📄</span>
-                      <div className="flex-1">
-                        <p className="text-sm font-medium text-gray-900">
-                          {projectStatus.pptOriginalName || projectStatus.pptFileName || 'Presentation File'}
-                        </p>
-                        {projectStatus.pptFileSize && (
-                          <p className="text-xs text-gray-500">
-                            {(projectStatus.pptFileSize / 1024 / 1024).toFixed(2)} MB
-                          </p>
-                        )}
-                      </div>
+                <div className="p-5">
+                  <div className="space-y-3">
+                    {/* Project Title - Full Width */}
+                    <div className="bg-surface-200 rounded-lg p-3 border border-neutral-200">
+                      <p className="text-xs font-medium text-neutral-600 mb-1 flex items-center gap-2">
+                        <FiFileText className="w-3 h-3" />
+                        Research Topic
+                      </p>
+                      <p className="text-base font-semibold text-neutral-800">{project.title}</p>
                     </div>
                     
-                    {projectStatus.pptSubmissionNotes && (
-                      <p className="text-xs text-gray-600 bg-gray-50 p-2 rounded border-l-2 border-gray-300">
-                        {projectStatus.pptSubmissionNotes}
-                      </p>
-                    )}
-                  </div>
-                  
-                  <div className="flex items-center space-x-3">
-                    {canModifyProject() ? (
-                      <>
-                        <button
-                          onClick={() => setShowReplaceUpload(true)}
-                          disabled={isUploading || isRemoving}
-                          className="px-4 py-2 text-sm font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded-md hover:bg-blue-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                          📝 Replace PPT
-                        </button>
-                        <button
-                          onClick={handleRemovePPT}
-                          disabled={isUploading || isRemoving}
-                          className="px-4 py-2 text-sm font-medium text-red-700 bg-red-50 border border-red-200 rounded-md hover:bg-red-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                          {isRemoving ? (
-                            <span className="flex items-center">
-                              <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-red-700" fill="none" viewBox="0 0 24 24">
-                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                              </svg>
-                              Removing...
-                            </span>
-                          ) : (
-                            '🗑️ Remove PPT'
-                          )}
-                        </button>
-                      </>
-                    ) : (
-                      <div className="text-sm text-gray-500 italic">
-                        This project belongs to a previous semester and cannot be modified.
+                    {/* Other Details - Grid */}
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="bg-surface-200 rounded-lg p-3 border border-neutral-200">
+                        <p className="text-xs font-medium text-neutral-600 mb-1 flex items-center gap-1.5">
+                          <FiCalendar className="w-3 h-3" />
+                          Semester
+                        </p>
+                        <p className="text-sm font-semibold text-neutral-800">Semester 4</p>
                       </div>
-                    )}
+                      <div className="bg-surface-200 rounded-lg p-3 border border-neutral-200">
+                        <p className="text-xs font-medium text-neutral-600 mb-1 flex items-center gap-1.5">
+                          <FiBook className="w-3 h-3" />
+                          Academic Year
+                        </p>
+                        <p className="text-sm font-semibold text-neutral-800">{project.academicYear}</p>
+                      </div>
+                      <div className="bg-surface-200 rounded-lg p-3 border border-neutral-200">
+                        <p className="text-xs font-medium text-neutral-600 mb-1 flex items-center gap-1.5">
+                          <FiClock className="w-3 h-3" />
+                          Registered On
+                        </p>
+                        <p className="text-sm font-semibold text-neutral-800">
+                          {new Date(project.startDate).toLocaleDateString('en-US', {
+                            month: 'short',
+                            day: 'numeric',
+                            year: 'numeric'
+                          })}
+                        </p>
+                      </div>
+                      <div className="bg-surface-200 rounded-lg p-3 border border-neutral-200">
+                        <p className="text-xs font-medium text-neutral-600 mb-1 flex items-center gap-1.5">
+                          <FiUser className="w-3 h-3" />
+                          Project Type
+                        </p>
+                        <p className="text-sm font-semibold text-neutral-800">Individual</p>
+                      </div>
+                    </div>
                   </div>
                 </div>
-              )}
+              </div>
 
-              {/* Upload Section - Show if no PPT uploaded OR user clicked Replace */}
-              {/* Only show if student can modify the project */}
-              {canModifyProject() && (project.status === 'active' || project.status === 'registered') && 
-               (!projectStatus?.pptSubmitted || showReplaceUpload) && (
-                <div>
-                  <div className="mb-4 flex items-center justify-between">
-                    <div>
-                      <h3 className="text-md font-semibold text-gray-900 mb-1">
-                        {projectStatus && projectStatus.pptSubmitted ? 'Replace Current PPT' : 'Upload Your Presentation'}
-                      </h3>
-                      <p className="text-sm text-gray-600">
-                        Upload your presentation file (PPT, PPTX, or PDF - Max 50MB)
-                      </p>
-                    </div>
-                    {projectStatus?.pptSubmitted && showReplaceUpload && (
-                      <button
-                        onClick={() => {
-                          setShowReplaceUpload(false);
-                          resetUpload();
-                        }}
-                        className="px-3 py-1.5 text-sm font-medium text-gray-600 hover:text-gray-800"
-                      >
-                        ✕ Cancel
-                      </button>
-                    )}
-                  </div>
-
-                  <FileUpload
-                    onFileSelect={selectFile}
-                    acceptedTypes={['.ppt', '.pptx', '.pdf']}
-                    maxSize={50 * 1024 * 1024}
-                    maxFiles={1}
-                    disabled={isUploading || !canModifyProject()}
-                    showPreview={false}
-                    title={projectStatus && projectStatus.pptSubmitted ? "Choose New PPT File" : "Upload Your PPT"}
-                    description="Drag and drop your presentation file here, or click to select"
-                  />
-
-                  {/* File Info */}
-                  {selectedFile && getFileInfo() && (
-                    <div className="mt-4 p-4 bg-gray-50 rounded-lg">
-                      <h4 className="font-medium text-gray-900 mb-2">Selected File</h4>
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center space-x-3">
-                          <span className="text-2xl">{getFileInfo().icon}</span>
-                          <div>
-                            <p className="text-sm font-medium text-gray-900">{getFileInfo().name}</p>
-                            <p className="text-xs text-gray-500">{getFileInfo().formattedSize}</p>
-                          </div>
+              {/* Smart PPT Management Card */}
+              <div className="bg-surface-100 rounded-xl shadow-sm border border-neutral-200">
+                <div className="px-5 py-4 border-b border-neutral-200 bg-secondary-50">
+                  <h2 className="text-lg font-bold text-neutral-800 flex items-center gap-2">
+                    <FiUpload className="w-5 h-5 text-secondary-600" />
+                    Presentation Management
+                  </h2>
+                </div>
+                <div className="p-5">
+                  {/* View-Only Warning */}
+                  {!canModifyProject() && (
+                    <div className="mb-4 bg-warning-50 border border-warning-200 rounded-lg p-4">
+                      <div className="flex items-start gap-3">
+                        <FiAlertTriangle className="w-5 h-5 text-warning-600 flex-shrink-0 mt-0.5" />
+                        <div>
+                          <h3 className="text-sm font-semibold text-warning-800">View-Only Mode</h3>
+                          <p className="mt-1 text-sm text-warning-700">
+                            This is a previous semester project (Sem {project.semester}). You're currently in Sem {roleData?.semester || user?.semester}. Modifications are not allowed.
+                          </p>
                         </div>
-                        <button
-                          onClick={removeSelectedFile}
-                          className="text-gray-400 hover:text-gray-600"
-                          disabled={isUploading}
-                        >
-                          <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                            <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-                          </svg>
-                        </button>
                       </div>
                     </div>
                   )}
-
-                  {/* Upload Button */}
-                  {selectedFile && !isSuccess && (
-                    <div className="mt-4 flex justify-end space-x-3">
-                      <button
-                        onClick={resetUpload}
-                        className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
-                        disabled={isUploading}
+                  {/* Current Uploaded PPT - Success State */}
+                  {projectStatus && projectStatus.pptSubmitted && (
+                    <div className="bg-success-50 border border-success-200 rounded-lg p-4 mb-4">
+                      <div className="flex items-center gap-2 mb-3">
+                        <FiCheckCircle className="w-5 h-5 text-success-600" />
+                        <h3 className="text-base font-bold text-success-900">Presentation Uploaded</h3>
+                        <span className="text-xs text-success-700 bg-success-100 px-2 py-1 rounded-full ml-auto">
+                          {new Date(projectStatus.pptSubmittedAt).toLocaleDateString()}
+                        </span>
+                      </div>
+                      
+                      {/* Clickable File Card with Download */}
+                      <button 
+                        onClick={handleDownloadPPT}
+                        disabled={isDownloading}
+                        className="w-full text-left bg-white rounded-lg p-3 mb-3 border border-neutral-200 hover:border-primary-300 hover:shadow-md transition-all group cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                        title="Click to download"
                       >
-                        Cancel
-                      </button>
-                      <button
-                        onClick={handlePPTUpload}
-                        disabled={isUploading}
-                        className="px-6 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        {isUploading ? (
-                          <span className="flex items-center">
-                            <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
-                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                            </svg>
-                            Uploading...
-                          </span>
-                        ) : (
-                          'Upload PPT'
+                        <div className="flex items-start gap-3">
+                          <div className="w-10 h-10 bg-gradient-to-br from-secondary-500 to-secondary-600 rounded-lg flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-transform">
+                            <FiFileText className="w-5 h-5 text-white" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <p className="text-sm font-semibold text-neutral-800 truncate group-hover:text-primary-700 transition-colors">
+                                {projectStatus.pptOriginalName || projectStatus.pptFileName || 'Presentation.pptx'}
+                              </p>
+                              {isDownloading ? (
+                                <div className="w-4 h-4 border-2 border-primary-300 border-t-primary-600 rounded-full animate-spin flex-shrink-0"></div>
+                              ) : (
+                                <FiEye className="w-4 h-4 text-neutral-400 group-hover:text-primary-600 flex-shrink-0" />
+                              )}
+                            </div>
+                            {projectStatus.pptFileSize && (
+                              <p className="text-xs text-neutral-600 mt-0.5">
+                                {(projectStatus.pptFileSize / 1024 / 1024).toFixed(2)} MB
+                              </p>
+                            )}
+                            <p className="text-xs text-primary-600 mt-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                              {isDownloading ? 'Downloading...' : 'Click to download →'}
+                            </p>
+                          </div>
+                        </div>
+                        
+                        {projectStatus.pptSubmissionNotes && (
+                          <div className="mt-2 pt-2 border-t border-neutral-200">
+                            <p className="text-xs text-neutral-600 italic">
+                              Note: {projectStatus.pptSubmissionNotes}
+                            </p>
+                          </div>
                         )}
                       </button>
+                      
+                      {canModifyProject() && (
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => setShowReplaceUpload(true)}
+                            disabled={isUploading || isRemoving}
+                            className="flex-1 btn-secondary text-sm py-2"
+                          >
+                            <span className="flex items-center justify-center gap-2">
+                              <FiUpload className="w-4 h-4" />
+                              Replace
+                            </span>
+                          </button>
+                          <button
+                            onClick={handleRemovePPT}
+                            disabled={isUploading || isRemoving}
+                            className="flex-1 bg-error-50 text-error-700 border border-error-200 hover:bg-error-100 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
+                          >
+                            {isRemoving ? (
+                              <span className="flex items-center justify-center gap-2">
+                                <div className="w-4 h-4 border-2 border-error-300 border-t-error-700 rounded-full animate-spin"></div>
+                                Removing...
+                              </span>
+                            ) : (
+                              <span className="flex items-center justify-center gap-2">
+                                <FiTrash2 className="w-4 h-4" />
+                                Remove
+                              </span>
+                            )}
+                          </button>
+                        </div>
+                      )}
                     </div>
                   )}
 
-                  {/* Success Message */}
-                  {isSuccess && (
-                    <div className="mt-4 bg-green-50 border border-green-200 rounded-lg p-4">
-                      <div className="flex">
-                        <div className="flex-shrink-0">
-                          <svg className="h-5 w-5 text-green-400" viewBox="0 0 20 20" fill="currentColor">
-                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                          </svg>
+                  {/* Upload Section - Smart Display */}
+                  {canModifyProject() && (project.status === 'active' || project.status === 'registered') && 
+                   (!projectStatus?.pptSubmitted || showReplaceUpload) && (
+                    <div>
+                      <div className="mb-4">
+                        <div className="flex items-center justify-between mb-2">
+                          <h3 className="text-base font-bold text-neutral-800 flex items-center gap-2">
+                            <FiUpload className="w-5 h-5 text-primary-600" />
+                            {projectStatus && projectStatus.pptSubmitted ? 'Replace Presentation' : 'Upload Presentation'}
+                          </h3>
+                          {projectStatus?.pptSubmitted && showReplaceUpload && (
+                            <button
+                              onClick={() => {
+                                setShowReplaceUpload(false);
+                                resetUpload();
+                              }}
+                              className="p-1.5 text-neutral-500 hover:text-neutral-700 hover:bg-neutral-100 rounded-lg transition-colors"
+                            >
+                              <FiAlertCircle className="w-5 h-5" />
+                            </button>
+                          )}
                         </div>
-                        <div className="ml-3">
-                          <h3 className="text-sm font-medium text-green-800">Upload Successful!</h3>
-                          <p className="mt-1 text-sm text-green-700">
-                            Your presentation has been uploaded successfully.
+                        <p className="text-sm text-neutral-600">
+                          Upload your PPT, PPTX, or PDF file (Max 50MB)
+                        </p>
+                      </div>
+
+                      {/* File Selection: Show upload area OR selected file preview */}
+                      {!selectedFile ? (
+                        <FileUpload
+                          onFileSelect={selectFile}
+                          acceptedTypes={['.ppt', '.pptx', '.pdf']}
+                          maxSize={50 * 1024 * 1024}
+                          maxFiles={1}
+                          disabled={isUploading || !canModifyProject()}
+                          showPreview={false}
+                          title={projectStatus && projectStatus.pptSubmitted ? "Choose New File" : "Choose File"}
+                          description="Drag and drop or click to select your presentation"
+                        />
+                      ) : (
+                        <div className="bg-surface-200 rounded-lg p-4 border-2 border-primary-300 shadow-sm">
+                          <div className="flex items-center gap-3">
+                            <div className="w-12 h-12 bg-gradient-to-br from-secondary-500 to-secondary-600 rounded-lg flex items-center justify-center flex-shrink-0 shadow-md">
+                              <FiFileText className="w-6 h-6 text-white" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-bold text-neutral-800 truncate">{selectedFile.name}</p>
+                              <p className="text-xs text-neutral-600 mt-1">
+                                {(selectedFile.size / 1024 / 1024).toFixed(2)} MB • Ready to upload
+                              </p>
+                            </div>
+                            <button
+                              onClick={removeSelectedFile}
+                              className="p-2 text-neutral-500 hover:text-error-600 hover:bg-error-50 rounded-lg transition-colors"
+                              disabled={isUploading}
+                              title="Remove file"
+                            >
+                              <FiTrash2 className="w-5 h-5" />
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Upload Button */}
+                      {selectedFile && !isSuccess && (
+                        <div className="mt-4 flex items-center gap-2">
+                          <button
+                            onClick={resetUpload}
+                            className="flex-1 btn-secondary py-2.5"
+                            disabled={isUploading}
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            onClick={handlePPTUpload}
+                            disabled={isUploading}
+                            className="flex-1 btn-primary py-2.5"
+                          >
+                            {isUploading ? (
+                              <span className="flex items-center justify-center gap-2">
+                                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                                Uploading...
+                              </span>
+                            ) : (
+                              <span className="flex items-center justify-center gap-2">
+                                <FiUpload className="w-4 h-4" />
+                                Upload Presentation
+                              </span>
+                            )}
+                          </button>
+                        </div>
+                      )}
+
+                      {/* Success Message */}
+                      {isSuccess && (
+                        <div className="mt-4 bg-success-50 border border-success-200 rounded-lg p-4">
+                          <div className="flex items-start gap-3">
+                            <FiCheckCircle className="w-5 h-5 text-success-600 flex-shrink-0" />
+                            <div>
+                              <h3 className="text-sm font-semibold text-success-800">Upload Successful!</h3>
+                              <p className="mt-1 text-sm text-success-700">
+                                Your presentation has been uploaded successfully.
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Upload Not Available */}
+                  {project.status !== 'active' && project.status !== 'registered' && (
+                    <div className="bg-warning-50 border border-warning-200 rounded-lg p-4">
+                      <div className="flex items-start gap-3">
+                        <FiAlertTriangle className="w-5 h-5 text-warning-600 flex-shrink-0 mt-0.5" />
+                        <div>
+                          <h3 className="text-sm font-semibold text-warning-800">Upload Not Available</h3>
+                          <p className="mt-1 text-sm text-warning-700">
+                            Your project must be registered or active to upload presentations.
                           </p>
                         </div>
                       </div>
                     </div>
                   )}
                 </div>
-              )}
+              </div>
+            
+            </div>
 
-              {/* Upload Not Available */}
-              {project.status !== 'active' && project.status !== 'registered' && (
-                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6">
-                  <div className="flex">
-                    <div className="flex-shrink-0">
-                      <svg className="h-5 w-5 text-yellow-400" viewBox="0 0 20 20" fill="currentColor">
-                        <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                      </svg>
+            {/* Right Column - Guidelines & Info (35%) */}
+            <div className="lg:col-span-1">
+              <div className="lg:sticky lg:top-5 space-y-4 lg:max-h-[calc(100vh-100px)] lg:overflow-y-auto custom-scrollbar">
+                
+                {/* Presentation Tips */}
+                <div className="bg-surface-100 rounded-xl shadow-sm border border-neutral-200 overflow-hidden">
+                  <div className="bg-gradient-to-r from-accent-500 to-accent-600 px-4 py-3">
+                    <div className="flex items-center gap-2">
+                      <FiTarget className="w-4 h-4 text-white" />
+                      <h3 className="text-sm font-bold text-white">Presentation Tips</h3>
                     </div>
-                    <div className="ml-3">
-                      <h3 className="text-sm font-medium text-yellow-800">Upload Not Available</h3>
-                      <p className="mt-2 text-sm text-yellow-700">
-                        Your project must be registered or active to upload PPT.
-                      </p>
+                  </div>
+                  
+                  <div className="p-4 space-y-3">
+                    <div className="flex items-start gap-2">
+                      <FiCheckCircle className="w-4 h-4 text-success-600 mt-0.5 flex-shrink-0" />
+                      <div>
+                        <h4 className="text-xs font-semibold text-neutral-800">Clear Structure</h4>
+                        <p className="text-xs text-neutral-600 mt-0.5">Intro → Content → Conclusion</p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-start gap-2">
+                      <FiCheckCircle className="w-4 h-4 text-success-600 mt-0.5 flex-shrink-0" />
+                      <div>
+                        <h4 className="text-xs font-semibold text-neutral-800">Research Depth</h4>
+                        <p className="text-xs text-neutral-600 mt-0.5">Include references from papers</p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-start gap-2">
+                      <FiCheckCircle className="w-4 h-4 text-success-600 mt-0.5 flex-shrink-0" />
+                      <div>
+                        <h4 className="text-xs font-semibold text-neutral-800">Visual Appeal</h4>
+                        <p className="text-xs text-neutral-600 mt-0.5">Use diagrams and charts effectively</p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-start gap-2">
+                      <FiCheckCircle className="w-4 h-4 text-success-600 mt-0.5 flex-shrink-0" />
+                      <div>
+                        <h4 className="text-xs font-semibold text-neutral-800">Practice Q&A</h4>
+                        <p className="text-xs text-neutral-600 mt-0.5">Prepare for panel questions</p>
+                      </div>
                     </div>
                   </div>
                 </div>
-              )}
+
+                {/* Important Reminders */}
+                <div className="bg-info-50 rounded-xl border border-info-200 p-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <FiAlertCircle className="w-4 h-4 text-info-600" />
+                    <h3 className="text-sm font-bold text-info-800">Important Reminders</h3>
+                  </div>
+                  <div className="text-xs text-info-700 space-y-2">
+                    <p>• Upload your PPT before the evaluation deadline</p>
+                    <p>• Maximum file size: 50MB</p>
+                    <p>• Supported formats: PPT, PPTX, PDF</p>
+                    <p>• You can replace your file anytime before evaluation</p>
+                  </div>
+                </div>
+
+                {/* Evaluation Process */}
+                <div className="bg-purple-50 rounded-xl border border-purple-200 p-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <FiUsers className="w-4 h-4 text-purple-600" />
+                    <h3 className="text-sm font-bold text-purple-800">Evaluation Process</h3>
+                  </div>
+                  <div className="text-xs text-purple-700 space-y-2">
+                    <p><strong>1.</strong> Present to panel members</p>
+                    <p><strong>2.</strong> Answer questions about your research</p>
+                    <p><strong>3.</strong> Demonstrate understanding of concepts</p>
+                    <p><strong>4.</strong> Receive marks based on presentation</p>
+                  </div>
+                </div>
+
+              </div>
             </div>
+
           </div>
         </div>
       </div>

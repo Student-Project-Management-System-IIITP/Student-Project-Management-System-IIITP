@@ -5,6 +5,10 @@ import { useAuth } from '../../context/AuthContext';
 import { useSem4Project } from '../../hooks/useSem4Project';
 import toast from 'react-hot-toast';
 import StatusBadge from '../common/StatusBadge';
+import { 
+  FiCheckCircle, FiAlertCircle, FiFileText, FiUser, 
+  FiMail, FiPhone, FiHash, FiBook, FiClock 
+} from 'react-icons/fi';
 
 const ProjectRegistrationForm = () => {
   const navigate = useNavigate();
@@ -66,133 +70,155 @@ const ProjectRegistrationForm = () => {
 
 
   return (
-    <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      {/* Header */}
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900">Register Minor Project 1</h1>
-        <p className="text-gray-600 mt-2">
-          Register your individual project for B.Tech 4th semester
+    <div className="min-h-screen bg-gradient-to-br from-surface-200 via-primary-50 to-secondary-50">
+      {/* Compact Header Section */}
+      <div className="bg-white border-b border-neutral-200 shadow-sm">
+        <div className="max-w-[1400px] mx-auto px-4 lg:px-8 py-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-gradient-to-br from-primary-600 to-secondary-600 rounded-lg flex items-center justify-center flex-shrink-0">
+              <FiFileText className="w-5 h-5 text-white" />
+            </div>
+            <div>
+              <h1 className="text-xl font-bold text-neutral-800">
+                Register Minor Project 1
+              </h1>
+              <p className="text-xs text-neutral-600 mt-0.5">
+                B.Tech Sem 4 • Research & Presentation
         </p>
       </div>
-
-      {/* Project Information Card */}
-      <div className="bg-blue-50 rounded-lg p-6 mb-8">
-        <h2 className="text-lg font-semibold text-blue-900 mb-4">About Minor Project 1</h2>
-        <div className="text-blue-800 space-y-2 text-sm">
-          <p>• <strong>Individual Project:</strong> Work independently on your project</p>
-          <p>• <strong>Duration:</strong> 3-4 months (entire semester)</p>
-          <p>• <strong>Focus:</strong> Basic programming concepts and problem-solving</p>
-          <p>• <strong>Deliverables:</strong> Working application + PPT presentation</p>
-          <p>• <strong>Evaluation:</strong> 100% internal assessment by faculty panel</p>
+          </div>
         </div>
       </div>
 
-      {/* Registration Form */}
-      <div className="bg-white rounded-lg shadow">
-        <div className="px-6 py-4 border-b border-gray-200">
-          <h2 className="text-lg font-semibold text-gray-900">Project Details</h2>
+      {/* Main Content - Two Column Layout */}
+      <div className="max-w-[1400px] mx-auto px-4 lg:px-8 py-5 pb-8">
+        <div className="grid lg:grid-cols-5 gap-6">
+          {/* Left Column - Registration Form (60%) */}
+          <div className="lg:col-span-3 space-y-4">
+            <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+              {/* Student Information Card */}
+              <div className="bg-surface-100 rounded-xl shadow-sm border border-neutral-200 overflow-hidden">
+                <div className="bg-gradient-to-r from-primary-600 to-secondary-600 px-5 py-3">
+                  <div className="flex items-center gap-2">
+                    <FiUser className="w-5 h-5 text-white" />
+                    <h3 className="text-base font-semibold text-white">Student Information</h3>
+                  </div>
         </div>
         
-        <form onSubmit={handleSubmit(onSubmit)} className="p-6 space-y-6">
-          {/* Display: Student Information (Read-only) */}
-          <div className="bg-gray-50 rounded-lg p-4 mb-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Student Information</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Email Address */}
+                <div className="p-5 space-y-3">
+                  {/* Email and Name - Two columns */}
+                  <div className="grid md:grid-cols-2 gap-3">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                      <label className="flex items-center gap-2 text-xs font-medium text-neutral-600 mb-1">
+                        <FiMail className="w-3 h-3" />
                   Email Address
                 </label>
-                <div className="px-3 py-2 bg-white border border-gray-200 rounded-md text-gray-600">
+                      <div className="px-3 py-2 bg-neutral-50 border border-neutral-200 rounded-lg text-sm text-neutral-800">
                   {user?.email || 'Not available'}
                 </div>
               </div>
 
-              {/* Name of the Student */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Name of the Student
+                      <label className="flex items-center gap-2 text-xs font-medium text-neutral-600 mb-1">
+                        <FiUser className="w-3 h-3" />
+                        Full Name
                 </label>
-                <div className="px-3 py-2 bg-white border border-gray-200 rounded-md text-gray-600">
+                      <div className="px-3 py-2 bg-neutral-50 border border-neutral-200 rounded-lg text-sm text-neutral-800">
                   {roleData?.fullName || user?.name || 'Not available'}
+                      </div>
                 </div>
               </div>
 
-              {/* MIS Number */}
+                  {/* MIS, Contact, Branch - Three columns */}
+                  <div className="grid md:grid-cols-3 gap-3">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                      <label className="flex items-center gap-2 text-xs font-medium text-neutral-600 mb-1">
+                        <FiHash className="w-3 h-3" />
                   MIS Number
                 </label>
-                <div className="px-3 py-2 bg-white border border-gray-200 rounded-md text-gray-600">
+                      <div className="px-3 py-2 bg-neutral-50 border border-neutral-200 rounded-lg text-sm text-neutral-800">
                   {roleData?.misNumber || 'Not available'}
                 </div>
               </div>
 
-              {/* Contact Number */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                      <label className="flex items-center gap-2 text-xs font-medium text-neutral-600 mb-1">
+                        <FiPhone className="w-3 h-3" />
                   Contact No
                 </label>
-                <div className="px-3 py-2 bg-white border border-gray-200 rounded-md text-gray-600">
+                      <div className="px-3 py-2 bg-neutral-50 border border-neutral-200 rounded-lg text-sm text-neutral-800">
                   {roleData?.contactNumber || 'Not available'}
                 </div>
               </div>
 
-              {/* Branch */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                      <label className="flex items-center gap-2 text-xs font-medium text-neutral-600 mb-1">
+                        <FiBook className="w-3 h-3" />
                   Branch
                 </label>
-                <div className="px-3 py-2 bg-white border border-gray-200 rounded-md text-gray-600">
+                      <div className="px-3 py-2 bg-neutral-50 border border-neutral-200 rounded-lg text-sm text-neutral-800">
                   {roleData?.branch || 'Not available'}
+                      </div>
                 </div>
               </div>
 
               {/* Timestamp */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Timestamp
+                    <label className="flex items-center gap-2 text-xs font-medium text-neutral-600 mb-1">
+                      <FiClock className="w-3 h-3" />
+                      Registration Time
                 </label>
-                <div className="px-3 py-2 bg-white border border-gray-200 rounded-md text-gray-600">
+                    <div className="px-3 py-2 bg-neutral-50 border border-neutral-200 rounded-lg text-sm text-neutral-800">
                   {new Date().toLocaleString('en-IN', {
                     timeZone: 'Asia/Kolkata',
                     year: 'numeric',
-                    month: '2-digit',
-                    day: '2-digit',
+                        month: 'short',
+                        day: 'numeric',
                     hour: '2-digit',
-                    minute: '2-digit',
-                    second: '2-digit'
+                        minute: '2-digit'
                   })}
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Project Information */}
-          <div className="bg-blue-50 rounded-lg p-4 mb-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Project Information</h3>
-            
-            {/* Proposed Project Title/Area */}
+              {/* Project Information Card */}
+              <div className="bg-surface-100 rounded-xl shadow-sm border border-neutral-200 overflow-hidden">
+                <div className="bg-gradient-to-r from-primary-600 to-secondary-600 px-5 py-3">
+                  <div className="flex items-center gap-2">
+                    <FiFileText className="w-5 h-5 text-white" />
+                    <h3 className="text-base font-semibold text-white">Project Details</h3>
+                  </div>
+                </div>
+                
+                <div className="p-5">
+                  {/* Research Topic/Title */}
             <div>
-              <label htmlFor="title" className="block text-sm font-medium text-gray-700 mb-2">
-                Proposed Project Title/Area <span className="text-red-500">*</span>
+                    <label htmlFor="title" className="block text-sm font-medium text-neutral-700 mb-2">
+                      Research Topic/Title <span className="text-error-600">*</span>
               </label>
               <textarea
                 id="title"
-                rows={3}
+                      rows={4}
                 {...register('title', {
-                  required: 'Project title is required',
+                        required: 'Research topic is required',
                 })}
-                className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-                  errors.title ? 'border-red-300' : 'border-gray-300'
+                      className={`w-full px-4 py-3 border rounded-lg shadow-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-neutral-700 placeholder-neutral-400 transition-colors ${
+                        errors.title ? 'border-error-300 focus:ring-error-500' : 'border-neutral-300'
                 }`}
-                placeholder="Enter your proposed project title or area of work..."
+                      placeholder="Enter your research topic... e.g., 'Machine Learning Applications in Healthcare', 'Blockchain Technology and Its Use Cases', 'Cloud Computing Architecture'..."
               />
               {errors.title && (
-                <p className="mt-1 text-sm text-red-600">{errors.title.message}</p>
+                      <p className="mt-2 text-sm text-error-600 flex items-center gap-1">
+                        <FiAlertCircle className="w-4 h-4" />
+                        {errors.title.message}
+                      </p>
               )}
+                    <p className="mt-2 text-xs text-neutral-500">
+                      Choose a technology/concept you want to research. You'll study research papers and create a presentation on this topic.
+                    </p>
+                  </div>
             </div>
-
           </div>
 
           {/* Hidden fields for backend submission */}
@@ -202,27 +228,23 @@ const ProjectRegistrationForm = () => {
 
           {/* Error Display */}
           {error && (
-            <div className="bg-red-50 border border-red-200 rounded-md p-4">
-              <div className="flex">
-                <div className="flex-shrink-0">
-                  <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
-                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                  </svg>
-                </div>
-                <div className="ml-3">
-                  <h3 className="text-sm font-medium text-red-800">Registration Failed</h3>
-                  <p className="mt-1 text-sm text-red-700">{error}</p>
+                <div className="bg-error-50 border border-error-200 rounded-lg p-4">
+                  <div className="flex items-start gap-3">
+                    <FiAlertCircle className="w-5 h-5 text-error-600 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <h3 className="text-sm font-semibold text-error-800">Registration Failed</h3>
+                      <p className="mt-1 text-sm text-error-700">{error}</p>
                 </div>
               </div>
             </div>
           )}
 
           {/* Form Actions */}
-          <div className="flex items-center justify-between pt-6 border-t border-gray-200">
+              <div className="flex items-center gap-3">
             <button
               type="button"
               onClick={() => navigate('/dashboard/student')}
-              className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                  className="flex-1 btn-secondary"
             >
               Cancel
             </button>
@@ -230,33 +252,114 @@ const ProjectRegistrationForm = () => {
             <button
               type="submit"
               disabled={isSubmitting || loading}
-              className="px-6 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="flex-1 btn-primary"
             >
               {isSubmitting || loading ? (
-                <span className="flex items-center">
-                  <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                    <span className="flex items-center justify-center gap-2">
+                      <svg className="animate-spin h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                   </svg>
                   Registering...
                 </span>
               ) : (
-                'Register Project'
+                    <span className="flex items-center justify-center gap-2">
+                      <FiCheckCircle className="w-4 h-4" />
+                      Register Project
+                    </span>
               )}
             </button>
           </div>
         </form>
       </div>
 
+          {/* Right Column - Guidelines & Tips (40%) */}
+          <div className="lg:col-span-2">
+            <div className="lg:sticky lg:top-5 space-y-4 lg:max-h-[calc(100vh-100px)] lg:overflow-y-auto custom-scrollbar">
       {/* Guidelines Card */}
-      <div className="mt-8 bg-yellow-50 rounded-lg p-6">
-        <h2 className="text-lg font-semibold text-yellow-900 mb-4">📋 Registration Guidelines</h2>
-        <div className="text-yellow-800 space-y-2 text-sm">
-          <p>• <strong>Be Specific:</strong> Provide clear, detailed project description</p>
-          <p>• <strong>Realistic Scope:</strong> Choose a project that can be completed in 3-4 months</p>
-          <p>• <strong>Technical Focus:</strong> Include programming concepts and technologies</p>
-          <p>• <strong>Original Work:</strong> Ensure your project idea is original and not copied</p>
-          <p>• <strong>Faculty Review:</strong> Your project will be reviewed by faculty members</p>
+              <div className="bg-surface-100 rounded-xl shadow-sm border border-neutral-200 overflow-hidden">
+              <div className="bg-gradient-to-r from-accent-500 to-accent-600 px-5 py-3">
+                <div className="flex items-center gap-2">
+                  <FiFileText className="w-5 h-5 text-white" />
+                  <h3 className="text-base font-semibold text-white">Registration Guidelines</h3>
+                </div>
+              </div>
+              
+              <div className="p-5 space-y-3">
+                <div className="flex items-start gap-3">
+                  <FiCheckCircle className="w-4 h-4 text-success-600 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <h4 className="text-sm font-semibold text-neutral-800">Choose Wisely</h4>
+                    <p className="text-xs text-neutral-600 mt-0.5">Pick a topic with sufficient research papers and resources</p>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-3">
+                  <FiCheckCircle className="w-4 h-4 text-success-600 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <h4 className="text-sm font-semibold text-neutral-800">Research Depth</h4>
+                    <p className="text-xs text-neutral-600 mt-0.5">Study multiple research papers on your chosen topic</p>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-3">
+                  <FiCheckCircle className="w-4 h-4 text-success-600 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <h4 className="text-sm font-semibold text-neutral-800">Clear Presentation</h4>
+                    <p className="text-xs text-neutral-600 mt-0.5">Create a well-structured, informative PPT</p>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-3">
+                  <FiCheckCircle className="w-4 h-4 text-success-600 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <h4 className="text-sm font-semibold text-neutral-800">Understand Concepts</h4>
+                    <p className="text-xs text-neutral-600 mt-0.5">Be ready to answer questions about your topic</p>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-3">
+                  <FiCheckCircle className="w-4 h-4 text-success-600 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <h4 className="text-sm font-semibold text-neutral-800">Cite Sources</h4>
+                    <p className="text-xs text-neutral-600 mt-0.5">Include references to research papers in your PPT</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* What's Next Card */}
+            <div className="bg-info-50 rounded-xl border border-info-200 p-5">
+              <div className="flex items-center gap-2 mb-3">
+                <FiAlertCircle className="w-5 h-5 text-info-600" />
+                <h3 className="text-sm font-semibold text-info-800">What's Next?</h3>
+              </div>
+              <div className="text-xs text-info-700 space-y-2">
+                <p><strong>1.</strong> Start researching your chosen topic</p>
+                <p><strong>2.</strong> Read relevant research papers and documentation</p>
+                <p><strong>3.</strong> Wait for evaluation schedule notification</p>
+                <p><strong>4.</strong> Create and upload your PPT before evaluation date</p>
+                <p><strong>5.</strong> Present to panel and answer questions</p>
+              </div>
+            </div>
+
+            {/* Project Requirements */}
+            <div className="bg-purple-50 rounded-xl border border-purple-200 p-5">
+              <div className="flex items-center gap-2 mb-3">
+                <FiBook className="w-5 h-5 text-purple-600" />
+                <h3 className="text-sm font-semibold text-purple-800">Project Requirements</h3>
+              </div>
+              <div className="text-xs text-purple-700 space-y-2">
+                <p>• <strong>Type:</strong> Individual research & presentation</p>
+                <p>• <strong>Duration:</strong> 3-4 months (full semester)</p>
+                <p>• <strong>Work:</strong> Study research papers, no implementation</p>
+                <p>• <strong>Deliverables:</strong> PPT presentation only</p>
+                <p>• <strong>Evaluation:</strong> Panel presentation + Q&A</p>
+                <p>• <strong>Assessment:</strong> 100% internal evaluation</p>
+              </div>
+            </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>

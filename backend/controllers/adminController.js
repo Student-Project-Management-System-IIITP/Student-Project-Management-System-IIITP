@@ -1132,17 +1132,18 @@ const getGroups = async (req, res) => {
     const query = {};
     
     // Always filter by semester if provided
-    // For promotion cases (e.g., Sem 5 -> Sem 6), also fetch groups from previous semester
-    // We'll filter by actual member semester later
+    // CRITICAL: Only Sem 6 needs previous semester groups (Sem 5 groups) for promotion cases
+    // Sem 7 and Sem 8 should ONLY get their own semester groups - students create new groups
     if (semester) {
       const semesterNum = parseInt(semester, 10);
       if (!Number.isNaN(semesterNum)) {
-        // Include both current semester and previous semester (for promoted groups)
-        // This handles cases where students were promoted but group.semester wasn't updated yet
-        const previousSemester = semesterNum - 1;
-        if (previousSemester >= 1 && previousSemester <= 8) {
+        // Only include previous semester for Sem 6 (which needs Sem 5 groups)
+        // Sem 7 and Sem 8 should only get their own semester groups
+        if (semesterNum === 6) {
+          const previousSemester = semesterNum - 1; // Sem 5
           query.semester = { $in: [semesterNum, previousSemester] };
         } else {
+          // For Sem 7, 8, and others, only get groups from that specific semester
           query.semester = semesterNum;
         }
       }
@@ -1218,9 +1219,10 @@ const getGroups = async (req, res) => {
         // All members are in the same semester
         const actualSemester = uniqueSemesters[0];
         
-        // If actual semester differs from group.semester, update group.semester (async, don't await)
-        if (actualSemester !== group.semester) {
-          // Update group semester in background (non-blocking)
+        // CRITICAL: Only update group semester for Sem 5->6 promotion
+        // For Sem 6->7 and Sem 7->8, groups should NOT be updated - students create new groups
+        if (actualSemester !== group.semester && group.semester === 5 && actualSemester === 6) {
+          // Only update group semester for Sem 5->6 promotion (non-blocking)
           Group.findByIdAndUpdate(group._id, { semester: actualSemester }, { new: false })
             .catch(err => console.error(`Error updating group ${group._id} semester:`, err));
         }
@@ -1244,8 +1246,12 @@ const getGroups = async (req, res) => {
           }
         }
         
-        // Update group semester if different
-        if (actualSemester !== group.semester) {
+        // CRITICAL: Only update group semester for Sem 5->6 promotion
+        // For Sem 6->7 and Sem 7->8, groups should NOT be updated - students create new groups
+        if (actualSemester !== group.semester && 
+            group.semester === 5 && 
+            actualSemester === 6) {
+          // Only update group semester for Sem 5->6 promotion (non-blocking)
           Group.findByIdAndUpdate(group._id, { semester: actualSemester }, { new: false })
             .catch(err => console.error(`Error updating group ${group._id} semester:`, err));
         }

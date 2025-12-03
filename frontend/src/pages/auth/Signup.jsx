@@ -3,8 +3,9 @@ import { useAuth } from '../../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { authAPI } from '../../utils/api';
+import { FiEye, FiEyeOff } from 'react-icons/fi';
 
-const OTP_SIGNUP_ENABLED = import.meta.env.VITE_ENABLE_SIGNUP_OTP === 'true';
+const OTP_SIGNUP_ENABLED = import.meta.env.VITE_ENABLE_SIGNUP_OTP !== 'false'; // Enabled by default, can be disabled via env var
 
 const Signup = () => {
   const [formData, setFormData] = useState({
@@ -269,27 +270,35 @@ const Signup = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center py-12">
-      <div className="max-w-lg w-full bg-white rounded-xl shadow-xl p-8">
+    <div className="min-h-screen bg-gradient-to-br from-surface-200 via-primary-50 to-secondary-50 flex items-center justify-center py-12 px-4">
+      {/* Decorative Elements */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute -top-40 -right-40 w-96 h-96 bg-primary-200 rounded-full opacity-30 blur-3xl"></div>
+        <div className="absolute top-1/2 -left-20 w-72 h-72 bg-secondary-200 rounded-full opacity-20 blur-3xl"></div>
+      </div>
+
+      <div className="relative max-w-lg w-full bg-surface-100 rounded-2xl shadow-xl border border-neutral-200 p-8">
         <div className="text-center mb-8">
-          <img 
-            src="/IIIT Pune Logo New.jpg" 
-            alt="IIIT Pune Logo" 
-            className="h-16 w-auto mx-auto mb-4"
-          />
-          <h1 className="text-2xl font-bold text-gray-900">Student Registration</h1>
-          <p className="text-gray-600">Join SPMS to manage your projects</p>
+          <div className="flex justify-center mb-4">
+            <img 
+              src="/IIIT Pune Logo New.jpg" 
+              alt="IIIT Pune Logo" 
+              className="h-16 w-16 rounded-full object-cover"
+            />
+          </div>
+          <h1 className="text-2xl font-bold text-neutral-800 mb-2">Student Registration</h1>
+          <p className="text-neutral-600">Join SPMS to manage your projects</p>
         </div>
         
         {errors.general && (
-          <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded">
+          <div className="mb-4 p-3 bg-error-50 border border-error-200 text-error-700 rounded-lg text-sm">
             {errors.general}
           </div>
         )}
         
         <form onSubmit={handleSubmit} className="space-y-6">
           <div>
-            <label htmlFor="fullName" className="block text-sm font-medium text-gray-700 mb-2">
+            <label htmlFor="fullName" className="block text-sm font-medium text-neutral-700 mb-2">
               Full Name *
             </label>
             <input
@@ -298,16 +307,16 @@ const Signup = () => {
               name="fullName"
               value={formData.fullName}
               onChange={handleChange}
-              className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                errors.fullName ? 'border-red-500' : 'border-gray-300'
+              className={`w-full px-4 py-3 border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-neutral-700 placeholder-neutral-400 transition-colors ${
+                errors.fullName ? 'border-error-500' : 'border-neutral-300'
               }`}
               placeholder="Enter your full name"
             />
-            {errors.fullName && <p className="mt-1 text-sm text-red-600">{errors.fullName}</p>}
+            {errors.fullName && <p className="mt-1 text-sm text-error-600">{errors.fullName}</p>}
           </div>
           
           <div>
-            <label htmlFor="degree" className="block text-sm font-medium text-gray-700 mb-2">
+            <label htmlFor="degree" className="block text-sm font-medium text-neutral-700 mb-2">
               Degree *
             </label>
             <select
@@ -315,7 +324,7 @@ const Signup = () => {
               name="degree"
               value={formData.degree}
               onChange={handleChange}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-4 py-3 border border-neutral-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-neutral-700 transition-colors"
             >
               <option value="B.Tech">B.Tech</option>
               <option value="M.Tech">M.Tech</option>
@@ -323,7 +332,7 @@ const Signup = () => {
           </div>
           
           <div>
-            <label htmlFor="branch" className="block text-sm font-medium text-gray-700 mb-2">
+            <label htmlFor="branch" className="block text-sm font-medium text-neutral-700 mb-2">
               Branch *
             </label>
             <select
@@ -331,7 +340,7 @@ const Signup = () => {
               name="branch"
               value={formData.branch}
               onChange={handleChange}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-4 py-3 border border-neutral-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-neutral-700 transition-colors"
             >
               <option value="CSE">CSE</option>
               <option value="ECE">ECE</option>
@@ -339,7 +348,7 @@ const Signup = () => {
           </div>
           
           <div>
-            <label htmlFor="semester" className="block text-sm font-medium text-gray-700 mb-2">
+            <label htmlFor="semester" className="block text-sm font-medium text-neutral-700 mb-2">
               Semester *
             </label>
             <select
@@ -347,8 +356,8 @@ const Signup = () => {
               name="semester"
               value={formData.semester}
               onChange={handleChange}
-              className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                errors.semester ? 'border-red-500' : 'border-gray-300'
+              className={`w-full px-4 py-3 border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-neutral-700 transition-colors ${
+                errors.semester ? 'border-error-500' : 'border-neutral-300'
               }`}
             >
               <option value="">Select semester</option>
@@ -358,9 +367,9 @@ const Signup = () => {
                 </option>
               ))}
             </select>
-            {errors.semester && <p className="mt-1 text-sm text-red-600">{errors.semester}</p>}
+            {errors.semester && <p className="mt-1 text-sm text-error-600">{errors.semester}</p>}
             {formData.degree && !errors.semester && (
-              <p className="mt-1 text-sm text-gray-500">
+              <p className="mt-1 text-sm text-neutral-500">
                 {formData.degree === 'B.Tech' 
                   ? 'B.Tech students can signup from Semester 4 to 8' 
                   : 'M.Tech students can signup from Semester 1 to 4'
@@ -370,7 +379,7 @@ const Signup = () => {
           </div>
           
           <div>
-            <label htmlFor="misNumber" className="block text-sm font-medium text-gray-700 mb-2">
+            <label htmlFor="misNumber" className="block text-sm font-medium text-neutral-700 mb-2">
               MIS Number *
             </label>
             <input
@@ -380,16 +389,16 @@ const Signup = () => {
               value={formData.misNumber}
               onChange={handleChange}
               maxLength="9"
-              className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                errors.misNumber ? 'border-red-500' : 'border-gray-300'
+              className={`w-full px-4 py-3 border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-neutral-700 placeholder-neutral-400 transition-colors ${
+                errors.misNumber ? 'border-error-500' : 'border-neutral-300'
               }`}
               placeholder="Enter your 9-digit MIS number"
             />
-            {errors.misNumber && <p className="mt-1 text-sm text-red-600">{errors.misNumber}</p>}
+            {errors.misNumber && <p className="mt-1 text-sm text-error-600">{errors.misNumber}</p>}
           </div>
           
           <div>
-            <label htmlFor="collegeEmail" className="block text-sm font-medium text-gray-700 mb-2">
+            <label htmlFor="collegeEmail" className="block text-sm font-medium text-neutral-700 mb-2">
               College Email *
             </label>
             <div className="flex flex-col space-y-2">
@@ -399,16 +408,16 @@ const Signup = () => {
                 name="collegeEmail"
                 value={formData.collegeEmail}
                 onChange={handleChange}
-                className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                  errors.collegeEmail ? 'border-red-500' : 'border-gray-300'
+                className={`w-full px-4 py-3 border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-neutral-700 placeholder-neutral-400 transition-colors ${
+                  errors.collegeEmail ? 'border-error-500' : 'border-neutral-300'
                 }`}
                 placeholder="Enter your college email"
               />
               <div className="flex items-center justify-between">
                 {errors.collegeEmail ? (
-                  <p className="text-sm text-red-600">{errors.collegeEmail}</p>
+                  <p className="text-sm text-error-600">{errors.collegeEmail}</p>
                 ) : (
-                  <p className="text-xs text-gray-500">
+                  <p className="text-xs text-neutral-500">
                     Verify your email with OTP before creating account.
                   </p>
                 )}
@@ -416,10 +425,10 @@ const Signup = () => {
                   type="button"
                   onClick={handleSendOtp}
                   disabled={isSendingOtp || !formData.collegeEmail.trim() || !!errors.collegeEmail || isOtpVerified}
-                  className={`ml-3 inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded-md shadow-sm ${
+                  className={`ml-3 inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded-lg shadow-sm transition-colors ${
                     isOtpVerified
-                      ? 'bg-green-100 text-green-700 cursor-default'
-                      : 'bg-indigo-600 text-white hover:bg-indigo-700 disabled:bg-indigo-300'
+                      ? 'bg-success-100 text-success-700 cursor-default'
+                      : 'bg-secondary-600 text-white hover:bg-secondary-700 disabled:bg-secondary-300'
                   }`}
                 >
                   {isOtpVerified ? 'Email Verified' : isSendingOtp ? 'Sending OTP...' : 'Verify OTP'}
@@ -429,12 +438,12 @@ const Signup = () => {
           </div>
           
           <div>
-            <label htmlFor="contactNumber" className="block text-sm font-medium text-gray-700 mb-2">
+            <label htmlFor="contactNumber" className="block text-sm font-medium text-neutral-700 mb-2">
               Contact Number *
             </label>
             <div className="relative">
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <span className="text-gray-500 text-sm font-medium">+91</span>
+                <span className="text-neutral-500 text-sm font-medium">+91</span>
               </div>
               <input
                 type="tel"
@@ -442,17 +451,17 @@ const Signup = () => {
                 name="contactNumber"
                 value={formData.contactNumber}
                 onChange={handleChange}
-                className={`w-full pl-12 pr-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                  errors.contactNumber ? 'border-red-500' : 'border-gray-300'
+                className={`w-full pl-12 pr-4 py-3 border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-neutral-700 placeholder-neutral-400 transition-colors ${
+                  errors.contactNumber ? 'border-error-500' : 'border-neutral-300'
                 }`}
                 placeholder="Enter your 10-digit contact number"
               />
             </div>
-            {errors.contactNumber && <p className="mt-1 text-sm text-red-600">{errors.contactNumber}</p>}
+            {errors.contactNumber && <p className="mt-1 text-sm text-error-600">{errors.contactNumber}</p>}
           </div>
           
           <div>
-            <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
+            <label htmlFor="password" className="block text-sm font-medium text-neutral-700 mb-2">
               Password *
             </label>
             <div className="relative">
@@ -462,61 +471,45 @@ const Signup = () => {
                 name="password"
                 value={formData.password}
                 onChange={handleChange}
-                className={`w-full pr-12 px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                  errors.password ? 'border-red-500' : 'border-gray-300'
+                className={`w-full pr-12 px-4 py-3 border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-neutral-700 placeholder-neutral-400 transition-colors ${
+                  errors.password ? 'border-error-500' : 'border-neutral-300'
                 }`}
                 placeholder="Create a password"
               />
               <button
                 type="button"
                 onClick={() => setShowPw(!showPw)}
-                className="absolute inset-y-0 right-0 px-3 flex items-center text-gray-500 hover:text-gray-700"
+                className="absolute inset-y-0 right-0 px-3 flex items-center text-neutral-500 hover:text-neutral-700 transition-colors"
                 aria-label={showPw ? 'Hide password' : 'Show password'}
               >
-                {showPw ? '🙈' : '👁️'}
+                {showPw ? <FiEyeOff className="w-5 h-5" /> : <FiEye className="w-5 h-5" />}
               </button>
             </div>
-            {errors.password && <p className="mt-1 text-sm text-red-600">{errors.password}</p>}
+            {errors.password && <p className="mt-1 text-sm text-error-600">{errors.password}</p>}
             
-            {/* Password Strength Indicator */}
-            {formData.password && (
-              <div className="mt-2">
-                <div className="flex items-center space-x-2">
-                  <div className="flex-1 bg-gray-200 rounded-full h-2">
-                    <div 
-                      className={`h-2 rounded-full transition-all duration-300 ${
-                        passwordStrength.score < 2 ? 'bg-red-500' :
-                        passwordStrength.score < 4 ? 'bg-yellow-500' :
-                        'bg-green-500'
-                      }`}
-                      style={{ width: `${(passwordStrength.score / 6) * 100}%` }}
-                    ></div>
-                  </div>
-                  <span className={`text-xs font-medium ${
-                    passwordStrength.score < 2 ? 'text-red-600' :
-                    passwordStrength.score < 4 ? 'text-yellow-600' :
-                    'text-green-600'
-                  }`}>
-                    {passwordStrength.score < 2 ? 'Weak' :
-                     passwordStrength.score < 4 ? 'Medium' :
-                     'Strong'}
-                  </span>
+            {/* Simplified Password Strength Indicator */}
+            {formData.password && !errors.password && (
+              <div className="mt-1.5 flex items-center gap-2">
+                <div className="flex gap-1 flex-1">
+                  <div className={`h-1 rounded-full flex-1 transition-colors ${passwordStrength.score >= 1 ? (passwordStrength.score < 2 ? 'bg-error-500' : passwordStrength.score < 4 ? 'bg-warning-500' : 'bg-success-500') : 'bg-neutral-200'}`}></div>
+                  <div className={`h-1 rounded-full flex-1 transition-colors ${passwordStrength.score >= 3 ? (passwordStrength.score < 4 ? 'bg-warning-500' : 'bg-success-500') : 'bg-neutral-200'}`}></div>
+                  <div className={`h-1 rounded-full flex-1 transition-colors ${passwordStrength.score >= 5 ? 'bg-success-500' : 'bg-neutral-200'}`}></div>
                 </div>
-                
-                {/* Password Requirements */}
-                <div className="mt-2 text-xs text-gray-600">
-                  {passwordStrength.feedback.slice(0, 3).map((item, index) => (
-                    <div key={index} className={`${item.startsWith('✓') ? 'text-green-600' : 'text-red-600'}`}>
-                      {item}
-                    </div>
-                  ))}
-                </div>
+                <span className={`text-xs font-medium whitespace-nowrap ${
+                  passwordStrength.score < 2 ? 'text-error-600' :
+                  passwordStrength.score < 4 ? 'text-warning-600' :
+                  'text-success-600'
+                }`}>
+                  {passwordStrength.score < 2 ? 'Weak' :
+                   passwordStrength.score < 4 ? 'Fair' :
+                   'Strong'}
+                </span>
               </div>
             )}
           </div>
           
           <div>
-            <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 mb-2">
+            <label htmlFor="confirmPassword" className="block text-sm font-medium text-neutral-700 mb-2">
               Confirm Password *
             </label>
             <div className="relative">
@@ -526,51 +519,61 @@ const Signup = () => {
                 name="confirmPassword"
                 value={formData.confirmPassword}
                 onChange={handleChange}
-                className={`w-full pr-12 px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                  errors.confirmPassword ? 'border-red-500' : 'border-gray-300'
+                className={`w-full pr-12 px-4 py-3 border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-neutral-700 placeholder-neutral-400 transition-colors ${
+                  errors.confirmPassword ? 'border-error-500' : 'border-neutral-300'
                 }`}
                 placeholder="Confirm your password"
               />
               <button
                 type="button"
                 onClick={() => setShowConfirm(!showConfirm)}
-                className="absolute inset-y-0 right-0 px-3 flex items-center text-gray-500 hover:text-gray-700"
+                className="absolute inset-y-0 right-0 px-3 flex items-center text-neutral-500 hover:text-neutral-700 transition-colors"
                 aria-label={showConfirm ? 'Hide password' : 'Show password'}
               >
-                {showConfirm ? '🙈' : '👁️'}
+                {showConfirm ? <FiEyeOff className="w-5 h-5" /> : <FiEye className="w-5 h-5" />}
               </button>
             </div>
-            {errors.confirmPassword && <p className="mt-1 text-sm text-red-600">{errors.confirmPassword}</p>}
+            {errors.confirmPassword && <p className="mt-1 text-sm text-error-600">{errors.confirmPassword}</p>}
           </div>
           
           <button
             type="submit"
             disabled={isLoading || (OTP_SIGNUP_ENABLED && !isOtpVerified)}
-            className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white font-semibold py-3 px-4 rounded-lg transition duration-200"
+            className="w-full bg-primary-600 hover:bg-primary-700 active:bg-primary-800 disabled:bg-primary-300 disabled:cursor-not-allowed text-white font-semibold py-3 px-4 rounded-lg transition-colors shadow-md shadow-primary-600/20 hover:shadow-lg hover:shadow-primary-600/30"
           >
-            {isLoading ? 'Creating Account...' : 'Create Account'}
+            {isLoading ? (
+              <span className="flex items-center justify-center gap-2">
+                <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                Creating Account...
+              </span>
+            ) : (
+              'Create Account'
+            )}
           </button>
         </form>
 
         {isOtpModalOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
-            <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-sm">
-              <h2 className="text-lg font-semibold text-gray-900 mb-2">Verify Email OTP</h2>
-              <p className="text-sm text-gray-600 mb-4">
-                Enter the 6-digit OTP sent to <span className="font-medium">{formData.collegeEmail}</span>.
+            <div className="bg-surface-100 rounded-2xl shadow-xl border border-neutral-200 p-6 w-full max-w-sm mx-4">
+              <h2 className="text-lg font-semibold text-neutral-800 mb-2">Verify Email OTP</h2>
+              <p className="text-sm text-neutral-600 mb-4">
+                Enter the 6-digit OTP sent to <span className="font-medium text-neutral-700">{formData.collegeEmail}</span>.
               </p>
               <input
                 type="text"
                 value={otpValue}
                 onChange={(e) => setOtpValue(e.target.value.replace(/[^0-9]/g, '').slice(0, 6))}
-                className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 tracking-widest text-center text-lg"
+                className="w-full px-4 py-2 border border-neutral-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-secondary-500 focus:border-secondary-500 text-neutral-700 tracking-widest text-center text-lg transition-colors"
                 placeholder="••••••"
               />
               <div className="flex justify-end mt-4 space-x-2">
                 <button
                   type="button"
                   onClick={() => setIsOtpModalOpen(false)}
-                  className="px-3 py-1.5 text-sm font-medium rounded-md bg-gray-200 text-gray-700 hover:bg-gray-300"
+                  className="px-3 py-1.5 text-sm font-medium rounded-lg bg-neutral-200 text-neutral-700 hover:bg-neutral-300 transition-colors"
                 >
                   Cancel
                 </button>
@@ -578,7 +581,7 @@ const Signup = () => {
                   type="button"
                   onClick={handleVerifyOtp}
                   disabled={isVerifyingOtp || otpValue.trim().length !== 6}
-                  className="px-3 py-1.5 text-sm font-medium rounded-md bg-indigo-600 text-white hover:bg-indigo-700 disabled:bg-indigo-300"
+                  className="px-3 py-1.5 text-sm font-medium rounded-lg bg-secondary-600 text-white hover:bg-secondary-700 disabled:bg-secondary-300 transition-colors"
                 >
                   {isVerifyingOtp ? 'Verifying...' : 'Verify'}
                 </button>
@@ -588,9 +591,9 @@ const Signup = () => {
         )}
         
         <div className="mt-6 text-center">
-          <p className="text-gray-600">
+          <p className="text-neutral-600 text-sm">
             Already have an account?{' '}
-            <a href="/login" className="text-blue-600 hover:text-blue-500 font-semibold">
+            <a href="/login" className="text-primary-600 hover:text-primary-700 font-semibold transition-colors">
               Sign in here
             </a>
           </p>

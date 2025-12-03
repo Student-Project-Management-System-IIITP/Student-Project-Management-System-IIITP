@@ -271,16 +271,20 @@ const getStudentProjects = async (req, res) => {
     // Determine target semester(s) for group lookup
     let targetSemester;
     let groupQuery = {
-      'members.student': student._id,
-      status: { $ne: 'locked' } // Exclude locked groups (historical Sem 5 groups)
+      'members.student': student._id
     };
     
-    // If allSemesters=true, get groups from all semesters
+    // If allSemesters=true, get groups from all semesters (including locked groups for previous projects)
     if (allSemesters === 'true') {
-      // No semester filter - get all groups
-      groupQuery['members.isActive'] = true;
+      // No semester filter - get all groups, including locked ones for previous semester projects
+      // Don't filter by status - we want to include locked groups so members can see their previous projects
+      // Don't filter by members.isActive - we want to include groups where student was a member,
+      // even if their membership is now inactive (for previous semesters)
+      // This ensures all group members can see their previous semester projects, not just leaders
     } else {
       // Filter by specific semester or current semester
+      // Exclude locked groups only for current semester queries
+      groupQuery.status = { $ne: 'locked' };
       targetSemester = semester ? parseInt(semester) : student.semester;
       groupQuery.semester = targetSemester;
       groupQuery['members.isActive'] = true;
@@ -317,7 +321,7 @@ const getStudentProjects = async (req, res) => {
 
     // Get projects with populated data
     const projects = await Project.find(query)
-      .populate('faculty', 'fullName department designation')
+      .populate('faculty', 'fullName department designation prefix')
       .populate('group', 'name members')
       .sort({ createdAt: -1 });
 
@@ -366,28 +370,50 @@ const getStudentGroups = async (req, res) => {
     const query = {
       'members.student': student._id,
       'members.isActive': true,
-      isActive: true,
-      status: { $ne: 'locked' } // Exclude locked groups (historical Sem 5 groups)
+      isActive: true
     };
+    
+    // CRITICAL: Only exclude locked groups for Sem 5
+    // Sem 5 groups get locked when they move to Sem 6 (historical groups)
+    // Sem 6, 7, 8 groups can be locked (finalized/allocated) but are still active and accessible
+    if (student.semester === 6) {
+      // For Sem 6 students, don't exclude locked groups if they have Sem 6 memberships
+      // (Sem 5 groups might be locked but still valid for Sem 6)
+      const sem6Memberships = student.groupMemberships.filter(gm => gm.semester === 6 && gm.isActive);
+      if (sem6Memberships.length > 0) {
+        // Include locked groups that student has Sem 6 membership for
+        query.status = { $ne: 'disbanded' }; // Only exclude disbanded groups
+      } else {
+        query.status = { $ne: 'locked' }; // Default: exclude locked groups
+      }
+    } else if (student.semester === 5) {
+      // For Sem 5, exclude locked groups (these are historical groups that moved to Sem 6)
+      query.status = { $ne: 'locked' };
+    } else {
+      // For Sem 7 and Sem 8, locked groups are still active (finalized/allocated groups)
+      // Only exclude disbanded groups
+      query.status = { $ne: 'disbanded' };
+    }
     
     // Apply semester filter only if not requesting all semesters
     // For promotion cases (e.g., Sem 5 -> Sem 6), also fetch groups from previous semester
-    // We'll filter by actual member semester later
+    // IMPORTANT: Only Sem 6 needs previous semester groups (Sem 5 groups). Sem 7 should only get Sem 7 groups.
     if (allSemesters !== 'true') {
       if (semester) {
         const semesterNum = parseInt(semester);
-        // Include both current semester and previous semester (for promoted groups)
-        const previousSemester = semesterNum - 1;
-        if (previousSemester >= 1 && previousSemester <= 8) {
+        // Only include previous semester for Sem 6 (which needs Sem 5 groups)
+        // Sem 7 and other semesters should only get their own semester groups
+        if (semesterNum === 6) {
+          const previousSemester = semesterNum - 1; // Sem 5
           query.semester = { $in: [semesterNum, previousSemester] };
         } else {
           query.semester = semesterNum;
         }
       } else {
-        // Default to current semester, but also include previous semester for promotion cases
+        // Default to current semester, but also include previous semester for Sem 6 only
         const currentSem = student.semester;
-        const previousSem = currentSem - 1;
-        if (previousSem >= 1 && previousSem <= 8) {
+        if (currentSem === 6) {
+          const previousSem = currentSem - 1; // Sem 5
           query.semester = { $in: [currentSem, previousSem] };
         } else {
           query.semester = currentSem;
@@ -403,16 +429,52 @@ const getStudentGroups = async (req, res) => {
     let groups = await Group.find(query)
       .populate('members.student', 'fullName misNumber collegeEmail contactNumber branch semester degree')
       .populate('leader', 'fullName misNumber collegeEmail contactNumber branch semester')
-      .populate('allocatedFaculty', 'fullName department designation')
+      .populate('allocatedFaculty', 'fullName department designation prefix')
       .populate('project', 'title description projectType status semester')
       .sort({ createdAt: -1 });
 
     // Determine actual semester based on member semesters (similar to admin getGroups)
     // Filter groups where the student is actually in the requested semester
-    if (allSemesters !== 'true') {
+    // Also handle Sem 5 groups for Sem 6 students (promotion case)
       const targetSemester = semester ? parseInt(semester) : student.semester;
       
+    // CRITICAL: For Sem 7 and Sem 8 requests, filter out any groups that are not the target semester BEFORE other processing
+    // This prevents Sem 6 groups from being returned for Sem 7/8 students
+    if (targetSemester === 7) {
+      groups = groups.filter(group => group.semester === 7 || group.semester === '7');
+    }
+    if (targetSemester === 8) {
+      groups = groups.filter(group => group.semester === 8 || group.semester === '8');
+    }
+    
+    // Check if student has Sem 6 membership for any Sem 5 groups (promotion case)
+    const sem6Memberships = student.groupMemberships.filter(gm => gm.semester === 6 && gm.isActive);
+    const sem6GroupIds = sem6Memberships.map(gm => gm.group.toString());
+    
+    groups = groups.map(group => {
+      // For Sem 6 students with Sem 5 groups that have Sem 6 memberships, treat as Sem 6 group
+      if (student.semester === 6 && group.semester === 5 && sem6GroupIds.includes(group._id.toString())) {
+        // Convert to plain object if it's a Mongoose document, otherwise use as-is
+        const groupObj = group.toObject ? group.toObject() : { ...group };
+        groupObj.semester = 6;
+        groupObj._isPromotedGroup = true; // Flag to indicate this is a promoted group
+        return groupObj;
+      }
+      return group;
+    });
+    
+    if (allSemesters !== 'true') {
       groups = groups.filter(group => {
+        // CRITICAL: For Sem 7 and Sem 8, use simpler logic - just check if group semester matches
+        // and student is a member. Don't apply complex semester matching logic meant for Sem 5->6 promotion.
+        if (targetSemester === 7 || targetSemester === 8) {
+          // For Sem 7/8: If group semester matches and student is a member, include it
+          // The query already filtered by 'members.student' and 'members.isActive', so if we got here,
+          // the student is definitely a member. Just verify the group semester matches.
+          return group.semester === targetSemester;
+        }
+        
+        // For Sem 5 and Sem 6, use the complex logic for promotion cases
         const activeMembers = group.members.filter(m => m.isActive && m.student);
         
         if (activeMembers.length === 0) {
@@ -437,8 +499,13 @@ const getStudentGroups = async (req, res) => {
           // All members are in the same semester
           const actualSemester = uniqueSemesters[0];
           
-          // Update group semester if different (async, non-blocking)
-          if (actualSemester !== group.semester) {
+          // CRITICAL: Only update group semester for Sem 5->6 promotion
+          // For Sem 6->7 and Sem 7->8, groups should NOT be updated - students create new groups
+          if (actualSemester !== group.semester && 
+              !group._isPromotedGroup &&
+              group.semester === 5 && 
+              actualSemester === 6) {
+            // Only update group semester for Sem 5->6 promotion (non-blocking)
             Group.findByIdAndUpdate(group._id, { semester: actualSemester }, { new: false })
               .catch(err => console.error(`Error updating group ${group._id} semester:`, err));
           }
@@ -447,13 +514,31 @@ const getStudentGroups = async (req, res) => {
         } else {
           // Members are in different semesters - check if student is in target semester
           // If the requesting student is in target semester, include the group
-          const studentInTargetSemester = activeMembers.some(m => 
-            m.student._id.toString() === student._id.toString() && 
-            m.student.semester === targetSemester
-          );
+          const studentInTargetSemester = activeMembers.some(m => {
+            const memberId = m.student?._id || m.student;
+            return memberId && 
+                   memberId.toString() === student._id.toString() && 
+                   m.student?.semester === targetSemester;
+          });
           
           return studentInTargetSemester;
         }
+      });
+    } else {
+      // When allSemesters is true, still filter to only return groups relevant to current semester
+      // For Sem 6 students, include Sem 5 groups they have Sem 6 memberships for
+      groups = groups.filter(group => {
+        // If student is Sem 6 and has Sem 6 membership for this Sem 5 group, include it
+        if (student.semester === 6 && group.semester === 5 && sem6GroupIds.includes(group._id.toString())) {
+          return true;
+        }
+        // Otherwise, check if student has active membership for this group in their current semester
+        const hasCurrentSemesterMembership = student.groupMemberships.some(gm => 
+          gm.group.toString() === group._id.toString() && 
+          gm.semester === student.semester && 
+          gm.isActive
+        );
+        return hasCurrentSemesterMembership;
       });
     }
 
@@ -753,7 +838,7 @@ const submitProjectFacultyPreferences = async (req, res) => {
 // Get faculty list for student preferences
 const getFacultyList = async (req, res) => {
   try {
-    const faculty = await Faculty.find({}, 'fullName department designation mode')
+    const faculty = await Faculty.find({}, 'prefix fullName department designation mode')
       .sort({ fullName: 1 });
     
     res.json({
@@ -2496,6 +2581,77 @@ const submitPPT = async (req, res) => {
   }
 };
 
+// Sem 4 specific: Download PPT
+const downloadPPT = async (req, res) => {
+  try {
+    const studentId = req.user.id;
+    const { id: projectId } = req.params;
+    
+    // Get student
+    const student = await Student.findOne({ user: studentId });
+    if (!student) {
+      return res.status(404).json({
+        success: false,
+        message: 'Student not found'
+      });
+    }
+
+    // Find project
+    const project = await Project.findOne({ 
+      _id: projectId, 
+      student: student._id,
+      projectType: 'minor1',
+      semester: 4
+    });
+
+    if (!project) {
+      return res.status(404).json({
+        success: false,
+        message: 'Sem 4 Minor Project 1 not found'
+      });
+    }
+
+    // Get PPT deliverable
+    const pptDeliverable = project.deliverables.find(d => d.name.toLowerCase().includes('ppt'));
+    
+    if (!pptDeliverable || !pptDeliverable.submitted || !pptDeliverable.filePath) {
+      return res.status(404).json({
+        success: false,
+        message: 'No PPT file found for this project'
+      });
+    }
+
+    // Send file for download
+    const path = require('path');
+    const fs = require('fs');
+    const filePath = pptDeliverable.filePath;
+    
+    // Check if file exists
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({
+        success: false,
+        message: 'PPT file not found on server'
+      });
+    }
+
+    // Set headers for download
+    const fileName = pptDeliverable.originalName || pptDeliverable.filename || 'presentation.pptx';
+    res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.presentationml.presentation');
+    
+    // Stream the file
+    const fileStream = fs.createReadStream(filePath);
+    fileStream.pipe(res);
+  } catch (error) {
+    console.error('Error downloading PPT:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error downloading PPT',
+      error: error.message
+    });
+  }
+};
+
 // Sem 4 specific: Remove PPT
 const removePPT = async (req, res) => {
   try {
@@ -3366,7 +3522,7 @@ const getGroupById = async (req, res) => {
     });
     await group.populate('createdBy');
     await group.populate('project', 'title description projectType status');
-    await group.populate('allocatedFaculty', 'fullName department designation');
+    await group.populate('allocatedFaculty', 'fullName department designation prefix');
 
     if (!group) {
       return res.status(404).json({
@@ -5794,7 +5950,12 @@ const getSem5Dashboard = async (req, res) => {
       ]
     };
     
-    const projects = await Project.find(projectQuery).populate('faculty group');
+    const projects = await Project.find(projectQuery)
+      .populate('faculty group')
+      .populate({
+        path: 'facultyPreferences.faculty',
+        select: 'fullName department designation mode prefix'
+      });
 
     // Get faculty preferences
     const facultyPreferences = await FacultyPreference.find({
@@ -6843,7 +7004,7 @@ const getSem5GroupForSem6 = async (req, res) => {
     const group = await Group.findById(targetGroupId)
       .populate('members.student', 'fullName misNumber collegeEmail branch')
       .populate('leader', 'fullName misNumber collegeEmail')
-      .populate('allocatedFaculty', 'fullName department designation email phone')
+      .populate('allocatedFaculty', 'fullName department designation email phone prefix')
       .populate('project', 'title description projectType status createdAt');
     
     if (!group) {
@@ -7623,6 +7784,7 @@ module.exports = {
   // Sem 4 specific functions
   submitPPT,
   removePPT,
+  downloadPPT,
   schedulePresentation,
   getSem4ProjectStatus,
   // Sem 5 specific functions

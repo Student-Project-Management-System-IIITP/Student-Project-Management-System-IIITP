@@ -1,4 +1,5 @@
 import React from 'react';
+import { FiStar, FiUser, FiHelpCircle, FiUsers } from 'react-icons/fi';
 
 const GroupMemberList = ({ 
   members = [], 
@@ -6,7 +7,8 @@ const GroupMemberList = ({
   showContact = false,
   currentUserId = null,
   onRemoveMember = null,
-  canManage = false 
+  canManage = false,
+  showStats = true
 }) => {
   const formatDate = (dateString) => {
     return new Date(dateString).toLocaleDateString();
@@ -15,22 +17,22 @@ const GroupMemberList = ({
   const getRoleIcon = (role) => {
     switch (role) {
       case 'leader':
-        return '👑';
+        return <FiStar className="w-5 h-5" />;
       case 'member':
-        return '👤';
+        return <FiUser className="w-5 h-5" />;
       default:
-        return '❓';
+        return <FiHelpCircle className="w-5 h-5" />;
     }
   };
 
   const getRoleColor = (role) => {
     switch (role) {
       case 'leader':
-        return 'text-yellow-600 bg-yellow-100';
+        return 'text-primary-700 bg-primary-100 border border-primary-200';
       case 'member':
-        return 'text-blue-600 bg-blue-100';
+        return 'text-neutral-700 bg-neutral-100 border border-neutral-200';
       default:
-        return 'text-gray-600 bg-gray-100';
+        return 'text-neutral-600 bg-neutral-100 border border-neutral-200';
     }
   };
 
@@ -40,47 +42,48 @@ const GroupMemberList = ({
     return (
       <div 
         key={index} 
-        className={`flex items-center justify-between p-3 rounded-lg border ${
-          isCurrentUser ? 'bg-blue-50 border-blue-200' : 'bg-gray-50 border-gray-200'
+        className={`flex items-center justify-between p-2.5 rounded-lg border transition-colors ${
+          isCurrentUser 
+            ? 'bg-primary-50 border-primary-200' 
+            : 'bg-white border-neutral-200 hover:bg-neutral-50'
         }`}
       >
-        <div className="flex items-center space-x-3">
+        <div className="flex items-center gap-2.5 flex-1 min-w-0">
           {/* Avatar */}
-          <div className="w-10 h-10 bg-gray-300 rounded-full flex items-center justify-center">
-            <span className="text-lg">
-              {getRoleIcon(member.role)}
-            </span>
+          <div className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 ${
+            member.role === 'leader' 
+              ? 'bg-gradient-to-br from-primary-500 to-secondary-500 text-white' 
+              : 'bg-neutral-200 text-neutral-600'
+          }`}>
+            {getRoleIcon(member.role)}
           </div>
 
-          {/* Member Info */}
-          <div className="flex-1">
-            <div className="flex items-center space-x-2">
-              <h4 className="font-medium text-gray-900">
+          {/* Member Info - Inline */}
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <h4 className="font-semibold text-neutral-800 text-sm">
                 {member.student?.fullName || 'Unknown Student'}
-                {isCurrentUser && <span className="text-blue-600 ml-1">(You)</span>}
               </h4>
+              {isCurrentUser && (
+                <span className="text-xs font-medium text-primary-600 bg-primary-100 px-1.5 py-0.5 rounded">
+                  You
+                </span>
+              )}
               {showRoles && (
-                <span className={`px-2 py-1 text-xs rounded-full font-medium ${getRoleColor(member.role)}`}>
+                <span className={`px-1.5 py-0.5 text-[10px] rounded font-semibold uppercase tracking-wide ${getRoleColor(member.role)}`}>
                   {member.role}
                 </span>
               )}
-            </div>
-            
-            <div className="text-sm text-gray-600 space-y-1">
-              <div>
-                MIS: {member.student?.misNumber || 'N/A'}
-              </div>
-              <div>
-                Branch: {member.student?.branch || 'N/A'}
-              </div>
-              {showContact && member.student?.collegeEmail && (
-                <div>
-                  Email: {member.student.collegeEmail}
-                </div>
+              <span className="text-xs text-neutral-400">•</span>
+              <span className="text-xs text-neutral-600 font-medium">
+                {member.student?.misNumber || 'MIS# -'}
+              </span>
+              {member.student?.branch && (
+                <>
+                  <span className="text-xs text-neutral-400">•</span>
+                  <span className="text-xs text-neutral-500">{member.student.branch}</span>
+                </>
               )}
-              <div className="text-xs text-gray-500">
-                Joined: {member.joinedAt ? formatDate(member.joinedAt) : 'N/A'}
-              </div>
             </div>
           </div>
         </div>
@@ -107,12 +110,10 @@ const GroupMemberList = ({
   if (activeMembers.length === 0) {
     return (
       <div className="text-center py-8">
-        <div className="text-gray-400 mb-2">
-          <svg className="mx-auto h-12 w-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
-          </svg>
+        <div className="w-16 h-16 bg-neutral-100 rounded-full flex items-center justify-center mx-auto mb-3">
+          <FiUsers className="w-8 h-8 text-neutral-400" />
         </div>
-        <p className="text-gray-500">No members in this group yet</p>
+        <p className="text-neutral-500 font-medium">No members in this group yet</p>
       </div>
     );
   }
@@ -124,13 +125,13 @@ const GroupMemberList = ({
           Group Members ({activeMembers.length})
         </h3>
         {showRoles && (
-          <div className="flex items-center space-x-2 text-sm">
-            <span className="flex items-center">
-              <span className="mr-1">👑</span>
+          <div className="flex items-center gap-3 text-xs">
+            <span className="flex items-center gap-1.5 text-neutral-600">
+              <FiStar className="w-3.5 h-3.5 text-primary-600" />
               Leader
             </span>
-            <span className="flex items-center">
-              <span className="mr-1">👤</span>
+            <span className="flex items-center gap-1.5 text-neutral-600">
+              <FiUser className="w-3.5 h-3.5 text-neutral-500" />
               Member
             </span>
           </div>
@@ -140,24 +141,30 @@ const GroupMemberList = ({
       <div className="space-y-2">
         {activeMembers.map((member, index) => renderMember(member, index))}
       </div>
+      
+      {/* Bottom spacing */}
+      <div className="h-2"></div>
 
       {/* Group Stats */}
-      <div className="mt-4 pt-4 border-t border-gray-200">
-        <div className="grid grid-cols-2 gap-4 text-sm">
-          <div className="text-center">
-            <div className="font-medium text-gray-900">
-              {activeMembers.filter(m => m.role === 'leader').length}
+      {showStats && (
+        <div className="mt-3 pt-3 border-t border-neutral-200">
+          <div className="flex items-center justify-center gap-4">
+            <div className="flex items-center gap-1.5">
+              <span className="text-sm font-bold text-primary-700">
+                {activeMembers.filter(m => m.role === 'leader').length}
+              </span>
+              <span className="text-xs text-neutral-600 font-medium">Leader</span>
             </div>
-            <div className="text-gray-600">Leaders</div>
-          </div>
-          <div className="text-center">
-            <div className="font-medium text-gray-900">
-              {activeMembers.filter(m => m.role === 'member').length}
+            <div className="w-px h-4 bg-neutral-300"></div>
+            <div className="flex items-center gap-1.5">
+              <span className="text-sm font-bold text-neutral-700">
+                {activeMembers.filter(m => m.role === 'member').length}
+              </span>
+              <span className="text-xs text-neutral-600 font-medium">Members</span>
             </div>
-            <div className="text-gray-600">Members</div>
           </div>
         </div>
-      </div>
+      )}
     </div>
   );
 };
