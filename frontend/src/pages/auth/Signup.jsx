@@ -239,10 +239,11 @@ const Signup = () => {
       return;
     }
     
-    if (OTP_SIGNUP_ENABLED && !isOtpVerified) {
-      toast.error('Please verify your email with OTP before creating an account');
-      return;
-    }
+    // Temporarily disable mandatory OTP verification for signup
+    // if (OTP_SIGNUP_ENABLED && !isOtpVerified) {
+    //   toast.error('Please verify your email with OTP before creating an account');
+    //   return;
+    // }
     
     setIsLoading(true);
     
@@ -538,7 +539,7 @@ const Signup = () => {
           
           <button
             type="submit"
-            disabled={isLoading || (OTP_SIGNUP_ENABLED && !isOtpVerified)}
+            disabled={isLoading}
             className="w-full bg-primary-600 hover:bg-primary-700 active:bg-primary-800 disabled:bg-primary-300 disabled:cursor-not-allowed text-white font-semibold py-3 px-4 rounded-lg transition-colors shadow-md shadow-primary-600/20 hover:shadow-lg hover:shadow-primary-600/30"
           >
             {isLoading ? (

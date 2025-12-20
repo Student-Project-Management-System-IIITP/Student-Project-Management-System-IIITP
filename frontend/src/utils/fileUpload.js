@@ -1,4 +1,5 @@
 // File upload utility for PPT and other documents
+import { getToken } from './tokenStorage';
 
 // File validation function
 export const validateFile = (file, allowedTypes = ['.ppt', '.pptx', '.pdf'], maxSize = 50 * 1024 * 1024) => {
@@ -98,7 +99,7 @@ export const uploadFile = async (file, uploadUrl, onProgress, onError) => {
     xhr.open('POST', uploadUrl);
     
     // Add authorization header if token exists
-    const token = localStorage.getItem('token');
+    const token = getToken();
     if (token) {
       xhr.setRequestHeader('Authorization', `Bearer ${token}`);
     }

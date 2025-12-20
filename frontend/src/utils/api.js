@@ -1,6 +1,9 @@
 // API Configuration
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
+// Import token storage utilities
+import { getToken, removeToken } from './tokenStorage';
+
 // API Response Handler
 const handleApiResponse = async (response) => {
   if (!response.ok) {
@@ -8,7 +11,7 @@ const handleApiResponse = async (response) => {
     
     // Handle 401 Unauthorized - redirect to login
     if (response.status === 401) {
-      localStorage.removeItem('token');
+      removeToken();
       // Use window.location for hard redirect to ensure context is cleared
       if (window.location.pathname !== '/login') {
         window.location.href = '/login';
@@ -32,8 +35,8 @@ const handleApiResponse = async (response) => {
 const apiRequest = async (endpoint, options = {}) => {
   const url = `${API_BASE_URL}${endpoint}`;
   
-  // Get token from localStorage
-  const token = localStorage.getItem('token');
+  // Get token from storage (checks both localStorage and sessionStorage)
+  const token = getToken();
   
   const defaultOptions = {
     headers: {
@@ -328,7 +331,7 @@ export const internshipAPI = {
     // No files needed anymore - summer internships use Google Drive links
     // Files parameter is kept for backward compatibility but not used
     
-    const token = localStorage.getItem('token');
+    const token = getToken();
     const response = await fetch(`${API_BASE_URL}/internships/applications`, {
       method: 'POST',
       headers: {
@@ -348,7 +351,7 @@ export const internshipAPI = {
     // Send as JSON since we're not uploading files anymore
     // All data (including Google Drive links) is sent in the request body
     
-    const token = localStorage.getItem('token');
+    const token = getToken();
     const response = await fetch(`${API_BASE_URL}/internships/applications/${applicationId}`, {
       method: 'PATCH',
       headers: {
@@ -363,7 +366,7 @@ export const internshipAPI = {
   
   // Download file
   downloadFile: (applicationId, fileType) => {
-    const token = localStorage.getItem('token');
+    const token = getToken();
     return `${API_BASE_URL}/internships/applications/${applicationId}/files/${fileType}?token=${token}`;
   },
 };
@@ -655,7 +658,7 @@ export const projectAPI = {
       }
     }
     
-    const token = localStorage.getItem('token');
+    const token = getToken();
     const response = await fetch(`${API_BASE_URL}/projects/${projectId}/messages`, {
       method: 'POST',
       headers: {
@@ -686,7 +689,7 @@ export const projectAPI = {
     const formData = new FormData();
     formData.append('deliverable', file);
 
-    const token = localStorage.getItem('token');
+    const token = getToken();
     const response = await fetch(`${API_BASE_URL}/projects/${projectId}/deliverables/${deliverableType}`, {
       method: 'POST',
       headers: {
@@ -703,7 +706,7 @@ export const projectAPI = {
   },
   getDeliverableUrl: (projectId, filename) => `${API_BASE_URL}/projects/${projectId}/deliverables/${filename}`,
   deleteDeliverable: async (projectId, deliverableType) => {
-    const token = localStorage.getItem('token');
+    const token = getToken();
     const response = await fetch(`${API_BASE_URL}/projects/${projectId}/deliverables/${deliverableType}`, {
       method: 'DELETE',
       headers: {
@@ -719,7 +722,7 @@ export const projectAPI = {
     return response.json();
   },
   getProjectMedia: async (projectId) => {
-    const token = localStorage.getItem('token');
+    const token = getToken();
     const response = await fetch(`${API_BASE_URL}/projects/${projectId}/media`, {
       headers: {
         'Content-Type': 'application/json',

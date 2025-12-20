@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { authAPI } from '../utils/api';
 import { handleApiError } from '../utils/errorHandler';
+import { getToken, setToken, removeToken } from '../utils/tokenStorage';
 
 const AuthContext = createContext();
 
@@ -18,11 +19,12 @@ export const AuthProvider = ({ children }) => {
   const [userRole, setUserRole] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
 
+
   // Check for existing session on app load
   useEffect(() => {
     const checkAuth = async () => {
       try {
-        const token = localStorage.getItem('token');
+        const token = getToken();
         if (token) {
           const data = await authAPI.getProfile();
           if (data.success) {
@@ -30,12 +32,12 @@ export const AuthProvider = ({ children }) => {
             setRoleData(data.data.roleData);
             setUserRole(data.data.user.role);
           } else {
-            localStorage.removeItem('token');
+            removeToken();
           }
         }
       } catch (error) {
         console.error('Auth check failed:', error);
-        localStorage.removeItem('token');
+        removeToken();
       } finally {
         setIsLoading(false);
       }
@@ -44,7 +46,7 @@ export const AuthProvider = ({ children }) => {
     checkAuth();
   }, []);
 
-  const login = async (email, password) => {
+  const login = async (email, password, rememberMe = false) => {
     try {
       setIsLoading(true);
       
@@ -53,7 +55,7 @@ export const AuthProvider = ({ children }) => {
       
       if (data.success) {
         const token = data.data.token;
-        localStorage.setItem('token', token);
+        setToken(token, rememberMe);
         setUser(data.data.user);
         setRoleData(data.data.roleData);
         setUserRole(data.data.user.role);
@@ -105,8 +107,8 @@ export const AuthProvider = ({ children }) => {
       // Even if logout API fails, we should still clear local state
       console.error('Logout API error:', error);
     } finally {
-      // Always clear local state
-      localStorage.removeItem('token');
+      // Always clear local state from both storages
+      removeToken();
       setUser(null);
       setRoleData(null);
       setUserRole(null);
@@ -119,7 +121,7 @@ export const AuthProvider = ({ children }) => {
 
   const refreshUserData = async () => {
     try {
-      const token = localStorage.getItem('token');
+      const token = getToken();
       if (token) {
         const data = await authAPI.getProfile();
         if (data.success) {

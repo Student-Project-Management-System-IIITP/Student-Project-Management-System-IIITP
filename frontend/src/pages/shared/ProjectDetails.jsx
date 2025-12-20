@@ -21,7 +21,8 @@ const ImageWithAuth = ({ src, alt, className }) => {
   useEffect(() => {
     const loadImage = async () => {
       try {
-        const token = localStorage.getItem('token');
+        const { getToken } = await import('../../utils/tokenStorage');
+        const token = getToken();
         const response = await fetch(src, {
           headers: {
             'Authorization': `Bearer ${token}`
@@ -855,7 +856,8 @@ const ProjectDetails = () => {
   // Preview file
   const handlePreviewFile = async (attachment) => {
     try {
-      const token = localStorage.getItem('token');
+      const { getToken } = await import('../../utils/tokenStorage');
+      const token = getToken();
       const url = projectAPI.getFileUrl(actualProjectId, attachment.filename);
       
       const response = await fetch(url, {
@@ -966,7 +968,8 @@ const ProjectDetails = () => {
   // Download file with authentication
   const handleDownloadFile = async (filename, originalName) => {
     try {
-      const token = localStorage.getItem('token');
+      const { getToken } = await import('../../utils/tokenStorage');
+      const token = getToken();
       const url = projectAPI.getFileUrl(actualProjectId, filename);
       
       const response = await fetch(url, {
@@ -998,7 +1001,8 @@ const ProjectDetails = () => {
   // Download deliverable with authentication
   const handleDownloadDeliverable = async (filename, originalName) => {
     try {
-      const token = localStorage.getItem('token');
+      const { getToken } = await import('../../utils/tokenStorage');
+      const token = getToken();
       const url = projectAPI.getDeliverableUrl(actualProjectId, filename);
 
       const response = await fetch(url, {
@@ -1935,7 +1939,8 @@ const ProjectDetails = () => {
 
                   const handleDownloadDeliverableLocal = async (filename, originalName) => {
                     try {
-                      const token = localStorage.getItem('token');
+                      const { getToken } = await import('../../utils/tokenStorage');
+                      const token = getToken();
                       const url = projectAPI.getDeliverableUrl(actualProjectId, filename);
                       
                       const response = await fetch(url, {

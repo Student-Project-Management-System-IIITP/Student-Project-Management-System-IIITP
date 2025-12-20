@@ -43,10 +43,12 @@ const Sem7TrackSelection = () => {
   useEffect(() => {
     const loadConfig = async () => {
       try {
+        const { getToken } = await import('../../utils/tokenStorage');
+        const token = getToken();
         // Load window status
         const windowResponse = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/student/system-config/sem7.choiceWindow`, {
           headers: {
-            'Authorization': `Bearer ${localStorage.getItem('token')}`
+            'Authorization': `Bearer ${token}`
           }
         });
         if (windowResponse.ok) {

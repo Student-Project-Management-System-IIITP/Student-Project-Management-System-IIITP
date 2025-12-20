@@ -161,7 +161,8 @@ const Sem4ProjectDashboard = () => {
     
     try {
       setIsDownloading(true);
-      const token = localStorage.getItem('token');
+      const { getToken } = await import('../../utils/tokenStorage');
+      const token = getToken();
       
       // Fetch file with authentication
       const response = await fetch(`${API_BASE_URL}/student/projects/${projectId}/download-ppt`, {
