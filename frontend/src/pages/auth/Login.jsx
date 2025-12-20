@@ -12,6 +12,7 @@ const Login = () => {
   });
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [rememberMe, setRememberMe] = useState(false);
   const [error, setError] = useState('');
   
   const { login } = useAuth();
@@ -30,7 +31,7 @@ const Login = () => {
     setError('');
 
     try {
-      const result = await login(formData.email, formData.password);
+      const result = await login(formData.email, formData.password, rememberMe);
       if (result.success) {
         toast.success('Logged in successfully!', { duration: 2000 });
         setTimeout(() => {
@@ -125,9 +126,11 @@ const Login = () => {
               <input
                 type="checkbox"
                 id="remember"
-                className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-neutral-300 rounded"
+                checked={rememberMe}
+                onChange={(e) => setRememberMe(e.target.checked)}
+                className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-neutral-300 rounded cursor-pointer"
               />
-              <label htmlFor="remember" className="ml-2 block text-sm text-neutral-700">
+              <label htmlFor="remember" className="ml-2 block text-sm text-neutral-700 cursor-pointer">
                 Remember me
               </label>
             </div>

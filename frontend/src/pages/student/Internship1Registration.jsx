@@ -269,16 +269,18 @@ const Internship1Registration = () => {
         const configKey = isSem8 
           ? (isInternship2Route ? 'sem8.internship2.registrationWindow' : 'sem8.internship1.registrationWindow')
           : 'sem7.internship1.registrationWindow';
+        const { getToken } = await import('../../utils/tokenStorage');
+        const token = getToken();
         let response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/student/system-config/${configKey}`, {
           headers: {
-            'Authorization': `Bearer ${localStorage.getItem('token')}`
+            'Authorization': `Bearer ${token}`
           }
         });
         
         if (!response.ok && isSem8 && !isInternship2Route) {
           response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/student/system-config/sem7.internship1.registrationWindow`, {
             headers: {
-              'Authorization': `Bearer ${localStorage.getItem('token')}`
+              'Authorization': `Bearer ${token}`
             }
           });
         }

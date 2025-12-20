@@ -441,21 +441,22 @@ const signupStudent = async (req, res) => {
       });
     }
 
-    if (OTP_SIGNUP_ENABLED) {
-      const latestOtp = await SignupOtp.findOne({
-        email: collegeEmail,
-        purpose: 'signup',
-        verified: true,
-      }).sort({ createdAt: -1 });
-
-      if (!latestOtp || latestOtp.expiresAt < new Date()) {
-        return res.status(400).json({
-          success: false,
-          message: 'Please verify the OTP sent to your email before creating an account',
-          errorCode: 'EMAIL_OTP_NOT_VERIFIED',
-        });
-      }
-    }
+    // Temporarily disable mandatory email OTP verification for signup
+    // if (OTP_SIGNUP_ENABLED) {
+    //   const latestOtp = await SignupOtp.findOne({
+    //     email: collegeEmail,
+    //     purpose: 'signup',
+    //     verified: true,
+    //   }).sort({ createdAt: -1 });
+    //
+    //   if (!latestOtp || latestOtp.expiresAt < new Date()) {
+    //     return res.status(400).json({
+    //       success: false,
+    //       message: 'Please verify the OTP sent to your email before creating an account',
+    //       errorCode: 'EMAIL_OTP_NOT_VERIFIED',
+    //     });
+    //   }
+    // }
 
     // Validate MIS number format (9 digits)
     if (!/^\d{9}$/.test(misNumber)) {
