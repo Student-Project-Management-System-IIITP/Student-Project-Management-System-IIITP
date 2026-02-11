@@ -414,12 +414,16 @@ facultyPreferenceSchema.statics.getUnallocated = function(semester, academicYear
 
 // Static method to get groups currently presented to a faculty
 facultyPreferenceSchema.statics.getGroupsForFaculty = function(facultyId, semester, academicYear) {
-  return this.find({
+  const query = {
     'preferences.faculty': facultyId,
     status: 'pending',
     semester: semester,
     academicYear: academicYear
-  })
+  };
+  
+  console.log(`[FacultyPreference.getGroupsForFaculty] Query:`, JSON.stringify(query, null, 2));
+  
+  return this.find(query)
     .populate('student')
     .populate({
       path: 'project',
@@ -433,8 +437,10 @@ facultyPreferenceSchema.statics.getGroupsForFaculty = function(facultyId, semest
     .populate('preferences.faculty', 'fullName department designation')
     .sort({ createdAt: 1 })
     .then(preferences => {
+      console.log(`[FacultyPreference.getGroupsForFaculty] Found ${preferences.length} preferences for faculty ${facultyId}, semester ${semester}, academicYear ${academicYear}`);
+      
       // Filter to only include preferences where the current faculty is at currentFacultyIndex
-      return preferences.filter(pref => {
+      const filtered = preferences.filter(pref => {
         // For solo projects (no group), use Project's currentFacultyIndex and facultyPreferences
         // For group projects, use FacultyPreference's currentFacultyIndex and preferences
         if (pref.project && !pref.group && pref.project.facultyPreferences) {
@@ -442,17 +448,48 @@ facultyPreferenceSchema.statics.getGroupsForFaculty = function(facultyId, semest
           const currentIndex = (pref.project?.currentFacultyIndex || 0);
           const currentFacultyPref = pref.project.facultyPreferences && pref.project.facultyPreferences[currentIndex];
           if (currentFacultyPref && currentFacultyPref.faculty) {
-            return currentFacultyPref.faculty._id.toString() === facultyId.toString();
+            const matches = currentFacultyPref.faculty._id.toString() === facultyId.toString();
+            console.log(`[FacultyPreference.getGroupsForFaculty] Solo project ${pref.project._id}: currentIndex=${currentIndex}, faculty=${currentFacultyPref.faculty._id}, matches=${matches}`);
+            return matches;
           }
+          console.log(`[FacultyPreference.getGroupsForFaculty] Solo project ${pref.project._id}: No currentFacultyPref found`);
           return false;
         } else {
           // Group project - check FacultyPreference's preferences
           const currentIndex = (pref.project?.currentFacultyIndex || pref.currentFacultyIndex || 0);
-        const currentFaculty = pref.preferences && pref.preferences[currentIndex];
-        return currentFaculty && currentFaculty.faculty && 
-               currentFaculty.faculty._id.toString() === facultyId.toString();
+          const currentFaculty = pref.preferences && pref.preferences[currentIndex];
+          
+          console.log(`[FacultyPreference.getGroupsForFaculty] Group project check:`, {
+            projectId: pref.project?._id,
+            groupId: pref.group?._id,
+            currentIndex: currentIndex,
+            projectCurrentIndex: pref.project?.currentFacultyIndex,
+            prefCurrentIndex: pref.currentFacultyIndex,
+            preferencesLength: pref.preferences?.length,
+            currentFaculty: currentFaculty ? {
+              facultyId: currentFaculty.faculty?._id?.toString(),
+              facultyName: currentFaculty.faculty?.fullName,
+              priority: currentFaculty.priority
+            } : null,
+            targetFacultyId: facultyId.toString(),
+            preferences: pref.preferences?.map((p, idx) => ({
+              index: idx,
+              facultyId: p.faculty?._id?.toString(),
+              facultyName: p.faculty?.fullName,
+              priority: p.priority
+            }))
+          });
+          
+          const matches = currentFaculty && currentFaculty.faculty && 
+                 currentFaculty.faculty._id.toString() === facultyId.toString();
+          
+          console.log(`[FacultyPreference.getGroupsForFaculty] Group project ${pref.project?._id}: matches=${matches}`);
+          return matches;
         }
       });
+      
+      console.log(`[FacultyPreference.getGroupsForFaculty] Filtered to ${filtered.length} groups after checking currentFacultyIndex`);
+      return filtered;
     });
 };
 

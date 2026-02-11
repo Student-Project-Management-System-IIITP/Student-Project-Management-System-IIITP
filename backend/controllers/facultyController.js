@@ -4,6 +4,7 @@ const Project = require('../models/Project');
 const Group = require('../models/Group');
 const FacultyPreference = require('../models/FacultyPreference');
 const FacultyNotification = require('../models/FacultyNotification');
+const SystemConfig = require('../models/SystemConfig');
 const { sendEmail } = require('../services/emailService');
 
 const sortPreferences = (preferences = []) => {
@@ -887,11 +888,32 @@ const evaluateProject = async (req, res) => {
   }
 };
 
+// Helper to get current academic year
+const getCurrentAcademicYear = async () => {
+  const year = await SystemConfig.getConfigValue('academic.currentYear');
+  if (year && /^\d{4}-\d{2}$/.test(year)) {
+    return year;
+  }
+  // Fallback: calculate from current date
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const month = now.getMonth(); // 0-11
+  // Academic year starts in July (month 6)
+  if (month >= 6) {
+    return `${currentYear}-${(currentYear+1).toString().slice(-2)}`;
+  } else {
+    return `${(currentYear-1)}-${currentYear.toString().slice(-2)}`;
+  }
+};
+
 // Get unallocated groups for faculty (all active semesters)
 const getUnallocatedGroups = async (req, res) => {
   try {
     const facultyId = req.user.id;
-    const { semester, academicYear = '2025-26' } = req.query;
+    const { semester } = req.query;
+    // Get current academic year dynamically instead of hardcoding
+    const defaultAcademicYear = await getCurrentAcademicYear();
+    const academicYear = req.query.academicYear || defaultAcademicYear;
 
     const faculty = await Faculty.findOne({ user: facultyId });
     if (!faculty) {
@@ -902,15 +924,37 @@ const getUnallocatedGroups = async (req, res) => {
     const semestersToFetch = semester ? [parseInt(semester)] : [1, 4, 5, 6, 7, 8];
     
     // Get groups currently presented to this faculty across all semesters
+    console.log(`[getUnallocatedGroups] Fetching for faculty ${faculty._id}, semesters: ${semestersToFetch.join(', ')}, academicYear: ${academicYear}`);
+    
+    // First, find all unique academic years for pending preferences for this faculty
+    const debugQuery = {
+      'preferences.faculty': faculty._id,
+      status: 'pending',
+      semester: { $in: semestersToFetch }
+    };
+    const debugPrefs = await FacultyPreference.find(debugQuery).select('academicYear').lean();
+    const uniqueAcademicYears = [...new Set(debugPrefs.map(p => p.academicYear).filter(Boolean))];
+    
+    // Use unique academic years found, or fall back to the requested/default academicYear
+    const academicYearsToCheck = uniqueAcademicYears.length > 0 ? uniqueAcademicYears : [academicYear];
+    
+    console.log(`[getUnallocatedGroups] Found academic years in FacultyPreference documents: ${uniqueAcademicYears.join(', ') || 'none'}`);
+    console.log(`[getUnallocatedGroups] Will query with academicYears: ${academicYearsToCheck.join(', ')}`);
+    
     const allPreferences = [];
-    for (const sem of semestersToFetch) {
-      const preferences = await FacultyPreference.getGroupsForFaculty(
-        faculty._id, 
-        sem, 
-        academicYear
-      );
-      allPreferences.push(...preferences);
+    // Query for all academicYears found in FacultyPreference documents (or the requested one)
+    for (const acadYear of academicYearsToCheck) {
+      for (const sem of semestersToFetch) {
+        const preferences = await FacultyPreference.getGroupsForFaculty(
+          faculty._id, 
+          sem, 
+          acadYear
+        );
+        console.log(`[getUnallocatedGroups] Semester ${sem}, AcademicYear ${acadYear}: Found ${preferences.length} preferences after filtering`);
+        allPreferences.push(...preferences);
+      }
     }
+    console.log(`[getUnallocatedGroups] Total preferences found: ${allPreferences.length}`);
 
     // Filter out preferences where the project is completed (moved to next semester)
     const activePreferences = allPreferences.filter(pref => {
@@ -984,7 +1028,10 @@ const getUnallocatedGroups = async (req, res) => {
 const getAllocatedGroups = async (req, res) => {
   try {
     const facultyId = req.user.id;
-    const { semester, academicYear = '2025-26' } = req.query;
+    const { semester } = req.query;
+    // Get current academic year dynamically instead of hardcoding
+    const defaultAcademicYear = await getCurrentAcademicYear();
+    const academicYear = req.query.academicYear || defaultAcademicYear;
 
     const faculty = await Faculty.findOne({ user: facultyId });
     if (!faculty) {
@@ -994,15 +1041,27 @@ const getAllocatedGroups = async (req, res) => {
     // If semester specified, use it; otherwise include active semesters for B.Tech and M.Tech (1,4-8)
     const semestersToFetch = semester ? [parseInt(semester)] : [1, 4, 5, 6, 7, 8];
     
+    // Find all unique academic years for allocated preferences for this faculty
+    const allocatedQuery = {
+      allocatedFaculty: faculty._id,
+      status: 'allocated',
+      semester: { $in: semestersToFetch }
+    };
+    const allocatedPrefs = await FacultyPreference.find(allocatedQuery).select('academicYear').lean();
+    const uniqueAcademicYears = [...new Set(allocatedPrefs.map(p => p.academicYear).filter(Boolean))];
+    const academicYearsToCheck = uniqueAcademicYears.length > 0 ? uniqueAcademicYears : [academicYear];
+    
     // Method 1: Get groups from FacultyPreference records (for Sem 4-5)
     const allPreferences = [];
-    for (const sem of semestersToFetch) {
-      const preferences = await FacultyPreference.getAllocatedGroupsForFaculty(
-        faculty._id, 
-        sem, 
-        academicYear
-      );
-      allPreferences.push(...preferences);
+    for (const acadYear of academicYearsToCheck) {
+      for (const sem of semestersToFetch) {
+        const preferences = await FacultyPreference.getAllocatedGroupsForFaculty(
+          faculty._id, 
+          sem, 
+          acadYear
+        );
+        allPreferences.push(...preferences);
+      }
     }
 
     // Filter out preferences where the project is completed (moved to next semester)
@@ -1019,11 +1078,12 @@ const getAllocatedGroups = async (req, res) => {
     }
 
     // Method 2: Get groups directly allocated to faculty (for Sem 6+ where no FacultyPreference exists)
+    // Query for all academic years found
     const groupQuery = {
       allocatedFaculty: faculty._id,
       isActive: true,
       semester: { $in: semestersToFetch },
-      academicYear: academicYear,
+      academicYear: { $in: academicYearsToCheck },
       status: { $ne: 'locked' } // Exclude locked groups (historical Sem 5 groups)
     };
     
@@ -1481,20 +1541,32 @@ const passGroup = async (req, res) => {
 const getSem5Statistics = async (req, res) => {
   try {
     const facultyId = req.user.id;
-    const { semester = 5, academicYear = '2025-26' } = req.query;
+    const { semester = 5 } = req.query;
+    // Get current academic year dynamically instead of hardcoding
+    const defaultAcademicYear = await getCurrentAcademicYear();
+    const academicYear = req.query.academicYear || defaultAcademicYear;
 
     const faculty = await Faculty.findOne({ user: facultyId });
     if (!faculty) {
       return res.status(404).json({ success: false, message: 'Faculty not found' });
     }
 
-    // Get statistics
+    // Find all unique academic years for this faculty's preferences
+    const prefQuery = {
+      'preferences.faculty': faculty._id,
+      semester: parseInt(semester)
+    };
+    const prefDocs = await FacultyPreference.find(prefQuery).select('academicYear').lean();
+    const uniqueAcademicYears = [...new Set(prefDocs.map(p => p.academicYear).filter(Boolean))];
+    const academicYearsToCheck = uniqueAcademicYears.length > 0 ? uniqueAcademicYears : [academicYear];
+
+    // Get statistics for all academic years
     const [unallocatedCount, allocatedCount, totalGroups] = await Promise.all([
       FacultyPreference.countDocuments({
         'preferences.faculty': faculty._id,
         status: 'pending',
         semester: parseInt(semester),
-        academicYear: academicYear,
+        academicYear: { $in: academicYearsToCheck },
         $expr: {
           $eq: [
             { $arrayElemAt: ['$preferences.faculty', '$currentFacultyIndex'] },
@@ -1506,12 +1578,12 @@ const getSem5Statistics = async (req, res) => {
         allocatedFaculty: faculty._id,
         status: 'allocated',
         semester: parseInt(semester),
-        academicYear: academicYear
+        academicYear: { $in: academicYearsToCheck }
       }),
       FacultyPreference.countDocuments({
         'preferences.faculty': faculty._id,
         semester: parseInt(semester),
-        academicYear: academicYear
+        academicYear: { $in: academicYearsToCheck }
       })
     ]);
 

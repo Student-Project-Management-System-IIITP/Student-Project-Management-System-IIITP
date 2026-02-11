@@ -947,7 +947,7 @@ projectSchema.methods.allFacultyPresented = function() {
 };
 
 // Present project to current faculty
-projectSchema.methods.presentToCurrentFaculty = function() {
+projectSchema.methods.presentToCurrentFaculty = function(options = {}) {
   if (!this.supportsFacultyAllocation()) {
     throw new Error('This project does not support faculty allocation');
   }
@@ -965,6 +965,10 @@ projectSchema.methods.presentToCurrentFaculty = function() {
     timestamp: new Date()
   });
   
+  // Support session if provided
+  if (options.session) {
+    return this.save({ session: options.session });
+  }
   return this.save();
 };
 
