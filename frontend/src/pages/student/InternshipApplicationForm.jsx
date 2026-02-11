@@ -221,6 +221,14 @@ const InternshipApplicationForm = () => {
   const formSubtitle = type === '6month' 
     ? 'Submit your 6-month internship company details and offer letter'
     : 'Submit evidence of your completed 2-month summer internship';
+  const formatDate = (dateString) => {
+    if (!dateString) return '—';
+    try {
+      return new Date(dateString).toLocaleDateString();
+    } catch {
+      return dateString;
+    }
+  };
 
   return (
     <Layout>
@@ -659,6 +667,111 @@ const InternshipApplicationForm = () => {
                       </button>
                     </div>
                   </form>
+                )}
+
+                {/* Read-only submitted details when editing is blocked (e.g., verified pass) */}
+                {!canEdit && isEditing && application && (
+                  <div className="space-y-4">
+                    <div className="bg-white rounded-xl border border-neutral-200 shadow-sm overflow-hidden">
+                      <div className="bg-gradient-to-r from-blue-500 to-blue-600 px-5 py-3">
+                        <div className="flex items-center gap-2">
+                          <FiInfo className="w-5 h-5 text-white" />
+                          <h2 className="text-lg font-bold text-white">
+                            Submitted Details (View Only)
+                          </h2>
+                        </div>
+                      </div>
+                      <div className="p-5 space-y-5 text-sm text-neutral-800">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div>
+                            <p className="text-xs uppercase text-neutral-500 font-semibold">Company Name</p>
+                            <p className="mt-1">{application.details?.companyName || '—'}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs uppercase text-neutral-500 font-semibold">Location</p>
+                            <p className="mt-1">{application.details?.location || '—'}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs uppercase text-neutral-500 font-semibold">Start Date</p>
+                            <p className="mt-1">{formatDate(application.details?.startDate)}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs uppercase text-neutral-500 font-semibold">End Date</p>
+                            <p className="mt-1">{formatDate(application.details?.endDate)}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs uppercase text-neutral-500 font-semibold">Mode</p>
+                            <p className="mt-1 text-neutral-900 capitalize">{application.details?.mode || '—'}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs uppercase text-neutral-500 font-semibold">Stipend</p>
+                            <p className="mt-1">
+                              {application.details?.hasStipend === 'yes'
+                                ? `Yes${application.details?.stipendRs ? ` - ₹${application.details.stipendRs}` : ''}`
+                                : 'No'}
+                            </p>
+                          </div>
+                          <div className="md:col-span-2">
+                            <p className="text-xs uppercase text-neutral-500 font-semibold">Nature of Work / Role</p>
+                            <p className="mt-1 whitespace-pre-wrap">{application.details?.roleOrNatureOfWork || '—'}</p>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div>
+                            <p className="text-xs uppercase text-neutral-500 font-semibold">Manager Name</p>
+                            <p className="mt-1">{application.details?.mentorName || '—'}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs uppercase text-neutral-500 font-semibold">Manager Email</p>
+                            <p className="mt-1 break-all">{application.details?.mentorEmail || '—'}</p>
+                          </div>
+                          <div className="md:col-span-2">
+                            <p className="text-xs uppercase text-neutral-500 font-semibold">Manager Phone</p>
+                            <p className="mt-1 break-all">{application.details?.mentorPhone || '—'}</p>
+                          </div>
+                        </div>
+
+                        <div className="space-y-3">
+                          {type === '6month' ? (
+                            <div>
+                              <p className="text-xs uppercase text-neutral-500 font-semibold">Offer Letter Link</p>
+                              {application.details?.offerLetterLink ? (
+                                <a
+                                  href={application.details.offerLetterLink}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="mt-1 inline-flex items-center gap-2 text-blue-600 hover:text-blue-700 break-all"
+                                >
+                                  <FiLink className="w-4 h-4" />
+                                  {application.details.offerLetterLink}
+                                </a>
+                              ) : (
+                                <p className="mt-1">—</p>
+                              )}
+                            </div>
+                          ) : (
+                            <div>
+                              <p className="text-xs uppercase text-neutral-500 font-semibold">Completion Certificate Link</p>
+                              {application.details?.completionCertificateLink ? (
+                                <a
+                                  href={application.details.completionCertificateLink}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="mt-1 inline-flex items-center gap-2 text-blue-600 hover:text-blue-700 break-all"
+                                >
+                                  <FiLink className="w-4 h-4" />
+                                  {application.details.completionCertificateLink}
+                                </a>
+                              ) : (
+                                <p className="mt-1">—</p>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 )}
               </div>
             </div>

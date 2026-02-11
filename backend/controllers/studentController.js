@@ -1033,6 +1033,7 @@ const registerMinorProject2 = async (req, res) => {
         semester: 5,
         academicYear: studentAcademicYear,
         status: 'pending',
+        currentFacultyIndex: 0, // Initialize to first preference
         preferences: facultyPreferences.map((pref, index) => ({
           faculty: pref.faculty._id || pref.faculty,
           priority: index + 1,
@@ -1044,10 +1045,43 @@ const registerMinorProject2 = async (req, res) => {
       await facultyPreferenceDoc.save({ session });
 
       // Present project to first faculty (start the allocation process)
+      console.log(`[Sem 5 Faculty Allocation] Starting allocation for project ${project._id}, group ${group._id}`);
+      console.log(`[Sem 5 Faculty Allocation] Project currentFacultyIndex: ${project.currentFacultyIndex}`);
+      console.log(`[Sem 5 Faculty Allocation] FacultyPreferences count: ${project.facultyPreferences?.length || 0}`);
+      console.log(`[Sem 5 Faculty Allocation] First preference faculty: ${project.facultyPreferences?.[0]?.faculty}`);
+      
       try {
-        await project.presentToCurrentFaculty();
+        // Ensure project is saved before presenting
+        await project.save({ session });
+        
+        // Present to first faculty
+        await project.presentToCurrentFaculty({ session });
+        
+        // Verify the presentation worked
+        const updatedProject = await Project.findById(project._id).session(session);
+        console.log(`[Sem 5 Faculty Allocation] After presentation - currentFacultyIndex: ${updatedProject.currentFacultyIndex}`);
+        console.log(`[Sem 5 Faculty Allocation] Allocation history length: ${updatedProject.allocationHistory?.length || 0}`);
+        
+        if (updatedProject.allocationHistory && updatedProject.allocationHistory.length > 0) {
+          const lastEntry = updatedProject.allocationHistory[updatedProject.allocationHistory.length - 1];
+          console.log(`[Sem 5 Faculty Allocation] Last allocation entry:`, {
+            faculty: lastEntry.faculty,
+            action: lastEntry.action,
+            priority: lastEntry.priority
+          });
+        }
+        
+        // Verify FacultyPreference document
+        const updatedPref = await FacultyPreference.findById(facultyPreferenceDoc._id).session(session);
+        console.log(`[Sem 5 Faculty Allocation] FacultyPreference currentFacultyIndex: ${updatedPref.currentFacultyIndex}`);
+        console.log(`[Sem 5 Faculty Allocation] FacultyPreference status: ${updatedPref.status}`);
+        
       } catch (presentError) {
+        console.error(`[Sem 5 Faculty Allocation] ERROR presenting project to faculty:`, presentError);
+        console.error(`[Sem 5 Faculty Allocation] Error stack:`, presentError.stack);
+        console.error(`[Sem 5 Faculty Allocation] Project ID: ${project._id}, Group ID: ${group._id}`);
         // Don't fail registration if presentation fails - this is not critical
+        // But log it so we can debug
       }
 
       // Populate the response with group and faculty details
@@ -1334,6 +1368,7 @@ const registerMajorProject1 = async (req, res) => {
         semester: 7,
         academicYear: studentAcademicYear,
         status: 'pending',
+        currentFacultyIndex: 0, // Initialize to first preference
         preferences: facultyPreferences.map((pref, index) => ({
           faculty: pref.faculty._id || pref.faculty,
           priority: index + 1,
@@ -1345,10 +1380,43 @@ const registerMajorProject1 = async (req, res) => {
       await facultyPreferenceDoc.save({ session });
 
       // Present project to first faculty (start the allocation process)
+      console.log(`[Sem 7 Faculty Allocation] Starting allocation for project ${project._id}, group ${group._id}`);
+      console.log(`[Sem 7 Faculty Allocation] Project currentFacultyIndex: ${project.currentFacultyIndex}`);
+      console.log(`[Sem 7 Faculty Allocation] FacultyPreferences count: ${project.facultyPreferences?.length || 0}`);
+      console.log(`[Sem 7 Faculty Allocation] First preference faculty: ${project.facultyPreferences?.[0]?.faculty}`);
+      
       try {
-        await project.presentToCurrentFaculty();
+        // Ensure project is saved before presenting
+        await project.save({ session });
+        
+        // Present to first faculty
+        await project.presentToCurrentFaculty({ session });
+        
+        // Verify the presentation worked
+        const updatedProject = await Project.findById(project._id).session(session);
+        console.log(`[Sem 7 Faculty Allocation] After presentation - currentFacultyIndex: ${updatedProject.currentFacultyIndex}`);
+        console.log(`[Sem 7 Faculty Allocation] Allocation history length: ${updatedProject.allocationHistory?.length || 0}`);
+        
+        if (updatedProject.allocationHistory && updatedProject.allocationHistory.length > 0) {
+          const lastEntry = updatedProject.allocationHistory[updatedProject.allocationHistory.length - 1];
+          console.log(`[Sem 7 Faculty Allocation] Last allocation entry:`, {
+            faculty: lastEntry.faculty,
+            action: lastEntry.action,
+            priority: lastEntry.priority
+          });
+        }
+        
+        // Verify FacultyPreference document
+        const updatedPref = await FacultyPreference.findById(facultyPreferenceDoc._id).session(session);
+        console.log(`[Sem 7 Faculty Allocation] FacultyPreference currentFacultyIndex: ${updatedPref.currentFacultyIndex}`);
+        console.log(`[Sem 7 Faculty Allocation] FacultyPreference status: ${updatedPref.status}`);
+        
       } catch (presentError) {
+        console.error(`[Sem 7 Faculty Allocation] ERROR presenting project to faculty:`, presentError);
+        console.error(`[Sem 7 Faculty Allocation] Error stack:`, presentError.stack);
+        console.error(`[Sem 7 Faculty Allocation] Project ID: ${project._id}, Group ID: ${group._id}`);
         // Don't fail registration if presentation fails - this is not critical
+        // But log it so we can debug
       }
 
       // Populate the response with group and faculty details
@@ -1715,12 +1783,43 @@ const registerInternship1 = async (req, res) => {
       await facultyPreferenceDoc.save({ session });
 
       // Present project to first faculty (start the allocation process)
-      // This adds to allocation history but doesn't change currentFacultyIndex (stays at 0)
+      console.log(`[M.Tech Sem 3 Faculty Allocation] Starting allocation for project ${project._id}`);
+      console.log(`[M.Tech Sem 3 Faculty Allocation] Project currentFacultyIndex: ${project.currentFacultyIndex}`);
+      console.log(`[M.Tech Sem 3 Faculty Allocation] FacultyPreferences count: ${project.facultyPreferences?.length || 0}`);
+      console.log(`[M.Tech Sem 3 Faculty Allocation] First preference faculty: ${project.facultyPreferences?.[0]?.faculty}`);
+      
       try {
-        await project.presentToCurrentFaculty();
+        // Ensure project is saved before presenting
+        await project.save({ session });
+        
+        // Present to first faculty
+        await project.presentToCurrentFaculty({ session });
+        
+        // Verify the presentation worked
+        const updatedProject = await Project.findById(project._id).session(session);
+        console.log(`[M.Tech Sem 3 Faculty Allocation] After presentation - currentFacultyIndex: ${updatedProject.currentFacultyIndex}`);
+        console.log(`[M.Tech Sem 3 Faculty Allocation] Allocation history length: ${updatedProject.allocationHistory?.length || 0}`);
+        
+        if (updatedProject.allocationHistory && updatedProject.allocationHistory.length > 0) {
+          const lastEntry = updatedProject.allocationHistory[updatedProject.allocationHistory.length - 1];
+          console.log(`[M.Tech Sem 3 Faculty Allocation] Last allocation entry:`, {
+            faculty: lastEntry.faculty,
+            action: lastEntry.action,
+            priority: lastEntry.priority
+          });
+        }
+        
+        // Verify FacultyPreference document
+        const updatedPref = await FacultyPreference.findById(facultyPreferenceDoc._id).session(session);
+        console.log(`[M.Tech Sem 3 Faculty Allocation] FacultyPreference currentFacultyIndex: ${updatedPref.currentFacultyIndex}`);
+        console.log(`[M.Tech Sem 3 Faculty Allocation] FacultyPreference status: ${updatedPref.status}`);
+        
       } catch (presentError) {
+        console.error(`[M.Tech Sem 3 Faculty Allocation] ERROR presenting project to faculty:`, presentError);
+        console.error(`[M.Tech Sem 3 Faculty Allocation] Error stack:`, presentError.stack);
+        console.error(`[M.Tech Sem 3 Faculty Allocation] Project ID: ${project._id}`);
         // Don't fail registration if presentation fails - this is not critical
-        console.error('Error presenting project to faculty:', presentError);
+        // But log it so we can debug
       }
 
       // Populate the response with faculty details
@@ -2062,7 +2161,7 @@ const registerMajorProject2 = async (req, res) => {
         semester: 8,
         academicYear: studentAcademicYear,
         status: 'pending',
-        currentFacultyIndex: 0,
+        currentFacultyIndex: 0, // Initialize to first preference
         preferences: facultyPreferences.map((pref, index) => ({
           faculty: pref.faculty._id || pref.faculty,
           priority: index + 1,
@@ -2074,10 +2173,43 @@ const registerMajorProject2 = async (req, res) => {
       await facultyPreferenceDoc.save({ session });
 
       // Present project to first faculty (start the allocation process)
+      console.log(`[Sem 8 Faculty Allocation] Starting allocation for project ${project._id}${group ? `, group ${group._id}` : ' (solo)'}`);
+      console.log(`[Sem 8 Faculty Allocation] Project currentFacultyIndex: ${project.currentFacultyIndex}`);
+      console.log(`[Sem 8 Faculty Allocation] FacultyPreferences count: ${project.facultyPreferences?.length || 0}`);
+      console.log(`[Sem 8 Faculty Allocation] First preference faculty: ${project.facultyPreferences?.[0]?.faculty}`);
+      
       try {
-        await project.presentToCurrentFaculty();
+        // Ensure project is saved before presenting
+        await project.save({ session });
+        
+        // Present to first faculty
+        await project.presentToCurrentFaculty({ session });
+        
+        // Verify the presentation worked
+        const updatedProject = await Project.findById(project._id).session(session);
+        console.log(`[Sem 8 Faculty Allocation] After presentation - currentFacultyIndex: ${updatedProject.currentFacultyIndex}`);
+        console.log(`[Sem 8 Faculty Allocation] Allocation history length: ${updatedProject.allocationHistory?.length || 0}`);
+        
+        if (updatedProject.allocationHistory && updatedProject.allocationHistory.length > 0) {
+          const lastEntry = updatedProject.allocationHistory[updatedProject.allocationHistory.length - 1];
+          console.log(`[Sem 8 Faculty Allocation] Last allocation entry:`, {
+            faculty: lastEntry.faculty,
+            action: lastEntry.action,
+            priority: lastEntry.priority
+          });
+        }
+        
+        // Verify FacultyPreference document
+        const updatedPref = await FacultyPreference.findById(facultyPreferenceDoc._id).session(session);
+        console.log(`[Sem 8 Faculty Allocation] FacultyPreference currentFacultyIndex: ${updatedPref.currentFacultyIndex}`);
+        console.log(`[Sem 8 Faculty Allocation] FacultyPreference status: ${updatedPref.status}`);
+        
       } catch (presentError) {
-        console.error('Error presenting project to faculty:', presentError);
+        console.error(`[Sem 8 Faculty Allocation] ERROR presenting project to faculty:`, presentError);
+        console.error(`[Sem 8 Faculty Allocation] Error stack:`, presentError.stack);
+        console.error(`[Sem 8 Faculty Allocation] Project ID: ${project._id}${group ? `, Group ID: ${group._id}` : ' (solo)'}`);
+        // Don't fail registration if presentation fails - this is not critical
+        // But log it so we can debug
       }
 
       // Populate the response with faculty details
@@ -2270,10 +2402,43 @@ const registerInternship2 = async (req, res) => {
       await facultyPreferenceDoc.save({ session });
 
       // Present project to first faculty (start the allocation process)
+      console.log(`[Sem 8 Internship 2 Faculty Allocation] Starting allocation for project ${project._id} (solo)`);
+      console.log(`[Sem 8 Internship 2 Faculty Allocation] Project currentFacultyIndex: ${project.currentFacultyIndex}`);
+      console.log(`[Sem 8 Internship 2 Faculty Allocation] FacultyPreferences count: ${project.facultyPreferences?.length || 0}`);
+      console.log(`[Sem 8 Internship 2 Faculty Allocation] First preference faculty: ${project.facultyPreferences?.[0]?.faculty}`);
+      
       try {
-        await project.presentToCurrentFaculty();
+        // Ensure project is saved before presenting
+        await project.save({ session });
+        
+        // Present to first faculty
+        await project.presentToCurrentFaculty({ session });
+        
+        // Verify the presentation worked
+        const updatedProject = await Project.findById(project._id).session(session);
+        console.log(`[Sem 8 Internship 2 Faculty Allocation] After presentation - currentFacultyIndex: ${updatedProject.currentFacultyIndex}`);
+        console.log(`[Sem 8 Internship 2 Faculty Allocation] Allocation history length: ${updatedProject.allocationHistory?.length || 0}`);
+        
+        if (updatedProject.allocationHistory && updatedProject.allocationHistory.length > 0) {
+          const lastEntry = updatedProject.allocationHistory[updatedProject.allocationHistory.length - 1];
+          console.log(`[Sem 8 Internship 2 Faculty Allocation] Last allocation entry:`, {
+            faculty: lastEntry.faculty,
+            action: lastEntry.action,
+            priority: lastEntry.priority
+          });
+        }
+        
+        // Verify FacultyPreference document
+        const updatedPref = await FacultyPreference.findById(facultyPreferenceDoc._id).session(session);
+        console.log(`[Sem 8 Internship 2 Faculty Allocation] FacultyPreference currentFacultyIndex: ${updatedPref.currentFacultyIndex}`);
+        console.log(`[Sem 8 Internship 2 Faculty Allocation] FacultyPreference status: ${updatedPref.status}`);
+        
       } catch (presentError) {
-        console.error('Error presenting project to faculty:', presentError);
+        console.error(`[Sem 8 Internship 2 Faculty Allocation] ERROR presenting project to faculty:`, presentError);
+        console.error(`[Sem 8 Internship 2 Faculty Allocation] Error stack:`, presentError.stack);
+        console.error(`[Sem 8 Internship 2 Faculty Allocation] Project ID: ${project._id}`);
+        // Don't fail registration if presentation fails - this is not critical
+        // But log it so we can debug
       }
 
       // Populate the response with faculty details
@@ -4757,7 +4922,26 @@ const getStudentGroupStatus = async (req, res) => {
     }).populate('members.student', 'fullName misNumber contactNumber branch');
 
     // Get groups with matching academic year
-    const studentAcademicYear = student.academicYear || '2024-25';
+    // Use student's academicYear if available, otherwise calculate current academic year
+    let studentAcademicYear = student.academicYear;
+    if (!studentAcademicYear) {
+      const SystemConfig = require('../models/SystemConfig');
+      const configYear = await SystemConfig.getConfigValue('academic.currentYear');
+      if (configYear && /^\d{4}-\d{2}$/.test(configYear)) {
+        studentAcademicYear = configYear;
+      } else {
+        // Fallback: calculate from current date
+        const now = new Date();
+        const currentYear = now.getFullYear();
+        const month = now.getMonth(); // 0-11
+        // Academic year starts in July (month 6)
+        if (month >= 6) {
+          studentAcademicYear = `${currentYear}-${(currentYear+1).toString().slice(-2)}`;
+        } else {
+          studentAcademicYear = `${(currentYear-1)}-${currentYear.toString().slice(-2)}`;
+        }
+      }
+    }
     const matchingAcademicYearGroups = await Group.find({
       'members.student': student._id,
       semester: 5,

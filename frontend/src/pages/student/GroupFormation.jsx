@@ -436,6 +436,8 @@ const GroupFormation = () => {
       const response = await studentAPI.inviteToGroup(groupId, studentIds, roles);
       
       // Handle partial success (some invitations failed) - similar to Group Dashboard
+      let invitationsSuccessful = false;
+      
       if (response && response.results && response.errors) {
         const successCount = response.results.length;
         const errorCount = response.errors.length;
@@ -451,6 +453,8 @@ const GroupFormation = () => {
             toast.success(`${newInviteCount} invitation(s) sent successfully!`);
           }
           toast.error(`${errorCount} invitation(s) failed: ${response.errors.join(', ')}`);
+          // Partial success - still proceed to next step
+          invitationsSuccessful = true;
         } else if (successCount > 0) {
           if (reinviteCount > 0 && newInviteCount > 0) {
             toast.success(`${newInviteCount} new invitation(s) sent, ${reinviteCount} reinvitation(s) sent!`);
@@ -459,8 +463,10 @@ const GroupFormation = () => {
           } else {
             toast.success(`${newInviteCount} invitation(s) sent successfully!`);
           }
+          invitationsSuccessful = true;
         } else {
           toast.error(`All invitations failed: ${response.errors.join(', ')}`);
+          invitationsSuccessful = false;
         }
         
         const result = {
@@ -484,11 +490,17 @@ const GroupFormation = () => {
             duration: 4000
           });
         }
+        invitationsSuccessful = true;
       } else {
-        toast.error(`Bulk invitation failed: ${response.message}`);
+        toast.error(`Bulk invitation failed: ${response.message || 'Unknown error'}`);
+        invitationsSuccessful = false;
       }
       
-      setCurrentStep(2);
+      // Only proceed to next step if invitations were sent successfully (even if partially)
+      if (invitationsSuccessful) {
+        setCurrentStep(2);
+      }
+      // If all invitations failed, stay on current step so user can retry
     } catch (error) {
       console.error('Failed to send bulk invitations:', error);
       toast.error(`Failed to send invitations: ${error.message}`);
@@ -605,36 +617,51 @@ const GroupFormation = () => {
       }
 
       // Now send invitations (if any)
+      let invitationsSent = true;
       if (selectedStudents.length > 0) {
-      const memberIds = selectedStudents.map(student => student._id);
-      
-      const inviteResponse = await studentAPI.sendGroupInvitations(groupId, { memberIds });
-      
-      if (inviteResponse.success) {
-        toast.success('Group created and invitations sent successfully!');
-        setInvitationResults(inviteResponse.data);
-        } else {
-          toast.error(inviteResponse.message || 'Failed to send invitations');
-          // Still proceed to navigate even if invitations failed
+        const memberIds = selectedStudents.map(student => student._id);
+        
+        try {
+          const inviteResponse = await studentAPI.sendGroupInvitations(groupId, { memberIds });
+          
+          if (inviteResponse.success) {
+            toast.success('Group created and invitations sent successfully!');
+            setInvitationResults(inviteResponse.data);
+            invitationsSent = true;
+          } else {
+            toast.error(inviteResponse.message || 'Failed to send invitations');
+            invitationsSent = false;
+            // Don't navigate if invitations failed - let user see the error and retry
+            return;
+          }
+        } catch (inviteError) {
+          console.error('Error sending invitations:', inviteError);
+          toast.error(`Failed to send invitations: ${inviteError.message || 'Unknown error'}`);
+          invitationsSent = false;
+          // Don't navigate if invitations failed - let user see the error and retry
+          return;
         }
       } else {
         toast.success('Group created successfully!');
       }
-        
+      
+      // Only proceed with navigation and cleanup if everything succeeded
+      if (invitationsSent) {
         // Clear localStorage on successful completion
         setTimeout(() => {
           localStorage.removeItem('groupFormation_selectedStudents');
           localStorage.removeItem('groupFormation_searchTerm');
           localStorage.removeItem('groupFormation_currentStep');
         }, 3000);
-      
-      // Refresh context data again after sending invitations (if any)
-      await fetchSem5Data();
         
-        // Navigate to group dashboard
+        // Refresh context data again after sending invitations (if any)
+        await fetchSem5Data();
+        
+        // Navigate to group dashboard only after successful completion
         setTimeout(() => {
           navigate(`/student/groups/${groupId}/dashboard`);
         }, 2000);
+      }
     } catch (error) {
       console.error('Error in group creation or invitation sending:', error);
       toast.error(`Failed to create group or send invitations: ${error.message}`);
@@ -1273,7 +1300,7 @@ const GroupFormation = () => {
                     {isSubmitting ? (
                       <>
                         <FiLoader className="w-4 h-4 animate-spin" />
-                        Creating...
+                        {selectedStudents.length > 0 ? 'Creating group and sending invitations...' : 'Creating group...'}
                       </>
                     ) : (
                       <>

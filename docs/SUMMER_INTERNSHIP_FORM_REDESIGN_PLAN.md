@@ -30,18 +30,18 @@ The Summer Internship Evidence Submission form needs a complete redesign similar
 
 ### Layout Structure
 ```
-┌─────────────────────────────────────────────────────────────┐
-│ Header: Summer Internship Evidence Submission | Close       │
+┌────────────────────── ───────────────────────────────────────┐
+│ Header: Summer Internship Evidence Submission | Close        │
 ├──────────────────────┬───────────────────────────────────────┤
 │                      │                                       │
 │  LEFT COLUMN         │        RIGHT COLUMN                   │
 │  (8 cols - 65%)      │        (4 cols - 35%)                 │
 │                      │                                       │
 │  • Form Sections     │  • Submission Progress                │
-│    - Company Info    │  • About Summer Internship           │
+│    - Company Info    │  • About Summer Internship            │
 │    - Manager Details │  • Required Documents                 │
 │    - Documents       │  • Tips & Guidelines                  │
-│  • Submit Button     │  • Important Notes                   │
+│  • Submit Button     │  • Important Notes                    │
 │                      │                                       │
 └──────────────────────┴───────────────────────────────────────┘
 ```
