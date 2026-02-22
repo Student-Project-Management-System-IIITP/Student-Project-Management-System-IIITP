@@ -47,6 +47,7 @@ import Sem6Registration from './pages/student/Sem6Registration';
 import MTechSem1Registration from './pages/student/MTechSem1Registration';
 import Sem7TrackSelection from './pages/student/Sem7TrackSelection';
 import MTechSem3TrackSelection from './pages/student/MTechSem3TrackSelection';
+import MTechSem4TrackSelection from './pages/student/MTechSem4TrackSelection';
 import InternshipApplicationForm from './pages/student/InternshipApplicationForm';
 import MajorProject1Registration from './pages/student/MajorProject1Registration';
 import MajorProject1Dashboard from './pages/student/MajorProject1Dashboard';
@@ -65,6 +66,7 @@ import MTechSem3MajorProjectRegister from './pages/student/MTechSem3MajorProject
 import Sem8TrackSelection from './pages/student/Sem8TrackSelection';
 import Sem8Status from './pages/student/Sem8Status';
 import MajorProject2Dashboard from './pages/student/MajorProject2Dashboard';
+import Sem7InternshipApplications from './pages/admin/Sem7InternshipApplications';
 
 function App() {
   return (
@@ -232,6 +234,11 @@ function AppContent() {
           <Route path="/student/mtech/sem3/track-selection" element={
             <ProtectedRoute allowedRoles={['student']}>
               <MTechSem3TrackSelection />
+            </ProtectedRoute>
+          } />
+          <Route path="/student/mtech/sem4/track-selection" element={
+            <ProtectedRoute allowedRoles={['student']}>
+              <MTechSem4TrackSelection />
             </ProtectedRoute>
           } />
           <Route path="/student/mtech/sem3/major-project" element={
@@ -482,6 +489,11 @@ function AppContent() {
           <Route path="/admin/sem7/review" element={
             <ProtectedRoute allowedRoles={['admin']}>
               <Sem7Review />
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/sem7/internships" element={
+            <ProtectedRoute allowedRoles={['admin']}>
+              <Sem7InternshipApplications />
             </ProtectedRoute>
           } />
           <Route path="/admin/sem7/track-choices" element={

@@ -1,16 +1,16 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useSem4Project } from '../../hooks/useSem4Project';
 import { useSem5Project } from '../../hooks/useSem5Project';
 import { useSem7Project } from '../../hooks/useSem7Project';
 import { useMTechSem3Track } from '../../hooks/useMTechSem3Track';
+import { useMTechSem4Track } from '../../hooks/useMTechSem4Track';
 import { useSem8Project } from '../../hooks/useSem8Project';
 import { useSem8 } from '../../context/Sem8Context';
 import { useGroupManagement } from '../../hooks/useGroupManagement';
 import { useEvaluation } from '../../hooks/useEvaluation';
 import { studentAPI, internshipAPI } from '../../utils/api';
-import { useState, useEffect } from 'react';
 import { toast } from 'react-hot-toast';
 import SemesterHeader from '../../components/common/SemesterHeader';
 import StatusBadge from '../../components/common/StatusBadge';
@@ -22,6 +22,8 @@ const StudentDashboard = () => {
   const [mtechLoading, setMtechLoading] = useState(false);
   const [mtechSem2Project, setMtechSem2Project] = useState(null);
   const [showSem3Welcome, setShowSem3Welcome] = useState(false);
+  const [showSem4Welcome, setShowSem4Welcome] = useState(false);
+
   const [sem3InternshipApp, setSem3InternshipApp] = useState(null);
   const [sem3AppLoading, setSem3AppLoading] = useState(false);
   
@@ -30,10 +32,14 @@ const StudentDashboard = () => {
   const { trackChoice: sem3TrackChoice, loading: sem3ChoiceLoading } = useMTechSem3Track();
   const sem3SelectedTrack = isMTechSem3Plus ? (sem3TrackChoice?.finalizedTrack || sem3TrackChoice?.chosenTrack || null) : null;
 
+  const isMTechSem4Plus = roleData?.degree === 'M.Tech' && (roleData?.semester >= 4);
+  const { trackChoice: sem4TrackChoice, loading: sem4ChoiceLoading } = useMTechSem4Track();
+
   // Sem 4 hooks
   const { project: sem4Project, loading: sem4ProjectLoading, canRegisterProject: canRegisterSem4, canUploadPPT, getProjectTimeline } = useSem4Project();
   const { evaluationSchedule, canUploadPPT: canUploadForEvaluation } = useEvaluation();
   
+  // ... rest of the code remains the same ...
   // Project status state
   const [projectStatus, setProjectStatus] = useState(null);
   const [statusLoading, setStatusLoading] = useState(false);
@@ -183,6 +189,21 @@ const StudentDashboard = () => {
   const handleSem3WelcomeChoice = (preselect) => {
     setShowSem3Welcome(false);
     navigate('/student/mtech/sem3/track-selection', { state: { preselect } });
+  };
+
+  // Show welcome prompt for newly promoted M.Tech Sem 4 students
+  useEffect(() => {
+    if (sem4ChoiceLoading) return;
+    if (degree === 'M.Tech' && currentSemester === 4) {
+      setShowSem4Welcome(!sem4TrackChoice);
+    } else {
+      setShowSem4Welcome(false);
+    }
+  }, [sem4ChoiceLoading, sem4TrackChoice, degree, currentSemester]);
+
+  const handleSem4WelcomeChoice = (preselect) => {
+    setShowSem4Welcome(false);
+    navigate('/student/mtech/sem4/track-selection', { state: { preselect } });
   };
 
   // Load project status for PPT display
@@ -1256,6 +1277,47 @@ const StudentDashboard = () => {
 
   return (
     <>
+      {showSem4Welcome && (
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/60 px-4 py-8">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl p-8">
+            <p className="text-sm uppercase tracking-wide text-indigo-600 font-semibold">
+              Welcome back
+            </p>
+            <h2 className="text-3xl font-bold text-gray-900 mt-2">
+              Hey {user?.name || roleData?.fullName || 'there'} 👋
+            </h2>
+            <p className="text-gray-600 mt-3">
+              You are now in M.Tech Semester 4. Choose how you want to continue: another 6-month
+              Internship 2 or focus on Major Project 2 with an institute guide.
+            </p>
+            <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <button
+                type="button"
+                onClick={() => handleSem4WelcomeChoice('internship')}
+                className="text-left p-5 rounded-xl border-2 border-indigo-100 hover:border-indigo-300 focus:ring-2 focus:ring-indigo-500 transition shadow-sm bg-indigo-50"
+              >
+                <p className="text-xs uppercase tracking-wide text-indigo-600">Option 1</p>
+                <h3 className="text-xl font-semibold text-gray-900 mt-1">Internship 2</h3>
+                <p className="text-sm text-gray-600 mt-2">
+                  Continue with a 6-month Internship 2 and submit your details for verification.
+                </p>
+              </button>
+              <button
+                type="button"
+                onClick={() => handleSem4WelcomeChoice('coursework')}
+                className="text-left p-5 rounded-xl border-2 border-orange-100 hover:border-orange-300 focus:ring-2 focus:ring-orange-500 transition shadow-sm bg-orange-50"
+              >
+                <p className="text-xs uppercase tracking-wide text-orange-600">Option 2</p>
+                <h3 className="text-xl font-semibold text-gray-900 mt-1">Major Project 2</h3>
+                <p className="text-sm text-gray-600 mt-2">
+                  Begin Major Project 2 on campus and align with a faculty mentor.
+                </p>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showSem3Welcome && (
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/60 px-4 py-8">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl p-8">

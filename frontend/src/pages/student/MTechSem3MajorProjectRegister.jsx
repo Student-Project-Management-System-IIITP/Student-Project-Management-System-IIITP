@@ -15,7 +15,25 @@ const MTechSem3MajorProjectRegister = () => {
   const { user, roleData } = useAuth();
   const { trackChoice, loading: trackLoading } = useMTechSem3Track();
 
-  const [domains, setDomains] = useState([]);
+  const [domains, setDomains] = useState([
+    'Web Development',
+    'Cybersecurity',
+    'Artificial Intelligence & Machine Learning',
+    'Data Science & Analytics',
+    'Internet of Things',
+    'Cloud Computing',
+    'Software Engineering',
+    'Human Computer Interaction',
+    'Blockchain & FinTech',
+    'Embedded Systems',
+    'Computer Networks',
+    'Database Systems',
+    'Operating Systems',
+    'Mobile App Development',
+    'Game Development',
+    'Other',
+  ]);
+  const [customDomain, setCustomDomain] = useState("");
   const [facultyList, setFacultyList] = useState([]);
   const [selectedFaculty, setSelectedFaculty] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -53,21 +71,6 @@ const MTechSem3MajorProjectRegister = () => {
   }, [degree, currentSemester, selectedTrack, navigate, trackLoading]);
 
   useEffect(() => {
-    const loadDomains = async () => {
-      try {
-        const response = await studentAPI.getSystemConfig('sem3.majorProject.domains');
-        if (response?.success && response.data) {
-          const domainValues = response.data.value || response.data.configValue || [];
-          setDomains(Array.isArray(domainValues) ? domainValues : []);
-        } else {
-          setDomains([]);
-        }
-      } catch (error) {
-        console.warn('Sem3 domain config not found, using empty list');
-        setDomains([]);
-      }
-    };
-
     const loadFaculty = async () => {
       try {
         const response = await studentAPI.getFacultyList();
@@ -85,7 +88,7 @@ const MTechSem3MajorProjectRegister = () => {
 
     const loadAll = async () => {
       setLoadingData(true);
-      await Promise.all([loadDomains(), loadFaculty()]);
+      await Promise.all([loadFaculty()]);
       setLoadingData(false);
     };
 
@@ -143,7 +146,7 @@ const MTechSem3MajorProjectRegister = () => {
       setIsSubmitting(true);
       await studentAPI.registerMTechSem3MajorProject({
         title: data.title,
-        domain: data.domain,
+        domain: data.domain === 'Other' ? customDomain : data.domain,
         summary: data.summary,
         facultyPreferences: selectedFaculty.map((entry) => entry.faculty._id)
       });
@@ -239,6 +242,20 @@ const MTechSem3MajorProjectRegister = () => {
                 </select>
                 {errors.domain && (
                   <p className="text-sm text-red-600 mt-1">{errors.domain.message}</p>
+                )}
+                {/* Show custom input if 'Other' is selected */}
+                { (typeof window !== 'undefined' && document.querySelector('select[name="domain"]')?.value === 'Other') && (
+                  <div className="mt-3">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Specify Domain *</label>
+                    <input
+                      type="text"
+                      value={customDomain}
+                      onChange={(e) => setCustomDomain(e.target.value)}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500"
+                      placeholder="Enter your custom domain"
+                      required
+                    />
+                  </div>
                 )}
               </div>
 

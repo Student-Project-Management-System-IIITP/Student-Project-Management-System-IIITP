@@ -116,6 +116,12 @@ const AdminDashboard = () => {
     approvedApplications: 0,
     needsInfo: 0
   });
+  const [mtechSem4InternshipStats, setMtechSem4InternshipStats] = useState({
+    totalApplications: 0,
+    pendingApplications: 0,
+    verifiedPass: 0,
+    needsInfo: 0
+  });
   
   // Sem 8 specific state
   const [sem8Stats, setSem8Stats] = useState({
@@ -595,6 +601,27 @@ const AdminDashboard = () => {
           totalApplications: 0,
           pendingApplications: 0,
           approvedApplications: 0,
+          needsInfo: 0
+        });
+      }
+
+      // M.Tech Sem 4 Internship 2 statistics (6-month internship applications in Sem 4)
+      try {
+        const sem4AppsResponse = await adminAPI.listInternshipApplications({ semester: 4 });
+        const sem4Apps = (sem4AppsResponse.data || []).filter(app => app.type === '6month');
+
+        setMtechSem4InternshipStats({
+          totalApplications: sem4Apps.length,
+          pendingApplications: sem4Apps.filter(app => ['submitted', 'pending_verification', 'needs_info'].includes(app.status)).length,
+          verifiedPass: sem4Apps.filter(app => app.status === 'verified_pass').length,
+          needsInfo: sem4Apps.filter(app => app.status === 'needs_info').length
+        });
+      } catch (sem4InternError) {
+        console.warn('M.Tech Sem 4 internship data not available:', sem4InternError);
+        setMtechSem4InternshipStats({
+          totalApplications: 0,
+          pendingApplications: 0,
+          verifiedPass: 0,
           needsInfo: 0
         });
       }
@@ -1515,6 +1542,52 @@ const AdminDashboard = () => {
               <div className="bg-white bg-opacity-20 rounded-lg p-4 hover:bg-opacity-30 transition-all cursor-pointer">
                 <div className="text-2xl font-bold">{mtechSem3Stats.pendingApplications || 0}</div>
                 <div className="text-white/80 text-sm">Pending Reviews</div>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* M.Tech Sem 4 - Internship 2 Statistics */}
+      <div className="mb-8">
+        <div className="bg-gradient-to-r from-indigo-600 to-blue-700 text-white p-6 rounded-lg shadow-md">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-2xl font-bold mb-4">M.Tech Semester 4 - Internship 2 Management</h2>
+              <p className="text-white/80 mb-6">6-month Internship 2 applications and verification overview for M.Tech Semester 4.</p>
+            </div>
+            <div>
+              <Link
+                to="/admin/sem7/internships?type=6month&semester=4"
+                className="bg-white bg-opacity-20 hover:bg-opacity-30 px-4 py-2 rounded-md text-white font-medium transition-all duration-200 flex items-center space-x-2"
+              >
+                <span>📋</span>
+                <span>Review Applications</span>
+              </Link>
+            </div>
+          </div>
+
+          {loading ? (
+            <div className="flex items-center justify-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="bg-white bg-opacity-20 rounded-lg p-4 hover:bg-opacity-30 transition-all cursor-pointer">
+                <div className="text-2xl font-bold">{mtechSem4InternshipStats.totalApplications || 0}</div>
+                <div className="text-white/80 text-sm">Total Applications</div>
+              </div>
+              <div className="bg-white bg-opacity-20 rounded-lg p-4 hover:bg-opacity-30 transition-all cursor-pointer">
+                <div className="text-2xl font-bold">{mtechSem4InternshipStats.pendingApplications || 0}</div>
+                <div className="text-white/80 text-sm">Pending Reviews</div>
+              </div>
+              <div className="bg-white bg-opacity-20 rounded-lg p-4 hover:bg-opacity-30 transition-all cursor-pointer">
+                <div className="text-2xl font-bold">{mtechSem4InternshipStats.verifiedPass || 0}</div>
+                <div className="text-white/80 text-sm">Verified (Pass)</div>
+              </div>
+              <div className="bg-white bg-opacity-20 rounded-lg p-4 hover:bg-opacity-30 transition-all cursor-pointer">
+                <div className="text-2xl font-bold">{mtechSem4InternshipStats.needsInfo || 0}</div>
+                <div className="text-white/80 text-sm">Needs Info</div>
               </div>
             </div>
           )}

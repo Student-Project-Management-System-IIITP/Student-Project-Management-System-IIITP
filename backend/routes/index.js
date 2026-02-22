@@ -34,6 +34,10 @@ router.use('/sem7', sem7Routes);
 const sem3Routes = require('./sem3Routes');
 router.use('/sem3', sem3Routes);
 
+// Sem4 routes (M.Tech Sem 4 track selection)
+const sem4Routes = require('./sem4Routes');
+router.use('/sem4', sem4Routes);
+
 // Sem8 routes
 const sem8Routes = require('./sem8Routes');
 router.use('/sem8', sem8Routes);

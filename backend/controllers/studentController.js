@@ -149,7 +149,11 @@ const supportsGroupsAndFaculty = (projectType, semester, degree = 'B.Tech') => {
 
   return {
     supportsGroups: !soloProjects.includes(projectType) && (groupProjects.includes(projectType) || semester > 5),
-    supportsFacultyPreferences: isMtechSem1SoloWithPrefs || (!soloProjects.includes(projectType) && (groupProjects.includes(projectType) || semester > 5)),
+    supportsFacultyPreferences: (
+      (degree === 'M.Tech' && semester === 3 && projectType === 'major1') ||
+      isMtechSem1SoloWithPrefs ||
+      (!soloProjects.includes(projectType) && (groupProjects.includes(projectType) || semester > 5))
+    ),
     allowsMultipleProjects: multipleAllowedProjects.includes(projectType),
     isSoloProject: soloProjects.includes(projectType)
   };
@@ -1227,6 +1231,10 @@ const registerMajorProject1 = async (req, res) => {
 };
 
 const registerMTechSem3MajorProject = async (req, res) => {
+  console.log('registerMTechSem3MajorProject called');
+  console.log('Request body:', req.body);
+  console.log('User:', req.user);
+
   const session = await mongoose.startSession();
 
   try {

@@ -52,6 +52,12 @@ const MTechSem3MajorProject = () => {
     loadProject();
   }, []);
 
+  useEffect(() => {
+    if (!loading && project && project.faculty && project._id) {
+      navigate(`/projects/${project._id}`);
+    }
+  }, [loading, project, navigate]);
+
   const renderProjectSummary = () => {
     if (loading) {
       return (

@@ -895,7 +895,7 @@ const getUnallocatedGroups = async (req, res) => {
     }
 
     // If semester specified, use it; otherwise include active semesters for B.Tech and M.Tech (1,4-8)
-    const semestersToFetch = semester ? [parseInt(semester)] : [1, 4, 5, 6, 7, 8];
+    const semestersToFetch = semester ? [parseInt(semester)] : [1, 3, 4, 5, 6, 7, 8];
     
     // Get groups currently presented to this faculty across all semesters
     const allPreferences = [];
@@ -972,7 +972,11 @@ const getUnallocatedGroups = async (req, res) => {
     });
   } catch (error) {
     console.error('Error getting unallocated groups:', error);
-    res.status(500).json({ success: false, message: 'Error getting unallocated groups', error: error.message });
+    res.status(500).json({
+      success: false,
+      message: 'Error getting unallocated groups',
+      error: error.message
+    });
   }
 };
 
@@ -987,8 +991,8 @@ const getAllocatedGroups = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Faculty not found' });
     }
 
-    // If semester specified, use it; otherwise include active semesters for B.Tech and M.Tech (1,4-8)
-    const semestersToFetch = semester ? [parseInt(semester)] : [1, 4, 5, 6, 7, 8];
+    // If semester specified, use it; otherwise include active semesters for B.Tech and M.Tech (1,3-8)
+    const semestersToFetch = semester ? [parseInt(semester)] : [1, 3, 4, 5, 6, 7, 8];
     
     // Method 1: Get groups from FacultyPreference records (for Sem 4-5)
     const allPreferences = [];

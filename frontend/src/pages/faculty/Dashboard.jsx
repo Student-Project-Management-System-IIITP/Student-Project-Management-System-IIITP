@@ -281,79 +281,79 @@ const FacultyDashboard = () => {
   const GroupCard = ({ group, isAllocated = false }) => {
     const cardContent = (
       <div className="bg-white rounded-lg shadow-md border border-gray-200 p-6 hover:shadow-lg transition-shadow">
-      <div className="flex justify-between items-start mb-4">
-        <div>
-          <h3 className="text-lg font-semibold text-gray-900">{group.groupName}</h3>
-          <p className="text-sm text-gray-600 mt-1">{group.projectTitle}</p>
+        <div className="flex justify-between items-start mb-4">
+          <div>
+            <h3 className="text-lg font-semibold text-gray-900">{group.groupName}</h3>
+            <p className="text-sm text-gray-600 mt-1">{group.projectTitle}</p>
+          </div>
+          <div className="text-right">
+            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+              Sem {group.semester}
+            </span>
+            <p className="text-xs text-gray-500 mt-1">{group.academicYear}</p>
+          </div>
         </div>
-        <div className="text-right">
-          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-            Sem {group.semester}
-          </span>
-          <p className="text-xs text-gray-500 mt-1">{group.academicYear}</p>
-        </div>
-      </div>
 
-      <div className="mb-4">
-        <h4 className="text-sm font-medium text-gray-700 mb-2">Group Members</h4>
-        <div className="space-y-1">
-          {group.members.map((member, index) => (
-            <div key={index} className="flex justify-between text-sm">
-              <span className="text-gray-900">{member.name}</span>
-              <span className="text-gray-500">{member.misNumber} • {member.role}</span>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {!isAllocated && group.preferences && (
         <div className="mb-4">
-          <h4 className="text-sm font-medium text-gray-700 mb-2">Faculty Preferences</h4>
-          <div className="flex flex-wrap gap-2">
-            {group.preferences.map((faculty, index) => (
-              <span
-                key={index}
-                className={`inline-flex items-center px-2 py-1 rounded text-xs font-medium ${
-                  index === group.currentPreference - 1
-                    ? 'bg-green-100 text-green-800'
-                    : 'bg-gray-100 text-gray-600'
-                }`}
-              >
-                {faculty}
-                {index === group.currentPreference - 1 && ' (Current)'}
-              </span>
+          <h4 className="text-sm font-medium text-gray-700 mb-2">Group Members</h4>
+          <div className="space-y-1">
+            {group.members.map((member, index) => (
+              <div key={index} className="flex justify-between text-sm">
+                <span className="text-gray-900">{member.name}</span>
+                <span className="text-gray-500">{member.misNumber} • {member.role}</span>
+              </div>
             ))}
           </div>
         </div>
-      )}
 
-      {isAllocated && (
-        <div className="mb-4">
-          <p className="text-sm text-gray-600">
-            <span className="font-medium">Allocated on:</span> {group.allocatedDate}
-          </p>
-        </div>
-      )}
+        {!isAllocated && group.preferences && (
+          <div className="mb-4">
+            <h4 className="text-sm font-medium text-gray-700 mb-2">Faculty Preferences</h4>
+            <div className="flex flex-wrap gap-2">
+              {group.preferences.map((faculty, index) => (
+                <span
+                  key={index}
+                  className={`inline-flex items-center px-2 py-1 rounded text-xs font-medium ${
+                    index === group.currentPreference - 1
+                      ? 'bg-green-100 text-green-800'
+                      : 'bg-gray-100 text-gray-600'
+                  }`}
+                >
+                  {faculty}
+                  {index === group.currentPreference - 1 && ' (Current)'}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
 
-      {!isAllocated && (
-        <div className="flex space-x-3">
-          <button
-            onClick={() => handleChooseGroup(group.id)}
-            disabled={actionLoading[`choose-${group.id}`] || actionLoading[`pass-${group.id}`]}
-            className="flex-1 bg-green-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {actionLoading[`choose-${group.id}`] ? 'Choosing...' : 'Choose Group'}
-          </button>
-          <button
-            onClick={() => handlePassGroup(group.id)}
-            disabled={actionLoading[`choose-${group.id}`] || actionLoading[`pass-${group.id}`]}
-            className="flex-1 bg-orange-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {actionLoading[`pass-${group.id}`] ? 'Passing...' : 'Pass Group'}
-          </button>
-        </div>
-      )}
-    </div>
+        {isAllocated && (
+          <div className="mb-4">
+            <p className="text-sm text-gray-600">
+              <span className="font-medium">Allocated on:</span> {group.allocatedDate}
+            </p>
+          </div>
+        )}
+
+        {!isAllocated && (
+          <div className="flex space-x-3">
+            <button
+              onClick={() => handleChooseGroup(group.id)}
+              disabled={actionLoading[`choose-${group.id}`] || actionLoading[`pass-${group.id}`]}
+              className="flex-1 bg-green-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {actionLoading[`choose-${group.id}`] ? 'Choosing...' : 'Choose Group'}
+            </button>
+            <button
+              onClick={() => handlePassGroup(group.id)}
+              disabled={actionLoading[`choose-${group.id}`] || actionLoading[`pass-${group.id}`]}
+              className="flex-1 bg-orange-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {actionLoading[`pass-${group.id}`] ? 'Passing...' : 'Pass Group'}
+            </button>
+          </div>
+        )}
+      </div>
     );
 
     // If allocated, wrap in Link to project details
@@ -411,95 +411,6 @@ const FacultyDashboard = () => {
         </div>
       </div>
 
-      <div className="mb-8">
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-            <div>
-              <p className="text-xs uppercase tracking-wide text-teal-600 font-semibold">
-                M.Tech Semester 3
-              </p>
-              <h2 className="text-2xl font-bold text-gray-900 mt-1">Major Project Requests</h2>
-              <p className="text-gray-600">
-                Review solo Major Project 1 submissions and choose or pass based on your availability.
-              </p>
-            </div>
-            <div className="flex items-center gap-3">
-              <div className="text-sm bg-orange-50 text-orange-800 px-4 py-2 rounded-md flex items-center">
-                <span className="font-semibold">{sem3Requests.length}</span>
-                <span className="ml-2">Pending</span>
-              </div>
-              <button
-                onClick={loadSem3Requests}
-                className="px-4 py-2 border border-gray-300 rounded-md text-sm text-gray-700 hover:bg-gray-50"
-              >
-                Refresh
-              </button>
-            </div>
-          </div>
-
-          {sem3Loading ? (
-            <div className="flex items-center justify-center py-10 text-gray-500">
-              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-indigo-600 mr-3"></div>
-              Loading requests...
-            </div>
-          ) : sem3Requests.length === 0 ? (
-            <div className="text-sm text-gray-500 py-6 text-center">
-              No pending Sem 3 requests at the moment.
-            </div>
-          ) : (
-            <div className="mt-6 space-y-4">
-              {sem3Requests.map(request => (
-                <div
-                  key={request._id}
-                  className="border border-gray-200 rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow"
-                >
-                  <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                    <div>
-                      <p className="text-xs uppercase text-indigo-600 font-semibold">
-                        Priority {request.priority} of {request.totalPreferences}
-                      </p>
-                      <h3 className="text-lg font-semibold text-gray-900">
-                        {request.title || 'Major Project 1'}
-                      </h3>
-                      <p className="text-sm text-gray-600">{request.domain || 'Domain not specified'}</p>
-                    </div>
-                    <div className="text-sm text-gray-700">
-                      <p className="font-semibold">{request.student?.fullName || 'Student'}</p>
-                      <p className="text-gray-500">{request.student?.misNumber || 'MIS'}</p>
-                      <p className="text-gray-500">{request.student?.collegeEmail}</p>
-                    </div>
-                  </div>
-                  <p className="text-sm text-gray-700 mt-3">
-                    {request.summary || 'No summary provided.'}
-                  </p>
-                  <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mt-4">
-                    <p className="text-xs text-gray-500">
-                      Submitted on {request.submittedAt ? new Date(request.submittedAt).toLocaleDateString() : '—'}
-                    </p>
-                    <div className="flex gap-3">
-                      <button
-                        onClick={() => handleSem3Choose(request._id)}
-                        disabled={sem3ActionLoading[request._id]}
-                        className="flex-1 bg-green-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        {sem3ActionLoading[request._id] === 'choose' ? 'Assigning...' : 'Choose Project'}
-                      </button>
-                      <button
-                        onClick={() => handleSem3Pass(request._id)}
-                        disabled={sem3ActionLoading[request._id]}
-                        className="flex-1 bg-orange-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        {sem3ActionLoading[request._id] === 'pass' ? 'Passing...' : 'Pass Project'}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
-
       {/* Tab Navigation */}
       <div className="mb-6">
         <div className="border-b border-gray-200">
@@ -532,19 +443,19 @@ const FacultyDashboard = () => {
             </button>
           </nav>
         </div>
-          </div>
+      </div>
 
       {/* Content Area */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200">
         {activeTab === 'allocated' && (
           <div className="p-6">
             <div className="mb-4">
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">Your Allocated Groups</h3>
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">My Allocated Groups</h3>
               <p className="text-gray-600 text-sm">
                 Groups that have been allocated to you for supervision.
               </p>
             </div>
-            
+
             {allocatedGroups.length > 0 ? (
               <div className="space-y-8">
                 {categorizedAllocatedGroups.map((semesterData) => (
@@ -554,7 +465,7 @@ const FacultyDashboard = () => {
                       <h3 className="text-xl font-semibold text-gray-900 pb-2 border-b border-gray-200 mb-4">
                         Semester {semesterData.semester}
                       </h3>
-                      
+
                       <div className="space-y-8">
                         {semesterData.projectTypes.map((projectType) => {
                           // Handle Major Project 2 parent with subsections
@@ -568,7 +479,7 @@ const FacultyDashboard = () => {
                                     ({totalGroups} {totalGroups === 1 ? 'project' : 'projects'})
                                   </span>
                                 </h4>
-                                
+
                                 {/* Render subsections */}
                                 <div className="space-y-6 ml-6">
                                   {projectType.subsections.map((subsection) => (
@@ -580,7 +491,7 @@ const FacultyDashboard = () => {
                                             ({subsection.groups.length} {subsection.groups.length === 1 ? 'project' : 'projects'})
                                           </span>
                                         </h5>
-                                        
+
                                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 ml-4">
                                           {subsection.groups.map((group) => (
                                             <GroupCard key={group.id} group={group} isAllocated={true} />
@@ -593,7 +504,7 @@ const FacultyDashboard = () => {
                               </div>
                             );
                           }
-                          
+
                           // Regular project type rendering
                           return (
                             // Only show project types that have groups
@@ -605,7 +516,7 @@ const FacultyDashboard = () => {
                                     ({projectType.groups.length} group{projectType.groups.length !== 1 ? 's' : ''})
                                   </span>
                                 </h4>
-                                
+
                                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                                   {projectType.groups.map((group) => (
                                     <GroupCard key={group.id} group={group} isAllocated={true} />
@@ -642,7 +553,7 @@ const FacultyDashboard = () => {
                 These groups have selected you as their current preference. You can choose to allocate them to yourself or pass them to the next faculty in their preference list.
               </p>
             </div>
-            
+
             {unallocatedGroups.length > 0 ? (
               <div className="space-y-8">
                 {categorizedUnallocatedGroups.map((semesterData) => (
@@ -652,7 +563,7 @@ const FacultyDashboard = () => {
                       <h3 className="text-xl font-semibold text-gray-900 pb-2 border-b border-gray-200 mb-4">
                         Semester {semesterData.semester}
                       </h3>
-                      
+
                       <div className="space-y-8">
                         {semesterData.projectTypes.map((projectType) => {
                           // Handle Major Project 2 parent with subsections
@@ -666,7 +577,7 @@ const FacultyDashboard = () => {
                                     ({totalGroups} {totalGroups === 1 ? 'project' : 'projects'})
                                   </span>
                                 </h4>
-                                
+
                                 {/* Render subsections */}
                                 <div className="space-y-6 ml-6">
                                   {projectType.subsections.map((subsection) => (
@@ -678,7 +589,7 @@ const FacultyDashboard = () => {
                                             ({subsection.groups.length} {subsection.groups.length === 1 ? 'project' : 'projects'})
                                           </span>
                                         </h5>
-                                        
+
                                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 ml-4">
                                           {subsection.groups.map((group) => (
                                             <GroupCard key={group.id} group={group} />
@@ -691,7 +602,7 @@ const FacultyDashboard = () => {
                               </div>
                             );
                           }
-                          
+
                           // Regular project type rendering
                           return (
                             // Only show project types that have groups
@@ -703,7 +614,7 @@ const FacultyDashboard = () => {
                                     ({projectType.groups.length} group{projectType.groups.length !== 1 ? 's' : ''})
                                   </span>
                                 </h4>
-                                
+
                                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                                   {projectType.groups.map((group) => (
                                     <GroupCard key={group.id} group={group} />

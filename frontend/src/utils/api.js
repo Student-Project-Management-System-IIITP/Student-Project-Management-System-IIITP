@@ -258,6 +258,10 @@ export const studentAPI = {
   getMTechSem3Choice: () => api.get('/sem3/choice'),
   setMTechSem3Choice: (choice) => api.post('/sem3/choice', { chosenTrack: choice }),
   
+  // M.Tech Sem 4 track selection
+  getMTechSem4Choice: () => api.get('/sem4/choice'),
+  setMTechSem4Choice: (choice) => api.post('/sem4/choice', { chosenTrack: choice }),
+  
   // Major Project 1 registration
   registerMajorProject1: (projectData) => api.post('/student/projects/major1/register', projectData),
   registerMTechSem3MajorProject: (payload) => api.post('/student/mtech/sem3/major-project/register', payload),

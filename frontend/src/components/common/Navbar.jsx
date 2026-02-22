@@ -300,7 +300,13 @@ const Navbar = ({ userRole: propUserRole = null, user: propUser = null, roleData
 
     // Student Navigation
     if (userRole === 'student') {
-      items.push({ name: 'Dashboard', path: '/dashboard/student' });
+      const studentSemester = roleData?.semester || user?.semester;
+      const studentDegree = roleData?.degree || user?.degree;
+      const studentDashboardPath = (studentDegree === 'M.Tech' && studentSemester === 3)
+        ? '/student/mtech/sem3/major-project'
+        : '/dashboard/student';
+
+      items.push({ name: 'Dashboard', path: studentDashboardPath });
 
       // Sem 7 specific navigation
       const currentSemester = roleData?.semester || user?.semester;

@@ -12,6 +12,7 @@ const Sem7InternshipApplications = () => {
   const [loading, setLoading] = useState(true);
   const [filterStatus, setFilterStatus] = useState(searchParams.get('status') || 'all');
   const [filterType, setFilterType] = useState(searchParams.get('type') || 'all');
+  const [filterSemester, setFilterSemester] = useState(searchParams.get('semester') || 'all');
   const [selectedApplication, setSelectedApplication] = useState(null);
   const [showModal, setShowModal] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -33,8 +34,9 @@ const Sem7InternshipApplications = () => {
     const params = new URLSearchParams();
     if (filterStatus !== 'all') params.set('status', filterStatus);
     if (filterType !== 'all') params.set('type', filterType);
+    if (filterSemester !== 'all') params.set('semester', filterSemester);
     setSearchParams(params);
-  }, [filterStatus, filterType, setSearchParams]);
+  }, [filterStatus, filterType, filterSemester, setSearchParams]);
 
   const loadApplications = async () => {
     try {
@@ -66,6 +68,11 @@ const Sem7InternshipApplications = () => {
 
     if (filterType !== 'all') {
       filtered = filtered.filter(app => app.type === filterType);
+    }
+
+    if (filterSemester !== 'all') {
+      const semNumber = Number(filterSemester);
+      filtered = filtered.filter(app => app.semester === semNumber || app.student?.semester === semNumber);
     }
 
     setFilteredApplications(filtered);
@@ -211,6 +218,20 @@ const Sem7InternshipApplications = () => {
                 <option value="rejected">Rejected</option>
               </select>
             </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Semester</label>
+              <select
+                value={filterSemester}
+                onChange={(e) => setFilterSemester(e.target.value)}
+                className="px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+              >
+                <option value="all">All Semesters</option>
+                <option value="3">Sem 3 (M.Tech)</option>
+                <option value="4">Sem 4 (M.Tech)</option>
+                <option value="7">Sem 7 (B.Tech)</option>
+                <option value="8">Sem 8 (B.Tech)</option>
+              </select>
+            </div>
             <div className="flex items-end">
               <button
                 onClick={loadApplications}
@@ -241,6 +262,9 @@ const Sem7InternshipApplications = () => {
                   <tr>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Student
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Semester
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Type
@@ -274,6 +298,9 @@ const Sem7InternshipApplications = () => {
                             {app.student?.misNumber || 'N/A'}
                           </div>
                         </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {app.semester || app.student?.semester || '—'}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span className={`px-2 py-1 rounded-full text-xs font-medium ${
