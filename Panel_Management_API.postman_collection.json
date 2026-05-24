@@ -1,0 +1,263 @@
+{
+  "info": {
+    "name": "Panel Management System API",
+    "description": "Complete API testing collection for panel management, faculty assignment, and evaluation submission",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Panel Configuration",
+      "item": [
+        {
+          "name": "Set Panel Configuration",
+          "request": {
+            "method": "POST",
+            "header": [{
+              "key": "Content-Type",
+              "value": "application/json"
+            }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"panelSize\": 3,\n  \"departmentDistribution\": {\n    \"CSE\": 1,\n    \"ECE\": 1,\n    \"ASH\": 1\n  },\n  \"studentGroupSize\": {\n    \"min\": 4,\n    \"max\": 5\n  },\n  \"marksDistribution\": {\n    \"conveyer\": 40,\n    \"member\": 30\n  },\n  \"totalProfessors\": 27,\n  \"maxGroupsPerPanel\": 10,\n  \"maxPanelsPerProfessor\": 3,\n  \"conveyerRotationEnabled\": true,\n  \"noConveyerRepeatInSemester\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/panel-config/2025-26",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "panel-config", "2025-26"]
+            }
+          }
+        },
+        {
+          "name": "Get Panel Configuration",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/panel-config/2025-26",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "panel-config", "2025-26"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Panel Generation & Management",
+      "item": [
+        {
+          "name": "Generate Panels for Semester",
+          "request": {
+            "method": "POST",
+            "header": [{
+              "key": "Content-Type",
+              "value": "application/json"
+            }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"semester\": 5,\n  \"academicYear\": \"2025-26\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/generate-panels",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "generate-panels"]
+            }
+          }
+        },
+        {
+          "name": "Get Panels by Semester",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/panels?semester=5&academicYear=2025-26",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "panels"],
+              "query": [
+                {"key": "semester", "value": "5"},
+                {"key": "academicYear", "value": "2025-26"}
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Panel Details",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/panels/{{panelId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "panels", "{{panelId}}"]
+            }
+          }
+        },
+        {
+          "name": "Update Panel Members",
+          "request": {
+            "method": "PUT",
+            "header": [{
+              "key": "Content-Type",
+              "value": "application/json"
+            }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"members\": [\"faculty_id_1\", \"faculty_id_2\", \"faculty_id_3\"],\n  \"conveyer\": \"faculty_id_1\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/panels/{{panelId}}/members",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "panels", "{{panelId}}", "members"]
+            }
+          }
+        },
+        {
+          "name": "Rotate Conveyers for Semester",
+          "request": {
+            "method": "POST",
+            "header": [{
+              "key": "Content-Type",
+              "value": "application/json"
+            }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"semester\": 5,\n  \"academicYear\": \"2025-26\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/rotate-conveyers",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "rotate-conveyers"]
+            }
+          }
+        },
+        {
+          "name": "Get Panel Load Distribution",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/panel-load?semester=5&academicYear=2025-26",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "panel-load"],
+              "query": [
+                {"key": "semester", "value": "5"},
+                {"key": "academicYear", "value": "2025-26"}
+              ]
+            }
+          }
+        },
+        {
+          "name": "Delete Panel",
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/panels/{{panelId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "panels", "{{panelId}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Faculty Endpoints",
+      "item": [
+        {
+          "name": "Get Faculty Panels",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/faculty/panels",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "faculty", "panels"]
+            }
+          }
+        },
+        {
+          "name": "Get Faculty Evaluations",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/faculty/evaluations",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "faculty", "evaluations"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Evaluation Endpoints",
+      "item": [
+        {
+          "name": "Submit Evaluation Marks",
+          "request": {
+            "method": "POST",
+            "header": [{
+              "key": "Content-Type",
+              "value": "application/json"
+            }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"groupId\": \"{{groupId}}\",\n  \"panelId\": \"{{panelId}}\",\n  \"marksObtained\": 85,\n  \"comments\": \"Excellent project execution and presentation\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/evaluations/submit",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "evaluations", "submit"]
+            }
+          }
+        },
+        {
+          "name": "Get Evaluation Status",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/evaluations/status/{{groupId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "evaluations", "status", "{{groupId}}"]
+            }
+          }
+        },
+        {
+          "name": "Get Semester Evaluations",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/evaluations?semester=5&academicYear=2025-26",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "evaluations"],
+              "query": [
+                {"key": "semester", "value": "5"},
+                {"key": "academicYear", "value": "2025-26"}
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Group Evaluation Marks",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/group-marks/{{groupId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "group-marks", "{{groupId}}"]
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:5000",
+      "type": "string"
+    },
+    {
+      "key": "panelId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "groupId",
+      "value": "",
+      "type": "string"
+    }
+  ]
+}
