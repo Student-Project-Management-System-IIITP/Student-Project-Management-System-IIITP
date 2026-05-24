@@ -146,6 +146,14 @@ const groupSchema = new mongoose.Schema({
       max: 5
     }
   }],
+
+  // Panel Assignment for Evaluation
+  panel: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Panel',
+    index: true,
+    default: null
+  },
   
   // Group Leader
   leader: {

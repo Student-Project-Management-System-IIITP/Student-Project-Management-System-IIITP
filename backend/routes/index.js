@@ -42,4 +42,8 @@ router.use('/sem8', sem8Routes);
 const internshipRoutes = require('./internshipRoutes');
 router.use('/internships', internshipRoutes);
 
+// Panel routes
+const panelRoutes = require('./panelRoutes');
+router.use('/panels', panelRoutes);
+
 module.exports = router;
