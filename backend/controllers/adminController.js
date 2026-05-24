@@ -8,7 +8,13 @@ const Group = require('../models/Group');
 const FacultyPreference = require('../models/FacultyPreference');
 const SystemConfig = require('../models/SystemConfig');
 const InternshipApplication = require('../models/InternshipApplication');
+const Panel = require('../models/Panel');
+const PanelConfiguration = require('../models/PanelConfiguration');
+const EvaluationMarks = require('../models/EvaluationMarks');
 const { runAllocationForGroups } = require('../services/allocationService');
+const panelAllocationService = require('../services/panelAllocationService');
+const { validatePanelMembers } = require('../utils/panelValidation');
+const panelGroupService = require('../services/panelGroupService');
 const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
 
@@ -5877,6 +5883,849 @@ const deallocateFacultyFromGroup = async (req, res) => {
   }
 };
 
+// ============================================
+// PANEL MANAGEMENT ENDPOINTS
+// ============================================
+
+// Check available faculty by department
+const checkFacultyAvailability = async (req, res) => {
+  try {
+    const faculty = await Faculty.find({ isRetired: false }).lean();
+    
+    const availability = {
+      CSE: 0,
+      ECE: 0,
+      ASH: 0,
+      total: faculty.length
+    };
+
+    faculty.forEach(f => {
+      const dept = f.department || 'CSE';
+      if (availability[dept] !== undefined) {
+        availability[dept]++;
+      }
+    });
+
+    return res.status(200).json({
+      success: true,
+      data: availability
+    });
+  } catch (error) {
+    return res.status(400).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
+// Get or Create Panel Configuration for an academic year
+const getPanelConfiguration = async (req, res) => {
+  try {
+    const { academicYear } = req.query;
+
+    let config = await PanelConfiguration.findOne({
+      academicYear: academicYear || new Date().getFullYear().toString()
+    });
+
+    if (!config) {
+      throw new Error('Panel configuration not found');
+    }
+
+    return res.status(200).json({
+      success: true,
+      data: config
+    });
+  } catch (error) {
+    return res.status(400).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
+// Create or Update Panel Configuration
+const setPanelConfiguration = async (req, res) => {
+  try {
+    const { academicYear } = req.params;
+    const {
+      panelSize,
+      departmentDistribution,
+      studentGroupSize,
+      marksDistribution,
+      totalProfessors,
+      maxGroupsPerPanel,
+      maxPanelsPerProfessor,
+      conveyerRotationEnabled,
+      noConveyerRepeatInSemester
+    } = req.body;
+
+    // Validate marks distribution
+    if (marksDistribution) {
+      const tempConfig = {
+        panelSize: panelSize || 3,
+        marksDistribution,
+        numberOfPanels: Math.ceil((totalProfessors || 27) / (panelSize || 3))
+      };
+
+      const numMembers = tempConfig.panelSize - 1;
+      const totalMarks = (marksDistribution.conveyer || 40) + ((marksDistribution.member || 30) * numMembers);
+      
+      if (totalMarks !== 100) {
+        return res.status(400).json({
+          success: false,
+          message: `Marks distribution must total 100. Current total: ${totalMarks}`
+        });
+      }
+    }
+
+    let config = await PanelConfiguration.findOne({ academicYear });
+
+    if (config) {
+      // Update existing
+      Object.assign(config, {
+        panelSize: panelSize !== undefined ? panelSize : config.panelSize,
+        departmentDistribution: departmentDistribution || config.departmentDistribution,
+        studentGroupSize: studentGroupSize || config.studentGroupSize,
+        marksDistribution: marksDistribution || config.marksDistribution,
+        totalProfessors: totalProfessors !== undefined ? totalProfessors : config.totalProfessors,
+        maxGroupsPerPanel: maxGroupsPerPanel !== undefined ? maxGroupsPerPanel : config.maxGroupsPerPanel,
+        maxPanelsPerProfessor: maxPanelsPerProfessor !== undefined ? maxPanelsPerProfessor : config.maxPanelsPerProfessor,
+        conveyerRotationEnabled: conveyerRotationEnabled !== undefined ? conveyerRotationEnabled : config.conveyerRotationEnabled,
+        noConveyerRepeatInSemester: noConveyerRepeatInSemester !== undefined ? noConveyerRepeatInSemester : config.noConveyerRepeatInSemester
+      });
+    } else {
+      // Create new
+      config = new PanelConfiguration({
+        academicYear,
+        panelSize: panelSize || 3,
+        departmentDistribution: departmentDistribution || { CSE: 1, ECE: 1, ASH: 1 },
+        studentGroupSize: studentGroupSize || { min: 4, max: 5 },
+        marksDistribution: marksDistribution || { conveyer: 40, member: 30 },
+        totalProfessors: totalProfessors || 27,
+        maxGroupsPerPanel: maxGroupsPerPanel || 10,
+        maxPanelsPerProfessor: maxPanelsPerProfessor || 3,
+        conveyerRotationEnabled: conveyerRotationEnabled !== undefined ? conveyerRotationEnabled : true,
+        noConveyerRepeatInSemester: noConveyerRepeatInSemester !== undefined ? noConveyerRepeatInSemester : true
+      });
+    }
+
+    await config.save();
+
+    return res.status(200).json({
+      success: true,
+      message: config._id ? 'Configuration updated successfully' : 'Configuration created successfully',
+      data: config
+    });
+  } catch (error) {
+    return res.status(400).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
+// Generate panels for a semester
+const generatePanelsForSemester = async (req, res) => {
+  try {
+    const { semester, academicYear } = req.body;
+
+    if (!semester || !academicYear) {
+      return res.status(400).json({
+        success: false,
+        message: 'Semester and academicYear are required'
+      });
+    }
+
+    // Check if panels already exist
+    const existingPanels = await Panel.findOne({ semester, academicYear, isActive: true });
+    if (existingPanels) {
+      return res.status(400).json({
+        success: false,
+        message: `Panels already exist for semester ${semester} in ${academicYear}`
+      });
+    }
+
+    const panels = await panelAllocationService.generatePanels(semester, academicYear);
+
+    return res.status(201).json({
+      success: true,
+      message: `Successfully generated ${panels.length} panels`,
+      data: {
+        count: panels.length,
+        panels: panels
+      }
+    });
+  } catch (error) {
+    return res.status(400).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
+// Get all panels for a semester
+const getPanelsBySemester = async (req, res) => {
+  try {
+    const { semester, academicYear } = req.query;
+
+    if (!semester || !academicYear) {
+      return res.status(400).json({
+        success: false,
+        message: 'Semester and academicYear are required'
+      });
+    }
+
+    const panels = await Panel.find({ semester: parseInt(semester), academicYear, isActive: true })
+      .populate('members.faculty', 'fullName email facultyId department');
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        count: panels.length,
+        panels: panels
+      }
+    });
+  } catch (error) {
+    return res.status(400).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
+// Get specific panel details
+const getPanelDetails = async (req, res) => {
+  try {
+    const { panelId } = req.params;
+
+    const panel = await Panel.findById(panelId)
+      .populate('members.faculty', 'fullName email facultyId department');
+
+    if (!panel) {
+      return res.status(404).json({
+        success: false,
+        message: 'Panel not found'
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      data: panel
+    });
+  } catch (error) {
+    return res.status(400).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
+// Update panel members (with conveyer uniqueness validation)
+const updatePanelMembers = async (req, res) => {
+  try {
+    const { panelId } = req.params;
+    const { members } = req.body;
+
+    if (!Array.isArray(members) || members.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Members array is required and must not be empty'
+      });
+    }
+
+    const panel = await Panel.findById(panelId);
+    if (!panel) {
+      return res.status(404).json({
+        success: false,
+        message: 'Panel not found'
+      });
+    }
+
+    // Validate members: conveyer count, duplicates, and cross-panel conveyer uniqueness
+    const validation = await validatePanelMembers(members, panelId);
+    if (!validation.valid) {
+      return res.status(400).json({
+        success: false,
+        message: validation.errors.join('; ')
+      });
+    }
+
+    panel.members = members;
+    await panel.save();
+
+    await panel.populate('members.faculty', 'fullName email facultyId department');
+
+    return res.status(200).json({
+      success: true,
+      message: 'Panel members updated successfully',
+      data: panel
+    });
+  } catch (error) {
+    return res.status(400).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
+// Rotate conveyers across panels
+const rotateConveyersForSemester = async (req, res) => {
+  try {
+    const { academicYear, semester } = req.body;
+
+    if (!academicYear || !semester) {
+      return res.status(400).json({
+        success: false,
+        message: 'academicYear and semester are required'
+      });
+    }
+
+    const result = await panelAllocationService.rotateConveyers(academicYear, semester);
+
+    return res.status(200).json({
+      success: true,
+      data: result
+    });
+  } catch (error) {
+    return res.status(400).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
+// Get panel load distribution
+const getPanelLoadDistribution = async (req, res) => {
+  try {
+    const { academicYear } = req.query;
+
+    if (!academicYear) {
+      return res.status(400).json({
+        success: false,
+        message: 'academicYear is required'
+      });
+    }
+
+    const distribution = await panelAllocationService.getPanelLoadDistribution(academicYear);
+
+    return res.status(200).json({
+      success: true,
+      data: distribution
+    });
+  } catch (error) {
+    return res.status(400).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
+// Delete panel
+const deletePanel = async (req, res) => {
+  try {
+    const { panelId } = req.params;
+
+    const panel = await Panel.findByIdAndDelete(panelId);
+
+    if (!panel) {
+      return res.status(404).json({
+        success: false,
+        message: 'Panel not found'
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'Panel deleted successfully'
+    });
+  } catch (error) {
+    return res.status(400).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
+// Get panels assigned to a faculty member
+const getFacultyPanels = async (req, res) => {
+  try {
+    // Get faculty ID from authenticated user
+    const userId = req.user.id;
+    
+    // Find faculty record associated with this user
+    const faculty = await Faculty.findOne({ user: userId });
+    if (!faculty) {
+      return res.status(404).json({
+        success: false,
+        message: 'Faculty profile not found for this user'
+      });
+    }
+
+    const panels = await Panel.find({
+      'members.faculty': faculty._id,
+      isActive: true
+    })
+      .populate('members.faculty', 'fullName email facultyId department');
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        count: panels.length,
+        panels: panels
+      }
+    });
+  } catch (error) {
+    return res.status(400).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
+// Get faculty evaluations
+const getFacultyEvaluations = async (req, res) => {
+  try {
+    // Get faculty ID from authenticated user
+    const userId = req.user.id;
+    
+    // Find faculty record associated with this user
+    const faculty = await Faculty.findOne({ user: userId });
+    if (!faculty) {
+      return res.status(404).json({
+        success: false,
+        message: 'Faculty profile not found for this user'
+      });
+    }
+    
+    const { semester, academicYear } = req.query;
+
+    let query = { 'marksDetails.conveyer.faculty': faculty._id };
+
+    if (semester) query.semester = parseInt(semester);
+    if (academicYear) query.academicYear = academicYear;
+
+    const evaluations = await EvaluationMarks.find(query)
+      .populate('group', 'name members')
+      .populate('panel', 'panelNumber members')
+      .lean();
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        count: evaluations.length,
+        evaluations: evaluations
+      }
+    });
+  } catch (error) {
+    return res.status(400).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
+// ============================================
+// EVALUATION ENDPOINTS
+// ============================================
+
+// Submit marks for a group evaluation
+const submitEvaluationMarks = async (req, res) => {
+  try {
+    const { groupId, panelId } = req.params;
+    const { marks, comments, role } = req.body;
+    const { facultyId } = req.user;
+
+    if (!marks || marks < 0 || marks > 100) {
+      return res.status(400).json({
+        success: false,
+        message: 'Marks must be between 0 and 100'
+      });
+    }
+
+    // Get panel to verify faculty is a member
+    const panel = await Panel.findById(panelId).populate('members.faculty');
+    if (!panel) {
+      return res.status(404).json({
+        success: false,
+        message: 'Panel not found'
+      });
+    }
+
+    const facultyMember = panel.members.find(m => String(m.faculty._id) === String(facultyId));
+    if (!facultyMember) {
+      return res.status(403).json({
+        success: false,
+        message: 'Faculty is not a member of this panel'
+      });
+    }
+
+    // Get group
+    const group = await Group.findById(groupId);
+    if (!group) {
+      return res.status(404).json({
+        success: false,
+        message: 'Group not found'
+      });
+    }
+
+    // Get or create evaluation record
+    let evaluation = await EvaluationMarks.findOne({
+      group: groupId,
+      panel: panelId
+    });
+
+    if (!evaluation) {
+      const project = await Project.findOne({ group: groupId });
+      evaluation = new EvaluationMarks({
+        project: project ? project._id : null,
+        group: groupId,
+        panel: panelId,
+        semester: project ? project.semester : null,
+        academicYear: project ? project.academicYear : null
+      });
+    }
+
+    // Submit marks based on role
+    if (facultyMember.role === 'conveyer') {
+      evaluation.marksDetails.conveyer = {
+        faculty: facultyId,
+        marks: marks,
+        comments: comments || '',
+        submittedAt: new Date()
+      };
+    } else {
+      // Add marks for panel member
+      const existingMember = evaluation.marksDetails.members.find(
+        m => String(m.faculty) === String(facultyId)
+      );
+
+      if (existingMember) {
+        existingMember.marks = marks;
+        existingMember.comments = comments || '';
+        existingMember.submittedAt = new Date();
+      } else {
+        evaluation.marksDetails.members.push({
+          faculty: facultyId,
+          marks: marks,
+          comments: comments || '',
+          submittedAt: new Date()
+        });
+      }
+    }
+
+    // Update status
+    if (evaluation.isCompletelyEvaluated()) {
+      evaluation.status = 'completed';
+      await evaluation.calculateTotalMarks();
+    } else {
+      const conveyerDone = evaluation.marksDetails.conveyer && evaluation.marksDetails.conveyer.marks !== undefined;
+      const membersDone = evaluation.marksDetails.members.length > 0 &&
+        evaluation.marksDetails.members.some(m => m.marks !== undefined);
+      evaluation.status = (conveyerDone || membersDone) ? 'partial' : 'pending';
+    }
+
+    await evaluation.save();
+
+    return res.status(200).json({
+      success: true,
+      message: 'Marks submitted successfully',
+      data: evaluation
+    });
+  } catch (error) {
+    return res.status(400).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
+// Get evaluation status for a group
+const getEvaluationStatus = async (req, res) => {
+  try {
+    const { groupId, panelId } = req.params;
+
+    const evaluation = await EvaluationMarks.findOne({
+      group: groupId,
+      panel: panelId
+    }).populate('panel', 'panelNumber members');
+
+    if (!evaluation) {
+      return res.status(404).json({
+        success: false,
+        message: 'Evaluation record not found'
+      });
+    }
+
+    // Calculate submission status for each panel member
+    const submissionStatus = [];
+
+    const conveyer = evaluation.marksDetails.conveyer;
+    if (conveyer) {
+      submissionStatus.push({
+        role: 'conveyer',
+        faculty: conveyer.faculty,
+        status: conveyer.marks !== undefined ? 'submitted' : 'pending',
+        marks: conveyer.marks,
+        submittedAt: conveyer.submittedAt
+      });
+    }
+
+    evaluation.marksDetails.members.forEach(member => {
+      submissionStatus.push({
+        role: 'member',
+        faculty: member.faculty,
+        status: member.marks !== undefined ? 'submitted' : 'pending',
+        marks: member.marks,
+        submittedAt: member.submittedAt
+      });
+    });
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        groupId,
+        panelId,
+        totalMarks: evaluation.totalMarks,
+        overallStatus: evaluation.status,
+        submissionStatus: submissionStatus
+      }
+    });
+  } catch (error) {
+    return res.status(400).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
+// Get all evaluations for a semester
+const getSemesterEvaluations = async (req, res) => {
+  try {
+    const { semester, academicYear } = req.query;
+
+    if (!semester || !academicYear) {
+      return res.status(400).json({
+        success: false,
+        message: 'Semester and academicYear are required'
+      });
+    }
+
+    const evaluations = await EvaluationMarks.find({
+      semester: parseInt(semester),
+      academicYear
+    })
+      .populate('group', 'groupName')
+      .populate('panel', 'panelNumber members')
+      .lean();
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        count: evaluations.length,
+        evaluations: evaluations
+      }
+    });
+  } catch (error) {
+    return res.status(400).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
+// Get evaluation marks for a group
+const getGroupEvaluationMarks = async (req, res) => {
+  try {
+    const { groupId } = req.params;
+
+    const evaluations = await EvaluationMarks.find({ group: groupId })
+      .populate('panel', 'panelNumber members')
+      .populate('marksDetails.conveyer.faculty', 'fullName email')
+      .populate('marksDetails.members.faculty', 'fullName email');
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        groupId,
+        evaluations: evaluations
+      }
+    });
+  } catch (error) {
+    return res.status(400).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
+// ============================================
+// PANEL GROUP ASSIGNMENT ENDPOINTS
+// ============================================
+
+// Get eligible groups for panel assignment
+const getEligibleGroups = async (req, res) => {
+  try {
+    const { semester, academicYear } = req.query;
+
+    if (!semester || !academicYear) {
+      return res.status(400).json({
+        success: false,
+        message: 'semester and academicYear are required'
+      });
+    }
+
+    const groups = await panelGroupService.getEligibleGroupsForSemester(
+      parseInt(semester),
+      academicYear
+    );
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        count: groups.length,
+        groups
+      }
+    });
+  } catch (error) {
+    return res.status(400).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
+// Get all groups in a semester with assignment status breakdown
+const getSemesterGroups = async (req, res) => {
+  try {
+    const { semester, academicYear } = req.query;
+
+    if (!semester || !academicYear) {
+      return res.status(400).json({
+        success: false,
+        message: 'semester and academicYear are required'
+      });
+    }
+
+    const result = await panelGroupService.getAllGroupsInSemester(
+      parseInt(semester),
+      academicYear
+    );
+
+    return res.status(200).json({
+      success: true,
+      data: result
+    });
+  } catch (error) {
+    return res.status(400).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
+// Auto-assign eligible groups to panels
+const autoAssignGroups = async (req, res) => {
+  try {
+    const { semester, academicYear } = req.body;
+
+    if (!semester || !academicYear) {
+      return res.status(400).json({
+        success: false,
+        message: 'semester and academicYear are required'
+      });
+    }
+
+    const result = await panelGroupService.autoAssignGroupsToPanels(
+      parseInt(semester),
+      academicYear
+    );
+
+    return res.status(200).json({
+      success: true,
+      data: result
+    });
+  } catch (error) {
+    return res.status(400).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
+// Move a group to a different panel
+const moveGroup = async (req, res) => {
+  try {
+    const { panelId, groupId } = req.params;
+
+    if (!panelId || !groupId) {
+      return res.status(400).json({
+        success: false,
+        message: 'panelId and groupId are required'
+      });
+    }
+
+    const result = await panelGroupService.moveGroupToPanel(groupId, panelId);
+
+    return res.status(200).json({
+      success: true,
+      data: result
+    });
+  } catch (error) {
+    if (error.message.includes('not found')) {
+      return res.status(404).json({
+        success: false,
+        message: error.message
+      });
+    }
+    return res.status(400).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
+// Deallocate a group from its panel
+const deallocateGroup = async (req, res) => {
+  try {
+    const { groupId } = req.params;
+
+    if (!groupId) {
+      return res.status(400).json({
+        success: false,
+        message: 'groupId is required'
+      });
+    }
+
+    const group = await Group.findById(groupId);
+    if (!group) {
+      return res.status(404).json({
+        success: false,
+        message: 'Group not found'
+      });
+    }
+
+    if (!group.panel) {
+      return res.status(400).json({
+        success: false,
+        message: 'Group is not assigned to any panel'
+      });
+    }
+
+    group.panel = null;
+    await group.save();
+
+    return res.status(200).json({
+      success: true,
+      message: 'Group deallocated successfully'
+    });
+  } catch (error) {
+    return res.status(400).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
 module.exports = {
   getAdminProfile,
   updateAdminProfile,
@@ -5938,15 +6787,31 @@ module.exports = {
   // Semester Management functions
   updateStudentSemesters,
   getStudentsBySemester,
-  // Admin Group Management functions (Sem 5)
-  addMemberToGroup,
-  removeMemberFromGroup,
-  changeGroupLeader,
-  updateGroupInfo,
-  getGroupDetails,
-  disbandGroup,
-  allocateFacultyToGroup,
-  deallocateFacultyFromGroup,
+  // Admin Group Management functions (Sem 5, 6, 7, 8)
   updateStudentProfile,
   resetStudentPassword,
+  // Panel Management functions
+  checkFacultyAvailability,
+  getPanelConfiguration,
+  setPanelConfiguration,
+  generatePanelsForSemester,
+  getPanelsBySemester,
+  getPanelDetails,
+  updatePanelMembers,
+  rotateConveyersForSemester,
+  getPanelLoadDistribution,
+  deletePanel,
+  getFacultyPanels,
+  getFacultyEvaluations,
+  // Panel Group Management functions
+  getEligibleGroups,
+  getSemesterGroups,
+  autoAssignGroups,
+  moveGroup,
+  deallocateGroup,
+  // Evaluation functions
+  submitEvaluationMarks,
+  getEvaluationStatus,
+  getSemesterEvaluations,
+  getGroupEvaluationMarks
 };
