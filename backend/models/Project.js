@@ -59,6 +59,14 @@ const projectSchema = new mongoose.Schema({
     }
   }],
 
+  // Panel Assignment for Evaluation
+  panel: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Panel',
+    index: true,
+    default: null
+  },
+
   // Semester Information
   semester: {
     type: Number,

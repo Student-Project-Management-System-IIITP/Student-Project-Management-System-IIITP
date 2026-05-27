@@ -436,7 +436,9 @@ const Navbar = ({ userRole: propUserRole = null, user: propUser = null, roleData
     // Faculty Navigation
     if (userRole === 'faculty') {
       items.push(
-        { name: 'Dashboard', path: '/dashboard/faculty' }
+        { name: 'Dashboard', path: '/dashboard/faculty' },
+        { name: 'My Panels', path: '/faculty/panels' },
+        { name: 'Evaluations', path: '/faculty/evaluation' }
       );
     }
 
@@ -485,6 +487,11 @@ const Navbar = ({ userRole: propUserRole = null, user: propUser = null, roleData
               ]
             }
           ]
+        },
+        { 
+          name: 'Panel Management', 
+          path: '/admin/panel-config',
+          isDropdown: false
         },
         { 
           name: 'Settings', 

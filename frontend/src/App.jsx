@@ -65,6 +65,9 @@ import MTechSem3MajorProjectRegister from './pages/student/MTechSem3MajorProject
 import Sem8TrackSelection from './pages/student/Sem8TrackSelection';
 import Sem8Status from './pages/student/Sem8Status';
 import MajorProject2Dashboard from './pages/student/MajorProject2Dashboard';
+import PanelConfiguration from './pages/admin/PanelConfiguration';
+import PanelView from './pages/faculty/PanelView';
+import EvaluationSubmission from './pages/faculty/EvaluationSubmission';
 
 function App() {
   return (
@@ -527,8 +530,28 @@ function AppContent() {
                 <ManageProjects />
               </Layout>
             </ProtectedRoute>
+          } />          {/* Panel Management Routes */}
+          <Route path="/admin/panel-config" element={
+            <ProtectedRoute allowedRoles={['admin']}>
+              <Layout>
+                <PanelConfiguration />
+              </Layout>
+            </ProtectedRoute>
           } />
-          {/* Shared Routes - Accessible by all authenticated users */}
+          <Route path="/faculty/panels" element={
+            <ProtectedRoute allowedRoles={['faculty']}>
+              <Layout>
+                <PanelView />
+              </Layout>
+            </ProtectedRoute>
+          } />
+          <Route path="/faculty/evaluation" element={
+            <ProtectedRoute allowedRoles={['faculty']}>
+              <Layout>
+                <EvaluationSubmission />
+              </Layout>
+            </ProtectedRoute>
+          } />          {/* Shared Routes - Accessible by all authenticated users */}
           <Route path="/projects/:projectId" element={
             <ProtectedRoute allowedRoles={['student', 'faculty', 'admin']}>
               <ProjectDetails />

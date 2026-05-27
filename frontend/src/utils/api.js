@@ -639,6 +639,53 @@ export const adminAPI = {
     return apiRequest(url.href.replace(API_BASE_URL, ''));
   },
   reviewInternshipApplication: (applicationId, data) => api.patch(`/internships/applications/${applicationId}/review`, data),
+
+  // Panel Management APIs
+  checkFacultyAvailability: () => api.get('/panels/faculty-availability'),
+  getPanelConfiguration: (params = {}) => {
+    const queryString = new URLSearchParams(params).toString();
+    return api.get(`/panels/config${queryString ? '?' + queryString : ''}`);
+  },
+  setPanelConfiguration: (academicYear, data) => api.post(`/panels/config/${academicYear}`, data),
+  generatePanels: (data) => api.post('/panels/generate', data),
+  getPanelsBySemester: (params = {}) => {
+    const queryString = new URLSearchParams(params).toString();
+    return api.get(`/panels/semester${queryString ? '?' + queryString : ''}`);
+  },
+  getPanelDetails: (panelId) => api.get(`/panels/${panelId}`),
+  updatePanelMembers: (panelId, data) => api.put(`/panels/${panelId}/members`, data),
+  rotateConveyers: (data) => api.post('/panels/rotate-conveyers', data),
+  getPanelLoadDistribution: (params = {}) => {
+    const queryString = new URLSearchParams(params).toString();
+    return api.get(`/panels/load-distribution${queryString ? '?' + queryString : ''}`);
+  },
+  deletePanel: (panelId) => api.delete(`/panels/${panelId}`),
+  // Faculty endpoints - no need to pass facultyId, uses authenticated user
+  getFacultyPanels: () => api.get('/panels/faculty/panels'),
+  getFacultyEvaluations: (params = {}) => {
+    const queryString = new URLSearchParams(params).toString();
+    return api.get(`/panels/faculty/evaluations${queryString ? '?' + queryString : ''}`);
+  },
+  submitEvaluationMarks: (panelId, groupId, data) => api.post(`/panels/${panelId}/group/${groupId}/marks`, data),
+  getEvaluationStatus: (panelId, groupId) => api.get(`/panels/${panelId}/group/${groupId}/evaluation-status`),
+  getSemesterEvaluations: (params = {}) => {
+    const queryString = new URLSearchParams(params).toString();
+    return api.get(`/panels/semester-evaluations${queryString ? '?' + queryString : ''}`);
+  },
+  getGroupEvaluationMarks: (groupId) => api.get(`/panels/group/${groupId}/marks`),
+
+  // Panel Group Assignment APIs
+  getSemesterGroups: (params = {}) => {
+    const queryString = new URLSearchParams(params).toString();
+    return api.get(`/panels/groups/semester${queryString ? '?' + queryString : ''}`);
+  },
+  getEligibleGroups: (params = {}) => {
+    const queryString = new URLSearchParams(params).toString();
+    return api.get(`/panels/groups/eligible${queryString ? '?' + queryString : ''}`);
+  },
+  autoAssignGroups: (data) => api.post('/panels/groups/auto-assign', data),
+  moveGroupToPanel: (panelId, groupId) => api.put(`/panels/${panelId}/groups/${groupId}/move`),
+  deallocateGroupFromPanel: (groupId) => api.put(`/panels/groups/${groupId}/deallocate`),
 };
 
 // Project APIs (shared)
