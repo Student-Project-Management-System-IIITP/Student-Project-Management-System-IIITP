@@ -22,14 +22,25 @@ const getTransporter = () => {
     return null;
   }
 
+  const dns = require('dns');
+  const port = Number(EMAIL_PORT) || 587;
+  
   transporter = nodemailer.createTransport({
     host: EMAIL_HOST,
-    port: Number(EMAIL_PORT) || 587,
-    secure: EMAIL_SECURE === 'true',
+    port: port,
+    // Automatically use SSL (secure: true) for port 465, otherwise respect EMAIL_SECURE flag
+    secure: EMAIL_SECURE === 'true' || port === 465,
     auth: {
       user: EMAIL_USER,
       pass: EMAIL_PASS,
     },
+    // Force IPv4 DNS resolution to prevent IPv6 unreachable network errors
+    lookup: (hostname, options, callback) => {
+      dns.lookup(hostname, { family: 4 }, callback);
+    },
+    connectionTimeout: 10000, // Fail fast (10s) instead of hanging
+    greetingTimeout: 10000,
+    socketTimeout: 10000,
   });
 
   return transporter;
