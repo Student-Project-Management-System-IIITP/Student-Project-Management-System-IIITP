@@ -1,4 +1,11 @@
 require("dotenv").config();
+const dns = require('dns');
+
+// Force IPv4 resolution first to prevent IPv6 ENETUNREACH errors on environments like Render
+if (dns.setDefaultResultOrder) {
+  dns.setDefaultResultOrder('ipv4first');
+}
+
 const express = require('express');
 const cors = require('cors');
 const http = require('http');
@@ -49,19 +56,19 @@ const startServer = async () => {
   try {
     // Connect to database first
     await connectDB();
-    
+
     // Start the HTTP server
     server.listen(PORT, () => {
       console.log(`🚀 Backend Server running on http://localhost:${PORT}`);
     });
-    
+
     // Initialize Socket.IO after server is running
     socketService = new SocketService(server);
     console.log(`🔥 Socket.IO real-time service ready`);
-    
+
     // Make socket service available to routes/middleware 
     app.set('socketService', socketService);
-    
+
   } catch (error) {
     console.error('❌ Failed to start server:', error);
     process.exit(1);
