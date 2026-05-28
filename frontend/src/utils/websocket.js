@@ -17,7 +17,7 @@ class WebSocketManager {
     }
 
     try {
-      const wsUrl = process.env.VITE_WS_URL || 'ws://localhost:3000';
+      const wsUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
       this.socket = new WebSocket(`${wsUrl}?token=${token}`);
 
       this.socket.onopen = () => {

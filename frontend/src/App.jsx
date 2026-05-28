@@ -37,9 +37,6 @@ import Sem8TrackFinalization from './pages/admin/Sem8TrackFinalization';
 import SystemConfiguration from './pages/admin/SystemConfiguration';
 import NotFound from './pages/NotFound';
 import AdminProfile from './pages/admin/Profile';
-import ToastDemo from './components/common/ToastDemo';
-import SignupTestDemo from './components/auth/SignupTestDemo';
-import SpecificErrorTestDemo from './components/auth/SpecificErrorTestDemo';
 import FacultyProfile from './pages/faculty/Profile';
 import StudentProfile from './pages/student/Profile';
 import Sem4ProjectDashboard from './pages/student/Sem4ProjectDashboard';
@@ -557,22 +554,7 @@ function AppContent() {
               <ProjectDetails />
             </ProtectedRoute>
           } />
-          {/* Demo Routes - Remove in production */}
-          <Route path="/toast-demo" element={
-            <Layout>
-              <ToastDemo />
-            </Layout>
-          } />
-          <Route path="/signup-test-demo" element={
-            <Layout>
-              <SignupTestDemo />
-            </Layout>
-          } />
-          <Route path="/specific-error-test-demo" element={
-            <Layout>
-              <SpecificErrorTestDemo />
-            </Layout>
-          } />
+          {/* Demo Routes - Removed for production */}
           <Route path="*" element={
             <Layout>
               <NotFound />
