@@ -142,6 +142,7 @@ export const toastMessages = {
   updateSuccess: 'Updated successfully!',
   genericError: 'Something went wrong. Please try again.',
   networkError: 'Network error. Please check your connection.',
+  dbConnectionError: 'Database connection failed. Try again later',
   unauthorized: 'You are not authorized to perform this action.',
   validationError: 'Please check the form for errors.',
 };
