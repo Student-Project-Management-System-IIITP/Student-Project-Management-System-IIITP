@@ -239,10 +239,13 @@ const sendSignupOtp = async (req, res) => {
       }
     }
 
+    // Hash OTP using bcryptjs before storing in database
+    const hashedOtp = await bcrypt.hash(otp, 10);
+
     // Create OTP record if email was sent successfully OR in development mode
     await SignupOtp.create({
       email,
-      otp,
+      otp: hashedOtp,
       purpose: 'signup',
       expiresAt,
     });
@@ -301,7 +304,9 @@ const verifySignupOtp = async (req, res) => {
       });
     }
 
-    if (record.otp !== otp) {
+    // Verify OTP using bcryptjs.compare
+    const isValidOtp = await bcrypt.compare(otp, record.otp);
+    if (!isValidOtp) {
       return res.status(400).json({
         success: false,
         message: 'Invalid OTP. Please try again.',
