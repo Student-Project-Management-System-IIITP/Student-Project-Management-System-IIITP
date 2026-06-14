@@ -15,6 +15,7 @@ const { runAllocationForGroups } = require('../services/allocationService');
 const panelAllocationService = require('../services/panelAllocationService');
 const { validatePanelMembers } = require('../utils/panelValidation');
 const panelGroupService = require('../services/panelGroupService');
+const { sendEmail } = require('../services/emailService');
 const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
 
@@ -720,12 +721,19 @@ const resetStudentPassword = async (req, res) => {
 
     await User.updateOne({ _id: user._id }, { password: hashedPassword });
 
+    try {
+      await sendEmail({
+        to: user.email,
+        subject: 'Your Password Has Been Reset',
+        text: `Hello ${student.fullName},\n\nYour password has been reset by an administrator.\nYour new password is: ${newPassword}\n\nPlease log in and change your password immediately.`,
+      });
+    } catch (emailError) {
+      console.warn('Failed to send password reset email:', emailError);
+    }
+
     res.json({
       success: true,
-      message: 'Password reset successfully',
-      data: {
-        newPassword,
-      },
+      message: 'Password reset successfully. An email has been sent to the student.',
     });
   } catch (error) {
     console.error('Error resetting student password:', error);
@@ -1050,12 +1058,19 @@ const resetFacultyPassword = async (req, res) => {
     user.password = newPassword;
     await user.save();
 
+    try {
+      await sendEmail({
+        to: user.email,
+        subject: 'Your Password Has Been Reset',
+        text: `Hello ${faculty.fullName},\n\nYour password has been reset by an administrator.\nYour new password is: ${newPassword}\n\nPlease log in and change your password immediately.`,
+      });
+    } catch (emailError) {
+      console.warn('Failed to send password reset email:', emailError);
+    }
+
     res.json({
       success: true,
-      message: 'Password reset successfully',
-      data: {
-        newPassword
-      }
+      message: 'Password reset successfully. An email has been sent to the faculty member.',
     });
   } catch (error) {
     console.error('Error resetting faculty password:', error);

@@ -27,8 +27,6 @@ const ManageFaculty = () => {
   const [totalCount, setTotalCount] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
   const listContainerRef = useRef(null);
-  const [isResetModalOpen, setIsResetModalOpen] = useState(false);
-  const [newPassword, setNewPassword] = useState('');
 
   const loadFaculties = async (overridePage, overridePageSize) => {
     try {
@@ -170,30 +168,15 @@ const ManageFaculty = () => {
 
   const handleResetPassword = async () => {
     if (!selectedFaculty || !selectedFaculty.faculty) return;
-    const confirmed = window.confirm('Reset password for this faculty? A new random password will be generated.');
+    const confirmed = window.confirm('Reset password for this faculty? A new random password will be generated and emailed to them.');
     if (!confirmed) return;
     try {
       const facultyId = selectedFaculty.faculty.facultyId;
       const response = await facultyAPI.resetPassword(facultyId);
-      const newPassword = response.data?.newPassword || response.newPassword;
-      if (newPassword) {
-        setNewPassword(newPassword);
-        setIsResetModalOpen(true);
-      }
-      showSuccess('Password reset successfully');
+      showSuccess(response.message || 'Password reset successfully. An email has been sent to the faculty member.');
     } catch (error) {
       const message = handleApiError(error, false);
       showError(message || 'Failed to reset faculty password');
-    }
-  };
-
-  const copyPassword = async () => {
-    if (!newPassword) return;
-    try {
-      await navigator.clipboard.writeText(newPassword);
-      showSuccess('Password copied to clipboard');
-    } catch (error) {
-      showError('Failed to copy password');
     }
   };
 
@@ -612,51 +595,6 @@ const ManageFaculty = () => {
                 </button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
-      {isResetModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
-          <div className="bg-white rounded-lg shadow-xl w-full max-w-md p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold text-gray-900">New Password</h2>
-              <button
-                type="button"
-                onClick={() => setIsResetModalOpen(false)}
-                className="text-gray-400 hover:text-gray-600 text-xl leading-none"
-              >
-                ×
-              </button>
-            </div>
-            <div className="space-y-3">
-              <p className="text-sm text-gray-700">
-                Share this password securely with the faculty. They should change it after logging in.
-              </p>
-              <div className="flex items-center gap-2">
-                <input
-                  type="text"
-                  readOnly
-                  value={newPassword}
-                  className="flex-1 px-3 py-2 border border-gray-300 rounded-md text-sm bg-gray-50"
-                />
-                <button
-                  type="button"
-                  onClick={copyPassword}
-                  className="px-3 py-1.5 rounded-md bg-indigo-600 text-white text-xs font-medium hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                >
-                  Copy
-                </button>
-              </div>
-              <div className="flex justify-end mt-4">
-                <button
-                  type="button"
-                  onClick={() => setIsResetModalOpen(false)}
-                  className="px-3 py-1.5 rounded-md border border-gray-300 text-xs font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-300"
-                >
-                  Close
-                </button>
-              </div>
-            </div>
           </div>
         </div>
       )}
