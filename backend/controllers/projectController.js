@@ -1068,6 +1068,11 @@ const downloadChatFile = async (req, res) => {
     const path = require('path');
     const { chatUploadDir } = require('../middleware/chatUpload');
     const filePath = path.join(chatUploadDir, filename);
+    const resolvedPath = path.resolve(filePath);
+    const resolvedDir = path.resolve(chatUploadDir);
+    if (!resolvedPath.startsWith(resolvedDir + path.sep)) {
+      return res.status(400).json({ success: false, message: 'Invalid filename' });
+    }
 
     // Check if file exists
     const fs = require('fs');
@@ -1365,6 +1370,11 @@ const downloadDeliverable = async (req, res) => {
 
     const path = require('path');
     const filePath = path.join(deliverableUploadDir, filename);
+    const resolvedPath = path.resolve(filePath);
+    const resolvedDir = path.resolve(deliverableUploadDir);
+    if (!resolvedPath.startsWith(resolvedDir + path.sep)) {
+      return res.status(400).json({ success: false, message: 'Invalid filename' });
+    }
 
     const fs = require('fs');
     if (!fs.existsSync(filePath)) {
@@ -1443,6 +1453,11 @@ const deleteDeliverable = async (req, res) => {
     const path = require('path');
     if (deliverable.filename) {
       const filePath = path.join(deliverableUploadDir, deliverable.filename);
+      const resolvedPath = path.resolve(filePath);
+      const resolvedDir = path.resolve(deliverableUploadDir);
+      if (!resolvedPath.startsWith(resolvedDir + path.sep)) {
+        return res.status(400).json({ success: false, message: 'Invalid filename' });
+      }
       if (fs.existsSync(filePath)) {
         try {
           fs.unlinkSync(filePath);
