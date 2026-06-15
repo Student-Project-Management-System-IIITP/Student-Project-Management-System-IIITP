@@ -82,15 +82,15 @@ const StudentProfileCard = ({ data, onUpdated }) => {
 
   const handleResetPassword = async () => {
     if (isResetting) return;
-    const confirmed = window.confirm('Reset password for this student? A new random password will be generated and emailed to them.');
+    const confirmed = window.confirm('Send a password reset link to this student?');
     if (!confirmed) return;
     try {
       setIsResetting(true);
       const response = await studentAPI.resetPassword(student._id);
-      showSuccess(response.message || 'Password reset successfully. An email has been sent to the student.');
+      showSuccess(response.message || 'Password reset link sent successfully to the student.');
     } catch (error) {
       const message = handleApiError(error, false);
-      showError(message || 'Failed to reset password');
+      showError(message || 'Failed to send password reset link');
     } finally {
       setIsResetting(false);
     }

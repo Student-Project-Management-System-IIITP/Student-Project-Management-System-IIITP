@@ -168,15 +168,15 @@ const ManageFaculty = () => {
 
   const handleResetPassword = async () => {
     if (!selectedFaculty || !selectedFaculty.faculty) return;
-    const confirmed = window.confirm('Reset password for this faculty? A new random password will be generated and emailed to them.');
+    const confirmed = window.confirm('Send a password reset link to this faculty member?');
     if (!confirmed) return;
     try {
       const facultyId = selectedFaculty.faculty.facultyId;
       const response = await facultyAPI.resetPassword(facultyId);
-      showSuccess(response.message || 'Password reset successfully. An email has been sent to the faculty member.');
+      showSuccess(response.message || 'Password reset link sent successfully to the faculty member.');
     } catch (error) {
       const message = handleApiError(error, false);
-      showError(message || 'Failed to reset faculty password');
+      showError(message || 'Failed to send password reset link');
     }
   };
 

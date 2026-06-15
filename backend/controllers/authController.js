@@ -75,10 +75,23 @@ const requestPasswordReset = async (req, res) => {
       await sendEmail({ to: email, subject, text, html });
     } catch (emailError) {
       console.error('Error sending password reset email:', emailError);
-      return res.status(500).json({
-        success: false,
-        message: 'Failed to send password reset email. Please try again later.'
-      });
+      
+      const isDevelopment = process.env.NODE_ENV === 'development';
+      if (isDevelopment) {
+        console.log(`\n⚠️  EMAIL SENDING FAILED (DEV MODE) - RESET LINK FOR ${email}:\n${resetUrl}\n`);
+        // We still return the generic success message below to match production security behavior
+      } else {
+        // Revert the token if email fails to prevent orphaned tokens, safely
+        await User.updateOne(
+          { _id: user._id, resetPasswordTokenHash: tokenHash },
+          { $unset: { resetPasswordTokenHash: 1, resetPasswordExpiresAt: 1 } }
+        );
+
+        return res.status(500).json({
+          success: false,
+          message: 'Failed to send password reset email. Please try again later.'
+        });
+      }
     }
 
     return res.status(200).json({

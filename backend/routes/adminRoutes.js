@@ -22,14 +22,16 @@ router.get('/students', adminController.searchStudents);
 router.get('/students/by-semester', adminController.getStudentsBySemester);
 router.post('/students/update-semesters', adminController.updateStudentSemesters);
 // Student detail routes - must come after specific routes
+const { adminPasswordResetLimiter } = require('../middleware/rateLimiter');
+
 router.get('/students/:studentId', adminController.getStudentDetails);
 router.put('/students/:studentId', adminController.updateStudentProfile);
-router.post('/students/:studentId/reset-password', adminController.resetStudentPassword);
+router.post('/students/:studentId/reset-password', adminPasswordResetLimiter, adminController.resetStudentPassword);
 router.get('/faculty', adminController.getFaculty);
 router.get('/faculties', adminController.searchFaculties);
 router.get('/faculties/:facultyId', adminController.getFacultyDetails);
 router.put('/faculties/:facultyId', adminController.updateFacultyProfile);
-router.post('/faculties/:facultyId/reset-password', adminController.resetFacultyPassword);
+router.post('/faculties/:facultyId/reset-password', adminPasswordResetLimiter, adminController.resetFacultyPassword);
 
 // Project management routes
 router.get('/projects', adminController.getProjects);
