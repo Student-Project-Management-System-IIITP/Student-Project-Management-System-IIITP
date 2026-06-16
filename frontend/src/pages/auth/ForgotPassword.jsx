@@ -8,11 +8,30 @@ const ForgotPassword = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const [cooldownTimer, setCooldownTimer] = useState(0);
 
   const navigate = useNavigate();
 
+  React.useEffect(() => {
+    let timerId;
+    if (cooldownTimer > 0) {
+      timerId = setInterval(() => {
+        setCooldownTimer((prev) => {
+          if (prev <= 1) {
+            clearInterval(timerId);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    }
+    return () => clearInterval(timerId);
+  }, [cooldownTimer > 0]);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (cooldownTimer > 0) return;
+
     setIsLoading(true);
     setMessage('');
     setError('');
@@ -24,12 +43,16 @@ const ForgotPassword = () => {
         'If an account with this email exists, a password reset link has been sent.';
       setMessage(msg);
       toast.success(msg, { duration: 4000 });
+      setCooldownTimer(60); // Start 60 second cooldown
     } catch (err) {
       const msg =
         err?.response?.data?.message ||
         'Failed to request password reset. Please try again later.';
       setError(msg);
       toast.error(msg, { duration: 4000 });
+      if (err?.response?.status === 429) {
+        setCooldownTimer(60); // Start cooldown if rate limited
+      }
     } finally {
       setIsLoading(false);
     }
@@ -84,10 +107,14 @@ const ForgotPassword = () => {
 
           <button
             type="submit"
-            disabled={isLoading}
+            disabled={isLoading || cooldownTimer > 0}
             className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white font-semibold py-3 px-4 rounded-lg transition duration-200"
           >
-            {isLoading ? 'Sending reset link...' : 'Send reset link'}
+            {isLoading 
+              ? 'Sending reset link...' 
+              : cooldownTimer > 0 
+                ? `Resend link in ${cooldownTimer}s` 
+                : 'Send reset link'}
           </button>
         </form>
 

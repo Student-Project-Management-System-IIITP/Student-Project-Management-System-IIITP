@@ -15,6 +15,7 @@ const { runAllocationForGroups } = require('../services/allocationService');
 const panelAllocationService = require('../services/panelAllocationService');
 const { validatePanelMembers } = require('../utils/panelValidation');
 const panelGroupService = require('../services/panelGroupService');
+const { sendEmail } = require('../services/emailService');
 const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
 
@@ -710,23 +711,59 @@ const resetStudentPassword = async (req, res) => {
 
     const user = student.user;
 
-    const newPassword = crypto
-      .randomBytes(6)
-      .toString('base64')
-      .replace(/[+/=]/g, 'A')
-      .slice(0, 10);
+    const resetToken = crypto.randomBytes(32).toString('hex');
+    const tokenHash = crypto.createHash('sha256').update(resetToken).digest('hex');
+    const expiresAt = new Date(Date.now() + 60 * 60 * 1000);
 
-    const hashedPassword = await bcrypt.hash(newPassword, 12);
+    user.resetPasswordTokenHash = tokenHash;
+    user.resetPasswordExpiresAt = expiresAt;
+    await user.save();
 
-    await User.updateOne({ _id: user._id }, { password: hashedPassword });
+    const frontendBaseUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+    const resetUrl = `${frontendBaseUrl}/reset-password?token=${resetToken}&email=${encodeURIComponent(user.email)}`;
 
-    res.json({
-      success: true,
-      message: 'Password reset successfully',
-      data: {
-        newPassword,
-      },
-    });
+    try {
+      await sendEmail({
+        to: user.email,
+        subject: 'SPMS IIITP - Password Reset Request',
+        text: `Hello ${student.fullName},\n\nAn administrator has requested a password reset for your account.\n\nPlease click the link below to reset your password:\n${resetUrl}\n\nThis link will expire in 1 hour.`,
+        html: `
+          <p>Hello ${student.fullName},</p>
+          <p>An administrator has requested a password reset for your account.</p>
+          <p>Please click the link below to reset your password:</p>
+          <p><a href="${resetUrl}">Reset Password</a></p>
+          <p>This link will expire in <strong>1 hour</strong>.</p>
+          <p>Regards,<br/>SPMS IIIT Pune</p>
+        `
+      });
+
+      res.json({
+        success: true,
+        message: 'Password reset link sent successfully to the student.',
+      });
+    } catch (emailError) {
+      console.error('Failed to send password reset email:', emailError);
+      
+      const isDevelopment = process.env.NODE_ENV === 'development';
+      if (isDevelopment) {
+        console.log(`\n⚠️  EMAIL SENDING FAILED (DEV MODE) - RESET LINK FOR ${user.email}:\n${resetUrl}\n`);
+        return res.json({
+          success: true,
+          message: 'Password reset link generated (Check terminal console for the link).',
+        });
+      }
+
+      // Revert token to prevent orphaned valid tokens, but only if it hasn't been overwritten by a newer request
+      await User.updateOne(
+        { _id: user._id, resetPasswordTokenHash: tokenHash },
+        { $unset: { resetPasswordTokenHash: 1, resetPasswordExpiresAt: 1 } }
+      );
+
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to send password reset email. No changes were made.',
+      });
+    }
   } catch (error) {
     console.error('Error resetting student password:', error);
     res.status(500).json({
@@ -1033,30 +1070,59 @@ const resetFacultyPassword = async (req, res) => {
 
     const user = faculty.user;
 
-    // Generate a secure random password
-    const generatePassword = (length = 10) => {
-      const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%^&*';
-      const bytes = crypto.randomBytes(length);
-      let password = '';
-      for (let i = 0; i < length; i++) {
-        password += chars[bytes[i] % chars.length];
-      }
-      return password;
-    };
+    const resetToken = crypto.randomBytes(32).toString('hex');
+    const tokenHash = crypto.createHash('sha256').update(resetToken).digest('hex');
+    const expiresAt = new Date(Date.now() + 60 * 60 * 1000);
 
-    const newPassword = generatePassword(10);
-
-    // User schema pre-save hook will hash the password
-    user.password = newPassword;
+    user.resetPasswordTokenHash = tokenHash;
+    user.resetPasswordExpiresAt = expiresAt;
     await user.save();
 
-    res.json({
-      success: true,
-      message: 'Password reset successfully',
-      data: {
-        newPassword
+    const frontendBaseUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+    const resetUrl = `${frontendBaseUrl}/reset-password?token=${resetToken}&email=${encodeURIComponent(user.email)}`;
+
+    try {
+      await sendEmail({
+        to: user.email,
+        subject: 'SPMS IIITP - Password Reset Request',
+        text: `Hello ${faculty.fullName},\n\nAn administrator has requested a password reset for your account.\n\nPlease click the link below to reset your password:\n${resetUrl}\n\nThis link will expire in 1 hour.`,
+        html: `
+          <p>Hello ${faculty.fullName},</p>
+          <p>An administrator has requested a password reset for your account.</p>
+          <p>Please click the link below to reset your password:</p>
+          <p><a href="${resetUrl}">Reset Password</a></p>
+          <p>This link will expire in <strong>1 hour</strong>.</p>
+          <p>Regards,<br/>SPMS IIIT Pune</p>
+        `
+      });
+
+      res.json({
+        success: true,
+        message: 'Password reset link sent successfully to the faculty member.',
+      });
+    } catch (emailError) {
+      console.error('Failed to send password reset email:', emailError);
+      
+      const isDevelopment = process.env.NODE_ENV === 'development';
+      if (isDevelopment) {
+        console.log(`\n⚠️  EMAIL SENDING FAILED (DEV MODE) - RESET LINK FOR ${user.email}:\n${resetUrl}\n`);
+        return res.json({
+          success: true,
+          message: 'Password reset link generated (Check terminal console for the link).',
+        });
       }
-    });
+
+      // Revert token to prevent orphaned valid tokens, but only if it hasn't been overwritten by a newer request
+      await User.updateOne(
+        { _id: user._id, resetPasswordTokenHash: tokenHash },
+        { $unset: { resetPasswordTokenHash: 1, resetPasswordExpiresAt: 1 } }
+      );
+
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to send password reset email. No changes were made.',
+      });
+    }
   } catch (error) {
     console.error('Error resetting faculty password:', error);
     res.status(500).json({
