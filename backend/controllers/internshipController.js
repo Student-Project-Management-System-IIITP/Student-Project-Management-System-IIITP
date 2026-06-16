@@ -4,23 +4,23 @@ const SystemConfig = require('../models/SystemConfig');
 const fs = require('fs');
 const path = require('path');
 const { isWindowOpen } = require('../middleware/windowCheck');
-const { 
+const {
   createInternshipUploadPath,
   createInternshipUpload,
   handleInternshipUploadError,
-  getFileInfo 
+  getFileInfo
 } = require('../middleware/internshipUpload');
 
 // Student: create internship application (6-month or summer evidence) with window check and file upload
 exports.createApplicationWithWindowCheck = async (req, res) => {
   try {
     const userId = req.user.userId;
-    
+
     // Extract type and details from parsed form data
     // type and details come as text fields in multipart form (multer puts them in req.body)
     const type = req.body.type;
     const detailsStr = req.body.details;
-    
+
     if (!type || !['6month', 'summer'].includes(type)) {
       return res.status(400).json({ success: false, message: 'Invalid or missing application type' });
     }
@@ -40,7 +40,7 @@ exports.createApplicationWithWindowCheck = async (req, res) => {
       // Check semester to determine which window to use
       windowKey = student.semester === 8 ? 'sem8.internship2.evidenceWindow' : 'sem7.internship2.evidenceWindow';
     }
-    
+
     // Check if window is open
     const windowStatus = await isWindowOpen(windowKey);
     if (!windowStatus.isOpen) {
@@ -52,10 +52,10 @@ exports.createApplicationWithWindowCheck = async (req, res) => {
         windowEnd: windowStatus.end
       });
     }
-    
+
     // Get academic year
     const academicYear = await SystemConfig.getConfigValue('academic.currentYear') || student.academicYear;
-    
+
     // Parse details if it's a string
     let parsedDetails = {};
     if (detailsStr) {
@@ -66,11 +66,11 @@ exports.createApplicationWithWindowCheck = async (req, res) => {
         parsedDetails = {};
       }
     }
-    
+
     // File uploads are now deprecated for summer internships (using Google Drive links)
     // Only process file uploads for legacy compatibility if needed
     const uploads = {};
-    
+
     // Validate 6-month requirements: Offer Letter Link must be provided
     if (type === '6month') {
       const link = parsedDetails?.offerLetterLink || parsedDetails?.offer_letter_link;
@@ -86,7 +86,7 @@ exports.createApplicationWithWindowCheck = async (req, res) => {
         parsedDetails.offerLetterLink = parsedDetails.offer_letter_link;
       }
     }
-    
+
     // Validate summer internship requirements: Completion Certificate Link must be provided
     if (type === 'summer') {
       const link = parsedDetails?.completionCertificateLink || parsedDetails?.completion_certificate_link;
@@ -102,7 +102,7 @@ exports.createApplicationWithWindowCheck = async (req, res) => {
         parsedDetails.completionCertificateLink = parsedDetails.completion_certificate_link;
       }
     }
-    
+
     // Create application with file paths
     const application = await InternshipApplication.create({
       student: student._id,
@@ -113,9 +113,9 @@ exports.createApplicationWithWindowCheck = async (req, res) => {
       details: parsedDetails || {},
       uploads: uploads
     });
-    
-    return res.status(201).json({ 
-      success: true, 
+
+    return res.status(201).json({
+      success: true,
       data: application,
       message: 'Application submitted successfully'
     });
@@ -182,7 +182,7 @@ exports.getMyApplications = async (req, res) => {
 exports.updateApplication = async (req, res) => {
   try {
     const userId = req.user.userId;
-  const { id } = req.params;
+    const { id } = req.params;
 
     const student = await Student.findOne({ user: userId });
     if (!student) return res.status(404).json({ success: false, message: 'Student not found' });
@@ -196,7 +196,7 @@ exports.updateApplication = async (req, res) => {
 
     // Get academic year
     const academicYear = app.academicYear || await SystemConfig.getConfigValue('academic.currentYear');
-    
+
     // Parse details from request body (no file uploads needed for summer internships anymore)
     let parsedDetails = req.body && req.body.details ? req.body.details : null;
     if (parsedDetails) {
@@ -207,10 +207,10 @@ exports.updateApplication = async (req, res) => {
           parsedDetails = {};
         }
       }
-      
+
       // Validate Google Drive links based on application type
       const urlRegex = /^https?:\/\//i;
-      
+
       if (app.type === '6month') {
         // 6-month: Validate offer letter link
         if (parsedDetails.offerLetterLink && !urlRegex.test(parsedDetails.offerLetterLink)) {
@@ -232,9 +232,9 @@ exports.updateApplication = async (req, res) => {
         if (!parsedDetails.completionCertificateLink && parsedDetails.completion_certificate_link) {
           parsedDetails.completionCertificateLink = parsedDetails.completion_certificate_link;
         }
-        
+
       }
-      
+
       // Update details with links
       if (app.type === '6month' && parsedDetails.offerLetterLink) {
         app.details.offerLetterLink = parsedDetails.offerLetterLink;
@@ -242,11 +242,11 @@ exports.updateApplication = async (req, res) => {
       if (app.type === 'summer' && parsedDetails.completionCertificateLink) {
         app.details.completionCertificateLink = parsedDetails.completionCertificateLink;
       }
-      
+
       // Update other details
       app.details = { ...app.details, ...parsedDetails };
     }
-    
+
     // After student update, set back to 'submitted'
     app.status = 'submitted';
     await app.save();
@@ -271,28 +271,28 @@ exports.listApplications = async (req, res) => {
     let apps = await InternshipApplication.find(query)
       .populate('student', 'fullName misNumber branch semester collegeEmail contactNumber')
       .lean();
-    
+
     // Sort by email (primary) or MIS number (fallback) - ascending order
     apps.sort((a, b) => {
       const emailA = (a.student?.collegeEmail || '').toLowerCase();
       const emailB = (b.student?.collegeEmail || '').toLowerCase();
-      
+
       if (emailA && emailB) {
         return emailA.localeCompare(emailB);
       }
-      
+
       // If email is missing, sort by MIS number
       const misA = a.student?.misNumber || '';
       const misB = b.student?.misNumber || '';
-      
+
       if (misA && misB) {
         return misA.localeCompare(misB);
       }
-      
+
       // If both missing, maintain original order
       return 0;
     });
-    
+
     return res.json({ success: true, data: apps });
   } catch (error) {
     console.error('listApplications error:', error);
@@ -473,9 +473,13 @@ exports.downloadFile = async (req, res) => {
       return res.status(404).json({ success: false, message: 'File not found' });
     }
 
+    const resolvedPath = path.resolve(filePath);
+    const resolvedDir = path.resolve('uploads/internships');
+    if (!resolvedPath.startsWith(resolvedDir + path.sep)) {
+      return res.status(400).json({ success: false, message: 'Invalid file path' });
+    }
+
     // Check if file exists
-    const fs = require('fs');
-    const path = require('path');
     if (!fs.existsSync(filePath)) {
       return res.status(404).json({ success: false, message: 'File not found on server' });
     }

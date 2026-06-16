@@ -55,9 +55,12 @@ const checkWindow = (configKey, allowIfNull = true) => {
       next();
     } catch (error) {
       console.error('Window check error:', error);
-      // On error, allow operation (fail open) to avoid blocking legitimate requests
-      // Admin can always override via direct database/config access
-      next();
+      // Fail closed on database/server errors
+      return res.status(503).json({
+        success: false,
+        message: 'Database connection failed. Try again later',
+        error: error.message
+      });
     }
   };
 };
@@ -97,6 +100,7 @@ const isWindowOpen = async (configKey) => {
       };
     }
 
+    // Window is open, return true
     return {
       isOpen: true,
       start: startDate,
@@ -104,8 +108,11 @@ const isWindowOpen = async (configKey) => {
     };
   } catch (error) {
     console.error('isWindowOpen error:', error);
-    // Default to open on error
-    return { isOpen: true, reason: 'Error checking window' };
+    // Fail closed on database/server errors
+    return { 
+      isOpen: false, 
+      reason: 'Database connection failed. Try again later' 
+    };
   }
 };
 

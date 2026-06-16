@@ -17,3 +17,7 @@
 ## Notes for reviewer
 
 <!-- Anything that needs context — tricky logic, known limitations, follow-up work. Omit if nothing to add. -->
+
+## Fixes
+Fixes #123
+<!-- Write the issue that you pr refers. -->
