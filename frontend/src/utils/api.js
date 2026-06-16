@@ -265,6 +265,10 @@ export const studentAPI = {
   registerMajorProject1: (projectData) => api.post('/student/projects/major1/register', projectData),
   registerMTechSem3MajorProject: (payload) => api.post('/student/mtech/sem3/major-project/register', payload),
 
+  getMTechSem4Choice: () => api.get('/sem4/choice'),
+  setMTechSem4Choice: (choice) => api.post('/sem4/choice', { chosenTrack: choice }),
+  registerMTechSem4MajorProject: (payload) => api.post('/student/mtech/sem4/major-project/register', payload),
+
   // Internship 1 status and registration
   checkInternship1Status: () => api.get('/student/projects/internship1/status'),
   registerInternship1: (projectData) => api.post('/student/projects/internship1/register', projectData),
@@ -383,6 +387,10 @@ export const facultyAPI = {
   getSem3MajorProjectRequests: () => api.get('/faculty/mtech/sem3/major-projects/pending'),
   chooseSem3MajorProject: (projectId) => api.post(`/faculty/mtech/sem3/major-projects/${projectId}/choose`),
   passSem3MajorProject: (projectId) => api.post(`/faculty/mtech/sem3/major-projects/${projectId}/pass`),
+
+  getSem4MajorProjectRequests: () => api.get('/faculty/mtech/sem4/major-projects/pending'),
+  chooseSem4MajorProject: (projectId) => api.post(`/faculty/mtech/sem4/major-projects/${projectId}/choose`),
+  passSem4MajorProject: (projectId) => api.post(`/faculty/mtech/sem4/major-projects/${projectId}/pass`),
 
   // Sem 4 Evaluation
   getEvaluationAssignments: () => api.get('/faculty/evaluations/assignments'),

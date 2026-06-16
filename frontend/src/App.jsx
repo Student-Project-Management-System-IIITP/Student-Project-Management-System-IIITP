@@ -59,6 +59,9 @@ import MTechSem2UnregisteredStudents from './pages/admin/MTechSem2UnregisteredSt
 import MTechSem3Review from './pages/admin/MTechSem3Review';
 import MTechSem3MajorProject from './pages/student/MTechSem3MajorProject';
 import MTechSem3MajorProjectRegister from './pages/student/MTechSem3MajorProjectRegister';
+import MTechSem4TrackSelection from './pages/student/MTechSem4TrackSelection';
+import MTechSem4MajorProject from './pages/student/MTechSem4MajorProject';
+import MTechSem4MajorProjectRegister from './pages/student/MTechSem4MajorProjectRegister';
 import Sem8TrackSelection from './pages/student/Sem8TrackSelection';
 import Sem8Status from './pages/student/Sem8Status';
 import MajorProject2Dashboard from './pages/student/MajorProject2Dashboard';
@@ -242,6 +245,21 @@ function AppContent() {
           <Route path="/student/mtech/sem3/major-project/register" element={
             <ProtectedRoute allowedRoles={['student']}>
               <MTechSem3MajorProjectRegister />
+            </ProtectedRoute>
+          } />
+          <Route path="/student/mtech/sem4/track-selection" element={
+            <ProtectedRoute allowedRoles={['student']}>
+              <MTechSem4TrackSelection />
+            </ProtectedRoute>
+          } />
+          <Route path="/student/mtech/sem4/major-project" element={
+            <ProtectedRoute allowedRoles={['student']}>
+              <MTechSem4MajorProject />
+            </ProtectedRoute>
+          } />
+          <Route path="/student/mtech/sem4/major-project/register" element={
+            <ProtectedRoute allowedRoles={['student']}>
+              <MTechSem4MajorProjectRegister />
             </ProtectedRoute>
           } />
           
