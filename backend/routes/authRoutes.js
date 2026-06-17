@@ -28,7 +28,6 @@ router.post('/reset-password', resetPassword);
 router.post('/login', loginUser);
 router.post('/logout', logoutUser);
 
-
 // Protected routes (authentication required)
 router.get('/profile', authenticateToken, getUserProfile);
 router.put('/profile', authenticateToken, updateUserProfile);
