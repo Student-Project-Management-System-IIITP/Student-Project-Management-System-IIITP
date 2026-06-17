@@ -5,6 +5,7 @@ import { useSem4Project } from '../../hooks/useSem4Project';
 import { useSem5Project } from '../../hooks/useSem5Project';
 import { useSem7Project } from '../../hooks/useSem7Project';
 import { useMTechSem3Track } from '../../hooks/useMTechSem3Track';
+import { useMTechSem4Track } from '../../hooks/useMTechSem4Track';
 import { useSem8Project } from '../../hooks/useSem8Project';
 import { useSem8 } from '../../context/Sem8Context';
 import { useGroupManagement } from '../../hooks/useGroupManagement';
@@ -56,6 +57,11 @@ const StudentDashboard = () => {
   const isMTechSem3Plus = roleData?.degree === 'M.Tech' && (roleData?.semester >= 3);
   const { trackChoice: sem3TrackChoice, loading: sem3ChoiceLoading } = useMTechSem3Track();
   const sem3SelectedTrack = isMTechSem3Plus ? (sem3TrackChoice?.finalizedTrack || sem3TrackChoice?.chosenTrack || null) : null;
+
+  const isMTechSem4 = roleData?.degree === 'M.Tech' && roleData?.semester === 4;
+  const { trackChoice: sem4TrackChoice, loading: sem4ChoiceLoading } = useMTechSem4Track();
+  const sem4SelectedTrack = isMTechSem4 ? (sem4TrackChoice?.finalizedTrack || sem4TrackChoice?.chosenTrack || null) : null;
+  const [showSem4Welcome, setShowSem4Welcome] = useState(false);
 
   // Sem 4 hooks
   const { project: sem4Project, loading: sem4ProjectLoading, canRegisterProject: canRegisterSem4, canUploadPPT, getProjectTimeline } = useSem4Project();
@@ -212,9 +218,23 @@ const StudentDashboard = () => {
     }
   }, [sem3ChoiceLoading, sem3TrackChoice, degree, currentSemester]);
 
+  useEffect(() => {
+    if (sem4ChoiceLoading) return;
+    if (degree === 'M.Tech' && currentSemester === 4) {
+      setShowSem4Welcome(!sem4TrackChoice);
+    } else {
+      setShowSem4Welcome(false);
+    }
+  }, [sem4ChoiceLoading, sem4TrackChoice, degree, currentSemester]);
+
   const handleSem3WelcomeChoice = (preselect) => {
     setShowSem3Welcome(false);
     navigate('/student/mtech/sem3/track-selection', { state: { preselect } });
+  };
+
+  const handleSem4WelcomeChoice = (preselect) => {
+    setShowSem4Welcome(false);
+    navigate('/student/mtech/sem4/track-selection', { state: { preselect } });
   };
 
   // Load project status for PPT display
@@ -534,7 +554,35 @@ const StudentDashboard = () => {
       }
     }
 
-    if (currentSemester === 4) {
+    if (degree === 'M.Tech' && currentSemester === 4) {
+      if (!sem4SelectedTrack) {
+        actions.push({
+          title: 'Choose Your Track',
+          description: 'Select Major Project 2 or Internship for Sem 4',
+          link: '/student/mtech/sem4/track-selection',
+          icon: '🎯',
+          primary: true
+        });
+      } else if (sem4SelectedTrack === 'coursework') {
+        actions.push({
+          title: 'Major Project 2',
+          description: 'View your Major Project 2 status',
+          link: '/student/mtech/sem4/major-project',
+          icon: '📁',
+          primary: true
+        });
+      } else if (sem4SelectedTrack === 'internship') {
+        actions.push({
+          title: 'Internship Track',
+          description: 'Manage your 6-month internship',
+          link: '/student/mtech/sem4/track-selection',
+          icon: '🏢',
+          primary: true
+        });
+      }
+    }
+
+    if (currentSemester === 4 && degree === 'B.Tech') {
       // Sem 4 actions
       // Note: B.Tech Sem 4 registration is handled in the B.Tech flows section above
       if (!sem4Project && canRegisterSem4() && degree !== 'B.Tech') {
@@ -1396,6 +1444,35 @@ const StudentDashboard = () => {
                 </p>
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {showSem4Welcome && degree === 'M.Tech' && currentSemester === 4 && (
+        <div className="bg-gradient-to-r from-indigo-600 to-purple-600 rounded-xl p-6 mb-6 text-white shadow-lg">
+          <h2 className="text-xl font-bold mb-2">Welcome to M.Tech Semester 4!</h2>
+          <p className="text-indigo-100 mb-4">
+            Please select your track for Semester 4 — Major Project 2 or 6-Month Internship.
+          </p>
+          <div className="flex flex-wrap gap-3">
+            <button
+              onClick={() => handleSem4WelcomeChoice('coursework')}
+              className="bg-white text-indigo-700 font-semibold px-4 py-2 rounded-lg hover:bg-indigo-50 transition"
+            >
+              Major Project 2
+            </button>
+            <button
+              onClick={() => handleSem4WelcomeChoice('internship')}
+              className="bg-indigo-500 text-white font-semibold px-4 py-2 rounded-lg hover:bg-indigo-400 transition border border-indigo-300"
+            >
+              6-Month Internship
+            </button>
+            <button
+              onClick={() => navigate('/student/mtech/sem4/track-selection')}
+              className="bg-transparent text-white font-semibold px-4 py-2 rounded-lg hover:bg-indigo-500 transition border border-white"
+            >
+              View Options →
+            </button>
           </div>
         </div>
       )}

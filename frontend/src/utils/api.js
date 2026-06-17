@@ -501,6 +501,14 @@ export const adminAPI = {
     return apiRequest(url.href.replace(API_BASE_URL, ''));
   },
 
+  getMTechSem4Registrations: (params) => {
+    const url = new URL('/admin/mtech/sem4/registrations', API_BASE_URL);
+    if (params) {
+      Object.keys(params).forEach(key => url.searchParams.append(key, params[key]));
+    }
+    return apiRequest(url.href.replace(API_BASE_URL, ''));
+  },
+
   getSem5Registrations: (params) => {
     const url = new URL('/admin/sem5/registrations', API_BASE_URL);
     if (params) {
@@ -553,6 +561,14 @@ export const adminAPI = {
 
   getMTechSem2Statistics: (params) => {
     const url = new URL('/admin/statistics/mtech/sem2', API_BASE_URL);
+    if (params) {
+      Object.keys(params).forEach(key => url.searchParams.append(key, params[key]));
+    }
+    return apiRequest(url.href.replace(API_BASE_URL, ''));
+  },
+
+  getMTechSem4Statistics: (params) => {
+    const url = new URL('/admin/statistics/mtech/sem4', API_BASE_URL);
     if (params) {
       Object.keys(params).forEach(key => url.searchParams.append(key, params[key]));
     }
@@ -616,6 +632,10 @@ export const adminAPI = {
     const queryString = new URLSearchParams(params).toString();
     return api.get(`/sem3/track-choices${queryString ? '?' + queryString : ''}`);
   },
+  listMTechSem4TrackChoices: (params = {}) => {
+    const queryString = new URLSearchParams(params).toString();
+    return api.get(`/sem4/track-choices${queryString ? '?' + queryString : ''}`);
+  },
   finalizeSem7Track: (studentId, data) => api.patch(`/admin/sem7/finalize/${studentId}`, data),
   listInternship1TrackChoices: () => api.get('/admin/sem7/internship1-track-choices'),
   changeInternship1Track: (studentId, data) => api.patch(`/admin/sem7/internship1-track/${studentId}`, data),
@@ -641,6 +661,14 @@ export const adminAPI = {
 
   getMTechSem2UnregisteredStudents: (params) => {
     const url = new URL('/admin/mtech/sem2/unregistered-students', API_BASE_URL);
+    if (params) {
+      Object.keys(params).forEach(key => url.searchParams.append(key, params[key]));
+    }
+    return apiRequest(url.href.replace(API_BASE_URL, ''));
+  },
+
+  getMTechSem4UnregisteredStudents: (params) => {
+    const url = new URL('/admin/mtech/sem4/unregistered-students', API_BASE_URL);
     if (params) {
       Object.keys(params).forEach(key => url.searchParams.append(key, params[key]));
     }

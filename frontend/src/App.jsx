@@ -57,6 +57,9 @@ import MTechSem2Registration from './pages/student/MTechSem2Registration';
 import MTechSem2Registrations from './pages/admin/MTechSem2Registrations';
 import MTechSem2UnregisteredStudents from './pages/admin/MTechSem2UnregisteredStudents';
 import MTechSem3Review from './pages/admin/MTechSem3Review';
+import MTechSem4Registrations from './pages/admin/MTechSem4Registrations';
+import MTechSem4UnregisteredStudents from './pages/admin/MTechSem4UnregisteredStudents';
+import MTechSem4Review from './pages/admin/MTechSem4Review';
 import MTechSem3MajorProject from './pages/student/MTechSem3MajorProject';
 import MTechSem3MajorProjectRegister from './pages/student/MTechSem3MajorProjectRegister';
 import MTechSem4TrackSelection from './pages/student/MTechSem4TrackSelection';
@@ -477,6 +480,21 @@ function AppContent() {
           <Route path="/admin/mtech/sem3/review" element={
             <ProtectedRoute allowedRoles={['admin']}>
               <MTechSem3Review />
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/mtech/sem4/registrations" element={
+            <ProtectedRoute allowedRoles={['admin']}>
+              <MTechSem4Registrations />
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/mtech/sem4/unregistered" element={
+            <ProtectedRoute allowedRoles={['admin']}>
+              <MTechSem4UnregisteredStudents />
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/mtech/sem4/review" element={
+            <ProtectedRoute allowedRoles={['admin']}>
+              <MTechSem4Review />
             </ProtectedRoute>
           } />
           {/* Redirects to allocated-faculty page - registrations is now a tab there */}
