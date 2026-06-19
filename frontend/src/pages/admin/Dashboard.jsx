@@ -4,7 +4,9 @@ import { authAPI, adminAPI } from '../../utils/api';
 import { handleApiError } from '../../utils/errorHandler';
 import { Link } from 'react-router-dom';
 import StatusBadge from '../../components/common/StatusBadge';
+// eslint-disable-next-line no-unused-vars
 import { formatFacultyName } from '../../utils/formatUtils';
+import { FiSettings, FiCalendar, FiUsers, FiUserCheck, FiFolder, FiUserPlus, FiBarChart2, FiClipboard, FiTarget, FiEye, FiCheckCircle, FiChevronDown, FiChevronUp } from 'react-icons/fi';
 
 // Helper to compute default password from a name: alpha-only, capitalize first letter, append @iiitp
 const computeDefaultPassword = (name) => {
@@ -16,6 +18,7 @@ const computeDefaultPassword = (name) => {
 
 const AdminDashboard = () => {
   const { user, isLoading: authLoading } = useAuth();
+  const [activeProgram, setActiveProgram] = useState('B.Tech');
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [form, setForm] = useState({
@@ -58,8 +61,9 @@ const AdminDashboard = () => {
     totalStudents: 0,
     registeredProjects: 0
   });
+  // eslint-disable-next-line no-unused-vars
   const [sem5Groups, setSem5Groups] = useState([]);
-  const [showSem5Groups, setShowSem5Groups] = useState(false);
+
 
   // M.Tech Sem 1 specific state
   const [mtechSem1Stats, setMtechSem1Stats] = useState({
@@ -91,10 +95,11 @@ const AdminDashboard = () => {
     newProjects: 0,
     registrationRate: 0
   });
+  // eslint-disable-next-line no-unused-vars
   const [sem6RegisteredGroups, setSem6RegisteredGroups] = useState([]);
+  // eslint-disable-next-line no-unused-vars
   const [sem6NonRegisteredGroups, setSem6NonRegisteredGroups] = useState([]);
-  const [showSem6RegisteredGroups, setShowSem6RegisteredGroups] = useState(false);
-  const [showSem6NonRegisteredGroups, setShowSem6NonRegisteredGroups] = useState(false);
+
   
   // Sem 7 specific state
   const [sem7Stats, setSem7Stats] = useState({
@@ -700,829 +705,461 @@ const AdminDashboard = () => {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      <div className="mb-8 flex items-start justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">
-            Admin Dashboard
-          </h1>
-          <p className="text-gray-600 mt-2">
-            Welcome, {user?.name || 'Administrator'}! Manage the SPMS system
-          </p>
-        </div>
-        <div className="flex items-center gap-3 flex-wrap">
+      {/* Header */}
+      <div className="mb-6">
+        <h1 className="text-3xl font-bold text-neutral-900">
+          Admin Dashboard
+        </h1>
+        <p className="text-neutral-600 mt-2">
+          Welcome, {user?.name || 'Administrator'}! Manage the SPMS system
+        </p>
+      </div>
+
+      {/* Toolbar */}
+      <div className="mb-8 flex flex-col xl:flex-row xl:items-center justify-between gap-4 bg-white p-4 rounded-xl border border-neutral-200 shadow-sm">
+        <div className="flex items-center gap-2 flex-wrap">
           <Link
             to="/admin/system-config"
-            className="inline-flex items-center px-4 py-2 rounded-md bg-indigo-600 text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            className="btn-secondary flex items-center gap-2"
           >
-            ⚙️ System Config
+            <FiSettings className="w-4 h-4" /> System Config
           </Link>
           <Link
             to="/admin/semester-management"
-            className="inline-flex items-center px-4 py-2 rounded-md bg-purple-600 text-white hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500"
+            className="btn-secondary flex items-center gap-2"
           >
-            🔄 Semester Management
+            <FiCalendar className="w-4 h-4" /> Semesters
           </Link>
           <Link
             to="/admin/manage-faculty"
-            className="inline-flex items-center px-4 py-2 rounded-md bg-blue-600 text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="btn-secondary flex items-center gap-2"
           >
-            👩‍🏫 Manage Faculty Profiles
+            <FiUsers className="w-4 h-4" /> Faculty
           </Link>
           <Link
             to="/admin/manage-projects"
-            className="inline-flex items-center px-4 py-2 rounded-md bg-teal-600 text-white hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-teal-500"
+            className="btn-secondary flex items-center gap-2"
           >
-            📋 Manage Projects
+            <FiFolder className="w-4 h-4" /> Projects
           </Link>
           <Link
             to="/admin/manage-students"
-            className="inline-flex items-center px-4 py-2 rounded-md bg-teal-600 text-white hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-teal-500"
+            className="btn-secondary flex items-center gap-2"
           >
-            🎓 Manage Student Profiles
+            <FiUserCheck className="w-4 h-4" /> Students
           </Link>
+        </div>
+        
+        <div className="hidden xl:block w-px h-8 bg-neutral-200 mx-1"></div>
+        
+        <div className="flex items-center gap-2 flex-wrap">
           <button
             onClick={() => setIsAddOpen(true)}
-            className="inline-flex items-center px-4 py-2 rounded-md bg-gray-600 text-white hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-500"
+            className="btn-primary bg-neutral-800 hover:bg-neutral-900 text-white flex items-center gap-2"
           >
-            + Add Admin
+            <FiUserPlus className="w-4 h-4" /> Add Admin
           </button>
           <button
             onClick={() => setIsAddFacultyOpen(true)}
-            className="inline-flex items-center px-4 py-2 rounded-md bg-green-600 text-white hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500"
+            className="btn-primary flex items-center gap-2"
           >
-            + Add Faculty
+            <FiUserPlus className="w-4 h-4" /> Add Faculty
           </button>
         </div>
       </div>
 
-      {/* Sem 4 Statistics */}
-      <div className="mb-8">
-        <div className="bg-gradient-to-r from-purple-600 to-purple-800 text-white p-6 rounded-lg shadow-md">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-2xl font-bold mb-4">B.Tech Semester 4 - Minor Project 1</h2>
-              <p className="text-purple-200 mb-6">Overview of current semester Minor Project 1 projects and evaluation status</p>
-            </div>
-            <div className="flex space-x-4">
-              <Link
-                to="/admin/sem4/registrations"
-                className="bg-white bg-opacity-20 hover:bg-opacity-30 px-4 py-2 rounded-md text-white font-medium transition-all duration-200 flex items-center space-x-2"
-              >
-                <span>📊</span>
-                <span>View Registrations</span>
-              </Link>
-              <Link
-                to="/admin/sem4/unregistered"
-                className="bg-white bg-opacity-20 hover:bg-opacity-30 px-4 py-2 rounded-md text-white font-medium transition-all duration-200 flex items-center space-x-2"
-              >
-                <span>📋</span>
-                <span>Unregistered Students</span>
-              </Link>
-            </div>
-          </div>
-          
-          {loading ? (
-            <div className="flex items-center justify-center py-8">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div>
-            </div>
-          ) : (
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div className="bg-white bg-opacity-20 rounded-lg p-4 hover:bg-opacity-30 transition-all cursor-pointer">
-                <div className="text-2xl font-bold">{sem4Stats.registeredProjects}</div>
-                <div className="text-purple-200 text-sm">Registered Projects</div>
-              </div>
-              <div className="bg-white bg-opacity-20 rounded-lg p-4 hover:bg-opacity-30 transition-all cursor-pointer">
-                <div className="text-2xl font-bold">{sem4Stats.unregisteredStudents}</div>
-                <div className="text-purple-200 text-sm">Unregistered Students</div>
-              </div>
-              <div className="bg-white bg-opacity-20 rounded-lg p-4 hover:bg-opacity-30 transition-all cursor-pointer">
-                <div className="text-2xl font-bold">{sem4Stats.registrationRate}%</div>
-                <div className="text-purple-200 text-sm">Registration Rate</div>
-              </div>
-              <div className="bg-white bg-opacity-20 rounded-lg p-4 hover:bg-opacity-30 transition-all cursor-pointer">
-                <div className="text-2xl font-bold">{sem4Stats.registeredProjects + sem4Stats.unregisteredStudents}</div>
-                <div className="text-purple-200 text-sm">Total Students</div>
-              </div>
-            </div>
-          )}
-        </div>
+      {/* Program Switcher */}
+      <div className="mb-8 border-b border-neutral-200">
+        <nav className="-mb-px flex space-x-8" aria-label="Tabs">
+          <button
+            onClick={() => setActiveProgram('B.Tech')}
+            className={`whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+              activeProgram === 'B.Tech'
+                ? 'border-primary-500 text-primary-600'
+                : 'border-transparent text-neutral-500 hover:text-neutral-700 hover:border-neutral-300'
+            }`}
+          >
+            B.Tech Programs
+          </button>
+          <button
+            onClick={() => setActiveProgram('M.Tech')}
+            className={`whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+              activeProgram === 'M.Tech'
+                ? 'border-purple-500 text-purple-600'
+                : 'border-transparent text-neutral-500 hover:text-neutral-700 hover:border-neutral-300'
+            }`}
+          >
+            M.Tech Programs
+          </button>
+        </nav>
       </div>
 
-      {/* Sem 5 Statistics */}
-      <div className="mb-8">
-        <div className="bg-gradient-to-r from-blue-600 to-blue-800 text-white p-6 rounded-lg shadow-md">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-2xl font-bold mb-4">B.Tech Semester 5 - Minor Project 2</h2>
-              <p className="text-blue-200 mb-6">Group formation and faculty allocation overview</p>
-            </div>
-            <div className="flex space-x-4 flex-wrap gap-2">
-              <Link
-                to="/admin/sem5/allocated-faculty"
-                className="bg-white bg-opacity-20 hover:bg-opacity-30 px-4 py-2 rounded-md text-white font-medium transition-all duration-200 flex items-center space-x-2"
-              >
-                <span>👥</span>
-                <span>View Faculty Allocation & Registrations</span>
-              </Link>
-              <Link
-                to="/admin/manage-projects?semester=5"
-                className="bg-white bg-opacity-20 hover:bg-opacity-30 px-4 py-2 rounded-md text-white font-medium transition-all duration-200 flex items-center space-x-2"
-              >
-                <span>🔧</span>
-                <span>Manage Groups</span>
-              </Link>
-            </div>
-          </div>
-          
-          {loading ? (
-            <div className="flex items-center justify-center py-8">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div>
-            </div>
-          ) : (
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div className="bg-white bg-opacity-20 rounded-lg p-4">
-                <div className="text-2xl font-bold">{sem5Stats.totalGroups}</div>
-                <div className="text-blue-200 text-sm">Total Groups</div>
+      {loading ? (
+        <div className="flex items-center justify-center py-16">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
+        </div>
+      ) : (
+        <>
+          {/* B.TECH SECTIONS */}
+          {activeProgram === 'B.Tech' && (
+            <div className="space-y-8">
+              {/* Sem 4 Statistics */}
+              <div className="card-base border-l-4 border-l-primary-500">
+                <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-4">
+                  <div>
+                    <h2 className="text-xl font-bold text-neutral-900">Semester 4 - Minor Project 1</h2>
+                    <p className="text-neutral-500 text-sm mt-1">Overview of current semester Minor Project 1 projects and evaluation status</p>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <Link to="/admin/sem4/registrations" className="btn-secondary text-sm flex items-center gap-2">
+                      <FiBarChart2 className="w-4 h-4" /> Registrations
+                    </Link>
+                    <Link to="/admin/sem4/unregistered" className="btn-secondary text-sm flex items-center gap-2">
+                      <FiClipboard className="w-4 h-4" /> Unregistered
+                    </Link>
+                  </div>
+                </div>
+                
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="bg-surface-200 rounded-lg p-4 border border-neutral-200">
+                    <div className="text-2xl font-bold text-neutral-900">{sem4Stats.registeredProjects}</div>
+                    <div className="text-neutral-600 text-xs font-medium uppercase tracking-wider mt-1">Registered Projects</div>
+                  </div>
+                  <div className="bg-surface-200 rounded-lg p-4 border border-neutral-200">
+                    <div className="text-2xl font-bold text-neutral-900">{sem4Stats.unregisteredStudents}</div>
+                    <div className="text-neutral-600 text-xs font-medium uppercase tracking-wider mt-1">Unregistered</div>
+                  </div>
+                  <div className="bg-surface-200 rounded-lg p-4 border border-neutral-200">
+                    <div className="flex items-center gap-2">
+                      <div className="text-2xl font-bold text-neutral-900">{sem4Stats.registrationRate}%</div>
+                      {sem4Stats.registrationRate > 80 ? (
+                        <span className="badge-success text-xs px-2 py-0.5 rounded-full">Good</span>
+                      ) : (
+                        <span className="badge-warning text-xs px-2 py-0.5 rounded-full">Low</span>
+                      )}
+                    </div>
+                    <div className="text-neutral-600 text-xs font-medium uppercase tracking-wider mt-1">Registration Rate</div>
+                  </div>
+                  <div className="bg-surface-200 rounded-lg p-4 border border-neutral-200">
+                    <div className="text-2xl font-bold text-neutral-900">{sem4Stats.registeredProjects + sem4Stats.unregisteredStudents}</div>
+                    <div className="text-neutral-600 text-xs font-medium uppercase tracking-wider mt-1">Total Students</div>
+                  </div>
+                </div>
               </div>
-              <div className="bg-white bg-opacity-20 rounded-lg p-4">
-                <div className="text-2xl font-bold">{sem5Stats.registeredProjects}</div>
-                <div className="text-blue-200 text-sm">Registered Projects</div>
+
+              {/* Sem 5 Statistics */}
+              <div className="card-base border-l-4 border-l-primary-500">
+                <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-4">
+                  <div>
+                    <h2 className="text-xl font-bold text-neutral-900">Semester 5 - Minor Project 2</h2>
+                    <p className="text-neutral-500 text-sm mt-1">Group formation and faculty allocation overview</p>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <Link to="/admin/sem5/allocated-faculty" className="btn-secondary text-sm flex items-center gap-2">
+                      <FiUsers className="w-4 h-4" /> Allocation Info
+                    </Link>
+                    <Link to="/admin/manage-projects?semester=5" className="btn-secondary text-sm flex items-center gap-2">
+                      <FiSettings className="w-4 h-4" /> Manage Groups
+                    </Link>
+                  </div>
+                </div>
+                
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="bg-surface-200 rounded-lg p-4 border border-neutral-200">
+                    <div className="text-2xl font-bold text-neutral-900">{sem5Stats.totalGroups}</div>
+                    <div className="text-neutral-600 text-xs font-medium uppercase tracking-wider mt-1">Total Groups</div>
+                  </div>
+                  <div className="bg-surface-200 rounded-lg p-4 border border-neutral-200">
+                    <div className="text-2xl font-bold text-neutral-900">{sem5Stats.registeredProjects}</div>
+                    <div className="text-neutral-600 text-xs font-medium uppercase tracking-wider mt-1">Registered Projects</div>
+                  </div>
+                  <div className="bg-surface-200 rounded-lg p-4 border border-neutral-200">
+                    <div className="text-2xl font-bold text-neutral-900">{sem5Stats.allocatedGroups}</div>
+                    <div className="text-neutral-600 text-xs font-medium uppercase tracking-wider mt-1">Faculty Allocated</div>
+                  </div>
+                  <div className="bg-surface-200 rounded-lg p-4 border border-neutral-200">
+                    <div className="text-2xl font-bold text-neutral-900">{sem5Stats.unallocatedGroups}</div>
+                    <div className="text-neutral-600 text-xs font-medium uppercase tracking-wider mt-1">Pending Allocation</div>
+                  </div>
+                </div>
               </div>
-              <div className="bg-white bg-opacity-20 rounded-lg p-4">
-                <div className="text-2xl font-bold">{sem5Stats.allocatedGroups}</div>
-                <div className="text-blue-200 text-sm">Faculty Allocated</div>
+
+              {/* Sem 6 Statistics */}
+              <div className="card-base border-l-4 border-l-primary-500">
+                <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-4">
+                  <div>
+                    <h2 className="text-xl font-bold text-neutral-900">Semester 6 - Major Project</h2>
+                    <p className="text-neutral-500 text-sm mt-1">Major project registration and continuation tracking</p>
+                  </div>
+                  <Link to="/admin/sem6/registrations" className="btn-secondary text-sm flex items-center gap-2">
+                    <FiBarChart2 className="w-4 h-4" /> Registrations
+                  </Link>
+                </div>
+                
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="bg-surface-200 rounded-lg p-4 border border-neutral-200">
+                    <div className="text-2xl font-bold text-neutral-900">{sem6Stats.totalProjects}</div>
+                    <div className="text-neutral-600 text-xs font-medium uppercase tracking-wider mt-1">Registered Projects</div>
+                  </div>
+                  <div className="bg-surface-200 rounded-lg p-4 border border-neutral-200">
+                    <div className="text-2xl font-bold text-neutral-900">{sem6Stats.notRegistered}</div>
+                    <div className="text-neutral-600 text-xs font-medium uppercase tracking-wider mt-1">Not Registered</div>
+                  </div>
+                  <div className="bg-surface-200 rounded-lg p-4 border border-neutral-200">
+                    <div className="text-2xl font-bold text-neutral-900">{sem6Stats.continuationProjects}</div>
+                    <div className="text-neutral-600 text-xs font-medium uppercase tracking-wider mt-1">Continuation Projects</div>
+                  </div>
+                  <div className="bg-surface-200 rounded-lg p-4 border border-neutral-200">
+                    <div className="flex items-center gap-2">
+                      <div className="text-2xl font-bold text-neutral-900">{sem6Stats.registrationRate}%</div>
+                    </div>
+                    <div className="text-neutral-600 text-xs font-medium uppercase tracking-wider mt-1">Registration Rate</div>
+                  </div>
+                </div>
               </div>
-              <div className="bg-white bg-opacity-20 rounded-lg p-4">
-                <div className="text-2xl font-bold">{sem5Stats.unallocatedGroups}</div>
-                <div className="text-blue-200 text-sm">Groups Pending Allocation</div>
-              </div>
-            </div>
-          )}
-          
-          {/* Sem 5 Groups List with Project Info */}
-          {sem5Groups.length > 0 && (
-            <div className="mt-6">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-white">Active Groups & Projects</h3>
-                <button
-                  onClick={() => setShowSem5Groups(!showSem5Groups)}
-                  className="text-sm text-blue-200 hover:text-white underline"
-                >
-                  {showSem5Groups ? 'Hide' : 'Show'} Groups ({sem5Groups.length})
-                </button>
-              </div>
-              
-              {showSem5Groups && (
-                <div className="bg-white bg-opacity-10 rounded-lg p-4 max-h-96 overflow-y-auto">
-                  <div className="space-y-3">
-                    {sem5Groups.map((group) => (
-                      <div
-                        key={group._id}
-                        className="bg-white bg-opacity-20 rounded-lg p-3 hover:bg-opacity-30 transition-colors"
-                      >
-                        <div className="flex items-start justify-between">
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2 mb-2">
-                              <h4 className="font-semibold text-white">
-                                {group.name || `Group ${group._id.slice(-6)}`}
-                              </h4>
-                              <StatusBadge status={group.status} />
-                            </div>
-                            
-                            <div className="text-sm text-blue-200 space-y-1">
-                              <div>
-                                Members: {group.members?.filter(m => m.isActive).length || 0} / {group.maxMembers}
-                              </div>
-                              
-                              {group.project ? (
-                                <div className="mt-2 p-2 bg-white bg-opacity-20 rounded">
-                                  <div className="font-medium text-white">Project: {group.project.title}</div>
-                                  <div className="text-xs mt-1">
-                                    Type: {group.project.projectType} • Status: {group.project.status}
-                                  </div>
-                                  {group.project.description && (
-                                    <div className="text-xs mt-1 text-blue-100">
-                                      {group.project.description.length > 100 
-                                        ? `${group.project.description.substring(0, 100)}...`
-                                        : group.project.description}
-                                    </div>
-                                  )}
-                                </div>
-                              ) : (
-                                <div className="text-xs text-yellow-200 mt-2">
-                                  ⚠️ No project registered yet
-                                </div>
-                              )}
-                              
-                              {group.allocatedFaculty && (
-                                <div className="text-xs mt-1">
-                                  Faculty: {formatFacultyName(group.allocatedFaculty)} ({group.allocatedFaculty.department})
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                          
-                          <Link
-                            to={`/admin/manage-projects?semester=5&group=${group._id}`}
-                            className="ml-4 px-3 py-1 bg-white bg-opacity-30 hover:bg-opacity-40 text-white text-sm rounded transition-colors whitespace-nowrap"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            Manage
-                          </Link>
-                        </div>
+
+              {/* Sem 7 Statistics */}
+              <div className="card-base border-l-4 border-l-primary-500">
+                <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-4">
+                  <div>
+                    <h2 className="text-xl font-bold text-neutral-900">Semester 7 - Track Management</h2>
+                    <p className="text-neutral-500 text-sm mt-1">Track selection, internship applications, and coursework management</p>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <Link to="/admin/sem7/review" className="btn-secondary text-sm flex items-center gap-2">
+                      <FiClipboard className="w-4 h-4" /> Review
+                    </Link>
+                    <Link to="/admin/sem7/track-choices" className="btn-secondary text-sm flex items-center gap-2">
+                      <FiTarget className="w-4 h-4" /> Track Choices
+                    </Link>
+                  </div>
+                </div>
+                
+                <div className="space-y-6">
+                  <div>
+                    <h3 className="text-sm font-semibold text-neutral-700 uppercase tracking-wider mb-3">Track Choices</h3>
+                    <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                      <div className="bg-surface-200 rounded-lg p-3 border border-neutral-200">
+                        <div className="text-xl font-bold text-neutral-900">{sem7Stats.totalTrackChoices}</div>
+                        <div className="text-neutral-600 text-xs mt-1">Total Choices</div>
                       </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Sem 6 Statistics */}
-      <div className="mb-8">
-        <div className="bg-gradient-to-r from-green-600 to-green-800 text-white p-6 rounded-lg shadow-md">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-2xl font-bold mb-4">B.Tech Semester 6 - Major Project</h2>
-              <p className="text-green-200 mb-6">Major project registration and continuation tracking</p>
-            </div>
-            <div className="flex space-x-4">
-              <Link
-                to="/admin/sem6/registrations"
-                className="bg-white bg-opacity-20 hover:bg-opacity-30 px-4 py-2 rounded-md text-white font-medium transition-all duration-200 flex items-center space-x-2"
-              >
-                <span>📊</span>
-                <span>View Registrations</span>
-              </Link>
-            </div>
-          </div>
-          
-          {loading ? (
-            <div className="flex items-center justify-center py-8">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div>
-            </div>
-          ) : (
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div className="bg-white bg-opacity-20 rounded-lg p-4 hover:bg-opacity-30 transition-all cursor-pointer">
-                <div className="text-2xl font-bold">{sem6Stats.totalProjects}</div>
-                <div className="text-green-200 text-sm">Registered Projects</div>
-              </div>
-              <div className="bg-white bg-opacity-20 rounded-lg p-4 hover:bg-opacity-30 transition-all cursor-pointer">
-                <div className="text-2xl font-bold">{sem6Stats.notRegistered}</div>
-                <div className="text-green-200 text-sm">Not Registered</div>
-              </div>
-              <div className="bg-white bg-opacity-20 rounded-lg p-4 hover:bg-opacity-30 transition-all cursor-pointer">
-                <div className="text-2xl font-bold">{sem6Stats.continuationProjects}</div>
-                <div className="text-green-200 text-sm">Continuation Projects</div>
-              </div>
-              <div className="bg-white bg-opacity-20 rounded-lg p-4 hover:bg-opacity-30 transition-all cursor-pointer">
-                <div className="text-2xl font-bold">{sem6Stats.registrationRate}%</div>
-                <div className="text-green-200 text-sm">Registration Rate</div>
-              </div>
-            </div>
-          )}
-          
-          {/* Sem 6 Registered Groups with Projects */}
-          {sem6RegisteredGroups.length > 0 && (
-            <div className="mt-6">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-white">Registered Groups & Projects</h3>
-                <button
-                  onClick={() => setShowSem6RegisteredGroups(!showSem6RegisteredGroups)}
-                  className="text-sm text-green-200 hover:text-white underline"
-                >
-                  {showSem6RegisteredGroups ? 'Hide' : 'Show'} Registered ({sem6RegisteredGroups.length})
-                </button>
-              </div>
-              
-              {showSem6RegisteredGroups && (
-                <div className="bg-white bg-opacity-10 rounded-lg p-4 max-h-96 overflow-y-auto">
-                  <div className="space-y-3">
-                    {sem6RegisteredGroups.map((group) => (
-                      <div
-                        key={group._id}
-                        className="bg-white bg-opacity-20 rounded-lg p-3 hover:bg-opacity-30 transition-colors"
-                      >
-                        <div className="flex items-start justify-between">
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2 mb-2">
-                              <h4 className="font-semibold text-white">
-                                {group.name || `Group ${group._id.slice(-6)}`}
-                              </h4>
-                              <StatusBadge status={group.status} />
-                              {group.isContinuation && (
-                                <span className="px-2 py-0.5 bg-yellow-500 bg-opacity-50 text-white text-xs rounded">
-                                  Continuation
-                                </span>
-                              )}
-                            </div>
-                            
-                            <div className="text-sm text-green-200 space-y-1">
-                              {group.members && group.members.length > 0 ? (
-                                <div>
-                                  Members: {group.members.filter(m => m.isActive).length || 0} / {group.maxMembers || 5}
-                                </div>
-                              ) : (
-                                <div className="text-xs text-green-100">
-                                  Group members info not available
-                                </div>
-                              )}
-                              
-                              {group.project && (
-                                <div className="mt-2 p-2 bg-white bg-opacity-20 rounded">
-                                  <div className="font-medium text-white">Project: {group.project.title}</div>
-                                  <div className="text-xs mt-1">
-                                    Type: {group.project.projectType} • Status: {group.project.status}
-                                    {group.project.isContinuation && ' • Continuation Project'}
-                                  </div>
-                                  {group.project.description && (
-                                    <div className="text-xs mt-1 text-green-100">
-                                      {group.project.description.length > 100 
-                                        ? `${group.project.description.substring(0, 100)}...`
-                                        : group.project.description}
-                                    </div>
-                                  )}
-                                </div>
-                              )}
-                              
-                              {group.allocatedFaculty && (
-                                <div className="text-xs mt-1">
-                                  Faculty: {formatFacultyName(group.allocatedFaculty)} ({group.allocatedFaculty.department})
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                          
-                          <Link
-                            to={`/admin/manage-projects?semester=6&group=${group._id}`}
-                            className="ml-4 px-3 py-1 bg-white bg-opacity-30 hover:bg-opacity-40 text-white text-sm rounded transition-colors whitespace-nowrap"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            Manage
-                          </Link>
-                        </div>
+                      <div className="bg-surface-200 rounded-lg p-3 border border-neutral-200">
+                        <div className="text-xl font-bold text-neutral-900">{sem7Stats.pendingTrackChoices}</div>
+                        <div className="text-neutral-600 text-xs mt-1">Pending</div>
                       </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-          
-          {/* Sem 6 Non-Registered Groups */}
-          {sem6NonRegisteredGroups.length > 0 && (
-            <div className="mt-6">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-white">Non-Registered Groups</h3>
-                <button
-                  onClick={() => setShowSem6NonRegisteredGroups(!showSem6NonRegisteredGroups)}
-                  className="text-sm text-yellow-200 hover:text-white underline"
-                >
-                  {showSem6NonRegisteredGroups ? 'Hide' : 'Show'} Not Registered ({sem6NonRegisteredGroups.length})
-                </button>
-              </div>
-              
-              {showSem6NonRegisteredGroups && (
-                <div className="bg-white bg-opacity-10 rounded-lg p-4 max-h-96 overflow-y-auto">
-                  <div className="space-y-3">
-                    {sem6NonRegisteredGroups.map((group) => (
-                      <div
-                        key={group._id}
-                        className="bg-white bg-opacity-20 rounded-lg p-3 hover:bg-opacity-30 transition-colors border-l-4 border-yellow-400"
-                      >
-                        <div className="flex items-start justify-between">
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2 mb-2">
-                              <h4 className="font-semibold text-white">
-                                {group.name || `Group ${group._id.slice(-6)}`}
-                              </h4>
-                              <StatusBadge status={group.status} />
-                            </div>
-                            
-                            <div className="text-sm text-green-200 space-y-1">
-                              {group.members && group.members.length > 0 ? (
-                                <div>
-                                  Members: {group.members.filter(m => m.isActive).length || 0} / {group.maxMembers || 5}
-                                </div>
-                              ) : (
-                                <div className="text-xs text-green-100">
-                                  Group members info not available
-                                </div>
-                              )}
-                              <div className="text-xs text-yellow-200 mt-2">
-                                ⚠️ No project registered for Sem 6
-                              </div>
-                              
-                              {group.allocatedFaculty && (
-                                <div className="text-xs mt-1">
-                                  Faculty (Sem 5): {formatFacultyName(group.allocatedFaculty)} ({group.allocatedFaculty.department})
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                          
-                          <Link
-                            to={`/admin/manage-projects?semester=5&group=${group._id}`}
-                            className="ml-4 px-3 py-1 bg-white bg-opacity-30 hover:bg-opacity-40 text-white text-sm rounded transition-colors whitespace-nowrap"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            View Group
-                          </Link>
-                        </div>
+                      <div className="bg-surface-200 rounded-lg p-3 border border-neutral-200">
+                        <div className="text-xl font-bold text-neutral-900">{sem7Stats.approvedTrackChoices}</div>
+                        <div className="text-neutral-600 text-xs mt-1">Approved</div>
                       </div>
-                    ))}
+                      <div className="bg-surface-200 rounded-lg p-3 border border-neutral-200">
+                        <div className="text-xl font-bold text-neutral-900">{sem7Stats.internshipTrackChoices}</div>
+                        <div className="text-neutral-600 text-xs mt-1">Internship</div>
+                      </div>
+                      <div className="bg-surface-200 rounded-lg p-3 border border-neutral-200">
+                        <div className="text-xl font-bold text-neutral-900">{sem7Stats.courseworkTrackChoices}</div>
+                        <div className="text-neutral-600 text-xs mt-1">Coursework</div>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <h3 className="text-sm font-semibold text-neutral-700 uppercase tracking-wider mb-3">Internship Applications</h3>
+                    <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                      <div className="bg-surface-200 rounded-lg p-3 border border-neutral-200">
+                        <div className="text-xl font-bold text-neutral-900">{sem7Stats.totalInternshipApplications}</div>
+                        <div className="text-neutral-600 text-xs mt-1">Total</div>
+                      </div>
+                      <div className="bg-surface-200 rounded-lg p-3 border border-neutral-200">
+                        <div className="text-xl font-bold text-neutral-900">{sem7Stats.pendingApplications}</div>
+                        <div className="text-neutral-600 text-xs mt-1">Pending</div>
+                      </div>
+                      <div className="bg-surface-200 rounded-lg p-3 border border-neutral-200">
+                        <div className="text-xl font-bold text-neutral-900">{sem7Stats.approvedApplications}</div>
+                        <div className="text-neutral-600 text-xs mt-1">Approved</div>
+                      </div>
+                      <div className="bg-surface-200 rounded-lg p-3 border border-neutral-200">
+                        <div className="text-xl font-bold text-neutral-900">{sem7Stats.sixMonthApplications}</div>
+                        <div className="text-neutral-600 text-xs mt-1">6-Month</div>
+                      </div>
+                      <div className="bg-surface-200 rounded-lg p-3 border border-neutral-200">
+                        <div className="text-xl font-bold text-neutral-900">{sem7Stats.summerApplications}</div>
+                        <div className="text-neutral-600 text-xs mt-1">Summer</div>
+                      </div>
+                    </div>
                   </div>
                 </div>
-              )}
-            </div>
-          )}
-        </div>
-      </div>
+              </div>
 
-      {/* Sem 7 Statistics */}
-      <div className="mb-8">
-        <div className="bg-gradient-to-r from-orange-600 to-orange-800 text-white p-6 rounded-lg shadow-md">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-2xl font-bold mb-4">B.Tech Semester 7 - Track & Internship Management</h2>
-              <p className="text-orange-200 mb-6">Track selection, internship applications, and coursework management</p>
-            </div>
-            <div className="flex space-x-4 flex-wrap gap-2">
-              <Link
-                to="/admin/sem7/review"
-                className="bg-white bg-opacity-20 hover:bg-opacity-30 px-4 py-2 rounded-md text-white font-medium transition-all duration-200 flex items-center space-x-2"
-              >
-                <span>📋</span>
-                <span>Review & Manage</span>
-              </Link>
-              <Link
-                to="/admin/sem7/track-choices"
-                className="bg-white bg-opacity-20 hover:bg-opacity-30 px-4 py-2 rounded-md text-white font-medium transition-all duration-200 flex items-center space-x-2"
-              >
-                <span>🎯</span>
-                <span>Track Choices</span>
-              </Link>
-            </div>
-          </div>
-          
-          {loading ? (
-            <div className="flex items-center justify-center py-8">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {/* Track Choices Section */}
-              <div>
-                <h3 className="text-lg font-semibold mb-3 text-orange-100">Track Choices</h3>
-                <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-                  <div className="bg-white bg-opacity-20 rounded-lg p-4 hover:bg-opacity-30 transition-all cursor-pointer">
-                    <div className="text-2xl font-bold">{sem7Stats.totalTrackChoices}</div>
-                    <div className="text-orange-200 text-sm">Total Choices</div>
+              {/* Sem 8 Statistics */}
+              <div className="card-base border-l-4 border-l-primary-500">
+                <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-4">
+                  <div>
+                    <h2 className="text-xl font-bold text-neutral-900">Semester 8 - Comprehensive</h2>
+                    <p className="text-neutral-500 text-sm mt-1">Type 1 & Type 2 students, Major Project 2, and internships</p>
                   </div>
-                  <div className="bg-white bg-opacity-20 rounded-lg p-4 hover:bg-opacity-30 transition-all cursor-pointer">
-                    <div className="text-2xl font-bold">{sem7Stats.pendingTrackChoices}</div>
-                    <div className="text-orange-200 text-sm">Pending Review</div>
-                  </div>
-                  <div className="bg-white bg-opacity-20 rounded-lg p-4 hover:bg-opacity-30 transition-all cursor-pointer">
-                    <div className="text-2xl font-bold">{sem7Stats.approvedTrackChoices}</div>
-                    <div className="text-orange-200 text-sm">Approved</div>
-                  </div>
-                  <div className="bg-white bg-opacity-20 rounded-lg p-4 hover:bg-opacity-30 transition-all cursor-pointer">
-                    <div className="text-2xl font-bold">{sem7Stats.internshipTrackChoices}</div>
-                    <div className="text-orange-200 text-sm">Internship Track</div>
-                  </div>
-                  <div className="bg-white bg-opacity-20 rounded-lg p-4 hover:bg-opacity-30 transition-all cursor-pointer">
-                    <div className="text-2xl font-bold">{sem7Stats.courseworkTrackChoices}</div>
-                    <div className="text-orange-200 text-sm">Coursework Track</div>
+                  <div className="flex items-center gap-3">
+                    <Link to="/admin/sem8/review" className="btn-secondary text-sm flex items-center gap-2">
+                      <FiClipboard className="w-4 h-4" /> Review
+                    </Link>
+                    <Link to="/admin/sem8/track-choices" className="btn-secondary text-sm flex items-center gap-2">
+                      <FiTarget className="w-4 h-4" /> Choices
+                    </Link>
                   </div>
                 </div>
-              </div>
-              
-              {/* Internship Applications Section */}
-              <div>
-                <h3 className="text-lg font-semibold mb-3 text-orange-100">Internship Applications</h3>
-                <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-                  <div className="bg-white bg-opacity-20 rounded-lg p-4 hover:bg-opacity-30 transition-all cursor-pointer">
-                    <div className="text-2xl font-bold">{sem7Stats.totalInternshipApplications}</div>
-                    <div className="text-orange-200 text-sm">Total Applications</div>
+                
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  <div>
+                    <h3 className="text-sm font-semibold text-neutral-700 uppercase tracking-wider mb-3">Student Types</h3>
+                    <div className="grid grid-cols-3 gap-3">
+                      <div className="bg-surface-200 rounded-lg p-3 border border-neutral-200">
+                        <div className="text-xl font-bold text-neutral-900">{sem8Stats.totalStudents}</div>
+                        <div className="text-neutral-600 text-xs mt-1">Total</div>
+                      </div>
+                      <div className="bg-surface-200 rounded-lg p-3 border border-neutral-200">
+                        <div className="text-xl font-bold text-neutral-900">{sem8Stats.type1Students}</div>
+                        <div className="text-neutral-600 text-xs mt-1">Type 1</div>
+                      </div>
+                      <div className="bg-surface-200 rounded-lg p-3 border border-neutral-200">
+                        <div className="text-xl font-bold text-neutral-900">{sem8Stats.type2Students}</div>
+                        <div className="text-neutral-600 text-xs mt-1">Type 2</div>
+                      </div>
+                    </div>
                   </div>
-                  <div className="bg-white bg-opacity-20 rounded-lg p-4 hover:bg-opacity-30 transition-all cursor-pointer">
-                    <div className="text-2xl font-bold">{sem7Stats.pendingApplications}</div>
-                    <div className="text-orange-200 text-sm">Pending Review</div>
-                  </div>
-                  <div className="bg-white bg-opacity-20 rounded-lg p-4 hover:bg-opacity-30 transition-all cursor-pointer">
-                    <div className="text-2xl font-bold">{sem7Stats.approvedApplications}</div>
-                    <div className="text-orange-200 text-sm">Approved</div>
-                  </div>
-                  <div className="bg-white bg-opacity-20 rounded-lg p-4 hover:bg-opacity-30 transition-all cursor-pointer">
-                    <div className="text-2xl font-bold">{sem7Stats.sixMonthApplications}</div>
-                    <div className="text-orange-200 text-sm">6-Month Internships</div>
-                  </div>
-                  <div className="bg-white bg-opacity-20 rounded-lg p-4 hover:bg-opacity-30 transition-all cursor-pointer">
-                    <div className="text-2xl font-bold">{sem7Stats.summerApplications}</div>
-                    <div className="text-orange-200 text-sm">Summer Internships</div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Sem 8 Statistics */}
-      <div className="mb-8">
-        <div className="bg-gradient-to-r from-purple-600 to-purple-800 text-white p-6 rounded-lg shadow-md">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-2xl font-bold mb-4">B.Tech Semester 8 - Comprehensive Management</h2>
-              <p className="text-purple-200 mb-6">Type 1 & Type 2 students, Major Project 2, Internship 2, and 6-month internship management</p>
-            </div>
-            <div className="flex space-x-4 flex-wrap gap-2">
-              <Link
-                to="/admin/sem8/review"
-                className="bg-white bg-opacity-20 hover:bg-opacity-30 px-4 py-2 rounded-md text-white font-medium transition-all duration-200 flex items-center space-x-2"
-              >
-                <span>📋</span>
-                <span>Review & Manage</span>
-              </Link>
-              <Link
-                to="/admin/sem8/track-choices"
-                className="bg-white bg-opacity-20 hover:bg-opacity-30 px-4 py-2 rounded-md text-white font-medium transition-all duration-200 flex items-center space-x-2"
-              >
-                <span>🎯</span>
-                <span>Track Choices</span>
-              </Link>
-            </div>
-          </div>
-          
-          {loading ? (
-            <div className="flex items-center justify-center py-8">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {/* Student Types Section */}
-              <div>
-                <h3 className="text-lg font-semibold mb-3 text-purple-100">Student Types</h3>
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                  <div className="bg-white bg-opacity-20 rounded-lg p-4 hover:bg-opacity-30 transition-all cursor-pointer">
-                    <div className="text-2xl font-bold">{sem8Stats.totalStudents}</div>
-                    <div className="text-purple-200 text-sm">Total Students</div>
-                  </div>
-                  <div className="bg-white bg-opacity-20 rounded-lg p-4 hover:bg-opacity-30 transition-all cursor-pointer">
-                    <div className="text-2xl font-bold">{sem8Stats.type1Students}</div>
-                    <div className="text-purple-200 text-sm">Type 1</div>
-                  </div>
-                  <div className="bg-white bg-opacity-20 rounded-lg p-4 hover:bg-opacity-30 transition-all cursor-pointer">
-                    <div className="text-2xl font-bold">{sem8Stats.type2Students}</div>
-                    <div className="text-purple-200 text-sm">Type 2</div>
-                  </div>
-                </div>
-              </div>
-              
-              {/* Track Choices Section */}
-              <div>
-                <h3 className="text-lg font-semibold mb-3 text-purple-100">Track Choices (Type 2)</h3>
-                <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-                  <div className="bg-white bg-opacity-20 rounded-lg p-4 hover:bg-opacity-30 transition-all cursor-pointer">
-                    <div className="text-2xl font-bold">{sem8Stats.totalTrackChoices}</div>
-                    <div className="text-purple-200 text-sm">Total Choices</div>
-                  </div>
-                  <div className="bg-white bg-opacity-20 rounded-lg p-4 hover:bg-opacity-30 transition-all cursor-pointer">
-                    <div className="text-2xl font-bold">{sem8Stats.pendingTrackChoices}</div>
-                    <div className="text-purple-200 text-sm">Pending Review</div>
-                  </div>
-                  <div className="bg-white bg-opacity-20 rounded-lg p-4 hover:bg-opacity-30 transition-all cursor-pointer">
-                    <div className="text-2xl font-bold">{sem8Stats.approvedTrackChoices}</div>
-                    <div className="text-purple-200 text-sm">Approved</div>
-                  </div>
-                  <div className="bg-white bg-opacity-20 rounded-lg p-4 hover:bg-opacity-30 transition-all cursor-pointer">
-                    <div className="text-2xl font-bold">{sem8Stats.major2TrackChoices}</div>
-                    <div className="text-purple-200 text-sm">Major Project 2</div>
-                  </div>
-                  <div className="bg-white bg-opacity-20 rounded-lg p-4 hover:bg-opacity-30 transition-all cursor-pointer">
-                    <div className="text-2xl font-bold">{sem8Stats.internshipTrackChoices}</div>
-                    <div className="text-purple-200 text-sm">6-Month Internship</div>
-                  </div>
-                </div>
-              </div>
-              
-              {/* Major Project 2 Section */}
-              <div>
-                <h3 className="text-lg font-semibold mb-3 text-purple-100">Major Project 2</h3>
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                  <div className="bg-white bg-opacity-20 rounded-lg p-4 hover:bg-opacity-30 transition-all cursor-pointer">
-                    <div className="text-2xl font-bold">{sem8Stats.totalMajorProject2}</div>
-                    <div className="text-purple-200 text-sm">Total Projects</div>
-                  </div>
-                  <div className="bg-white bg-opacity-20 rounded-lg p-4 hover:bg-opacity-30 transition-all cursor-pointer">
-                    <div className="text-2xl font-bold">{sem8Stats.groupMajorProject2}</div>
-                    <div className="text-purple-200 text-sm">Group Projects</div>
-                  </div>
-                  <div className="bg-white bg-opacity-20 rounded-lg p-4 hover:bg-opacity-30 transition-all cursor-pointer">
-                    <div className="text-2xl font-bold">{sem8Stats.soloMajorProject2}</div>
-                    <div className="text-purple-200 text-sm">Solo Projects</div>
-                  </div>
-                </div>
-              </div>
-              
-              {/* Internship 2 Section */}
-              <div>
-                <h3 className="text-lg font-semibold mb-3 text-purple-100">Internship 2</h3>
-                <div className="grid grid-cols-1 md:grid-cols-1 gap-4">
-                  <div className="bg-white bg-opacity-20 rounded-lg p-4 hover:bg-opacity-30 transition-all cursor-pointer">
-                    <div className="text-2xl font-bold">{sem8Stats.totalInternship2}</div>
-                    <div className="text-purple-200 text-sm">Total Projects</div>
-                  </div>
-                </div>
-              </div>
-              
-              {/* 6-Month Applications Section */}
-              <div>
-                <h3 className="text-lg font-semibold mb-3 text-purple-100">6-Month Internship Applications (Type 2)</h3>
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                  <div className="bg-white bg-opacity-20 rounded-lg p-4 hover:bg-opacity-30 transition-all cursor-pointer">
-                    <div className="text-2xl font-bold">{sem8Stats.total6MonthApplications}</div>
-                    <div className="text-purple-200 text-sm">Total Applications</div>
-                  </div>
-                  <div className="bg-white bg-opacity-20 rounded-lg p-4 hover:bg-opacity-30 transition-all cursor-pointer">
-                    <div className="text-2xl font-bold">{sem8Stats.pending6MonthApplications}</div>
-                    <div className="text-purple-200 text-sm">Pending Review</div>
-                  </div>
-                  <div className="bg-white bg-opacity-20 rounded-lg p-4 hover:bg-opacity-30 transition-all cursor-pointer">
-                    <div className="text-2xl font-bold">{sem8Stats.verifiedPass6Month}</div>
-                    <div className="text-purple-200 text-sm">Verified (Pass)</div>
+                  
+                  <div>
+                    <h3 className="text-sm font-semibold text-neutral-700 uppercase tracking-wider mb-3">6-Month Apps (Type 2)</h3>
+                    <div className="grid grid-cols-3 gap-3">
+                      <div className="bg-surface-200 rounded-lg p-3 border border-neutral-200">
+                        <div className="text-xl font-bold text-neutral-900">{sem8Stats.total6MonthApplications}</div>
+                        <div className="text-neutral-600 text-xs mt-1">Total</div>
+                      </div>
+                      <div className="bg-surface-200 rounded-lg p-3 border border-neutral-200">
+                        <div className="text-xl font-bold text-neutral-900">{sem8Stats.pending6MonthApplications}</div>
+                        <div className="text-neutral-600 text-xs mt-1">Pending</div>
+                      </div>
+                      <div className="bg-surface-200 rounded-lg p-3 border border-neutral-200">
+                        <div className="text-xl font-bold text-neutral-900">{sem8Stats.verifiedPass6Month}</div>
+                        <div className="text-neutral-600 text-xs mt-1">Verified</div>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
           )}
-        </div>
-      </div>
 
-      {/* M.Tech Sem 1 Statistics */}
-      <div className="mb-8">
-        <div className="bg-gradient-to-r from-rose-600 to-pink-700 text-white p-6 rounded-lg shadow-md">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-2xl font-bold mb-4">M.Tech Semester 1 - Minor Project 1</h2>
-              <p className="text-rose-200 mb-4">Solo project registration and faculty allocation overview</p>
-              {!loading && (
-                <p className="text-sm text-rose-100">
-                  Registration Rate: {mtechSem1Stats.registrationRate}% • Unregistered Students: {mtechSem1Stats.unregisteredStudents}
-                </p>
-              )}
-            </div>
-            <div className="flex space-x-4">
-              <Link
-                to="/admin/mtech/sem1/registrations"
-                className="bg-white bg-opacity-20 hover:bg-opacity-30 px-4 py-2 rounded-md text-white font-medium transition-all duration-200 flex items-center space-x-2"
-              >
-                <span>📊</span>
-                <span>View Registrations</span>
-              </Link>
-              <Link
-                to="/admin/mtech/sem1/unregistered"
-                className="bg-white bg-opacity-20 hover:bg-opacity-30 px-4 py-2 rounded-md text-white font-medium transition-all duration-200 flex items-center space-x-2"
-              >
-                <span>📋</span>
-                <span>Unregistered Students</span>
-              </Link>
-            </div>
-          </div>
+          {/* M.TECH SECTIONS */}
+          {activeProgram === 'M.Tech' && (
+            <div className="space-y-8">
+              {/* M.Tech Sem 1 */}
+              <div className="card-base border-l-4 border-l-purple-500">
+                <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-4">
+                  <div>
+                    <h2 className="text-xl font-bold text-neutral-900">M.Tech Semester 1 - Minor Project 1</h2>
+                    <p className="text-neutral-500 text-sm mt-1">Solo project registration and faculty allocation overview</p>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <Link to="/admin/mtech/sem1/registrations" className="btn-secondary text-sm flex items-center gap-2">
+                      <FiBarChart2 className="w-4 h-4" /> Registrations
+                    </Link>
+                    <Link to="/admin/mtech/sem1/unregistered" className="btn-secondary text-sm flex items-center gap-2">
+                      <FiClipboard className="w-4 h-4" /> Unregistered
+                    </Link>
+                  </div>
+                </div>
+                
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="bg-surface-200 rounded-lg p-4 border border-neutral-200">
+                    <div className="text-2xl font-bold text-neutral-900">{mtechSem1Stats.totalStudents}</div>
+                    <div className="text-neutral-600 text-xs font-medium uppercase tracking-wider mt-1">Total Students</div>
+                  </div>
+                  <div className="bg-surface-200 rounded-lg p-4 border border-neutral-200">
+                    <div className="text-2xl font-bold text-neutral-900">{mtechSem1Stats.registeredProjects}</div>
+                    <div className="text-neutral-600 text-xs font-medium uppercase tracking-wider mt-1">Registered Projects</div>
+                  </div>
+                  <div className="bg-surface-200 rounded-lg p-4 border border-neutral-200">
+                    <div className="text-2xl font-bold text-neutral-900">{mtechSem1Stats.facultyAllocated}</div>
+                    <div className="text-neutral-600 text-xs font-medium uppercase tracking-wider mt-1">Faculty Allocated</div>
+                  </div>
+                  <div className="bg-surface-200 rounded-lg p-4 border border-neutral-200">
+                    <div className="text-2xl font-bold text-neutral-900">{mtechSem1Stats.pendingAllocations}</div>
+                    <div className="text-neutral-600 text-xs font-medium uppercase tracking-wider mt-1">Pending Allocation</div>
+                  </div>
+                </div>
+              </div>
 
-          {loading ? (
-            <div className="flex items-center justify-center py-8">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div>
-            </div>
-          ) : (
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div className="bg-white bg-opacity-20 rounded-lg p-4 hover:bg-opacity-30 transition-all cursor-pointer">
-                <div className="text-2xl font-bold">{mtechSem1Stats.totalStudents}</div>
-                <div className="text-rose-200 text-sm">Total Students</div>
+              {/* M.Tech Sem 2 */}
+              <div className="card-base border-l-4 border-l-purple-500">
+                <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-4">
+                  <div>
+                    <h2 className="text-xl font-bold text-neutral-900">M.Tech Semester 2 - Minor Project 2</h2>
+                    <p className="text-neutral-500 text-sm mt-1">Solo project registration and faculty allocation overview</p>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <Link to="/admin/mtech/sem2/registrations" className="btn-secondary text-sm flex items-center gap-2">
+                      <FiBarChart2 className="w-4 h-4" /> Registrations
+                    </Link>
+                    <Link to="/admin/mtech/sem2/unregistered" className="btn-secondary text-sm flex items-center gap-2">
+                      <FiClipboard className="w-4 h-4" /> Unregistered
+                    </Link>
+                  </div>
+                </div>
+                
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="bg-surface-200 rounded-lg p-4 border border-neutral-200">
+                    <div className="text-2xl font-bold text-neutral-900">{mtechSem2Stats.totalStudents}</div>
+                    <div className="text-neutral-600 text-xs font-medium uppercase tracking-wider mt-1">Total Students</div>
+                  </div>
+                  <div className="bg-surface-200 rounded-lg p-4 border border-neutral-200">
+                    <div className="text-2xl font-bold text-neutral-900">{mtechSem2Stats.registeredProjects}</div>
+                    <div className="text-neutral-600 text-xs font-medium uppercase tracking-wider mt-1">Registered Projects</div>
+                  </div>
+                  <div className="bg-surface-200 rounded-lg p-4 border border-neutral-200">
+                    <div className="text-2xl font-bold text-neutral-900">{mtechSem2Stats.facultyAllocated}</div>
+                    <div className="text-neutral-600 text-xs font-medium uppercase tracking-wider mt-1">Faculty Allocated</div>
+                  </div>
+                  <div className="bg-surface-200 rounded-lg p-4 border border-neutral-200">
+                    <div className="text-2xl font-bold text-neutral-900">{mtechSem2Stats.pendingAllocations}</div>
+                    <div className="text-neutral-600 text-xs font-medium uppercase tracking-wider mt-1">Pending Allocation</div>
+                  </div>
+                </div>
               </div>
-              <div className="bg-white bg-opacity-20 rounded-lg p-4 hover:bg-opacity-30 transition-all cursor-pointer">
-                <div className="text-2xl font-bold">{mtechSem1Stats.registeredProjects}</div>
-                <div className="text-rose-200 text-sm">Registered Projects</div>
-              </div>
-              <div className="bg-white bg-opacity-20 rounded-lg p-4 hover:bg-opacity-30 transition-all cursor-pointer">
-                <div className="text-2xl font-bold">{mtechSem1Stats.facultyAllocated}</div>
-                <div className="text-rose-200 text-sm">Faculty Allocated</div>
-              </div>
-              <div className="bg-white bg-opacity-20 rounded-lg p-4 hover:bg-opacity-30 transition-all cursor-pointer">
-                <div className="text-2xl font-bold">{mtechSem1Stats.pendingAllocations}</div>
-                <div className="text-rose-200 text-sm">Pending Allocation</div>
+
+              {/* M.Tech Sem 3 */}
+              <div className="card-base border-l-4 border-l-purple-500">
+                <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-4">
+                  <div>
+                    <h2 className="text-xl font-bold text-neutral-900">M.Tech Semester 3 - Track Management</h2>
+                    <p className="text-neutral-500 text-sm mt-1">Track selections and 6-month internship verification</p>
+                  </div>
+                  <Link to="/admin/mtech/sem3/review" className="btn-secondary text-sm flex items-center gap-2">
+                    <FiCheckCircle className="w-4 h-4" /> Review Applications
+                  </Link>
+                </div>
+                
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="bg-surface-200 rounded-lg p-4 border border-neutral-200">
+                    <div className="text-2xl font-bold text-neutral-900">{mtechSem3Stats.totalStudents || 0}</div>
+                    <div className="text-neutral-600 text-xs font-medium uppercase tracking-wider mt-1">Track Submissions</div>
+                  </div>
+                  <div className="bg-surface-200 rounded-lg p-4 border border-neutral-200">
+                    <div className="text-2xl font-bold text-neutral-900">{mtechSem3Stats.internshipTrack || 0}</div>
+                    <div className="text-neutral-600 text-xs font-medium uppercase tracking-wider mt-1">Internship Track</div>
+                  </div>
+                  <div className="bg-surface-200 rounded-lg p-4 border border-neutral-200">
+                    <div className="text-2xl font-bold text-neutral-900">{mtechSem3Stats.totalApplications || 0}</div>
+                    <div className="text-neutral-600 text-xs font-medium uppercase tracking-wider mt-1">Applications</div>
+                  </div>
+                  <div className="bg-surface-200 rounded-lg p-4 border border-neutral-200">
+                    <div className="text-2xl font-bold text-neutral-900">{mtechSem3Stats.pendingApplications || 0}</div>
+                    <div className="text-neutral-600 text-xs font-medium uppercase tracking-wider mt-1">Pending Reviews</div>
+                  </div>
+                </div>
               </div>
             </div>
           )}
-        </div>
-      </div>
-
-      {/* M.Tech Sem 2 Statistics */}
-      <div className="mb-8">
-        <div className="bg-gradient-to-r from-purple-600 to-indigo-700 text-white p-6 rounded-lg shadow-md">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-2xl font-bold mb-4">M.Tech Semester 2 - Minor Project 2</h2>
-              <p className="text-purple-200 mb-4">Solo project registration and faculty allocation overview</p>
-              {!loading && (
-                <p className="text-sm text-purple-100">
-                  Registration Rate: {mtechSem2Stats.registrationRate}% • Unregistered Students: {mtechSem2Stats.unregisteredStudents}
-                </p>
-              )}
-            </div>
-            <div className="flex space-x-4">
-              <Link
-                to="/admin/mtech/sem2/registrations"
-                className="bg-white bg-opacity-20 hover:bg-opacity-30 px-4 py-2 rounded-md text-white font-medium transition-all duration-200 flex items-center space-x-2"
-              >
-                <span>📊</span>
-                <span>View Registrations</span>
-              </Link>
-              <Link
-                to="/admin/mtech/sem2/unregistered"
-                className="bg-white bg-opacity-20 hover:bg-opacity-30 px-4 py-2 rounded-md text-white font-medium transition-all duration-200 flex items-center space-x-2"
-              >
-                <span>📋</span>
-                <span>Unregistered Students</span>
-              </Link>
-            </div>
-          </div>
-
-          {loading ? (
-            <div className="flex items-center justify-center py-8">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div>
-            </div>
-          ) : (
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div className="bg-white bg-opacity-20 rounded-lg p-4 hover:bg-opacity-30 transition-all cursor-pointer">
-                <div className="text-2xl font-bold">{mtechSem2Stats.totalStudents}</div>
-                <div className="text-purple-200 text-sm">Total Students</div>
-              </div>
-              <div className="bg-white bg-opacity-20 rounded-lg p-4 hover:bg-opacity-30 transition-all cursor-pointer">
-                <div className="text-2xl font-bold">{mtechSem2Stats.registeredProjects}</div>
-                <div className="text-purple-200 text-sm">Registered Projects</div>
-              </div>
-              <div className="bg-white bg-opacity-20 rounded-lg p-4 hover:bg-opacity-30 transition-all cursor-pointer">
-                <div className="text-2xl font-bold">{mtechSem2Stats.facultyAllocated}</div>
-                <div className="text-purple-200 text-sm">Faculty Allocated</div>
-              </div>
-              <div className="bg-white bg-opacity-20 rounded-lg p-4 hover:bg-opacity-30 transition-all cursor-pointer">
-                <div className="text-2xl font-bold">{mtechSem2Stats.pendingAllocations}</div>
-                <div className="text-purple-200 text-sm">Pending Allocation</div>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* M.Tech Sem 3 Statistics */}
-      <div className="mb-8">
-        <div className="bg-gradient-to-r from-teal-600 to-cyan-700 text-white p-6 rounded-lg shadow-md">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-2xl font-bold mb-4">M.Tech Semester 3 - Track & Internship Management</h2>
-              <p className="text-white/80 mb-6">Track selections and 6-month internship verification for promoted students</p>
-            </div>
-            <div>
-              <Link
-                to="/admin/mtech/sem3/review"
-                className="bg-white bg-opacity-20 hover:bg-opacity-30 px-4 py-2 rounded-md text-white font-medium transition-all duration-200 flex items-center space-x-2"
-              >
-                <span>📋</span>
-                <span>Review Applications</span>
-              </Link>
-            </div>
-          </div>
-
-          {loading ? (
-            <div className="flex items-center justify-center py-8">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div>
-            </div>
-          ) : (
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div className="bg-white bg-opacity-20 rounded-lg p-4 hover:bg-opacity-30 transition-all cursor-pointer">
-                <div className="text-2xl font-bold">{mtechSem3Stats.totalStudents || 0}</div>
-                <div className="text-white/80 text-sm">Track Submissions</div>
-              </div>
-              <div className="bg-white bg-opacity-20 rounded-lg p-4 hover:bg-opacity-30 transition-all cursor-pointer">
-                <div className="text-2xl font-bold">{mtechSem3Stats.internshipTrack || 0}</div>
-                <div className="text-white/80 text-sm">Internship Track</div>
-              </div>
-              <div className="bg-white bg-opacity-20 rounded-lg p-4 hover:bg-opacity-30 transition-all cursor-pointer">
-                <div className="text-2xl font-bold">{mtechSem3Stats.totalApplications || 0}</div>
-                <div className="text-white/80 text-sm">Internship Applications</div>
-              </div>
-              <div className="bg-white bg-opacity-20 rounded-lg p-4 hover:bg-opacity-30 transition-all cursor-pointer">
-                <div className="text-2xl font-bold">{mtechSem3Stats.pendingApplications || 0}</div>
-                <div className="text-white/80 text-sm">Pending Reviews</div>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
+        </>
+      )}
 
       {isAddOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
