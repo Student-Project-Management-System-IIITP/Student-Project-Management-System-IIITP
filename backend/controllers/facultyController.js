@@ -256,7 +256,7 @@ const getDashboardData = async (req, res) => {
   try {
     const facultyId = req.user.id;
 
-    // Get faculty details
+    // Get faculty details (must run first — other queries depend on faculty._id)
     const faculty = await Faculty.findOne({ user: facultyId })
       .populate('user', 'email role isActive lastLogin');
 
@@ -267,33 +267,36 @@ const getDashboardData = async (req, res) => {
       });
     }
 
-    // Get faculty's assigned projects
-    const assignedProjects = await Project.find({
-      faculty: faculty._id,
-      status: { $in: ['faculty_allocated', 'active', 'completed'] }
-    })
-      .populate('student', 'fullName misNumber collegeEmail semester degree branch')
-      .populate('group', 'name members')
-      .sort({ createdAt: -1 });
+    // ── Parallelize 3 independent queries that depend on faculty._id ──
+    const [assignedProjects, assignedGroups, pendingAllocations] = await Promise.all([
+      // Get faculty's assigned projects
+      Project.find({
+        faculty: faculty._id,
+        status: { $in: ['faculty_allocated', 'active', 'completed'] }
+      })
+        .populate('student', 'fullName misNumber collegeEmail semester degree branch')
+        .populate('group', 'name members')
+        .sort({ createdAt: -1 }),
 
-    // Get faculty's assigned groups
-    const assignedGroups = await Group.find({
-      allocatedFaculty: faculty._id,
-      isActive: true
-    })
-      .populate('members.student', 'fullName misNumber collegeEmail')
-      .populate('project', 'title description projectType status')
-      .sort({ createdAt: -1 });
+      // Get faculty's assigned groups
+      Group.find({
+        allocatedFaculty: faculty._id,
+        isActive: true
+      })
+        .populate('members.student', 'fullName misNumber collegeEmail')
+        .populate('project', 'title description projectType status')
+        .sort({ createdAt: -1 }),
 
-    // Get pending allocation requests
-    const pendingAllocations = await FacultyPreference.find({
-      'preferences.faculty': faculty._id,
-      status: 'pending'
-    })
-      .populate('student', 'fullName misNumber collegeEmail semester degree branch')
-      .populate('project', 'title description projectType')
-      .populate('group', 'name members')
-      .sort({ createdAt: 1 });
+      // Get pending allocation requests
+      FacultyPreference.find({
+        'preferences.faculty': faculty._id,
+        status: 'pending'
+      })
+        .populate('student', 'fullName misNumber collegeEmail semester degree branch')
+        .populate('project', 'title description projectType')
+        .populate('group', 'name members')
+        .sort({ createdAt: 1 })
+    ]);
 
     // Get faculty statistics
     const stats = {
