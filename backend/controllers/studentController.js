@@ -15,7 +15,7 @@ const getDashboardData = async (req, res) => {
   try {
     const studentId = req.user.id;
 
-    // Get student details with populated data
+    // Get student details with populated data (must run first — other queries depend on student)
     const student = await Student.findOne({ user: studentId })
       .populate('user', 'email role isActive lastLogin')
       .populate('currentProjects.project')
@@ -38,15 +38,24 @@ const getDashboardData = async (req, res) => {
       projectCapabilities[projectType] = supportsGroupsAndFaculty(projectType, student.semester, student.degree);
     });
 
-    // Get active group memberships first
-    const activeGroups = await Group.find({
-      'members.student': student._id,
-      'members.isActive': true,
-      semester: student.semester,
-      isActive: true
-    }).populate('members.student allocatedFaculty project');
+    // ── Parallelize: activeGroups and facultyPreferences are independent ──
+    const [activeGroups, facultyPreferences] = await Promise.all([
+      // Get active group memberships
+      Group.find({
+        'members.student': student._id,
+        'members.isActive': true,
+        semester: student.semester,
+        isActive: true
+      }).populate('members.student allocatedFaculty project'),
 
-    // Get current semester projects
+      // Get faculty preferences for current semester
+      FacultyPreference.find({
+        student: student._id,
+        semester: student.semester
+      }).populate('project group preferences.faculty')
+    ]);
+
+    // Get current semester projects (depends on activeGroups for groupIds)
     // Include projects where:
     // 1. Student is the direct owner (for solo projects)
     // 2. Student is in a group that has the project (for group projects)
@@ -59,12 +68,6 @@ const getDashboardData = async (req, res) => {
         { group: { $in: groupIds } } // Group membership
       ]
     }).populate('faculty group');
-
-    // Get faculty preferences for current semester (only if project type supports faculty preferences)
-    const facultyPreferences = await FacultyPreference.find({
-      student: student._id,
-      semester: student.semester
-    }).populate('project group preferences.faculty');
 
     // Use the enhanced student model's dashboard data method
     const dashboardData = student.getDashboardData();

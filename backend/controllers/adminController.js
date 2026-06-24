@@ -148,55 +148,62 @@ const updateAdminProfile = async (req, res) => {
 // Get admin dashboard data
 const getDashboardData = async (req, res) => {
   try {
-    // Get basic counts
-    const totalStudents = await Student.countDocuments();
-    const totalFaculty = await Faculty.countDocuments();
-    const totalUsers = await User.countDocuments();
-    const totalProjects = await Project.countDocuments();
-    const totalGroups = await Group.countDocuments();
 
-    // Get project statistics
-    const projectStats = {
-      total: totalProjects,
-      registered: await Project.countDocuments({ status: 'registered' }),
-      faculty_allocated: await Project.countDocuments({ status: 'faculty_allocated' }),
-      active: await Project.countDocuments({ status: 'active' }),
-      completed: await Project.countDocuments({ status: 'completed' }),
-      cancelled: await Project.countDocuments({ status: 'cancelled' })
-    };
+    // ── Wave 1: All independent count queries in parallel (17 queries) ──
+    const [
+      totalStudents,
+      totalFaculty,
+      totalUsers,
+      totalProjects,
+      totalGroups,
+      registeredProjects,
+      facultyAllocatedProjects,
+      activeProjects,
+      completedProjects,
+      cancelledProjects,
+      formingGroups,
+      completeGroups,
+      lockedGroups,
+      disbandedGroups,
+      pendingAllocations,
+      allocatedPreferences,
+      rejectedPreferences
+    ] = await Promise.all([
+      Student.countDocuments(),
+      Faculty.countDocuments(),
+      User.countDocuments(),
+      Project.countDocuments(),
+      Group.countDocuments(),
+      Project.countDocuments({ status: 'registered' }),
+      Project.countDocuments({ status: 'faculty_allocated' }),
+      Project.countDocuments({ status: 'active' }),
+      Project.countDocuments({ status: 'completed' }),
+      Project.countDocuments({ status: 'cancelled' }),
+      Group.countDocuments({ status: 'forming' }),
+      Group.countDocuments({ status: 'complete' }),
+      Group.countDocuments({ status: 'locked' }),
+      Group.countDocuments({ status: 'disbanded' }),
+      FacultyPreference.countDocuments({ status: { $in: ['pending', 'pending_admin_allocation'] } }),
+      FacultyPreference.countDocuments({ status: 'allocated' }),
+      FacultyPreference.countDocuments({ status: 'rejected' })
+    ]);
 
-    // Get group statistics
-    const groupStats = {
-      total: totalGroups,
-      forming: await Group.countDocuments({ status: 'forming' }),
-      complete: await Group.countDocuments({ status: 'complete' }),
-      locked: await Group.countDocuments({ status: 'locked' }),
-      disbanded: await Group.countDocuments({ status: 'disbanded' })
-    };
-
-    // Get allocation statistics
-    const allocationStats = {
-      pending: await FacultyPreference.countDocuments({ status: { $in: ['pending', 'pending_admin_allocation'] } }),
-      allocated: await FacultyPreference.countDocuments({ status: 'allocated' }),
-      rejected: await FacultyPreference.countDocuments({ status: 'rejected' })
-    };
-
-    // Get recent activities
-    const recentStudents = await Student.find()
-      .populate('user', 'email role isActive lastLogin')
-      .sort({ createdAt: -1 })
-      .limit(5);
-
-    const recentFaculty = await Faculty.find()
-      .populate('user', 'email role isActive lastLogin')
-      .sort({ createdAt: -1 })
-      .limit(5);
-
-    const recentProjects = await Project.find()
-      .populate('student', 'fullName misNumber')
-      .populate('faculty', 'fullName department')
-      .sort({ createdAt: -1 })
-      .limit(5);
+    // ── Wave 2: Recent activity queries in parallel (3 queries) ──
+    const [recentStudents, recentFaculty, recentProjects] = await Promise.all([
+      Student.find()
+        .populate('user', 'email role isActive lastLogin')
+        .sort({ createdAt: -1 })
+        .limit(5),
+      Faculty.find()
+        .populate('user', 'email role isActive lastLogin')
+        .sort({ createdAt: -1 })
+        .limit(5),
+      Project.find()
+        .populate('student', 'fullName misNumber')
+        .populate('faculty', 'fullName department')
+        .sort({ createdAt: -1 })
+        .limit(5)
+    ]);
 
     res.json({
       success: true,
@@ -208,9 +215,26 @@ const getDashboardData = async (req, res) => {
           totalProjects,
           totalGroups
         },
-        projectStats,
-        groupStats,
-        allocationStats,
+        projectStats: {
+          total: totalProjects,
+          registered: registeredProjects,
+          faculty_allocated: facultyAllocatedProjects,
+          active: activeProjects,
+          completed: completedProjects,
+          cancelled: cancelledProjects
+        },
+        groupStats: {
+          total: totalGroups,
+          forming: formingGroups,
+          complete: completeGroups,
+          locked: lockedGroups,
+          disbanded: disbandedGroups
+        },
+        allocationStats: {
+          pending: pendingAllocations,
+          allocated: allocatedPreferences,
+          rejected: rejectedPreferences
+        },
         recentStudents,
         recentFaculty,
         recentProjects
