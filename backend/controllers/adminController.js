@@ -817,38 +817,52 @@ const searchFaculties = async (req, res) => {
   try {
     const { search, sort, page, pageSize } = req.query;
 
-    // Base query: exclude retired faculty
-    let faculties = await Faculty.find({ isRetired: false })
-      .populate('user', 'email role isActive lastLogin createdAt')
-      .lean();
-
-    // Apply search filter on name, phone, or email (case-insensitive)
-    if (search && search.trim()) {
-      const regex = new RegExp(search.trim(), 'i');
-      faculties = faculties.filter(fac =>
-        regex.test(fac.fullName || '') ||
-        regex.test(fac.phone || '') ||
-        regex.test(fac.user?.email || '')
-      );
-    }
-
-    // Apply sort in-memory for simplicity
-    faculties.sort((a, b) => {
-      const field = sort === 'designation' ? 'designation' : sort === 'department' ? 'department' : 'fullName';
-      const aVal = (a[field] || '').toString();
-      const bVal = (b[field] || '').toString();
-      const primary = aVal.localeCompare(bVal, undefined, { sensitivity: 'base' });
-      if (primary !== 0) return primary;
-      return (a.fullName || '').localeCompare(b.fullName || '', undefined, { sensitivity: 'base' });
-    });
-    const totalCount = faculties.length;
     const pageNumber = Math.max(parseInt(page, 10) || 1, 1);
     const limit = Math.min(Math.max(parseInt(pageSize, 10) || 20, 1), 100);
-    const totalPages = Math.ceil(totalCount / limit) || 1;
-    const startIndex = (pageNumber - 1) * limit;
-    const endIndex = startIndex + limit;
+    const skip = (pageNumber - 1) * limit;
 
-    const paginatedFaculties = faculties.slice(startIndex, endIndex);
+    const query = { isRetired: false };
+
+    if (search && search.trim()) {
+      const term = search.trim();
+      const regex = new RegExp(term, 'i');
+
+      // First find users by email
+      const matchedUsers = await User.find({ email: regex }).select('_id');
+      const userIds = matchedUsers.map(u => u._id);
+
+      const orConditions = [
+        { fullName: regex },
+        { phone: regex }
+      ];
+
+      if (userIds.length > 0) {
+        orConditions.push({ user: { $in: userIds } });
+      }
+
+      query.$or = orConditions;
+    }
+
+    let sortOption;
+    if (sort === 'designation') {
+      sortOption = { designation: 1, fullName: 1 };
+    } else if (sort === 'department') {
+      sortOption = { department: 1, fullName: 1 };
+    } else {
+      sortOption = { fullName: 1 };
+    }
+
+    const [totalCount, paginatedFaculties] = await Promise.all([
+      Faculty.countDocuments(query),
+      Faculty.find(query)
+        .populate('user', 'email role isActive lastLogin createdAt')
+        .sort(sortOption)
+        .skip(skip)
+        .limit(limit)
+        .lean()
+    ]);
+
+    const totalPages = Math.ceil(totalCount / limit) || 1;
 
     // Count active allocations for each faculty
     const facultyIds = paginatedFaculties.map(fac => fac._id);
@@ -886,6 +900,7 @@ const searchFaculties = async (req, res) => {
       totalCount,
       totalPages,
       currentPage: pageNumber,
+      pageSize: limit,
       count: totalCount
     });
   } catch (error) {
