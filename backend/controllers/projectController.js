@@ -419,14 +419,6 @@ const sendMessage = async (req, res) => {
     const userRole = req.user.role;
     const files = req.files; // Uploaded files from multer
 
-    // Message or files must be present
-    if ((!message || !message.trim()) && (!files || files.length === 0)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Message or file attachment is required'
-      });
-    }
-
     // Verify access to project
     const project = await Project.findById(projectId);
     if (!project) {
@@ -697,13 +689,6 @@ const editMessage = async (req, res) => {
     const { message: newMessage } = req.body;
     const userId = req.user.id;
 
-    if (!newMessage || !newMessage.trim()) {
-      return res.status(400).json({
-        success: false,
-        message: 'Message cannot be empty'
-      });
-    }
-
     // Find the message
     const message = await Message.findById(messageId);
     if (!message) {
@@ -896,13 +881,6 @@ const addReaction = async (req, res) => {
     const { emoji } = req.body;
     const userId = req.user.id;
     const userRole = req.user.role;
-
-    if (!emoji) {
-      return res.status(400).json({
-        success: false,
-        message: 'Emoji is required'
-      });
-    }
 
     const message = await Message.findById(messageId);
     if (!message) {
@@ -1103,13 +1081,6 @@ const scheduleMeeting = async (req, res) => {
     const userId = req.user.id;
     const userRole = req.user.role;
 
-    if (!scheduledAt) {
-      return res.status(400).json({
-        success: false,
-        message: 'Scheduled date and time is required'
-      });
-    }
-
     const project = await Project.findById(projectId).populate('faculty');
     if (!project) {
       return res.status(404).json({
@@ -1284,10 +1255,6 @@ const uploadDeliverable = async (req, res) => {
       report: 'Project Report'
     };
     const deliverableName = nameMap[deliverableType];
-
-    if (!deliverableName) {
-      return res.status(400).json({ success: false, message: 'Invalid deliverable type' });
-    }
 
     let simpleFileType = 'other';
     if (file.mimetype === 'application/pdf') {

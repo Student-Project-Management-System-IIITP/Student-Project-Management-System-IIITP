@@ -780,10 +780,6 @@ const submitProjectFacultyPreferences = async (req, res) => {
     const { projectId } = req.params;
     const { preferences } = req.body;
 
-    if (!preferences || !Array.isArray(preferences) || preferences.length === 0) {
-      return res.status(400).json({ success: false, message: 'Faculty preferences are required' });
-    }
-
     const student = await Student.findOne({ user: studentId });
     if (!student) {
       return res.status(404).json({ success: false, message: 'Student not found' });
