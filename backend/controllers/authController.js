@@ -27,20 +27,6 @@ const requestPasswordReset = async (req, res) => {
   try {
     const { email } = req.body;
 
-    if (!email) {
-      return res.status(400).json({
-        success: false,
-        message: 'Email is required'
-      });
-    }
-
-    if (!isValidEmail(email)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Please enter a valid email address'
-      });
-    }
-
     const user = await User.findOne({ email });
 
     if (!user) {
@@ -111,27 +97,6 @@ const requestPasswordReset = async (req, res) => {
 const resetPassword = async (req, res) => {
   try {
     const { token, email, password } = req.body;
-
-    if (!token || !email || !password) {
-      return res.status(400).json({
-        success: false,
-        message: 'Token, email and new password are required'
-      });
-    }
-
-    if (!isValidEmail(email)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Please enter a valid email address'
-      });
-    }
-
-    if (password.length < 6) {
-      return res.status(400).json({
-        success: false,
-        message: 'Password must be at least 6 characters long'
-      });
-    }
 
     const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
 
@@ -585,14 +550,6 @@ const loginUser = async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    // Validate required fields
-    if (!email || !password) {
-      return res.status(400).json({
-        success: false,
-        message: 'Please provide email and password'
-      });
-    }
-
     // Find user by email
     const user = await User.findOne({ email }).select('+password');
     if (!user) {
@@ -751,13 +708,6 @@ const changePassword = async (req, res) => {
   try {
     const userId = req.user.id;
     const { currentPassword, newPassword } = req.body;
-
-    if (!currentPassword || !newPassword) {
-      return res.status(400).json({
-        success: false,
-        message: 'Please provide current and new password'
-      });
-    }
 
     const user = await User.findById(userId).select('+password');
     if (!user) {

@@ -117,8 +117,63 @@ const validateSignupAdmin = [
     })
 ];
 
+// Validation rules for Login
+const validateLoginUser = [
+  body('email')
+    .notEmpty().withMessage('Please provide email and password'),
+  body('password')
+    .notEmpty().withMessage('Please provide email and password')
+];
+
+// Validation rules for Request Password Reset
+const validateRequestPasswordReset = [
+  body('email')
+    .notEmpty().withMessage('Email is required')
+    .isEmail().withMessage('Please enter a valid email address')
+];
+
+// Validation rules for Reset Password
+const validateResetPassword = [
+  body('token')
+    .notEmpty().withMessage('Token, email and new password are required'),
+  body('email')
+    .notEmpty().withMessage('Token, email and new password are required')
+    .isEmail().withMessage('Please enter a valid email address'),
+  // NOTE: New constraint added (not in original code) — see issue #103 PR notes
+  body('password')
+    .notEmpty().withMessage('Token, email and new password are required')
+    .isLength({ min: 6 }).withMessage('Password must be at least 6 characters long')
+    .matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).+$/)
+    .withMessage('Password must include an uppercase letter, a lowercase letter, a number, and a special character')
+];
+
+// Validation rules for Change Password
+const validateChangePassword = [
+  body('currentPassword')
+    .notEmpty().withMessage('Please provide current and new password'),
+  // NOTE: New constraint added (not in original code) — see issue #103 PR notes
+  body('newPassword')
+    .notEmpty().withMessage('Please provide current and new password')
+    .isLength({ min: 6 }).withMessage('Password must be at least 6 characters long')
+    .matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).+$/)
+    .withMessage('Password must include an uppercase letter, a lowercase letter, a number, and a special character')
+];
+
+// Validation rules for Update User Profile
+const validateUpdateUserProfile = [
+  // NOTE: New constraint added (not in original code) — see issue #103 PR notes
+  body('phone')
+    .optional()
+    .matches(/^[6-9]\d{9}$/).withMessage('Please enter a valid 10-digit phone number')
+];
+
 module.exports = {
   validateSignupStudent,
   validateSignupFaculty,
-  validateSignupAdmin
+  validateSignupAdmin,
+  validateLoginUser,
+  validateRequestPasswordReset,
+  validateResetPassword,
+  validateChangePassword,
+  validateUpdateUserProfile
 };
