@@ -17,11 +17,13 @@ const {
 } = require('../controllers/authController');
 const { authenticateToken } = require('../middleware/auth');
 const { loginLimiter, otpLimiter, passwordResetLimiter } = require('../middleware/rateLimiter');
+const { validateSignupStudent, validateSignupFaculty, validateSignupAdmin } = require('../validators/authValidator');
+const { validateRequest } = require('../middleware/validateRequest');
 
 // Public routes (no authentication required)
-router.post('/signup/student', signupStudent);
-router.post('/signup/faculty', signupFaculty);
-router.post('/signup/admin', signupAdmin);
+router.post('/signup/student', validateSignupStudent, validateRequest, signupStudent);
+router.post('/signup/faculty', validateSignupFaculty, validateRequest, signupFaculty);
+router.post('/signup/admin', validateSignupAdmin, validateRequest, signupAdmin);
 router.post('/signup/send-otp', otpLimiter, sendSignupOtp);
 router.post('/signup/verify-otp', otpLimiter, verifySignupOtp);
 router.post('/forgot-password', passwordResetLimiter, requestPasswordReset);
