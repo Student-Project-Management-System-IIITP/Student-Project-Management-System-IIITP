@@ -777,6 +777,81 @@ const resetStudentPassword = async (req, res) => {
 // Get all faculty
 const getFaculty = async (req, res) => {
   try {
+    const { search, sort, page, pageSize } = req.query;
+    const query = { isRetired: false };
+
+    if (search && search.trim()) {
+      const term = search.trim();
+      const regex = new RegExp(term, 'i');
+
+      const matchedUsers = await User.find({ email: regex }).select('_id');
+      const userIds = matchedUsers.map(u => u._id);
+
+      const orConditions = [
+        { fullName: regex },
+        { phone: regex }
+      ];
+
+      if (userIds.length > 0) {
+        orConditions.push({ user: { $in: userIds } });
+      }
+
+      query.$or = orConditions;
+    }
+
+    let sortOption = { fullName: 1 };
+    if (sort === 'designation') {
+      sortOption = { designation: 1, fullName: 1 };
+    } else if (sort === 'department') {
+      sortOption = { department: 1, fullName: 1 };
+    }
+
+    const usePagination = Boolean(search || sort || page || pageSize);
+
+    if (usePagination) {
+      const pageNumber = Math.max(parseInt(page, 10) || 1, 1);
+      const limit = Math.min(Math.max(parseInt(pageSize, 10) || 20, 1), 100);
+      const skip = (pageNumber - 1) * limit;
+
+      const [totalCount, faculties] = await Promise.all([
+        Faculty.countDocuments(query),
+        Faculty.find(query)
+          .populate('user', 'email role isActive lastLogin createdAt')
+          .sort(sortOption)
+          .skip(skip)
+          .limit(limit)
+          .lean()
+      ]);
+
+      const formatted = faculties.map(fac => ({
+        _id: fac._id,
+        facultyId: fac.facultyId,
+        fullName: fac.fullName,
+        prefix: fac.prefix || '',
+        email: fac.email || fac.user?.email || '',
+        phone: fac.phone,
+        department: fac.department,
+        mode: fac.mode,
+        designation: fac.designation,
+        user: fac.user ? {
+          email: fac.user.email,
+          role: fac.user.role
+        } : null
+      }));
+
+      const totalPages = Math.ceil(totalCount / limit) || 1;
+
+      return res.json({
+        success: true,
+        data: formatted,
+        totalCount,
+        totalPages,
+        currentPage: pageNumber,
+        pageSize: limit,
+        count: totalCount
+      });
+    }
+
     const faculty = await Faculty.find({ isRetired: false })
       .populate('user', 'email role isActive lastLogin')
       .sort({ fullName: 1 })
