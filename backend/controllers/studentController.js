@@ -3392,13 +3392,6 @@ const updateGroupName = async (req, res) => {
     const { groupId } = req.params;
     const { name } = req.body;
 
-    if (!name || !name.trim()) {
-      return res.status(400).json({
-        success: false,
-        message: 'Group name is required'
-      });
-    }
-
     const student = await Student.findOne({ user: studentId });
     if (!student) {
       return res.status(404).json({
@@ -4255,14 +4248,6 @@ const inviteToGroup = async (req, res) => {
       return res.status(403).json({
         success: false,
         message: 'Only group leaders can invite members'
-      });
-    }
-
-    // Validate role
-    if (role !== 'member') {
-      return res.status(400).json({
-        success: false,
-        message: 'Only can invite as member role'
       });
     }
 
@@ -5174,14 +5159,6 @@ const submitFacultyPreferences = async (req, res) => {
       return res.status(400).json({
         success: false,
         message: 'Student is not a member of this group'
-      });
-    }
-
-    // Validate preferences
-    if (!preferences || !Array.isArray(preferences) || preferences.length === 0) {
-      return res.status(400).json({
-        success: false,
-        message: 'Faculty preferences are required'
       });
     }
 
