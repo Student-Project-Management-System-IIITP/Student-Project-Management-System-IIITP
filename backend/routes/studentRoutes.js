@@ -15,6 +15,12 @@ const {
   validateTransferLeadership,
   validateSubmitFacultyPreferences
 } = require('../validators/groupValidator');
+const {
+  validateRegisterProject,
+  validateUpdateProject,
+  validateSubmitDeliverables,
+  validateRegisterSpecificProject
+} = require('../validators/projectValidator');
 const { validateRequest } = require('../middleware/validateRequest');
 
 // Apply authentication middleware to all routes
@@ -114,23 +120,23 @@ router.get('/semester-features', studentController.getSemesterFeatures);
 
 // Project routes
 router.get('/projects', studentController.getStudentProjects);
-router.post('/projects', studentController.registerProject);
+router.post('/projects', validateRegisterProject, validateRequest, studentController.registerProject);
 router.get('/projects/:id', studentController.getProjectById); // Get specific project
-router.put('/projects/:id', studentController.updateProject);
-router.post('/projects/:id/submit', studentController.submitDeliverables);
+router.put('/projects/:id', validateUpdateProject, validateRequest, studentController.updateProject);
+router.post('/projects/:id/submit', validateSubmitDeliverables, validateRequest, studentController.submitDeliverables);
 
 // Minor Project 2 specific registration
-router.post('/projects/minor2/register', studentController.registerMinorProject2);
+router.post('/projects/minor2/register', validateRegisterSpecificProject, validateRequest, studentController.registerMinorProject2);
 // Major Project 1 specific registration (Sem 7)
-router.post('/projects/major1/register', studentController.registerMajorProject1);
+router.post('/projects/major1/register', validateRegisterSpecificProject, validateRequest, studentController.registerMajorProject1);
 // Internship 1 specific registration (Sem 7 - solo project)
 router.get('/projects/internship1/status', studentController.checkInternship1Status);
-router.post('/projects/internship1/register', studentController.registerInternship1);
+router.post('/projects/internship1/register', validateRegisterSpecificProject, validateRequest, studentController.registerInternship1);
 // Major Project 2 specific registration (Sem 8)
-router.post('/projects/major2/register', studentController.registerMajorProject2);
+router.post('/projects/major2/register', validateRegisterSpecificProject, validateRequest, studentController.registerMajorProject2);
 // Internship 2 specific registration (Sem 8 - solo project)
 router.get('/projects/internship2/status', studentController.checkInternship2Status);
-router.post('/projects/internship2/register', studentController.registerInternship2);
+router.post('/projects/internship2/register', validateRegisterSpecificProject, validateRequest, studentController.registerInternship2);
 router.get('/projects/:projectId/allocation-status', studentController.getFacultyAllocationStatus);
 router.get('/group-status', studentController.getStudentGroupStatus);
 
