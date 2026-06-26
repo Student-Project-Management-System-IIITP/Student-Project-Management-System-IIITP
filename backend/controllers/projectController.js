@@ -30,31 +30,8 @@ const getProjectMedia = async (req, res) => {
     }
 
     // Access control (same as messages)
-    let hasAccess = false;
-
-    if (userRole === 'student') {
-      const student = await Student.findOne({ user: userId });
-      if (student) {
-        if (isProjectOwnedByStudent(project.student, student._id)) {
-          hasAccess = true;
-        } else if (project.group) {
-          const group = await Group.findById(project.group);
-          const isMember = group.members.some(
-            (member) => member.student.toString() === student._id.toString()
-          );
-          hasAccess = isMember;
-        }
-      }
-    } else if (userRole === 'faculty') {
-      const faculty = await Faculty.findOne({ user: userId });
-      if (faculty && project.faculty) {
-        hasAccess = project.faculty.toString() === faculty._id.toString();
-      }
-    } else if (userRole === 'admin') {
-      hasAccess = true;
-    }
-
-    if (!hasAccess) {
+    const access = await checkProjectAccess(project, userId, userRole);
+    if (!access.hasAccess) {
       return res.status(403).json({
         success: false,
         message: 'You do not have access to this project'
@@ -120,6 +97,54 @@ const isProjectOwnedByStudent = (projectStudent, studentId) => {
   return projectStudentId === studentId.toString();
 };
 
+const checkProjectAccess = async (project, userId, userRole) => {
+  let hasAccess = false;
+  let student = null;
+  let faculty = null;
+  let userType = '';
+
+  if (userRole === 'student') {
+    student = await Student.findOne({ user: userId }).populate('user', 'fullName');
+    if (student) {
+      if (isProjectOwnedByStudent(project.student, student._id)) {
+        hasAccess = true;
+        userType = 'student';
+      } else if (project.group) {
+        let group = project.group;
+        if (group && !group.members) {
+          group = await Group.findById(project.group);
+        }
+        if (group && group.members) {
+          const isMember = group.members.some(
+            (member) =>
+              member.student &&
+              (member.student._id ? member.student._id.toString() : member.student.toString()) === student._id.toString() &&
+              member.isActive === true
+          );
+          if (isMember) {
+            hasAccess = true;
+            userType = 'student';
+          }
+        }
+      }
+    }
+  } else if (userRole === 'faculty') {
+    faculty = await Faculty.findOne({ user: userId }).populate('user', 'fullName');
+    if (faculty && project.faculty) {
+      const projectFacultyId = project.faculty._id ? project.faculty._id.toString() : project.faculty.toString();
+      if (projectFacultyId === faculty._id.toString()) {
+        hasAccess = true;
+        userType = 'faculty';
+      }
+    }
+  } else if (userRole === 'admin') {
+    hasAccess = true;
+    userType = 'admin';
+  }
+
+  return { hasAccess, student, faculty, userType };
+};
+
 // Save notes for a completed meeting and move it to history
 const completeMeeting = async (req, res) => {
   try {
@@ -143,17 +168,17 @@ const completeMeeting = async (req, res) => {
       });
     }
 
-    let facultyId = null;
+    const access = await checkProjectAccess(project, userId, userRole);
+    if (!access.hasAccess) {
+      return res.status(403).json({
+        success: false,
+        message: userRole === 'faculty' ? 'You are not the supervisor for this project' : 'You do not have access to this project'
+      });
+    }
 
+    let facultyId = null;
     if (userRole === 'faculty') {
-      const faculty = await Faculty.findOne({ user: userId });
-      if (!faculty || !project.faculty || project.faculty._id.toString() !== faculty._id.toString()) {
-        return res.status(403).json({
-          success: false,
-          message: 'You are not the supervisor for this project'
-        });
-      }
-      facultyId = faculty._id;
+      facultyId = access.faculty._id;
     } else if (userRole === 'admin') {
       facultyId = project.faculty?._id || project.faculty;
     }
@@ -239,45 +264,14 @@ const getProjectDetails = async (req, res) => {
     }
 
     // Access control: Check if user has access to this project
-    let hasAccess = false;
-    let userType = '';
-
-    if (userRole === 'student') {
-      const student = await Student.findOne({ user: userId });
-      if (student) {
-        if (isProjectOwnedByStudent(project.student, student._id)) {
-          hasAccess = true;
-          userType = 'student';
-        } else if (project.group) {
-          const isMember = project.group.members.some(
-            (member) =>
-              member.student &&
-              member.student._id.toString() === student._id.toString()
-          );
-          hasAccess = isMember;
-          if (isMember) {
-            userType = 'student';
-          }
-        }
-      }
-    } else if (userRole === 'faculty') {
-      // Check if faculty is allocated to this project
-      const faculty = await Faculty.findOne({ user: userId });
-      if (faculty && project.faculty) {
-        hasAccess = project.faculty._id.toString() === faculty._id.toString();
-        userType = 'faculty';
-      }
-    } else if (userRole === 'admin') {
-      hasAccess = true;
-      userType = 'admin';
-    }
-
-    if (!hasAccess) {
+    const access = await checkProjectAccess(project, userId, userRole);
+    if (!access.hasAccess) {
       return res.status(403).json({
         success: false,
         message: 'You do not have access to this project'
       });
     }
+    const userType = access.userType;
 
     // Get unread message count
     const unreadCount = await Message.getUnreadCount(projectId, userId);
@@ -318,31 +312,8 @@ const getProjectMessages = async (req, res) => {
     }
 
     // Access control
-    let hasAccess = false;
-
-    if (userRole === 'student') {
-      const student = await Student.findOne({ user: userId });
-      if (student) {
-        if (isProjectOwnedByStudent(project.student, student._id)) {
-          hasAccess = true;
-        } else if (project.group) {
-          const group = await Group.findById(project.group);
-          const isMember = group.members.some(
-            (member) => member.student.toString() === student._id.toString()
-          );
-          hasAccess = isMember;
-        }
-      }
-    } else if (userRole === 'faculty') {
-      const faculty = await Faculty.findOne({ user: userId });
-      if (faculty && project.faculty) {
-        hasAccess = project.faculty.toString() === faculty._id.toString();
-      }
-    } else if (userRole === 'admin') {
-      hasAccess = true;
-    }
-
-    if (!hasAccess) {
+    const access = await checkProjectAccess(project, userId, userRole);
+    if (!access.hasAccess) {
       return res.status(403).json({
         success: false,
         message: 'You do not have access to this project'
@@ -437,43 +408,30 @@ const sendMessage = async (req, res) => {
     }
 
     // Access control and get sender info
-    let hasAccess = false;
-    let senderModel = '';
-    let senderName = '';
-
-    if (userRole === 'student') {
-      const student = await Student.findOne({ user: userId }).populate('user', 'fullName');
-      if (student) {
-        if (isProjectOwnedByStudent(project.student, student._id)) {
-          hasAccess = true;
-          senderModel = 'Student';
-          senderName = student.user?.fullName || student.fullName || 'Unknown Student';
-        } else if (project.group) {
-          const group = await Group.findById(project.group);
-          const isMember = group.members.some(
-            (member) => member.student.toString() === student._id.toString()
-          );
-          hasAccess = isMember;
-          if (isMember) {
-            senderModel = 'Student';
-            senderName = student.user?.fullName || student.fullName || 'Unknown Student';
-          }
-        }
-      }
-    } else if (userRole === 'faculty') {
-      const faculty = await Faculty.findOne({ user: userId }).populate('user', 'fullName');
-      if (faculty && project.faculty) {
-        hasAccess = project.faculty.toString() === faculty._id.toString();
-        senderModel = 'Faculty';
-        senderName = faculty.user?.fullName || faculty.fullName || 'Unknown Faculty';
-      }
+    if (userRole !== 'student' && userRole !== 'faculty') {
+      return res.status(403).json({
+        success: false,
+        message: 'Only students and faculty can send messages'
+      });
     }
 
-    if (!hasAccess) {
+    const access = await checkProjectAccess(project, userId, userRole);
+    if (!access.hasAccess) {
       return res.status(403).json({
         success: false,
         message: 'You do not have access to this project'
       });
+    }
+
+    let senderModel = '';
+    let senderName = '';
+
+    if (userRole === 'student') {
+      senderModel = 'Student';
+      senderName = access.student.user?.fullName || access.student.fullName || 'Unknown Student';
+    } else if (userRole === 'faculty') {
+      senderModel = 'Faculty';
+      senderName = access.faculty.user?.fullName || access.faculty.fullName || 'Unknown Faculty';
     }
 
     // Process file attachments
@@ -840,31 +798,8 @@ const searchMessages = async (req, res) => {
     }
 
     // Access control
-    let hasAccess = false;
-
-    if (userRole === 'student') {
-      const student = await Student.findOne({ user: userId });
-      if (student) {
-        if (isProjectOwnedByStudent(project.student, student._id)) {
-          hasAccess = true;
-        } else if (project.group) {
-          const group = await Group.findById(project.group);
-          const isMember = group.members.some(
-            (member) => member.student.toString() === student._id.toString()
-          );
-          hasAccess = isMember;
-        }
-      }
-    } else if (userRole === 'faculty') {
-      const faculty = await Faculty.findOne({ user: userId });
-      if (faculty && project.faculty) {
-        hasAccess = project.faculty.toString() === faculty._id.toString();
-      }
-    } else if (userRole === 'admin') {
-      hasAccess = true;
-    }
-
-    if (!hasAccess) {
+    const access = await checkProjectAccess(project, userId, userRole);
+    if (!access.hasAccess) {
       return res.status(403).json({
         success: false,
         message: 'You do not have access to this project'
@@ -904,6 +839,22 @@ const addReaction = async (req, res) => {
       });
     }
 
+    const project = await Project.findById(projectId);
+    if (!project) {
+      return res.status(404).json({
+        success: false,
+        message: 'Project not found'
+      });
+    }
+
+    const access = await checkProjectAccess(project, userId, userRole);
+    if (!access.hasAccess) {
+      return res.status(403).json({
+        success: false,
+        message: 'You do not have access to this project'
+      });
+    }
+
     const message = await Message.findById(messageId);
     if (!message) {
       return res.status(404).json({
@@ -923,11 +874,11 @@ const addReaction = async (req, res) => {
     // Get user name
     let userName = 'Unknown';
     if (userRole === 'student') {
-      const student = await Student.findOne({ user: userId });
-      userName = student?.fullName || 'Unknown Student';
+      userName = access.student?.fullName || 'Unknown Student';
     } else if (userRole === 'faculty') {
-      const faculty = await Faculty.findOne({ user: userId });
-      userName = faculty?.fullName || 'Unknown Faculty';
+      userName = access.faculty?.fullName || 'Unknown Faculty';
+    } else if (userRole === 'admin') {
+      userName = 'Admin';
     }
 
     // Add reaction
@@ -967,6 +918,23 @@ const removeReaction = async (req, res) => {
   try {
     const { projectId, messageId, emoji } = req.params;
     const userId = req.user.id;
+    const userRole = req.user.role;
+
+    const project = await Project.findById(projectId);
+    if (!project) {
+      return res.status(404).json({
+        success: false,
+        message: 'Project not found'
+      });
+    }
+
+    const access = await checkProjectAccess(project, userId, userRole);
+    if (!access.hasAccess) {
+      return res.status(403).json({
+        success: false,
+        message: 'You do not have access to this project'
+      });
+    }
 
     const message = await Message.findById(messageId);
     if (!message) {
@@ -1033,31 +1001,8 @@ const downloadChatFile = async (req, res) => {
     }
 
     // Access control
-    let hasAccess = false;
-
-    if (userRole === 'student') {
-      const student = await Student.findOne({ user: userId });
-      if (student) {
-        if (isProjectOwnedByStudent(project.student, student._id)) {
-          hasAccess = true;
-        } else if (project.group) {
-          const group = await Group.findById(project.group);
-          const isMember = group.members.some(
-            (member) => member.student.toString() === student._id.toString()
-          );
-          hasAccess = isMember;
-        }
-      }
-    } else if (userRole === 'faculty') {
-      const faculty = await Faculty.findOne({ user: userId });
-      if (faculty && project.faculty) {
-        hasAccess = project.faculty.toString() === faculty._id.toString();
-      }
-    } else if (userRole === 'admin') {
-      hasAccess = true;
-    }
-
-    if (!hasAccess) {
+    const access = await checkProjectAccess(project, userId, userRole);
+    if (!access.hasAccess) {
       return res.status(403).json({
         success: false,
         message: 'You do not have access to this project'
@@ -1125,17 +1070,17 @@ const scheduleMeeting = async (req, res) => {
       });
     }
 
-    let facultyId = null;
+    const access = await checkProjectAccess(project, userId, userRole);
+    if (!access.hasAccess) {
+      return res.status(403).json({
+        success: false,
+        message: userRole === 'faculty' ? 'You are not the supervisor for this project' : 'You do not have access to this project'
+      });
+    }
 
+    let facultyId = null;
     if (userRole === 'faculty') {
-      const faculty = await Faculty.findOne({ user: userId });
-      if (!faculty || !project.faculty || project.faculty._id.toString() !== faculty._id.toString()) {
-        return res.status(403).json({
-          success: false,
-          message: 'You are not the supervisor for this project'
-        });
-      }
-      facultyId = faculty._id;
+      facultyId = access.faculty._id;
     } else if (userRole === 'admin') {
       facultyId = project.faculty;
     }
@@ -1254,21 +1199,12 @@ const uploadDeliverable = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Project not found' });
     }
 
-    // Access control: ensure student is part of the project
-    const student = await Student.findOne({ user: userId });
-    let hasAccess = false;
-    if (student) {
-      if (project.group) {
-        const group = await Group.findById(project.group);
-        hasAccess = group.members.some(member => member.student.toString() === student._id.toString());
-      } else if (project.student) {
-        hasAccess = project.student.toString() === student._id.toString();
-      }
-    }
-
-    if (!hasAccess) {
+    const access = await checkProjectAccess(project, userId, userRole);
+    if (!access.hasAccess) {
       return res.status(403).json({ success: false, message: 'You do not have access to this project' });
     }
+
+    const student = access.student;
 
     // Block uploads for previous semester projects
     if (student && project.semester && student.semester && project.semester < student.semester) {
@@ -1339,27 +1275,8 @@ const downloadDeliverable = async (req, res) => {
     }
 
     // Access control (students in project, assigned faculty, admin)
-    let hasAccess = false;
-    if (userRole === 'admin') {
-      hasAccess = true;
-    } else if (userRole === 'faculty') {
-      const faculty = await Faculty.findOne({ user: userId });
-      if (faculty && project.faculty) {
-        hasAccess = project.faculty.toString() === faculty._id.toString();
-      }
-    } else if (userRole === 'student') {
-      const student = await Student.findOne({ user: userId });
-       if (student) {
-        if (project.group) {
-          const group = await Group.findById(project.group);
-          hasAccess = group.members.some(member => member.student.toString() === student._id.toString());
-        } else if (project.student) {
-          hasAccess = project.student.toString() === student._id.toString();
-        }
-      }
-    }
-
-    if (!hasAccess) {
+    const access = await checkProjectAccess(project, userId, userRole);
+    if (!access.hasAccess) {
       return res.status(403).json({ success: false, message: 'You do not have access to this project' });
     }
 
@@ -1405,21 +1322,12 @@ const deleteDeliverable = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Project not found' });
     }
 
-    // Access control: ensure student is part of the project
-    const student = await Student.findOne({ user: userId });
-    let hasAccess = false;
-    if (student) {
-      if (project.group) {
-        const group = await Group.findById(project.group);
-        hasAccess = group.members.some(member => member.student.toString() === student._id.toString());
-      } else if (project.student) {
-        hasAccess = project.student.toString() === student._id.toString();
-      }
-    }
-
-    if (!hasAccess) {
+    const access = await checkProjectAccess(project, userId, userRole);
+    if (!access.hasAccess) {
       return res.status(403).json({ success: false, message: 'You do not have access to this project' });
     }
+
+    const student = access.student;
 
     // Block deletions for previous semester projects
     if (student && project.semester && student.semester && project.semester < student.semester) {
