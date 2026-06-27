@@ -3,6 +3,7 @@ const Group = require('../models/Group');
 const Student = require('../models/Student');
 const Faculty = require('../models/Faculty');
 const Message = require('../models/Message');
+const { deleteUploadedFiles } = require('../middleware/validateRequest');
 const { deliverableUploadDir } = require('../middleware/deliverableUpload');
 const { sendEmail } = require('../services/emailService');
 
@@ -422,6 +423,7 @@ const sendMessage = async (req, res) => {
     // Verify access to project
     const project = await Project.findById(projectId);
     if (!project) {
+      deleteUploadedFiles(req);
       return res.status(404).json({
         success: false,
         message: 'Project not found'
@@ -462,6 +464,7 @@ const sendMessage = async (req, res) => {
     }
 
     if (!hasAccess) {
+      deleteUploadedFiles(req);
       return res.status(403).json({
         success: false,
         message: 'You do not have access to this project'
@@ -512,6 +515,7 @@ const sendMessage = async (req, res) => {
     });
   } catch (error) {
     console.error('Error sending message:', error);
+    deleteUploadedFiles(req);
     res.status(500).json({
       success: false,
       message: 'Error sending message',
@@ -1213,6 +1217,7 @@ const uploadDeliverable = async (req, res) => {
     const file = req.file;
 
     if (userRole !== 'student') {
+      deleteUploadedFiles(req);
       return res.status(403).json({ success: false, message: 'Only students can upload deliverables' });
     }
 
@@ -1222,6 +1227,7 @@ const uploadDeliverable = async (req, res) => {
 
     const project = await Project.findById(projectId);
     if (!project) {
+      deleteUploadedFiles(req);
       return res.status(404).json({ success: false, message: 'Project not found' });
     }
 
@@ -1238,11 +1244,13 @@ const uploadDeliverable = async (req, res) => {
     }
 
     if (!hasAccess) {
+      deleteUploadedFiles(req);
       return res.status(403).json({ success: false, message: 'You do not have access to this project' });
     }
 
     // Block uploads for previous semester projects
     if (student && project.semester && student.semester && project.semester < student.semester) {
+      deleteUploadedFiles(req);
       return res.status(403).json({ 
         success: false, 
         message: 'File upload is not allowed for previous semester projects' 
@@ -1289,6 +1297,7 @@ const uploadDeliverable = async (req, res) => {
 
   } catch (error) {
     console.error('Error uploading deliverable:', error);
+    deleteUploadedFiles(req);
     res.status(500).json({ success: false, message: 'Error uploading deliverable', error: error.message });
   }
 };
