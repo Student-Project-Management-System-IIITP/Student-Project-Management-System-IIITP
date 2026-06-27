@@ -1,5 +1,23 @@
 const { body } = require('express-validator');
 
+// Reusable helper to generate password validation chains
+const getPasswordValidationChain = (fieldName, notEmptyMessage, notEmptyErrorCode = null) => {
+  const chain = body(fieldName);
+  
+  if (notEmptyErrorCode) {
+    chain.notEmpty().withMessage(JSON.stringify({ msg: notEmptyMessage, errorCode: notEmptyErrorCode }));
+  } else {
+    chain.notEmpty().withMessage(notEmptyMessage);
+  }
+  
+  return chain
+    .bail()
+    .isLength({ min: 6 }).withMessage(JSON.stringify({ msg: 'Password must be at least 6 characters long', errorCode: 'WEAK_PASSWORD' }))
+    .bail()
+    .matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).+$/)
+    .withMessage(JSON.stringify({ msg: 'Password must include an uppercase letter, a lowercase letter, a number, and a special character', errorCode: 'WEAK_PASSWORD' }));
+};
+
 // Validation rules for Student Signup
 const validateSignupStudent = [
   body('fullName')
@@ -30,14 +48,7 @@ const validateSignupStudent = [
     .notEmpty().withMessage(JSON.stringify({ msg: 'Branch is required', errorCode: 'MISSING_BRANCH' }))
     .bail()
     .isIn(['CSE', 'ECE']).withMessage(JSON.stringify({ msg: 'Branch must be CSE or ECE' })),
-  // NOTE: New constraint added (not in original code) — see issue #103 PR notes
-  body('password')
-    .notEmpty().withMessage(JSON.stringify({ msg: 'Password is required', errorCode: 'MISSING_PASSWORD' }))
-    .bail()
-    .isLength({ min: 6 }).withMessage(JSON.stringify({ msg: 'Password must be at least 6 characters long', errorCode: 'WEAK_PASSWORD' }))
-    .bail()
-    .matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).+$/)
-    .withMessage(JSON.stringify({ msg: 'Password must include an uppercase letter, a lowercase letter, a number, and a special character', errorCode: 'WEAK_PASSWORD' })),
+  getPasswordValidationChain('password', 'Password is required', 'MISSING_PASSWORD'),
   body('confirmPassword')
     .notEmpty().withMessage(JSON.stringify({ msg: 'Please confirm your password', errorCode: 'MISSING_CONFIRM_PASSWORD' }))
     .bail()
@@ -71,24 +82,15 @@ const validateSignupFaculty = [
       'Assistant Registrar', 'TPO', 'Warden', 'Chief Warden',
       'Associate Dean', 'Coordinator(PG, PhD)', 'Tenders/Purchase'
     ]).withMessage('Designation is invalid'),
-  // NOTE: New constraint added (not in original code) — see issue #103 PR notes
   body('collegeEmail')
     .notEmpty().withMessage(JSON.stringify({ msg: 'College email is required', errorCode: 'MISSING_EMAIL' }))
     .bail()
     .isEmail().withMessage(JSON.stringify({ msg: 'Please enter a valid email address', errorCode: 'INVALID_EMAIL' })),
-  // NOTE: New constraint added (not in original code) — see issue #103 PR notes
   body('contactNumber')
     .notEmpty().withMessage(JSON.stringify({ msg: 'Contact number is required', errorCode: 'MISSING_CONTACT' }))
     .bail()
     .matches(/^[6-9]\d{9}$/).withMessage(JSON.stringify({ msg: 'Please enter a valid 10-digit phone number', errorCode: 'INVALID_CONTACT_NUMBER' })),
-  // NOTE: New constraint added (not in original code) — see issue #103 PR notes
-  body('password')
-    .notEmpty().withMessage(JSON.stringify({ msg: 'Password is required', errorCode: 'MISSING_PASSWORD' }))
-    .bail()
-    .isLength({ min: 6 }).withMessage(JSON.stringify({ msg: 'Password must be at least 6 characters long', errorCode: 'WEAK_PASSWORD' }))
-    .bail()
-    .matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).+$/)
-    .withMessage(JSON.stringify({ msg: 'Password must include an uppercase letter, a lowercase letter, a number, and a special character', errorCode: 'WEAK_PASSWORD' })),
+  getPasswordValidationChain('password', 'Password is required', 'MISSING_PASSWORD'),
   body('confirmPassword')
     .notEmpty().withMessage(JSON.stringify({ msg: 'Please confirm your password', errorCode: 'MISSING_CONFIRM_PASSWORD' }))
     .bail()
@@ -110,24 +112,15 @@ const validateSignupAdmin = [
     .notEmpty().withMessage('Department is required'),
   body('designation')
     .notEmpty().withMessage('Designation is required'),
-  // NOTE: New constraint added (not in original code) — see issue #103 PR notes
   body('collegeEmail')
     .notEmpty().withMessage(JSON.stringify({ msg: 'College email is required', errorCode: 'MISSING_EMAIL' }))
     .bail()
     .isEmail().withMessage(JSON.stringify({ msg: 'Please enter a valid email address', errorCode: 'INVALID_EMAIL' })),
-  // NOTE: New constraint added (not in original code) — see issue #103 PR notes
   body('contactNumber')
     .notEmpty().withMessage(JSON.stringify({ msg: 'Contact number is required', errorCode: 'MISSING_CONTACT' }))
     .bail()
     .matches(/^[6-9]\d{9}$/).withMessage(JSON.stringify({ msg: 'Please enter a valid 10-digit phone number', errorCode: 'INVALID_CONTACT_NUMBER' })),
-  // NOTE: New constraint added (not in original code) — see issue #103 PR notes
-  body('password')
-    .notEmpty().withMessage(JSON.stringify({ msg: 'Password is required', errorCode: 'MISSING_PASSWORD' }))
-    .bail()
-    .isLength({ min: 6 }).withMessage(JSON.stringify({ msg: 'Password must be at least 6 characters long', errorCode: 'WEAK_PASSWORD' }))
-    .bail()
-    .matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).+$/)
-    .withMessage(JSON.stringify({ msg: 'Password must include an uppercase letter, a lowercase letter, a number, and a special character', errorCode: 'WEAK_PASSWORD' })),
+  getPasswordValidationChain('password', 'Password is required', 'MISSING_PASSWORD'),
   body('confirmPassword')
     .notEmpty().withMessage(JSON.stringify({ msg: 'Please confirm your password', errorCode: 'MISSING_CONFIRM_PASSWORD' }))
     .bail()
@@ -162,33 +155,18 @@ const validateResetPassword = [
     .notEmpty().withMessage('Token, email and new password are required')
     .bail()
     .isEmail().withMessage('Please enter a valid email address'),
-  // NOTE: New constraint added (not in original code) — see issue #103 PR notes
-  body('password')
-    .notEmpty().withMessage('Token, email and new password are required')
-    .bail()
-    .isLength({ min: 6 }).withMessage(JSON.stringify({ msg: 'Password must be at least 6 characters long', errorCode: 'WEAK_PASSWORD' }))
-    .bail()
-    .matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).+$/)
-    .withMessage(JSON.stringify({ msg: 'Password must include an uppercase letter, a lowercase letter, a number, and a special character', errorCode: 'WEAK_PASSWORD' }))
+  getPasswordValidationChain('password', 'Token, email and new password are required')
 ];
 
 // Validation rules for Change Password
 const validateChangePassword = [
   body('currentPassword')
     .notEmpty().withMessage('Please provide current and new password'),
-  // NOTE: New constraint added (not in original code) — see issue #103 PR notes
-  body('newPassword')
-    .notEmpty().withMessage('Please provide current and new password')
-    .bail()
-    .isLength({ min: 6 }).withMessage(JSON.stringify({ msg: 'Password must be at least 6 characters long', errorCode: 'WEAK_PASSWORD' }))
-    .bail()
-    .matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).+$/)
-    .withMessage(JSON.stringify({ msg: 'Password must include an uppercase letter, a lowercase letter, a number, and a special character', errorCode: 'WEAK_PASSWORD' }))
+  getPasswordValidationChain('newPassword', 'Please provide current and new password')
 ];
 
 // Validation rules for Update User Profile
 const validateUpdateUserProfile = [
-  // NOTE: New constraint added (not in original code) — see issue #103 PR notes
   body('phone')
     .optional()
     .matches(/^[6-9]\d{9}$/).withMessage(JSON.stringify({ msg: 'Please enter a valid 10-digit phone number', errorCode: 'INVALID_CONTACT_NUMBER' }))
