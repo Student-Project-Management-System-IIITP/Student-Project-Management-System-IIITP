@@ -20,7 +20,9 @@ const validateSendMessage = [
     .custom((value, { req }) => {
       const message = req.body.message;
       const files = req.files;
-      if ((!message || !message.trim()) && (!files || files.length === 0)) {
+      const hasMessage = typeof message === 'string' && message.trim().length > 0;
+      const hasFiles = files && (Array.isArray(files) ? files.length > 0 : Object.keys(files).length > 0);
+      if (!hasMessage && !hasFiles) {
         throw new Error('Message or file attachment is required');
       }
       return true;
