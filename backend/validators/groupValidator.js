@@ -10,8 +10,10 @@ const validateCreateGroup = [
 
 const validateUpdateGroupName = [
   body('name')
+    .isString()
+    .trim()
     .notEmpty().withMessage('Group name is required')
-    .isString().trim().isLength({ max: 100 }).withMessage('Group name cannot exceed 100 characters')
+    .isLength({ max: 100 }).withMessage('Group name cannot exceed 100 characters')
 ];
 
 const validateSendGroupInvitations = [
