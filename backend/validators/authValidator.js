@@ -3,37 +3,47 @@ const { body } = require('express-validator');
 // Validation rules for Student Signup
 const validateSignupStudent = [
   body('fullName')
-    .notEmpty().withMessage('Full name is required')
-    .isLength({ max: 100 }).withMessage('Full name cannot exceed 100 characters'),
+    .notEmpty().withMessage(JSON.stringify({ msg: 'Full name is required', errorCode: 'MISSING_FULL_NAME' }))
+    .bail()
+    .isLength({ max: 100 }).withMessage(JSON.stringify({ msg: 'Full name cannot exceed 100 characters' })),
   body('degree')
-    .notEmpty().withMessage('Degree is required')
-    .isIn(['B.Tech', 'M.Tech']).withMessage('Degree must be B.Tech or M.Tech'),
+    .notEmpty().withMessage(JSON.stringify({ msg: 'Degree is required', errorCode: 'MISSING_DEGREE' }))
+    .bail()
+    .isIn(['B.Tech', 'M.Tech']).withMessage(JSON.stringify({ msg: 'Degree must be B.Tech or M.Tech' })),
   body('semester')
-    .notEmpty().withMessage('Semester is required')
-    .isInt({ min: 1, max: 8 }).withMessage('Semester must be between 1 and 8'),
+    .notEmpty().withMessage(JSON.stringify({ msg: 'Semester is required', errorCode: 'MISSING_SEMESTER' }))
+    .bail()
+    .isInt({ min: 1, max: 8 }).withMessage(JSON.stringify({ msg: 'Semester must be between 1 and 8' })),
   body('misNumber')
-    .notEmpty().withMessage('MIS number is required')
-    .matches(/^\d{9}$/).withMessage('MIS number must be exactly 9 digits'),
+    .notEmpty().withMessage(JSON.stringify({ msg: 'MIS number is required', errorCode: 'MISSING_MIS_NUMBER' }))
+    .bail()
+    .matches(/^\d{9}$/).withMessage(JSON.stringify({ msg: 'MIS number must be exactly 9 digits', errorCode: 'INVALID_MIS_NUMBER' })),
   body('collegeEmail')
-    .notEmpty().withMessage('College email is required')
-    .isEmail().withMessage('Please enter a valid email address'),
+    .notEmpty().withMessage(JSON.stringify({ msg: 'College email is required', errorCode: 'MISSING_EMAIL' }))
+    .bail()
+    .isEmail().withMessage(JSON.stringify({ msg: 'Please enter a valid email address', errorCode: 'INVALID_EMAIL' })),
   body('contactNumber')
-    .notEmpty().withMessage('Contact number is required')
-    .matches(/^[6-9]\d{9}$/).withMessage('Please enter a valid 10-digit phone number'),
+    .notEmpty().withMessage(JSON.stringify({ msg: 'Contact number is required', errorCode: 'MISSING_CONTACT' }))
+    .bail()
+    .matches(/^[6-9]\d{9}$/).withMessage(JSON.stringify({ msg: 'Please enter a valid 10-digit phone number', errorCode: 'INVALID_CONTACT_NUMBER' })),
   body('branch')
-    .notEmpty().withMessage('Branch is required')
-    .isIn(['CSE', 'ECE']).withMessage('Branch must be CSE or ECE'),
+    .notEmpty().withMessage(JSON.stringify({ msg: 'Branch is required', errorCode: 'MISSING_BRANCH' }))
+    .bail()
+    .isIn(['CSE', 'ECE']).withMessage(JSON.stringify({ msg: 'Branch must be CSE or ECE' })),
   // NOTE: New constraint added (not in original code) — see issue #103 PR notes
   body('password')
-    .notEmpty().withMessage('Password is required')
-    .isLength({ min: 6 }).withMessage('Password must be at least 6 characters long')
+    .notEmpty().withMessage(JSON.stringify({ msg: 'Password is required', errorCode: 'MISSING_PASSWORD' }))
+    .bail()
+    .isLength({ min: 6 }).withMessage(JSON.stringify({ msg: 'Password must be at least 6 characters long', errorCode: 'WEAK_PASSWORD' }))
+    .bail()
     .matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).+$/)
-    .withMessage('Password must include an uppercase letter, a lowercase letter, a number, and a special character'),
+    .withMessage(JSON.stringify({ msg: 'Password must include an uppercase letter, a lowercase letter, a number, and a special character', errorCode: 'WEAK_PASSWORD' })),
   body('confirmPassword')
-    .notEmpty().withMessage('Please confirm your password')
+    .notEmpty().withMessage(JSON.stringify({ msg: 'Please confirm your password', errorCode: 'MISSING_CONFIRM_PASSWORD' }))
+    .bail()
     .custom((value, { req }) => {
       if (value !== req.body.password) {
-        throw new Error('Passwords do not match');
+        throw new Error(JSON.stringify({ msg: 'Passwords do not match', errorCode: 'PASSWORD_MISMATCH' }));
       }
       return true;
     })
@@ -42,8 +52,9 @@ const validateSignupStudent = [
 // Validation rules for Faculty Signup
 const validateSignupFaculty = [
   body('fullName')
-    .notEmpty().withMessage('Full name is required')
-    .isLength({ max: 100 }).withMessage('Full name cannot exceed 100 characters'),
+    .notEmpty().withMessage(JSON.stringify({ msg: 'Full name is required', errorCode: 'MISSING_FULL_NAME' }))
+    .bail()
+    .isLength({ max: 100 }).withMessage(JSON.stringify({ msg: 'Full name cannot exceed 100 characters' })),
   body('prefix')
     .optional()
     .isIn(['Dr', 'Mr', 'Mrs', 'Miss', 'Prof', 'Ms']).withMessage('Prefix is invalid'),
@@ -62,23 +73,28 @@ const validateSignupFaculty = [
     ]).withMessage('Designation is invalid'),
   // NOTE: New constraint added (not in original code) — see issue #103 PR notes
   body('collegeEmail')
-    .notEmpty().withMessage('College email is required')
-    .isEmail().withMessage('Please enter a valid email address'),
+    .notEmpty().withMessage(JSON.stringify({ msg: 'College email is required', errorCode: 'MISSING_EMAIL' }))
+    .bail()
+    .isEmail().withMessage(JSON.stringify({ msg: 'Please enter a valid email address', errorCode: 'INVALID_EMAIL' })),
   // NOTE: New constraint added (not in original code) — see issue #103 PR notes
   body('contactNumber')
-    .notEmpty().withMessage('Contact number is required')
-    .matches(/^[6-9]\d{9}$/).withMessage('Please enter a valid 10-digit phone number'),
+    .notEmpty().withMessage(JSON.stringify({ msg: 'Contact number is required', errorCode: 'MISSING_CONTACT' }))
+    .bail()
+    .matches(/^[6-9]\d{9}$/).withMessage(JSON.stringify({ msg: 'Please enter a valid 10-digit phone number', errorCode: 'INVALID_CONTACT_NUMBER' })),
   // NOTE: New constraint added (not in original code) — see issue #103 PR notes
   body('password')
-    .notEmpty().withMessage('Password is required')
-    .isLength({ min: 6 }).withMessage('Password must be at least 6 characters long')
+    .notEmpty().withMessage(JSON.stringify({ msg: 'Password is required', errorCode: 'MISSING_PASSWORD' }))
+    .bail()
+    .isLength({ min: 6 }).withMessage(JSON.stringify({ msg: 'Password must be at least 6 characters long', errorCode: 'WEAK_PASSWORD' }))
+    .bail()
     .matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).+$/)
-    .withMessage('Password must include an uppercase letter, a lowercase letter, a number, and a special character'),
+    .withMessage(JSON.stringify({ msg: 'Password must include an uppercase letter, a lowercase letter, a number, and a special character', errorCode: 'WEAK_PASSWORD' })),
   body('confirmPassword')
-    .notEmpty().withMessage('Please confirm your password')
+    .notEmpty().withMessage(JSON.stringify({ msg: 'Please confirm your password', errorCode: 'MISSING_CONFIRM_PASSWORD' }))
+    .bail()
     .custom((value, { req }) => {
       if (value !== req.body.password) {
-        throw new Error('Passwords do not match');
+        throw new Error(JSON.stringify({ msg: 'Passwords do not match', errorCode: 'PASSWORD_MISMATCH' }));
       }
       return true;
     })
@@ -87,31 +103,37 @@ const validateSignupFaculty = [
 // Validation rules for Admin Signup
 const validateSignupAdmin = [
   body('fullName')
-    .notEmpty().withMessage('Full name is required')
-    .isLength({ max: 100 }).withMessage('Full name cannot exceed 100 characters'),
+    .notEmpty().withMessage(JSON.stringify({ msg: 'Full name is required', errorCode: 'MISSING_FULL_NAME' }))
+    .bail()
+    .isLength({ max: 100 }).withMessage(JSON.stringify({ msg: 'Full name cannot exceed 100 characters' })),
   body('department')
     .notEmpty().withMessage('Department is required'),
   body('designation')
     .notEmpty().withMessage('Designation is required'),
   // NOTE: New constraint added (not in original code) — see issue #103 PR notes
   body('collegeEmail')
-    .notEmpty().withMessage('College email is required')
-    .isEmail().withMessage('Please enter a valid email address'),
+    .notEmpty().withMessage(JSON.stringify({ msg: 'College email is required', errorCode: 'MISSING_EMAIL' }))
+    .bail()
+    .isEmail().withMessage(JSON.stringify({ msg: 'Please enter a valid email address', errorCode: 'INVALID_EMAIL' })),
   // NOTE: New constraint added (not in original code) — see issue #103 PR notes
   body('contactNumber')
-    .notEmpty().withMessage('Contact number is required')
-    .matches(/^[6-9]\d{9}$/).withMessage('Please enter a valid 10-digit phone number'),
+    .notEmpty().withMessage(JSON.stringify({ msg: 'Contact number is required', errorCode: 'MISSING_CONTACT' }))
+    .bail()
+    .matches(/^[6-9]\d{9}$/).withMessage(JSON.stringify({ msg: 'Please enter a valid 10-digit phone number', errorCode: 'INVALID_CONTACT_NUMBER' })),
   // NOTE: New constraint added (not in original code) — see issue #103 PR notes
   body('password')
-    .notEmpty().withMessage('Password is required')
-    .isLength({ min: 6 }).withMessage('Password must be at least 6 characters long')
+    .notEmpty().withMessage(JSON.stringify({ msg: 'Password is required', errorCode: 'MISSING_PASSWORD' }))
+    .bail()
+    .isLength({ min: 6 }).withMessage(JSON.stringify({ msg: 'Password must be at least 6 characters long', errorCode: 'WEAK_PASSWORD' }))
+    .bail()
     .matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).+$/)
-    .withMessage('Password must include an uppercase letter, a lowercase letter, a number, and a special character'),
+    .withMessage(JSON.stringify({ msg: 'Password must include an uppercase letter, a lowercase letter, a number, and a special character', errorCode: 'WEAK_PASSWORD' })),
   body('confirmPassword')
-    .notEmpty().withMessage('Please confirm your password')
+    .notEmpty().withMessage(JSON.stringify({ msg: 'Please confirm your password', errorCode: 'MISSING_CONFIRM_PASSWORD' }))
+    .bail()
     .custom((value, { req }) => {
       if (value !== req.body.password) {
-        throw new Error('Passwords do not match');
+        throw new Error(JSON.stringify({ msg: 'Passwords do not match', errorCode: 'PASSWORD_MISMATCH' }));
       }
       return true;
     })
@@ -138,13 +160,16 @@ const validateResetPassword = [
     .notEmpty().withMessage('Token, email and new password are required'),
   body('email')
     .notEmpty().withMessage('Token, email and new password are required')
+    .bail()
     .isEmail().withMessage('Please enter a valid email address'),
   // NOTE: New constraint added (not in original code) — see issue #103 PR notes
   body('password')
     .notEmpty().withMessage('Token, email and new password are required')
-    .isLength({ min: 6 }).withMessage('Password must be at least 6 characters long')
+    .bail()
+    .isLength({ min: 6 }).withMessage(JSON.stringify({ msg: 'Password must be at least 6 characters long', errorCode: 'WEAK_PASSWORD' }))
+    .bail()
     .matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).+$/)
-    .withMessage('Password must include an uppercase letter, a lowercase letter, a number, and a special character')
+    .withMessage(JSON.stringify({ msg: 'Password must include an uppercase letter, a lowercase letter, a number, and a special character', errorCode: 'WEAK_PASSWORD' }))
 ];
 
 // Validation rules for Change Password
@@ -154,9 +179,11 @@ const validateChangePassword = [
   // NOTE: New constraint added (not in original code) — see issue #103 PR notes
   body('newPassword')
     .notEmpty().withMessage('Please provide current and new password')
-    .isLength({ min: 6 }).withMessage('Password must be at least 6 characters long')
+    .bail()
+    .isLength({ min: 6 }).withMessage(JSON.stringify({ msg: 'Password must be at least 6 characters long', errorCode: 'WEAK_PASSWORD' }))
+    .bail()
     .matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).+$/)
-    .withMessage('Password must include an uppercase letter, a lowercase letter, a number, and a special character')
+    .withMessage(JSON.stringify({ msg: 'Password must include an uppercase letter, a lowercase letter, a number, and a special character', errorCode: 'WEAK_PASSWORD' }))
 ];
 
 // Validation rules for Update User Profile
@@ -164,7 +191,7 @@ const validateUpdateUserProfile = [
   // NOTE: New constraint added (not in original code) — see issue #103 PR notes
   body('phone')
     .optional()
-    .matches(/^[6-9]\d{9}$/).withMessage('Please enter a valid 10-digit phone number')
+    .matches(/^[6-9]\d{9}$/).withMessage(JSON.stringify({ msg: 'Please enter a valid 10-digit phone number', errorCode: 'INVALID_CONTACT_NUMBER' }))
 ];
 
 module.exports = {
