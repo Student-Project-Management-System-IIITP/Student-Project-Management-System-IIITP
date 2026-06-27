@@ -31,14 +31,16 @@ const validateSendMessage = [
 
 const validateEditMessage = [
   body('message')
+    .isString()
+    .trim()
     .notEmpty().withMessage('Message cannot be empty')
-    .isString().trim()
 ];
 
 const validateAddReaction = [
   body('emoji')
+    .isString()
+    .trim()
     .notEmpty().withMessage('Emoji is required')
-    .isString().trim()
 ];
 
 const validateUploadDeliverable = [
@@ -48,8 +50,10 @@ const validateUploadDeliverable = [
 
 const validateRegisterProject = [
   body('title')
+    .isString()
+    .trim()
     .notEmpty().withMessage('Project title is required')
-    .isString().trim().isLength({ max: 200 }).withMessage('Project title cannot exceed 200 characters'),
+    .isLength({ max: 200 }).withMessage('Project title cannot exceed 200 characters'),
   body('projectType')
     .notEmpty().withMessage('Project type is required')
     .isIn(['minor1', 'minor2', 'minor3', 'major1', 'major2', 'internship1', 'internship2'])
@@ -80,11 +84,15 @@ const validateSubmitDeliverables = [
 
 const validateRegisterSpecificProject = [
   body('title')
+    .isString()
+    .trim()
     .notEmpty().withMessage('Project title is required')
-    .isString().trim().isLength({ max: 200 }).withMessage('Project title cannot exceed 200 characters'),
+    .isLength({ max: 200 }).withMessage('Project title cannot exceed 200 characters'),
   body('domain')
+    .isString()
+    .trim()
     .notEmpty().withMessage('Domain is required')
-    .isString().trim().isLength({ max: 100 }).withMessage('Domain cannot exceed 100 characters'),
+    .isLength({ max: 100 }).withMessage('Domain cannot exceed 100 characters'),
   body('facultyPreferences')
     .optional().isArray().withMessage('Faculty preferences must be an array')
 ];
