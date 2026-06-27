@@ -63,10 +63,10 @@ router.get('/:projectId/files/:filename', projectController.downloadChatFile);
 
 // Upload a deliverable file
 router.post('/:projectId/deliverables/:deliverableType', 
-  uploadDeliverableFile, 
-  handleDeliverableUploadError, 
   validateUploadDeliverable,
   validateRequest,
+  uploadDeliverableFile, 
+  handleDeliverableUploadError, 
   projectController.uploadDeliverable
 );
 
