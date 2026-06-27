@@ -9,6 +9,7 @@ const User = require('../models/User');
 const { migrateGroupToSem6, createNewGroupForSem6, generateAcademicYear } = require('../utils/semesterMigration');
 const { isWindowOpen } = require('../middleware/windowCheck');
 const { sendEmail } = require('../services/emailService');
+const { deleteUploadedFiles } = require('../middleware/validateRequest');
 
 // Get student dashboard data
 const getDashboardData = async (req, res) => {
@@ -2738,6 +2739,7 @@ const submitPPT = async (req, res) => {
     // Get student
     const student = await Student.findOne({ user: studentId });
     if (!student) {
+      deleteUploadedFiles(req);
       return res.status(404).json({
         success: false,
         message: 'Student not found'
@@ -2753,6 +2755,7 @@ const submitPPT = async (req, res) => {
     });
 
     if (!project) {
+      deleteUploadedFiles(req);
       return res.status(404).json({
         success: false,
         message: 'Sem 4 Minor Project 1 not found'
@@ -2766,6 +2769,7 @@ const submitPPT = async (req, res) => {
       project.isContinuation === true;
 
     if (student.semester > project.semester && !isSem6ContinuingSem5) {
+      deleteUploadedFiles(req);
       return res.status(403).json({
         success: false,
         message: 'Cannot modify previous semester projects. This project belongs to a previous semester.'
@@ -2798,6 +2802,7 @@ const submitPPT = async (req, res) => {
     });
   } catch (error) {
     console.error('Error submitting PPT:', error);
+    deleteUploadedFiles(req);
     res.status(500).json({
       success: false,
       message: 'Error submitting PPT',
