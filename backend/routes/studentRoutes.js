@@ -7,6 +7,21 @@ const { authenticateToken } = require('../middleware/auth');
 const { uploadSingle, handleUploadError, createProjectUploadStorage, createUploadPath } = require('../middleware/upload');
 const Project = require('../models/Project');
 const Student = require('../models/Student');
+const {
+  validateCreateGroup,
+  validateUpdateGroupName,
+  validateSendGroupInvitations,
+  validateInviteToGroup,
+  validateTransferLeadership,
+  validateSubmitFacultyPreferences
+} = require('../validators/groupValidator');
+const {
+  validateRegisterProject,
+  validateUpdateProject,
+  validateSubmitDeliverables,
+  validateRegisterSpecificProject
+} = require('../validators/projectValidator');
+const { validateRequest } = require('../middleware/validateRequest');
 
 // Apply authentication middleware to all routes
 router.use(authenticateToken);
@@ -105,23 +120,23 @@ router.get('/semester-features', studentController.getSemesterFeatures);
 
 // Project routes
 router.get('/projects', studentController.getStudentProjects);
-router.post('/projects', studentController.registerProject);
+router.post('/projects', validateRegisterProject, validateRequest, studentController.registerProject);
 router.get('/projects/:id', studentController.getProjectById); // Get specific project
-router.put('/projects/:id', studentController.updateProject);
-router.post('/projects/:id/submit', studentController.submitDeliverables);
+router.put('/projects/:id', validateUpdateProject, validateRequest, studentController.updateProject);
+router.post('/projects/:id/submit', validateSubmitDeliverables, validateRequest, studentController.submitDeliverables);
 
 // Minor Project 2 specific registration
-router.post('/projects/minor2/register', studentController.registerMinorProject2);
+router.post('/projects/minor2/register', validateRegisterSpecificProject, validateRequest, studentController.registerMinorProject2);
 // Major Project 1 specific registration (Sem 7)
-router.post('/projects/major1/register', studentController.registerMajorProject1);
+router.post('/projects/major1/register', validateRegisterSpecificProject, validateRequest, studentController.registerMajorProject1);
 // Internship 1 specific registration (Sem 7 - solo project)
 router.get('/projects/internship1/status', studentController.checkInternship1Status);
-router.post('/projects/internship1/register', studentController.registerInternship1);
+router.post('/projects/internship1/register', validateRegisterSpecificProject, validateRequest, studentController.registerInternship1);
 // Major Project 2 specific registration (Sem 8)
-router.post('/projects/major2/register', studentController.registerMajorProject2);
+router.post('/projects/major2/register', validateRegisterSpecificProject, validateRequest, studentController.registerMajorProject2);
 // Internship 2 specific registration (Sem 8 - solo project)
 router.get('/projects/internship2/status', studentController.checkInternship2Status);
-router.post('/projects/internship2/register', studentController.registerInternship2);
+router.post('/projects/internship2/register', validateRegisterSpecificProject, validateRequest, studentController.registerInternship2);
 router.get('/projects/:projectId/allocation-status', studentController.getFacultyAllocationStatus);
 router.get('/group-status', studentController.getStudentGroupStatus);
 
@@ -130,11 +145,11 @@ router.get('/groups', studentController.getStudentGroups);
 // Enhanced Group formation endpoints for Sem 5 - Specific routes FIRST
 router.get('/groups/available-students', studentController.getAvailableStudents);
 router.get('/groups/invitations', studentController.getGroupInvitations);
-router.post('/groups/:id/invite', studentController.inviteToGroup);
+router.post('/groups/:id/invite', validateInviteToGroup, validateRequest, studentController.inviteToGroup);
 router.post('/groups/:groupId/invite/:inviteId/accept', studentController.acceptInvitation);
 router.post('/groups/:groupId/invite/:inviteId/reject', studentController.rejectInvitation);
 // Sem 5 Advanced Features: Leadership transfer  
-router.post('/groups/:groupId/transfer-leadership', studentController.transferLeadership);
+router.post('/groups/:groupId/transfer-leadership', validateTransferLeadership, validateRequest, studentController.transferLeadership);
 // Sem 5 Advanced Features: Finalize group
 router.post('/groups/:groupId/finalize', studentController.finalizeGroup);
 // Sem 5 Advanced Features: Force disband group (admin function)
@@ -163,13 +178,13 @@ router.get('/projects/:id/uploads/type', studentController.getProjectUploadsByTy
 
 // Sem 5 specific routes - Group Management
 // Note: Group creation for Sem 7 will check window in controller
-router.post('/groups', studentController.createGroup);
-router.put('/groups/:groupId', studentController.updateGroupName);
-router.post('/groups/:groupId/send-invitations', studentController.sendGroupInvitations);
+router.post('/groups', validateCreateGroup, validateRequest, studentController.createGroup);
+router.put('/groups/:groupId', validateUpdateGroupName, validateRequest, studentController.updateGroupName);
+router.post('/groups/:groupId/send-invitations', validateSendGroupInvitations, validateRequest, studentController.sendGroupInvitations);
 router.get('/groups/available', studentController.getAvailableGroups);
 // Note: joinGroup removed - use invitation/accept pattern instead
 router.post('/groups/:groupId/leave', studentController.leaveGroupEnhanced);
-router.post('/groups/:groupId/faculty-preferences', studentController.submitFacultyPreferences);
+router.post('/groups/:groupId/faculty-preferences', validateSubmitFacultyPreferences, validateRequest, studentController.submitFacultyPreferences);
 router.get('/faculty', studentController.getFacultyList);
 
 // Sem 6 specific routes - Project Continuation & Advanced Features

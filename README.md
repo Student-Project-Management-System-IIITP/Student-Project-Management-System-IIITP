@@ -14,6 +14,7 @@
 - [Getting Started](#-getting-started)
 - [Project Structure](#-project-structure)
 - [API Documentation](#-api-documentation)
+- [Input Validation](#-input-validation)
 
 ---
 
@@ -244,6 +245,7 @@ SPMS (Student Project Management System) is a full-stack web application that au
 - **Multer** - File upload handling
 - **Nodemailer** - Email service (configured)
 - **CORS** - Cross-origin resource sharing
+- **Express-Validator** - Input validation and sanitization middleware
 
 ### Database
 - **MongoDB Atlas** - Cloud database hosting
@@ -743,6 +745,28 @@ frontend/
 - `GET /api/internships/applications` - List all applications (admin)
 - `PATCH /api/internships/applications/:id/review` - Review application (admin)
 - `GET /api/internships/applications/:id/files/:fileType` - Download file
+
+
+---
+
+## 🛡️ Input Validation
+
+The system uses `express-validator` middleware chains to validate and sanitize incoming request bodies and parameters, replacing the previous ad-hoc inline `if` checks scattered across controllers. Each route defines a chain of field-level rules, and a shared `validateRequest` middleware intercepts failures before they reach the controller:
+
+```js
+body('email')
+  .isEmail().withMessage('Please enter a valid email address'),
+body('password')
+  .isLength({ min: 6 }).withMessage('Password must be at least 6 characters long')
+```
+
+### Validation Changes Beyond Original Behavior
+
+As part of this integration, the following new constraints were added at the API layer to close existing gaps and prevent raw Mongoose database errors from leaking to clients:
+
+* **Password Complexity** — Applied consistently across student signup, faculty signup, admin signup, reset password, and change password (new password). Passwords must now include at least 1 uppercase letter, 1 lowercase letter, 1 number, and 1 special character, in addition to the existing 6-character minimum.
+* **Faculty & Admin Contact Number** — Now enforces valid mobile number format (`/^[6-9]\d{9}$/`) at the API layer, returning a clean `400 Bad Request` instead of a raw database validation error.
+* **Faculty & Admin Email** — Now enforces standard email format (`isEmail()`) at the API layer.
 
 ---
 

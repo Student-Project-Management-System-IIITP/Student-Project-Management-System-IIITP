@@ -27,20 +27,6 @@ const requestPasswordReset = async (req, res) => {
   try {
     const { email } = req.body;
 
-    if (!email) {
-      return res.status(400).json({
-        success: false,
-        message: 'Email is required'
-      });
-    }
-
-    if (!isValidEmail(email)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Please enter a valid email address'
-      });
-    }
-
     const user = await User.findOne({ email });
 
     if (!user) {
@@ -111,27 +97,6 @@ const requestPasswordReset = async (req, res) => {
 const resetPassword = async (req, res) => {
   try {
     const { token, email, password } = req.body;
-
-    if (!token || !email || !password) {
-      return res.status(400).json({
-        success: false,
-        message: 'Token, email and new password are required'
-      });
-    }
-
-    if (!isValidEmail(email)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Please enter a valid email address'
-      });
-    }
-
-    if (password.length < 6) {
-      return res.status(400).json({
-        success: false,
-        message: 'Password must be at least 6 characters long'
-      });
-    }
 
     const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
 
@@ -358,107 +323,6 @@ const signupStudent = async (req, res) => {
       confirmPassword 
     } = req.body;
 
-    // Validate required fields with specific messages
-    if (!fullName) {
-      return res.status(400).json({
-        success: false,
-        message: 'Full name is required',
-        errorCode: 'MISSING_FULL_NAME'
-      });
-    }
-    
-    if (!degree) {
-      return res.status(400).json({
-        success: false,
-        message: 'Degree is required',
-        errorCode: 'MISSING_DEGREE'
-      });
-    }
-    
-    if (!semester) {
-      return res.status(400).json({
-        success: false,
-        message: 'Semester is required',
-        errorCode: 'MISSING_SEMESTER'
-      });
-    }
-    
-    if (!misNumber) {
-      return res.status(400).json({
-        success: false,
-        message: 'MIS number is required',
-        errorCode: 'MISSING_MIS_NUMBER'
-      });
-    }
-    
-    if (!collegeEmail) {
-      return res.status(400).json({
-        success: false,
-        message: 'College email is required',
-        errorCode: 'MISSING_EMAIL'
-      });
-    }
-    
-    if (!contactNumber) {
-      return res.status(400).json({
-        success: false,
-        message: 'Contact number is required',
-        errorCode: 'MISSING_CONTACT'
-      });
-    }
-    
-    if (!branch) {
-      return res.status(400).json({
-        success: false,
-        message: 'Branch is required',
-        errorCode: 'MISSING_BRANCH'
-      });
-    }
-    
-    if (!password) {
-      return res.status(400).json({
-        success: false,
-        message: 'Password is required',
-        errorCode: 'MISSING_PASSWORD'
-      });
-    }
-    
-    if (!confirmPassword) {
-      return res.status(400).json({
-        success: false,
-        message: 'Please confirm your password',
-        errorCode: 'MISSING_CONFIRM_PASSWORD'
-      });
-    }
-
-    // Validate password strength
-    if (password.length < 6) {
-      return res.status(400).json({
-        success: false,
-        message: 'Password must be at least 6 characters long',
-        errorCode: 'WEAK_PASSWORD'
-      });
-    }
-
-    // Validate password confirmation
-    if (password !== confirmPassword) {
-      return res.status(400).json({
-        success: false,
-        message: 'Passwords do not match',
-        errorCode: 'PASSWORD_MISMATCH'
-      });
-    }
-
-    // Validate email format
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(collegeEmail)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Please enter a valid email address',
-        errorCode: 'INVALID_EMAIL'
-      });
-    }
-
     // Mandatory email OTP verification for signup
     if (OTP_SIGNUP_ENABLED) {
       const latestOtp = await SignupOtp.findOne({
@@ -474,24 +338,6 @@ const signupStudent = async (req, res) => {
           errorCode: 'EMAIL_OTP_NOT_VERIFIED',
         });
       }
-    }
-
-    // Validate MIS number format (9 digits)
-    if (!/^\d{9}$/.test(misNumber)) {
-      return res.status(400).json({
-        success: false,
-        message: 'MIS number must be exactly 9 digits',
-        errorCode: 'INVALID_MIS_NUMBER'
-      });
-    }
-
-    // Validate contact number format (10 digits starting with 6-9)
-    if (!/^[6-9]\d{9}$/.test(contactNumber)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Please enter a valid 10-digit phone number',
-        errorCode: 'INVALID_CONTACT_NUMBER'
-      });
     }
 
     // Check if user already exists with college email
@@ -576,22 +422,6 @@ const signupFaculty = async (req, res) => {
       confirmPassword 
     } = req.body;
 
-    // Validate required fields
-    if (!fullName || !department || !mode || !designation || !collegeEmail || !contactNumber || !password || !confirmPassword) {
-      return res.status(400).json({
-        success: false,
-        message: 'Please provide all required fields'
-      });
-    }
-
-    // Validate password confirmation
-    if (password !== confirmPassword) {
-      return res.status(400).json({
-        success: false,
-        message: 'Passwords do not match'
-      });
-    }
-
     // Check if user already exists with college email
     const existingUser = await User.findOne({ email: collegeEmail });
     if (existingUser) {
@@ -661,22 +491,6 @@ const signupAdmin = async (req, res) => {
       confirmPassword 
     } = req.body;
 
-    // Validate required fields
-    if (!fullName || !department || !designation || !collegeEmail || !contactNumber || !password || !confirmPassword) {
-      return res.status(400).json({
-        success: false,
-        message: 'Please provide all required fields'
-      });
-    }
-
-    // Validate password confirmation
-    if (password !== confirmPassword) {
-      return res.status(400).json({
-        success: false,
-        message: 'Passwords do not match'
-      });
-    }
-
     // Check if user already exists with college email
     const existingUser = await User.findOne({ email: collegeEmail });
     if (existingUser) {
@@ -735,14 +549,6 @@ const signupAdmin = async (req, res) => {
 const loginUser = async (req, res) => {
   try {
     const { email, password } = req.body;
-
-    // Validate required fields
-    if (!email || !password) {
-      return res.status(400).json({
-        success: false,
-        message: 'Please provide email and password'
-      });
-    }
 
     // Find user by email
     const user = await User.findOne({ email }).select('+password');
@@ -902,13 +708,6 @@ const changePassword = async (req, res) => {
   try {
     const userId = req.user.id;
     const { currentPassword, newPassword } = req.body;
-
-    if (!currentPassword || !newPassword) {
-      return res.status(400).json({
-        success: false,
-        message: 'Please provide current and new password'
-      });
-    }
 
     const user = await User.findById(userId).select('+password');
     if (!user) {

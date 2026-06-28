@@ -3,6 +3,7 @@ const Group = require('../models/Group');
 const Student = require('../models/Student');
 const Faculty = require('../models/Faculty');
 const Message = require('../models/Message');
+const { deleteUploadedFiles } = require('../middleware/validateRequest');
 const { deliverableUploadDir } = require('../middleware/deliverableUpload');
 const { sendEmail } = require('../services/emailService');
 
@@ -419,17 +420,10 @@ const sendMessage = async (req, res) => {
     const userRole = req.user.role;
     const files = req.files; // Uploaded files from multer
 
-    // Message or files must be present
-    if ((!message || !message.trim()) && (!files || files.length === 0)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Message or file attachment is required'
-      });
-    }
-
     // Verify access to project
     const project = await Project.findById(projectId);
     if (!project) {
+      deleteUploadedFiles(req);
       return res.status(404).json({
         success: false,
         message: 'Project not found'
@@ -470,6 +464,7 @@ const sendMessage = async (req, res) => {
     }
 
     if (!hasAccess) {
+      deleteUploadedFiles(req);
       return res.status(403).json({
         success: false,
         message: 'You do not have access to this project'
@@ -520,6 +515,7 @@ const sendMessage = async (req, res) => {
     });
   } catch (error) {
     console.error('Error sending message:', error);
+    deleteUploadedFiles(req);
     res.status(500).json({
       success: false,
       message: 'Error sending message',
@@ -696,13 +692,6 @@ const editMessage = async (req, res) => {
     const { projectId, messageId } = req.params;
     const { message: newMessage } = req.body;
     const userId = req.user.id;
-
-    if (!newMessage || !newMessage.trim()) {
-      return res.status(400).json({
-        success: false,
-        message: 'Message cannot be empty'
-      });
-    }
 
     // Find the message
     const message = await Message.findById(messageId);
@@ -896,13 +885,6 @@ const addReaction = async (req, res) => {
     const { emoji } = req.body;
     const userId = req.user.id;
     const userRole = req.user.role;
-
-    if (!emoji) {
-      return res.status(400).json({
-        success: false,
-        message: 'Emoji is required'
-      });
-    }
 
     const message = await Message.findById(messageId);
     if (!message) {
@@ -1103,13 +1085,6 @@ const scheduleMeeting = async (req, res) => {
     const userId = req.user.id;
     const userRole = req.user.role;
 
-    if (!scheduledAt) {
-      return res.status(400).json({
-        success: false,
-        message: 'Scheduled date and time is required'
-      });
-    }
-
     const project = await Project.findById(projectId).populate('faculty');
     if (!project) {
       return res.status(404).json({
@@ -1242,6 +1217,7 @@ const uploadDeliverable = async (req, res) => {
     const file = req.file;
 
     if (userRole !== 'student') {
+      deleteUploadedFiles(req);
       return res.status(403).json({ success: false, message: 'Only students can upload deliverables' });
     }
 
@@ -1251,6 +1227,7 @@ const uploadDeliverable = async (req, res) => {
 
     const project = await Project.findById(projectId);
     if (!project) {
+      deleteUploadedFiles(req);
       return res.status(404).json({ success: false, message: 'Project not found' });
     }
 
@@ -1267,11 +1244,13 @@ const uploadDeliverable = async (req, res) => {
     }
 
     if (!hasAccess) {
+      deleteUploadedFiles(req);
       return res.status(403).json({ success: false, message: 'You do not have access to this project' });
     }
 
     // Block uploads for previous semester projects
     if (student && project.semester && student.semester && project.semester < student.semester) {
+      deleteUploadedFiles(req);
       return res.status(403).json({ 
         success: false, 
         message: 'File upload is not allowed for previous semester projects' 
@@ -1284,10 +1263,6 @@ const uploadDeliverable = async (req, res) => {
       report: 'Project Report'
     };
     const deliverableName = nameMap[deliverableType];
-
-    if (!deliverableName) {
-      return res.status(400).json({ success: false, message: 'Invalid deliverable type' });
-    }
 
     let simpleFileType = 'other';
     if (file.mimetype === 'application/pdf') {
@@ -1322,6 +1297,7 @@ const uploadDeliverable = async (req, res) => {
 
   } catch (error) {
     console.error('Error uploading deliverable:', error);
+    deleteUploadedFiles(req);
     res.status(500).json({ success: false, message: 'Error uploading deliverable', error: error.message });
   }
 };
