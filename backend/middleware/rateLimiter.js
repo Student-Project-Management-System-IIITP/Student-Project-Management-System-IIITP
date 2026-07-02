@@ -38,9 +38,21 @@ const otpLimiter = rateLimit({
   legacyHeaders: false,
 });
 
+const keepAliveLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute window
+  max: 10, // Limit each IP to 10 requests per minute
+  message: {
+    success: false,
+    message: 'Too many health check requests. Please try again later.'
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 module.exports = {
   passwordResetLimiter,
   adminPasswordResetLimiter,
   loginLimiter,
-  otpLimiter
+  otpLimiter,
+  keepAliveLimiter
 };

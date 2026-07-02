@@ -4,9 +4,13 @@
  */
 
 const express = require('express');
+const { keepAliveLimiter } = require('../middleware/rateLimiter');
 
 const createKeepAliveRouter = () => {
   const router = express.Router();
+
+  // Apply rate limiting to prevent DoS (e.g. 10 requests / minute)
+  router.use(keepAliveLimiter);
 
   router.get('/', (req, res) => {
     const userAgent = req.get('User-Agent') || '';
