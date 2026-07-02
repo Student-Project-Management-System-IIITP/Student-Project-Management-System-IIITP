@@ -44,6 +44,12 @@ app.use(express.urlencoded({ extended: true }));
 
 
 // Routes
+// Keep-alive route (temporary for Render free tier)
+if (process.env.KEEP_ALIVE_ENABLED === 'true') {
+  const { createKeepAliveRouter } = require('./keepalive');
+  app.use('/api/health', createKeepAliveRouter());
+}
+
 app.use('/', indexRoutes);
 
 // Error handling middleware (must be last)

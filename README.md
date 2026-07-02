@@ -460,6 +460,7 @@ frontend/
 - `routes/` - API endpoint definitions
 - `middleware/` - Authentication, validation, file uploads
 - `services/` - Email and Socket.IO services
+- `keepalive/` - Temporary workaround to prevent sleeping on Render free tier (see `backend/keepalive/README.md`)
 
 **Frontend:**
 - `pages/student/` - Student-specific pages (25+ pages)
