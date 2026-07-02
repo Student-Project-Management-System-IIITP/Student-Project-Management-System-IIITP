@@ -1,53 +1,24 @@
-const nodemailer = require('nodemailer');
+const { BrevoClient } = require('@getbrevo/brevo');
 
-// Create a reusable transporter using environment-based configuration
-// Configure the following env vars in your .env file:
-// EMAIL_HOST, EMAIL_PORT, EMAIL_SECURE, EMAIL_USER, EMAIL_PASS, EMAIL_FROM
-let transporter;
+// Initialize the Brevo API client
+let brevoClient;
 
-const getTransporter = () => {
-  if (transporter) return transporter;
+const getBrevoClient = () => {
+  if (brevoClient) return brevoClient;
 
-  const {
-    EMAIL_HOST,
-    EMAIL_PORT,
-    EMAIL_SECURE,
-    EMAIL_USER,
-    EMAIL_PASS,
-    EMAIL_FROM
-  } = process.env;
+  const apiKey = process.env.BREVO_API_KEY;
 
-  if (!EMAIL_HOST || !EMAIL_PORT || !EMAIL_USER || !EMAIL_PASS || !EMAIL_FROM) {
-    console.warn('Email environment variables are not fully configured; email sending is disabled.');
+  if (!apiKey || !process.env.EMAIL_FROM) {
+    console.warn('Brevo environment variables are not fully configured; email sending is disabled.');
     return null;
   }
 
-  const dns = require('dns');
-  const port = Number(EMAIL_PORT) || 587;
-  
-  transporter = nodemailer.createTransport({
-    host: EMAIL_HOST,
-    port: port,
-    // Automatically use SSL (secure: true) for port 465, otherwise respect EMAIL_SECURE flag
-    secure: EMAIL_SECURE === 'true' || port === 465,
-    auth: {
-      user: EMAIL_USER,
-      pass: EMAIL_PASS,
-    },
-    // Force IPv4 DNS resolution to prevent IPv6 unreachable network errors
-    lookup: (hostname, options, callback) => {
-      dns.lookup(hostname, { family: 4 }, callback);
-    },
-    connectionTimeout: 10000, // Fail fast (10s) instead of hanging
-    greetingTimeout: 10000,
-    socketTimeout: 10000,
-  });
-
-  return transporter;
+  brevoClient = new BrevoClient({ apiKey });
+  return brevoClient;
 };
 
 /**
- * Send an email using the configured transporter.
+ * Send an email using Brevo.
  * @param {Object} options
  * @param {string|string[]} options.to - Recipient email(s)
  * @param {string} options.subject - Email subject
@@ -55,36 +26,38 @@ const getTransporter = () => {
  * @param {string} [options.html] - HTML body
  */
 const sendEmail = async ({ to, subject, text, html }) => {
-  const tx = getTransporter();
-  if (!tx) {
-    // In development mode, log a warning instead of silently failing
+  const client = getBrevoClient();
+  
+  if (!client) {
     if (process.env.NODE_ENV === 'development') {
-      console.warn('⚠️  Email sending skipped: Email service not configured');
-      console.warn('   Configure EMAIL_HOST, EMAIL_PORT, EMAIL_USER, EMAIL_PASS, EMAIL_FROM in .env');
+      console.warn('⚠️  Email sending skipped: Brevo service not configured');
+      console.warn('   Configure BREVO_API_KEY and EMAIL_FROM in .env');
     }
     throw new Error('Email service is not configured. Please check environment variables.');
   }
 
-  const from = process.env.EMAIL_FROM;
+  const fromEmail = process.env.EMAIL_FROM;
 
-  const mailOptions = {
-    from,
-    to,
+  // Handle single recipient or array of recipients
+  const toArray = Array.isArray(to) ? to : [to];
+  const toObjects = toArray.map(email => ({ email }));
+
+  const emailPayload = {
     subject,
-    text,
-    html,
+    sender: { email: fromEmail, name: 'SPMS Admin' },
+    to: toObjects,
   };
 
+  if (html) {
+    emailPayload.htmlContent = html;
+  } else if (text) {
+    emailPayload.textContent = text;
+  }
+
   try {
-    await tx.sendMail(mailOptions);
+    await client.transactionalEmails.sendTransacEmail(emailPayload);
   } catch (error) {
-    // Enhance error message for common Gmail issues
-    if (error.code === 'EAUTH') {
-      const enhancedError = new Error('Email authentication failed. For Gmail, use an App Password instead of your regular password. Enable 2-Step Verification and generate an App Password at: https://myaccount.google.com/apppasswords');
-      enhancedError.code = 'EAUTH';
-      enhancedError.originalError = error;
-      throw enhancedError;
-    }
+    console.error('Error sending email via Brevo:', error);
     throw error;
   }
 };
@@ -92,3 +65,4 @@ const sendEmail = async ({ to, subject, text, html }) => {
 module.exports = {
   sendEmail,
 };
+
