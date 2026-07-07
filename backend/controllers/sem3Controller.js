@@ -65,7 +65,7 @@ exports.getSem3Choice = async (req, res) => {
   }
 };
 
-exports.listSem3TrackChoices = async (req, res) => {
+exports.listSem3TrackChoices = async (req, res, next) => {
   try {
     const { status, track, academicYear } = req.query;
     const academicYearFilter = academicYear || await getCurrentAcademicYear();
@@ -146,7 +146,7 @@ exports.listSem3TrackChoices = async (req, res) => {
     });
   } catch (error) {
     console.error('listSem3TrackChoices error:', error);
-    return res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
+    next(error);
   }
 };
 
