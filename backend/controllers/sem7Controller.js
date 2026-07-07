@@ -55,7 +55,7 @@ exports.getSem7Choice = async (req, res) => {
 };
 
 // GET /admin/sem7/track-choices - List all Sem 7 track choices
-exports.listSem7TrackChoices = async (req, res) => {
+exports.listSem7TrackChoices = async (req, res, next) => {
   try {
     const { status, track, academicYear } = req.query;
     const academicYearFilter = academicYear || await getCurrentAcademicYear();
@@ -136,12 +136,12 @@ exports.listSem7TrackChoices = async (req, res) => {
     });
   } catch (error) {
     console.error('listSem7TrackChoices error:', error);
-    res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
+    next(error);
   }
 };
 
 // PATCH /admin/sem7/finalize/:studentId
-exports.finalizeSem7Track = async (req, res) => {
+exports.finalizeSem7Track = async (req, res, next) => {
   try {
     const { studentId } = req.params;
     const { finalizedTrack, verificationStatus, remarks } = req.body;
@@ -363,12 +363,12 @@ exports.finalizeSem7Track = async (req, res) => {
     }
   } catch (error) {
     console.error('finalizeSem7Track error:', error);
-    res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
+    next(error);
   }
 };
 
 // GET /admin/sem7/internship1-track-choices - List all students with Internship 1 projects or summer internship applications
-exports.listInternship1TrackChoices = async (req, res) => {
+exports.listInternship1TrackChoices = async (req, res, next) => {
   try {
     const academicYear = await getCurrentAcademicYear();
     const Project = require('../models/Project');
@@ -512,12 +512,12 @@ exports.listInternship1TrackChoices = async (req, res) => {
     });
   } catch (error) {
     console.error('listInternship1TrackChoices error:', error);
-    res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
+    next(error);
   }
 };
 
 // PATCH /admin/sem7/internship1-track/:studentId - Change Internship 1 track (project <-> application)
-exports.changeInternship1Track = async (req, res) => {
+exports.changeInternship1Track = async (req, res, next) => {
   try {
     const { studentId } = req.params;
     const { targetTrack, remarks } = req.body; // targetTrack: 'project' or 'application'
@@ -808,6 +808,6 @@ exports.changeInternship1Track = async (req, res) => {
     }
   } catch (error) {
     console.error('changeInternship1Track error:', error);
-    res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
+    next(error);
   }
 };
