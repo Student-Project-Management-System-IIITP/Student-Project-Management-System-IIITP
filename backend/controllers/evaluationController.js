@@ -6,7 +6,7 @@ const Group = require('../models/Group');
 /**
  * Submit marks for a group evaluation
  */
-exports.submitMarks = async (req, res) => {
+exports.submitMarks = async (req, res, next) => {
   try {
     const { groupId, panelId } = req.params;
     const { marks, comments, role } = req.body;
@@ -109,17 +109,14 @@ exports.submitMarks = async (req, res) => {
       data: evaluation
     });
   } catch (error) {
-    return res.status(400).json({
-      success: false,
-      message: error.message
-    });
+    next(error);
   }
 };
 
 /**
  * Get evaluation status for a group
  */
-exports.getEvaluationStatus = async (req, res) => {
+exports.getEvaluationStatus = async (req, res, next) => {
   try {
     const { groupId, panelId } = req.params;
 
@@ -170,17 +167,14 @@ exports.getEvaluationStatus = async (req, res) => {
       }
     });
   } catch (error) {
-    return res.status(400).json({
-      success: false,
-      message: error.message
-    });
+    next(error);
   }
 };
 
 /**
  * Get all evaluations for a semester
  */
-exports.getSemesterEvaluations = async (req, res) => {
+exports.getSemesterEvaluations = async (req, res, next) => {
   try {
     const { semester, academicYear } = req.query;
 
@@ -207,17 +201,14 @@ exports.getSemesterEvaluations = async (req, res) => {
       }
     });
   } catch (error) {
-    return res.status(400).json({
-      success: false,
-      message: error.message
-    });
+    next(error);
   }
 };
 
 /**
  * Get evaluation marks for a group
  */
-exports.getGroupEvaluationMarks = async (req, res) => {
+exports.getGroupEvaluationMarks = async (req, res, next) => {
   try {
     const { groupId } = req.params;
 
@@ -234,10 +225,7 @@ exports.getGroupEvaluationMarks = async (req, res) => {
       }
     });
   } catch (error) {
-    return res.status(400).json({
-      success: false,
-      message: error.message
-    });
+    next(error);
   }
 };
 
