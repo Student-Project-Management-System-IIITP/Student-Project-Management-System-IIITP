@@ -265,6 +265,10 @@ export const studentAPI = {
   registerMajorProject1: (projectData) => api.post('/student/projects/major1/register', projectData),
   registerMTechSem3MajorProject: (payload) => api.post('/student/mtech/sem3/major-project/register', payload),
 
+  getMTechSem4Choice: () => api.get('/sem4/choice'),
+  setMTechSem4Choice: (choice) => api.post('/sem4/choice', { chosenTrack: choice }),
+  registerMTechSem4MajorProject: (payload) => api.post('/student/mtech/sem4/major-project/register', payload),
+
   // Internship 1 status and registration
   checkInternship1Status: () => api.get('/student/projects/internship1/status'),
   registerInternship1: (projectData) => api.post('/student/projects/internship1/register', projectData),
@@ -384,6 +388,10 @@ export const facultyAPI = {
   chooseSem3MajorProject: (projectId) => api.post(`/faculty/mtech/sem3/major-projects/${projectId}/choose`),
   passSem3MajorProject: (projectId) => api.post(`/faculty/mtech/sem3/major-projects/${projectId}/pass`),
 
+  getSem4MajorProjectRequests: () => api.get('/faculty/mtech/sem4/major-projects/pending'),
+  chooseSem4MajorProject: (projectId) => api.post(`/faculty/mtech/sem4/major-projects/${projectId}/choose`),
+  passSem4MajorProject: (projectId) => api.post(`/faculty/mtech/sem4/major-projects/${projectId}/pass`),
+
   // Sem 4 Evaluation
   getEvaluationAssignments: () => api.get('/faculty/evaluations/assignments'),
   getSem4Students: () => api.get('/faculty/students?semester=4'),
@@ -493,6 +501,14 @@ export const adminAPI = {
     return apiRequest(url.href.replace(API_BASE_URL, ''));
   },
 
+  getMTechSem4Registrations: (params) => {
+    const url = new URL('/admin/mtech/sem4/registrations', API_BASE_URL);
+    if (params) {
+      Object.keys(params).forEach(key => url.searchParams.append(key, params[key]));
+    }
+    return apiRequest(url.href.replace(API_BASE_URL, ''));
+  },
+
   getSem5Registrations: (params) => {
     const url = new URL('/admin/sem5/registrations', API_BASE_URL);
     if (params) {
@@ -545,6 +561,14 @@ export const adminAPI = {
 
   getMTechSem2Statistics: (params) => {
     const url = new URL('/admin/statistics/mtech/sem2', API_BASE_URL);
+    if (params) {
+      Object.keys(params).forEach(key => url.searchParams.append(key, params[key]));
+    }
+    return apiRequest(url.href.replace(API_BASE_URL, ''));
+  },
+
+  getMTechSem4Statistics: (params) => {
+    const url = new URL('/admin/statistics/mtech/sem4', API_BASE_URL);
     if (params) {
       Object.keys(params).forEach(key => url.searchParams.append(key, params[key]));
     }
@@ -608,6 +632,10 @@ export const adminAPI = {
     const queryString = new URLSearchParams(params).toString();
     return api.get(`/sem3/track-choices${queryString ? '?' + queryString : ''}`);
   },
+  listMTechSem4TrackChoices: (params = {}) => {
+    const queryString = new URLSearchParams(params).toString();
+    return api.get(`/sem4/track-choices${queryString ? '?' + queryString : ''}`);
+  },
   finalizeSem7Track: (studentId, data) => api.patch(`/admin/sem7/finalize/${studentId}`, data),
   listInternship1TrackChoices: () => api.get('/admin/sem7/internship1-track-choices'),
   changeInternship1Track: (studentId, data) => api.patch(`/admin/sem7/internship1-track/${studentId}`, data),
@@ -633,6 +661,14 @@ export const adminAPI = {
 
   getMTechSem2UnregisteredStudents: (params) => {
     const url = new URL('/admin/mtech/sem2/unregistered-students', API_BASE_URL);
+    if (params) {
+      Object.keys(params).forEach(key => url.searchParams.append(key, params[key]));
+    }
+    return apiRequest(url.href.replace(API_BASE_URL, ''));
+  },
+
+  getMTechSem4UnregisteredStudents: (params) => {
+    const url = new URL('/admin/mtech/sem4/unregistered-students', API_BASE_URL);
     if (params) {
       Object.keys(params).forEach(key => url.searchParams.append(key, params[key]));
     }

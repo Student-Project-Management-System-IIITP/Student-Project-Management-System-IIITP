@@ -95,6 +95,9 @@ const FacultyDashboard = () => {
   const [sem3Requests, setSem3Requests] = useState([]);
   const [sem3Loading, setSem3Loading] = useState(true);
   const [sem3ActionLoading, setSem3ActionLoading] = useState({});
+  const [sem4Requests, setSem4Requests] = useState([]);
+  const [sem4Loading, setSem4Loading] = useState(true);
+  const [sem4ActionLoading, setSem4ActionLoading] = useState({});
   const [savingRank, setSavingRank] = useState(false);
 
   // Define groups early so hooks can access them before the early return
@@ -200,8 +203,22 @@ const FacultyDashboard = () => {
     }
   };
 
+  const loadSem4Requests = async () => {
+    try {
+      setSem4Loading(true);
+      const response = await facultyAPI.getSem4MajorProjectRequests();
+      setSem4Requests(response.data || []);
+    } catch (error) {
+      console.error('Failed to load Sem 4 requests:', error);
+      setSem4Requests([]);
+    } finally {
+      setSem4Loading(false);
+    }
+  };
+
   useEffect(() => {
     loadSem3Requests();
+    loadSem4Requests();
   }, []);
 
   // No debugging code needed
@@ -380,6 +397,32 @@ const FacultyDashboard = () => {
       toast.error(error.message || 'Failed to pass project');
     } finally {
       setSem3ActionLoading(prev => ({ ...prev, [projectId]: null }));
+    }
+  };
+
+  const handleSem4Choose = async (projectId) => {
+    try {
+      setSem4ActionLoading(prev => ({ ...prev, [projectId]: 'choose' }));
+      await facultyAPI.chooseSem4MajorProject(projectId);
+      toast.success('Project allocated successfully');
+      setSem4Requests(prev => prev.filter(request => request._id !== projectId));
+    } catch (error) {
+      toast.error(error.message || 'Failed to allocate project');
+    } finally {
+      setSem4ActionLoading(prev => ({ ...prev, [projectId]: null }));
+    }
+  };
+
+  const handleSem4Pass = async (projectId) => {
+    try {
+      setSem4ActionLoading(prev => ({ ...prev, [projectId]: 'pass' }));
+      await facultyAPI.passSem4MajorProject(projectId);
+      toast.success('Project passed successfully');
+      setSem4Requests(prev => prev.filter(request => request._id !== projectId));
+    } catch (error) {
+      toast.error(error.message || 'Failed to pass project');
+    } finally {
+      setSem4ActionLoading(prev => ({ ...prev, [projectId]: null }));
     }
   };
 
@@ -759,6 +802,93 @@ const FacultyDashboard = () => {
             </div>
           )}
         </div>
+      </div>
+
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
+        <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4 mb-6">
+          <div>
+            <p className="text-sm uppercase tracking-wide text-indigo-600 font-semibold">
+              M.Tech Semester 4
+            </p>
+            <h2 className="text-2xl font-bold text-gray-900 mt-1">Major Project 2 Requests</h2>
+            <p className="text-gray-600">
+              Review solo Major Project 2 submissions and choose or pass based on your availability.
+            </p>
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="text-sm bg-orange-50 text-orange-800 px-4 py-2 rounded-md flex items-center">
+              <span className="font-semibold">{sem4Requests.length}</span>
+              <span className="ml-2">Pending</span>
+            </div>
+            <button
+              onClick={loadSem4Requests}
+              className="px-4 py-2 border border-gray-300 rounded-md text-sm text-gray-700 hover:bg-gray-50"
+            >
+              Refresh
+            </button>
+          </div>
+        </div>
+
+        {sem4Loading ? (
+          <div className="flex items-center justify-center py-10 text-gray-500">
+            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-indigo-600 mr-3"></div>
+            Loading requests...
+          </div>
+        ) : sem4Requests.length === 0 ? (
+          <div className="text-sm text-gray-500 py-6 text-center">
+            No pending Sem 4 requests at the moment.
+          </div>
+        ) : (
+          <div className="mt-6 space-y-4">
+            {sem4Requests.map(request => (
+              <div
+                key={request._id}
+                className="border border-gray-200 rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow"
+              >
+                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                  <div>
+                    <p className="text-xs uppercase text-indigo-600 font-semibold">
+                      Priority {request.priority} of {request.totalPreferences}
+                    </p>
+                    <h3 className="text-lg font-semibold text-gray-900">
+                      {request.title || 'Major Project 2'}
+                    </h3>
+                    <p className="text-sm text-gray-600">{request.domain || 'Domain not specified'}</p>
+                  </div>
+                  <div className="text-sm text-gray-700">
+                    <p className="font-semibold">{request.student?.fullName || 'Student'}</p>
+                    <p className="text-gray-500">{request.student?.misNumber || 'MIS'}</p>
+                    <p className="text-gray-500">{request.student?.collegeEmail}</p>
+                  </div>
+                </div>
+                <p className="text-sm text-gray-700 mt-3">
+                  {request.summary || 'No summary provided.'}
+                </p>
+                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mt-4">
+                  <p className="text-xs text-gray-500">
+                    Submitted on {request.submittedAt ? new Date(request.submittedAt).toLocaleDateString() : '—'}
+                  </p>
+                  <div className="flex gap-3">
+                    <button
+                      onClick={() => handleSem4Choose(request._id)}
+                      disabled={sem4ActionLoading[request._id]}
+                      className="flex-1 bg-green-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {sem4ActionLoading[request._id] === 'choose' ? 'Processing...' : 'Interested'}
+                    </button>
+                    <button
+                      onClick={() => handleSem4Pass(request._id)}
+                      disabled={sem4ActionLoading[request._id]}
+                      className="flex-1 bg-orange-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {sem4ActionLoading[request._id] === 'pass' ? 'Processing...' : 'Not Interested'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Tab Navigation */}
