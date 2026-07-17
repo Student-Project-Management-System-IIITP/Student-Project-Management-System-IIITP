@@ -150,6 +150,12 @@ const AdminDashboard = () => {
     try {
       setLoading(true);
 
+      const currentDate = new Date();
+      const currentYearNum = currentDate.getFullYear();
+      const isPreMid = currentDate.getMonth() < 6;
+      const academicStartYear = isPreMid ? currentYearNum - 1 : currentYearNum;
+      const currentAcademicYear = `${academicStartYear}-${(academicStartYear + 1).toString().slice(-2)}`;
+
       try {
         setLoading(true);
         
@@ -183,12 +189,6 @@ const AdminDashboard = () => {
           ]);
           
           // Calculate Sem 5 stats
-          const currentDate = new Date();
-          const currentYearNum = currentDate.getFullYear();
-          const isPreMid = currentDate.getMonth() < 6;
-          const academicStartYear = isPreMid ? currentYearNum - 1 : currentYearNum;
-          const currentAcademicYear = `${academicStartYear}-${(academicStartYear + 1).toString().slice(-2)}`;
-          
           // Filter unregistered students list client-side to match the current academic year
           const unregisteredStudentsList = sem5NonRegisteredResponse.data || [];
           const currentYearUnregistered = unregisteredStudentsList.filter(s => s.academicYear === currentAcademicYear);
@@ -300,8 +300,8 @@ const AdminDashboard = () => {
         // Load Sem 7 statistics
         try {
           const [trackChoicesResponse, internshipAppsResponse] = await Promise.all([
-            adminAPI.listSem7TrackChoices(),
-            adminAPI.listInternshipApplications()
+            adminAPI.listSem7TrackChoices({ academicYear: currentAcademicYear }),
+            adminAPI.listInternshipApplications({ academicYear: currentAcademicYear })
           ]);
 
           const trackChoices = trackChoicesResponse.data || [];
@@ -348,16 +348,18 @@ const AdminDashboard = () => {
             applicationsResponse
           ] = await Promise.all([
             adminAPI.getStudentsBySemester({ semester: 8 }),
-            adminAPI.listSem8TrackChoices(),
+            adminAPI.listSem8TrackChoices({ academicYear: currentAcademicYear }),
             adminAPI.getProjects({ semester: 8, projectType: 'major2' }),
             adminAPI.getProjects({ semester: 8, projectType: 'internship2' }),
-            adminAPI.listInternshipApplications({ semester: 8 })
+            adminAPI.listInternshipApplications({ semester: 8, academicYear: currentAcademicYear })
           ]);
 
           const students = studentsResponse.success ? (studentsResponse.data || []) : [];
           const trackChoices = trackChoicesResponse.success ? (trackChoicesResponse.data || []) : [];
-          const majorProject2Projects = majorProject2Response.success ? (majorProject2Response.data || []) : [];
-          const internship2Projects = internship2Response.success ? (internship2Response.data || []) : [];
+          const majorProject2Projects = (majorProject2Response.success ? (majorProject2Response.data || []) : [])
+            .filter(p => p.academicYear === currentAcademicYear);
+          const internship2Projects = (internship2Response.success ? (internship2Response.data || []) : [])
+            .filter(p => p.academicYear === currentAcademicYear);
           const allApplications = applicationsResponse.success ? (applicationsResponse.data || []) : [];
           const sixMonthApps = allApplications.filter(app => app.type === '6month');
 
@@ -498,8 +500,8 @@ const AdminDashboard = () => {
 
       try {
         const [trackChoicesResponse, internshipAppsResponse] = await Promise.all([
-          adminAPI.listSem7TrackChoices(),
-          adminAPI.listInternshipApplications()
+          adminAPI.listSem7TrackChoices({ academicYear: currentAcademicYear }),
+          adminAPI.listInternshipApplications({ academicYear: currentAcademicYear })
         ]);
 
         const trackChoices = trackChoicesResponse.data || [];
