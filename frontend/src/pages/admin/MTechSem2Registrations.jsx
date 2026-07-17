@@ -177,27 +177,27 @@ const MTechSem2Registrations = () => {
 
         {/* Stats */}
         <div className="grid gap-4 md:grid-cols-4 mb-6">
-          <div className="bg-gradient-to-r from-purple-500 to-indigo-500 text-white rounded-lg p-4 shadow">
-            <div className="text-sm uppercase tracking-wide opacity-80">Registered Projects</div>
-            <div className="text-2xl font-semibold mt-2">{filtered.length}</div>
+          <div className="bg-white rounded-lg shadow p-4">
+            <div className="text-sm text-gray-500">Registered Projects</div>
+            <div className="text-2xl font-semibold text-gray-900 mt-1">{filtered.length}</div>
           </div>
-          <div className="bg-gradient-to-r from-emerald-500 to-green-600 text-white rounded-lg p-4 shadow">
-            <div className="text-sm uppercase tracking-wide opacity-80">Faculty Allocated</div>
-            <div className="text-2xl font-semibold mt-2">
+          <div className="bg-white rounded-lg shadow p-4">
+            <div className="text-sm text-gray-500">Faculty Allocated</div>
+            <div className="text-2xl font-semibold text-gray-900 mt-1">
               {filtered.filter((reg) => reg.facultyAllocated && reg.facultyAllocated !== 'Not Allocated').length}
             </div>
           </div>
-          <div className="bg-gradient-to-r from-amber-500 to-orange-600 text-white rounded-lg p-4 shadow">
-            <div className="text-sm uppercase tracking-wide opacity-80">Pending Allocation</div>
-            <div className="text-2xl font-semibold mt-2">
+          <div className="bg-white rounded-lg shadow p-4">
+            <div className="text-sm text-gray-500">Pending Allocation</div>
+            <div className="text-2xl font-semibold text-gray-900 mt-1">
               {filtered.filter(
                 (reg) => !reg.facultyAllocated || reg.facultyAllocated === 'Not Allocated'
               ).length}
             </div>
           </div>
-          <div className="bg-gradient-to-r from-indigo-500 to-blue-600 text-white rounded-lg p-4 shadow">
-            <div className="text-sm uppercase tracking-wide opacity-80">Academic Years</div>
-            <div className="text-2xl font-semibold mt-2">{academicYears.length}</div>
+          <div className="bg-white rounded-lg shadow p-4">
+            <div className="text-sm text-gray-500">Academic Years</div>
+            <div className="text-2xl font-semibold text-gray-900 mt-1">{academicYears.length}</div>
           </div>
         </div>
 
