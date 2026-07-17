@@ -150,11 +150,21 @@ const AdminDashboard = () => {
     try {
       setLoading(true);
 
-      const currentDate = new Date();
-      const currentYearNum = currentDate.getFullYear();
-      const isPreMid = currentDate.getMonth() < 6;
-      const academicStartYear = isPreMid ? currentYearNum - 1 : currentYearNum;
-      const currentAcademicYear = `${academicStartYear}-${(academicStartYear + 1).toString().slice(-2)}`;
+      let currentAcademicYear = '';
+      try {
+        const configResponse = await adminAPI.getSystemConfigByKey('academic.currentYear');
+        currentAcademicYear = configResponse.data?.configValue || configResponse.data?.value;
+      } catch (configError) {
+        console.warn('Failed to fetch academic year configuration, calculating client-side:', configError);
+      }
+
+      if (!currentAcademicYear) {
+        const currentDate = new Date();
+        const currentYearNum = currentDate.getFullYear();
+        const isPreMid = currentDate.getMonth() < 6;
+        const academicStartYear = isPreMid ? currentYearNum - 1 : currentYearNum;
+        currentAcademicYear = `${academicStartYear}-${(academicStartYear + 1).toString().slice(-2)}`;
+      }
 
       try {
         setLoading(true);
