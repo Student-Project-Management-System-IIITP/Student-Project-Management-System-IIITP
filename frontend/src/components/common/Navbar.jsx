@@ -447,60 +447,9 @@ const Navbar = ({ userRole: propUserRole = null, user: propUser = null, roleData
       items.push(
         { name: 'Dashboard', path: '/dashboard/admin' },
         { 
-          name: 'Users', 
-          path: '#',
-          isDropdown: true,
-          items: [
-            { name: 'Students', path: '/admin/users/students' },
-            { name: 'Faculty', path: '/admin/users/faculty' },
-            { name: 'Admins', path: '/admin/users/admins' }
-          ]
-        },
-        { 
-          name: 'Projects', 
-          path: '#',
-          isDropdown: true,
-          items: [
-            { 
-              name: 'B.Tech', 
-              isSection: true,
-              items: [
-                { name: 'Minor Project 1 (Sem 4)', path: '/admin/projects/btech/minor1' },
-                { name: 'Minor Project 2 (Sem 5)', path: '/admin/projects/btech/minor2' },
-                { name: 'Minor Project 3 (Sem 6)', path: '/admin/projects/btech/minor3' },
-                { name: 'Major Project 1 (Sem 7)', path: '/admin/projects/btech/major1' },
-                { name: 'Major Project 2 (Sem 8)', path: '/admin/projects/btech/major2' },
-                { name: 'Internship 1 (2 Month)', path: '/admin/projects/btech/internship1' },
-                { name: 'Internship 2 (2 Month)', path: '/admin/projects/btech/internship2' },
-              ]
-            },
-            { 
-              name: 'M.Tech', 
-              isSection: true,
-              items: [
-                { name: 'Minor Project 1 (Sem 1)', path: '/admin/projects/mtech/minor1' },
-                { name: 'Minor Project 2 (Sem 2)', path: '/admin/projects/mtech/minor2' },
-                { name: 'Major Project 1 (Sem 3)', path: '/admin/projects/mtech/major1' },
-                { name: 'Internship 1 (6 Month)', path: '/admin/projects/mtech/internship1' },
-                { name: 'Major Project 2 (Sem 4)', path: '/admin/projects/mtech/major2' },
-                { name: 'Internship 2 (6 Month)', path: '/admin/projects/mtech/internship2' }
-              ]
-            }
-          ]
-        },
-        { 
           name: 'Panel Management', 
           path: '/admin/panel-config',
           isDropdown: false
-        },
-        { 
-          name: 'Settings', 
-          path: '#',
-          isDropdown: true,
-          items: [
-            { name: 'B.Tech', path: '/admin/settings/btech' },
-            { name: 'M.Tech', path: '/admin/settings/mtech' }
-          ]
         }
       );
     }
