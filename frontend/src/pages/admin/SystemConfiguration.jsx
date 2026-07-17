@@ -142,20 +142,17 @@ const SystemConfiguration = () => {
       try {
         setLoading(true);
 
-        // Load Sem 5 configs
-        const sem5Response = await adminAPI.getSystemConfigurations('sem5');
+        // Load all configs concurrently
+        const [sem5Response, sem7Response, sem8Response, mtechResponse] = await Promise.all([
+          adminAPI.getSystemConfigurations('sem5'),
+          adminAPI.getSystemConfigurations('sem7'),
+          adminAPI.getSystemConfigurations('sem8'),
+          adminAPI.getSystemConfigurations('mtech')
+        ]);
+        
         const sem5ConfigData = sem5Response.data || [];
-
-        // Load Sem 7 configs
-        const sem7Response = await adminAPI.getSystemConfigurations('sem7');
         const sem7ConfigData = sem7Response.data || [];
-
-        // Load Sem 8 configs
-        const sem8Response = await adminAPI.getSystemConfigurations('sem8');
         const sem8ConfigData = sem8Response.data || [];
-
-        // Load M.Tech configs
-        const mtechResponse = await adminAPI.getSystemConfigurations('mtech');
         const mtechConfigData = mtechResponse.data || [];
 
         // If no configs found, auto-initialize them
@@ -163,15 +160,19 @@ const SystemConfiguration = () => {
           const loadingToast = toast.loading('Initializing system configurations...');
           try {
             await adminAPI.initializeSystemConfigs();
-            // Reload configs after initialization
-            const newSem5Response = await adminAPI.getSystemConfigurations('sem5');
-            const newSem7Response = await adminAPI.getSystemConfigurations('sem7');
-            const newSem8Response = await adminAPI.getSystemConfigurations('sem8');
-            const newMtechResponse = await adminAPI.getSystemConfigurations('mtech');
+            // Reload configs concurrently after initialization
+            const [newSem5Response, newSem7Response, newSem8Response, newMtechResponse] = await Promise.all([
+              adminAPI.getSystemConfigurations('sem5'),
+              adminAPI.getSystemConfigurations('sem7'),
+              adminAPI.getSystemConfigurations('sem8'),
+              adminAPI.getSystemConfigurations('mtech')
+            ]);
+            
             const newSem5ConfigData = newSem5Response.data || [];
             const newSem7ConfigData = newSem7Response.data || [];
             const newSem8ConfigData = newSem8Response.data || [];
             const newMtechConfigData = newMtechResponse.data || [];
+            
             setConfigs(newSem5ConfigData);
             setSem7Configs(newSem7ConfigData);
             setSem8Configs(newSem8ConfigData);

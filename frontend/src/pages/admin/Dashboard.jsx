@@ -149,397 +149,82 @@ const AdminDashboard = () => {
   
   const facultyDefaultPassword = useMemo(() => computeDefaultPassword(facultyForm.name), [facultyForm.name]);
 
-  const loadAdminData = useCallback(async () => {
+  const [btechLoading, setBtechLoading] = useState(true);
+  const [mtechLoading, setMtechLoading] = useState(true);
+  const [btechLoaded, setBtechLoaded] = useState(false);
+  const [mtechLoaded, setMtechLoaded] = useState(false);
+
+  const loadBTechData = useCallback(async () => {
+    if (btechLoaded) return;
     try {
-      setLoading(true);
+      setBtechLoading(true);
+      const [
+        sem4ProjectsResult, sem4UnregResult,
+        sem5StatsResult, sem5GroupsResult,
+        sem6StatsResult, sem6RegResult, sem6NonRegResult,
+        sem7TrackChoicesResult, sem7InternshipAppsResult,
+        sem8StudentsResult, sem8TrackChoicesResult, sem8Major2Result, sem8Internship2Result, sem8ApplicationsResult
+      ] = await Promise.allSettled([
+        adminAPI.getSem4Projects(),
+        adminAPI.getUnregisteredSem4Students(),
+        adminAPI.getSem5Statistics(),
+        adminAPI.getGroups({ semester: 5 }),
+        adminAPI.getSem6Statistics(),
+        adminAPI.getSem6Registrations({}),
+        adminAPI.getSem6NonRegisteredGroups({}),
+        adminAPI.listSem7TrackChoices(),
+        adminAPI.listInternshipApplications(),
+        adminAPI.getStudentsBySemester({ semester: 8 }),
+        adminAPI.listSem8TrackChoices(),
+        adminAPI.getProjects({ semester: 8, projectType: 'major2' }),
+        adminAPI.getProjects({ semester: 8, projectType: 'internship2' }),
+        adminAPI.listInternshipApplications({ semester: 8 })
+      ]);
 
-      const projectsResponse = await adminAPI.getSem4Projects();
-      const projects = projectsResponse.data || [];
-      const minorProject1Projects = projects.filter(p => p.projectType === 'minor1');
-
-      const unregisteredResponse = await adminAPI.getUnregisteredSem4Students();
-      const unregisteredStudents = unregisteredResponse.data?.length || 0;
-
-      setSem4Stats({
-        totalProjects: minorProject1Projects.length,
-        registeredProjects: minorProject1Projects.length,
-        unregisteredStudents,
-        registrationRate: minorProject1Projects.length > 0
-          ? (minorProject1Projects.length / (minorProject1Projects.length + unregisteredStudents) * 100).toFixed(1)
-          : 0
-      });
-
-      try {
-        setLoading(true);
-        
-        // Load Sem 4 projects and statistics
-        const projectsResponse = await adminAPI.getSem4Projects();
-        
-        // Calculate Sem 4 stats for Minor Project 1 only
-        const projects = projectsResponse.data || [];
+      if (sem4ProjectsResult.status === 'fulfilled' && sem4UnregResult.status === 'fulfilled') {
+        const projects = sem4ProjectsResult.value.data || [];
         const minorProject1Projects = projects.filter(p => p.projectType === 'minor1');
-        
-        // Get unregistered students count
-        const unregisteredResponse = await adminAPI.getUnregisteredSem4Students();
-        const unregisteredStudents = unregisteredResponse.data?.length || 0;
-        
-        const sem4Stats = {
+        const unregisteredStudents = sem4UnregResult.value.data?.length || 0;
+        setSem4Stats({
           totalProjects: minorProject1Projects.length,
           registeredProjects: minorProject1Projects.length,
-          unregisteredStudents: unregisteredStudents,
-          registrationRate: minorProject1Projects.length > 0 ? 
-            (minorProject1Projects.length / (minorProject1Projects.length + unregisteredStudents) * 100).toFixed(1) : 0
-        };
-        
-        setSem4Stats(sem4Stats);
-
-          // Load Sem 5 statistics
-        try {
-          const sem5StatsResponse = await adminAPI.getSem5Statistics();
-          
-          // Calculate Sem 5 stats
-          const sem5Stats = {
-            totalGroups: sem5StatsResponse.data?.totalGroups || 0,
-            formedGroups: sem5StatsResponse.data?.formedGroups || 0,
-            allocatedGroups: sem5StatsResponse.data?.allocatedGroups || 0,
-            unallocatedGroups: sem5StatsResponse.data?.unallocatedGroups || 0,
-            totalStudents: sem5StatsResponse.data?.totalStudents || 0,
-            registeredProjects: sem5StatsResponse.data?.registeredProjects || 0
-          };
-          
-          setSem5Stats(sem5Stats);
-          
-          // Load Sem 5 groups with project info
-          try {
-            const groupsResponse = await adminAPI.getGroups({ semester: 5 });
-            setSem5Groups(groupsResponse.data || []);
-          } catch (groupsError) {
-            console.warn('Sem 5 groups not available:', groupsError);
-            setSem5Groups([]);
-          }
-        } catch (sem5Error) {
-          console.warn('Sem 5 data not available:', sem5Error);
-          // Set default Sem 5 stats if not available
-          setSem5Stats({
-            totalGroups: 0,
-            formedGroups: 0,
-            allocatedGroups: 0,
-            unallocatedGroups: 0,
-            totalStudents: 0,
-            registeredProjects: 0
-          });
-          setSem5Groups([]);
-        }
-
-        // Load Sem 6 statistics
-        try {
-          const sem6StatsResponse = await adminAPI.getSem6Statistics();
-          
-          // Calculate Sem 6 stats
-          const sem6Stats = {
-            totalSem5Groups: sem6StatsResponse.data?.totalSem5Groups || 0,
-            totalProjects: sem6StatsResponse.data?.totalProjects || 0,
-            registeredProjects: sem6StatsResponse.data?.registeredProjects || 0,
-            notRegistered: sem6StatsResponse.data?.notRegistered || 0,
-            continuationProjects: sem6StatsResponse.data?.continuationProjects || 0,
-            newProjects: sem6StatsResponse.data?.newProjects || 0,
-            registrationRate: sem6StatsResponse.data?.registrationRate || 0
-          };
-          
-          setSem6Stats(sem6Stats);
-          
-          // Load Sem 6 registered groups with project info
-          try {
-            const registeredResponse = await adminAPI.getSem6Registrations({});
-            const registeredProjects = registeredResponse.data || [];
-            // Extract groups from projects - the response has groupId and groupName
-            const registeredGroups = registeredProjects
-              .filter(p => p.groupId)
-              .map(p => ({
-                _id: p.groupId,
-                name: p.groupName || `Group ${p.groupId.slice(-6)}`,
-                project: {
-                  _id: p._id,
-                  title: p.projectTitle,
-                  projectType: 'minor3',
-                  status: p.status,
-                  description: p.description || '',
-                  isContinuation: p.isContinuation || false
-                },
-                isContinuation: p.isContinuation || false,
-                members: [], // Will be populated if available
-                allocatedFaculty: p.allocatedFaculty && p.allocatedFaculty !== 'Not Allocated' ? {
-                  fullName: p.allocatedFaculty,
-                  department: p.facultyDepartment || 'N/A'
-                } : null,
-                maxMembers: 5 // Default
-              }));
-            setSem6RegisteredGroups(registeredGroups);
-          } catch (registeredError) {
-            console.warn('Sem 6 registered groups not available:', registeredError);
-            setSem6RegisteredGroups([]);
-          }
-          
-          // Load Sem 6 non-registered groups
-          try {
-            const nonRegisteredResponse = await adminAPI.getSem6NonRegisteredGroups({});
-            setSem6NonRegisteredGroups(nonRegisteredResponse.data || []);
-          } catch (nonRegisteredError) {
-            console.warn('Sem 6 non-registered groups not available:', nonRegisteredError);
-            setSem6NonRegisteredGroups([]);
-          }
-        } catch (sem6Error) {
-          console.warn('Sem 6 data not available:', sem6Error);
-          // Set default Sem 6 stats if not available
-          setSem6Stats({
-            totalSem5Groups: 0,
-            totalProjects: 0,
-            registeredProjects: 0,
-            notRegistered: 0,
-            continuationProjects: 0,
-            newProjects: 0,
-            registrationRate: 0
-          });
-          setSem6RegisteredGroups([]);
-          setSem6NonRegisteredGroups([]);
-        }
-
-        // Load Sem 7 statistics
-        try {
-          const [trackChoicesResponse, internshipAppsResponse] = await Promise.all([
-            adminAPI.listSem7TrackChoices(),
-            adminAPI.listInternshipApplications()
-          ]);
-
-          const trackChoices = trackChoicesResponse.data || [];
-          const applications = internshipAppsResponse.data || [];
-
-          const sem7Stats = {
-            totalTrackChoices: trackChoices.length,
-            pendingTrackChoices: trackChoices.filter(tc => !tc.finalizedTrack || tc.verificationStatus === 'pending').length,
-            approvedTrackChoices: trackChoices.filter(tc => tc.verificationStatus === 'approved').length,
-            internshipTrackChoices: trackChoices.filter(tc => tc.finalizedTrack === 'internship' || tc.chosenTrack === 'internship').length,
-            courseworkTrackChoices: trackChoices.filter(tc => tc.finalizedTrack === 'coursework' || tc.chosenTrack === 'coursework').length,
-            totalInternshipApplications: applications.length,
-            pendingApplications: applications.filter(app => app.status === 'pending').length,
-            approvedApplications: applications.filter(app => app.status === 'approved').length,
-            sixMonthApplications: applications.filter(app => app.type === '6month').length,
-            summerApplications: applications.filter(app => app.type === 'summer').length
-          };
-
-          setSem7Stats(sem7Stats);
-        } catch (sem7Error) {
-          console.warn('Sem 7 data not available:', sem7Error);
-          // Set default Sem 7 stats if not available
-          setSem7Stats({
-            totalTrackChoices: 0,
-            pendingTrackChoices: 0,
-            approvedTrackChoices: 0,
-            internshipTrackChoices: 0,
-            courseworkTrackChoices: 0,
-            totalInternshipApplications: 0,
-            pendingApplications: 0,
-            approvedApplications: 0,
-            sixMonthApplications: 0,
-            summerApplications: 0
-          });
-        }
-
-        // Load Sem 8 statistics
-        try {
-          const [
-            studentsResponse,
-            trackChoicesResponse,
-            majorProject2Response,
-            internship2Response,
-            applicationsResponse
-          ] = await Promise.all([
-            adminAPI.getStudentsBySemester({ semester: 8 }),
-            adminAPI.listSem8TrackChoices(),
-            adminAPI.getProjects({ semester: 8, projectType: 'major2' }),
-            adminAPI.getProjects({ semester: 8, projectType: 'internship2' }),
-            adminAPI.listInternshipApplications({ semester: 8 })
-          ]);
-
-          const students = studentsResponse.success ? (studentsResponse.data || []) : [];
-          const trackChoices = trackChoicesResponse.success ? (trackChoicesResponse.data || []) : [];
-          const majorProject2Projects = majorProject2Response.success ? (majorProject2Response.data || []) : [];
-          const internship2Projects = internship2Response.success ? (internship2Response.data || []) : [];
-          const allApplications = applicationsResponse.success ? (applicationsResponse.data || []) : [];
-          const sixMonthApps = allApplications.filter(app => app.type === '6month');
-
-
-          // Calculate student types (matching backend logic)
-          const type1Count = students.filter(s => {
-            const sem7Selection = s.semesterSelections?.find(sel => sel.semester === 7);
-            return sem7Selection?.finalizedTrack === 'internship' && 
-                   sem7Selection?.internshipOutcome === 'verified_pass';
-          }).length;
-          const type2Count = students.filter(s => {
-            const sem7Selection = s.semesterSelections?.find(sel => sel.semester === 7);
-            return sem7Selection?.finalizedTrack === 'coursework';
-          }).length;
-
-          // Calculate track choices (Type 2 only)
-          const major2Choices = trackChoices.filter(tc => {
-            const track = tc.finalizedTrack || tc.chosenTrack;
-            return (track === 'coursework' && tc.studentType === 'type2') || track === 'major2';
-          }).length;
-          const internshipChoices = trackChoices.filter(tc => {
-            const track = tc.finalizedTrack || tc.chosenTrack;
-            return track === 'internship';
-          }).length;
-
-          // Calculate Major Project 2 types
-          const groupMajor2 = majorProject2Projects.filter(p => !!p.group).length;
-          const soloMajor2 = majorProject2Projects.filter(p => !p.group).length;
-
-          const sem8Stats = {
-            totalStudents: students.length,
-            type1Students: type1Count,
-            type2Students: type2Count,
-            totalTrackChoices: trackChoices.length,
-            pendingTrackChoices: trackChoices.filter(tc => !tc.finalizedTrack || tc.verificationStatus === 'pending').length,
-            approvedTrackChoices: trackChoices.filter(tc => tc.verificationStatus === 'approved').length,
-            major2TrackChoices: major2Choices,
-            internshipTrackChoices: internshipChoices,
-            totalMajorProject2: majorProject2Projects.length,
-            groupMajorProject2: groupMajor2,
-            soloMajorProject2: soloMajor2,
-            totalInternship2: internship2Projects.length,
-            total6MonthApplications: sixMonthApps.length,
-            pending6MonthApplications: sixMonthApps.filter(app => ['submitted', 'pending_verification', 'needs_info'].includes(app.status)).length,
-            verifiedPass6Month: sixMonthApps.filter(app => app.status === 'verified_pass').length
-          };
-
-          setSem8Stats(sem8Stats);
-        } catch (sem8Error) {
-          console.warn('Sem 8 data not available:', sem8Error);
-          // Set default Sem 8 stats if not available
-          setSem8Stats({
-            totalStudents: 0,
-            type1Students: 0,
-            type2Students: 0,
-            totalTrackChoices: 0,
-            pendingTrackChoices: 0,
-            approvedTrackChoices: 0,
-            major2TrackChoices: 0,
-            internshipTrackChoices: 0,
-            totalMajorProject2: 0,
-            groupMajorProject2: 0,
-            soloMajorProject2: 0,
-            totalInternship2: 0,
-            total6MonthApplications: 0,
-            pending6MonthApplications: 0,
-            verifiedPass6Month: 0
-          });
-        }
-      } catch (error) {
-        console.error('Failed to load admin data:', error);
-      } finally {
-        setLoading(false);
-      }
-
-      // Load M.Tech Sem 1 statistics
-      try {
-        const statsData = (await adminAPI.getMTechSem1Statistics()).data || {};
-        setMtechSem1Stats({
-          totalStudents: statsData.totalStudents || 0,
-          registeredProjects: statsData.registeredProjects || 0,
-          facultyAllocated: statsData.facultyAllocated || 0,
-          pendingAllocations: statsData.pendingAllocations || 0,
-          unregisteredStudents: statsData.unregisteredStudents || 0,
-          registrationRate: statsData.registrationRate || 0
-        });
-      } catch (mtechError) {
-        console.warn('M.Tech Sem 1 data not available:', mtechError);
-        setMtechSem1Stats({
-          totalStudents: 0,
-          registeredProjects: 0,
-          facultyAllocated: 0,
-          pendingAllocations: 0,
-          unregisteredStudents: 0,
-          registrationRate: 0
+          unregisteredStudents,
+          registrationRate: minorProject1Projects.length > 0 ? (minorProject1Projects.length / (minorProject1Projects.length + unregisteredStudents) * 100).toFixed(1) : 0
         });
       }
 
-      try {
-        const statsData = (await adminAPI.getMTechSem2Statistics()).data || {};
-        setMtechSem2Stats({
-          totalStudents: statsData.totalStudents || 0,
-          registeredProjects: statsData.registeredProjects || 0,
-          facultyAllocated: statsData.facultyAllocated || 0,
-          pendingAllocations: statsData.pendingAllocations || 0,
-          unregisteredStudents: statsData.unregisteredStudents || 0,
-          registrationRate: statsData.registrationRate || 0
-        });
-      } catch (mtechSem2Error) {
-        console.warn('M.Tech Sem 2 data not available:', mtechSem2Error);
-        setMtechSem2Stats({
-          totalStudents: 0,
-          registeredProjects: 0,
-          facultyAllocated: 0,
-          pendingAllocations: 0,
-          unregisteredStudents: 0,
-          registrationRate: 0
-        });
-      }
-
-      try {
-        const sem5StatsResponse = await adminAPI.getSem5Statistics();
+      if (sem5StatsResult.status === 'fulfilled') {
+        const stats = sem5StatsResult.value.data || {};
         setSem5Stats({
-          totalGroups: sem5StatsResponse.data?.totalGroups || 0,
-          formedGroups: sem5StatsResponse.data?.formedGroups || 0,
-          allocatedGroups: sem5StatsResponse.data?.allocatedGroups || 0,
-          unallocatedGroups: sem5StatsResponse.data?.unallocatedGroups || 0,
-          totalStudents: sem5StatsResponse.data?.totalStudents || 0,
-          registeredProjects: sem5StatsResponse.data?.registeredProjects || 0
-        });
-      } catch (sem5Error) {
-        console.warn('Sem 5 data not available:', sem5Error);
-        setSem5Stats({
-          totalGroups: 0,
-          formedGroups: 0,
-          allocatedGroups: 0,
-          unallocatedGroups: 0,
-          totalStudents: 0,
-          registeredProjects: 0
+          totalGroups: stats.totalGroups || 0, formedGroups: stats.formedGroups || 0, allocatedGroups: stats.allocatedGroups || 0, unallocatedGroups: stats.unallocatedGroups || 0, totalStudents: stats.totalStudents || 0, registeredProjects: stats.registeredProjects || 0
         });
       }
 
-      try {
-        const sem6StatsResponse = await adminAPI.getSem6Statistics();
+      if (sem5GroupsResult.status === 'fulfilled') setSem5Groups(sem5GroupsResult.value.data || []);
+
+      if (sem6StatsResult.status === 'fulfilled') {
+        const stats = sem6StatsResult.value.data || {};
         setSem6Stats({
-          totalSem5Groups: sem6StatsResponse.data?.totalSem5Groups || 0,
-          totalProjects: sem6StatsResponse.data?.totalProjects || 0,
-          registeredProjects: sem6StatsResponse.data?.registeredProjects || 0,
-          notRegistered: sem6StatsResponse.data?.notRegistered || 0,
-          continuationProjects: sem6StatsResponse.data?.continuationProjects || 0,
-          newProjects: sem6StatsResponse.data?.newProjects || 0,
-          registrationRate: sem6StatsResponse.data?.registrationRate || 0
-        });
-      } catch (sem6Error) {
-        console.warn('Sem 6 data not available:', sem6Error);
-        setSem6Stats({
-          totalSem5Groups: 0,
-          totalProjects: 0,
-          registeredProjects: 0,
-          notRegistered: 0,
-          continuationProjects: 0,
-          newProjects: 0,
-          registrationRate: 0
+          totalSem5Groups: stats.totalSem5Groups || 0, totalProjects: stats.totalProjects || 0, registeredProjects: stats.registeredProjects || 0, notRegistered: stats.notRegistered || 0, continuationProjects: stats.continuationProjects || 0, newProjects: stats.newProjects || 0, registrationRate: stats.registrationRate || 0
         });
       }
 
-      try {
-        const [trackChoicesResponse, internshipAppsResponse] = await Promise.all([
-          adminAPI.listSem7TrackChoices(),
-          adminAPI.listInternshipApplications()
-        ]);
+      if (sem6RegResult.status === 'fulfilled') {
+        const registeredProjects = sem6RegResult.value.data || [];
+        setSem6RegisteredGroups(registeredProjects.filter(p => p.groupId).map(p => ({
+          _id: p.groupId, name: p.groupName || `Group ${p.groupId.slice(-6)}`,
+          project: { _id: p._id, title: p.projectTitle, projectType: 'minor3', status: p.status, description: p.description || '', isContinuation: p.isContinuation || false },
+          isContinuation: p.isContinuation || false, members: [],
+          allocatedFaculty: p.allocatedFaculty && p.allocatedFaculty !== 'Not Allocated' ? { fullName: p.allocatedFaculty, department: p.facultyDepartment || 'N/A' } : null,
+          maxMembers: 5
+        })));
+      }
 
-        const trackChoices = trackChoicesResponse.data || [];
-        const applications = internshipAppsResponse.data || [];
+      if (sem6NonRegResult.status === 'fulfilled') setSem6NonRegisteredGroups(sem6NonRegResult.value.data || []);
 
+      if (sem7TrackChoicesResult.status === 'fulfilled' && sem7InternshipAppsResult.status === 'fulfilled') {
+        const trackChoices = sem7TrackChoicesResult.value.data || [];
+        const applications = sem7InternshipAppsResult.value.data || [];
         setSem7Stats({
           totalTrackChoices: trackChoices.length,
           pendingTrackChoices: trackChoices.filter(tc => !tc.finalizedTrack || tc.verificationStatus === 'pending').length,
@@ -552,69 +237,119 @@ const AdminDashboard = () => {
           sixMonthApplications: applications.filter(app => app.type === '6month').length,
           summerApplications: applications.filter(app => app.type === 'summer').length
         });
-      } catch (sem7Error) {
-        console.warn('Sem 7 data not available:', sem7Error);
-        setSem7Stats({
-          totalTrackChoices: 0,
-          pendingTrackChoices: 0,
-          approvedTrackChoices: 0,
-          internshipTrackChoices: 0,
-          courseworkTrackChoices: 0,
-          totalInternshipApplications: 0,
-          pendingApplications: 0,
-          approvedApplications: 0,
-          sixMonthApplications: 0,
-          summerApplications: 0
+      }
+
+      if (sem8StudentsResult.status === 'fulfilled' && sem8TrackChoicesResult.status === 'fulfilled' && sem8Major2Result.status === 'fulfilled' && sem8Internship2Result.status === 'fulfilled' && sem8ApplicationsResult.status === 'fulfilled') {
+        const students = sem8StudentsResult.value.success ? (sem8StudentsResult.value.data || []) : [];
+        const trackChoices = sem8TrackChoicesResult.value.success ? (sem8TrackChoicesResult.value.data || []) : [];
+        const majorProject2Projects = sem8Major2Result.value.success ? (sem8Major2Result.value.data || []) : [];
+        const internship2Projects = sem8Internship2Result.value.success ? (sem8Internship2Result.value.data || []) : [];
+        const allApplications = sem8ApplicationsResult.value.success ? (sem8ApplicationsResult.value.data || []) : [];
+        const sixMonthApps = allApplications.filter(app => app.type === '6month');
+
+        const type1Count = students.filter(s => {
+          const sem7Selection = s.semesterSelections?.find(sel => sel.semester === 7);
+          return sem7Selection?.finalizedTrack === 'internship' && sem7Selection?.internshipOutcome === 'verified_pass';
+        }).length;
+        const type2Count = students.filter(s => {
+          const sem7Selection = s.semesterSelections?.find(sel => sel.semester === 7);
+          return sem7Selection?.finalizedTrack === 'coursework';
+        }).length;
+
+        const major2Choices = trackChoices.filter(tc => {
+          const track = tc.finalizedTrack || tc.chosenTrack;
+          return (track === 'coursework' && tc.studentType === 'type2') || track === 'major2';
+        }).length;
+        const internshipChoices = trackChoices.filter(tc => {
+          const track = tc.finalizedTrack || tc.chosenTrack;
+          return track === 'internship';
+        }).length;
+
+        const groupMajor2 = majorProject2Projects.filter(p => !!p.group).length;
+        const soloMajor2 = majorProject2Projects.filter(p => !p.group).length;
+
+        setSem8Stats({
+          totalStudents: students.length, type1Students: type1Count, type2Students: type2Count,
+          totalTrackChoices: trackChoices.length, pendingTrackChoices: trackChoices.filter(tc => !tc.finalizedTrack || tc.verificationStatus === 'pending').length,
+          approvedTrackChoices: trackChoices.filter(tc => tc.verificationStatus === 'approved').length, major2TrackChoices: major2Choices, internshipTrackChoices: internshipChoices,
+          totalMajorProject2: majorProject2Projects.length, groupMajorProject2: groupMajor2, soloMajorProject2: soloMajor2,
+          totalInternship2: internship2Projects.length, total6MonthApplications: sixMonthApps.length,
+          pending6MonthApplications: sixMonthApps.filter(app => ['submitted', 'pending_verification', 'needs_info'].includes(app.status)).length,
+          verifiedPass6Month: sixMonthApps.filter(app => app.status === 'verified_pass').length
+        });
+      }
+      setBtechLoaded(true);
+    } catch (error) {
+      console.error('Failed to load BTech data:', error);
+    } finally {
+      setBtechLoading(false);
+    }
+  }, [btechLoaded]);
+
+  const loadMTechData = useCallback(async () => {
+    if (mtechLoaded) return;
+    try {
+      setMtechLoading(true);
+      const [
+        mtechSem1StatsResult, mtechSem2StatsResult, mtechSem3TrackChoicesResult, mtechSem3ApplicationsResult
+      ] = await Promise.allSettled([
+        adminAPI.getMTechSem1Statistics(),
+        adminAPI.getMTechSem2Statistics(),
+        adminAPI.listMTechSem3TrackChoices(),
+        adminAPI.listInternshipApplications({ semester: 3 })
+      ]);
+
+      if (mtechSem1StatsResult.status === 'fulfilled') {
+        const statsData = mtechSem1StatsResult.value.data || {};
+        setMtechSem1Stats({
+          totalStudents: statsData.totalStudents || 0, registeredProjects: statsData.registeredProjects || 0, facultyAllocated: statsData.facultyAllocated || 0, pendingAllocations: statsData.pendingAllocations || 0, unregisteredStudents: statsData.unregisteredStudents || 0, registrationRate: statsData.registrationRate || 0
         });
       }
 
-      try {
-        const [sem3TrackChoicesResponse, sem3ApplicationsResponse] = await Promise.all([
-          adminAPI.listMTechSem3TrackChoices(),
-          adminAPI.listInternshipApplications({ semester: 3 })
-        ]);
+      if (mtechSem2StatsResult.status === 'fulfilled') {
+        const statsData = mtechSem2StatsResult.value.data || {};
+        setMtechSem2Stats({
+          totalStudents: statsData.totalStudents || 0, registeredProjects: statsData.registeredProjects || 0, facultyAllocated: statsData.facultyAllocated || 0, pendingAllocations: statsData.pendingAllocations || 0, unregisteredStudents: statsData.unregisteredStudents || 0, registrationRate: statsData.registrationRate || 0
+        });
+      }
 
-        const sem3TrackChoices = sem3TrackChoicesResponse.data || [];
-        const sem3Apps = (sem3ApplicationsResponse.data || []).filter(app => app.type === '6month');
-
-        const internshipTrack = sem3TrackChoices.filter(choice =>
-          (choice.finalizedTrack || choice.chosenTrack) === 'internship'
-        ).length;
-        const majorProjectTrack = sem3TrackChoices.filter(choice =>
-          (choice.finalizedTrack || choice.chosenTrack) === 'coursework'
-        ).length;
-
+      if (mtechSem3TrackChoicesResult.status === 'fulfilled' && mtechSem3ApplicationsResult.status === 'fulfilled') {
+        const sem3TrackChoices = mtechSem3TrackChoicesResult.value.data || [];
+        const sem3Apps = (mtechSem3ApplicationsResult.value.data || []).filter(app => app.type === '6month');
+        const internshipTrack = sem3TrackChoices.filter(choice => (choice.finalizedTrack || choice.chosenTrack) === 'internship').length;
+        const majorProjectTrack = sem3TrackChoices.filter(choice => (choice.finalizedTrack || choice.chosenTrack) === 'coursework').length;
         setMtechSem3Stats({
-          totalStudents: sem3TrackChoices.length,
-          internshipTrack,
-          majorProjectTrack,
-          totalApplications: sem3Apps.length,
+          totalStudents: sem3TrackChoices.length, internshipTrack, majorProjectTrack, totalApplications: sem3Apps.length,
           pendingApplications: sem3Apps.filter(app => ['submitted', 'pending_verification'].includes(app.status)).length,
           approvedApplications: sem3Apps.filter(app => app.status === 'verified_pass').length,
           needsInfo: sem3Apps.filter(app => app.status === 'needs_info').length
         });
-      } catch (sem3Error) {
-        console.warn('M.Tech Sem 3 data not available:', sem3Error);
-        setMtechSem3Stats({
-          totalStudents: 0,
-          internshipTrack: 0,
-          majorProjectTrack: 0,
-          totalApplications: 0,
-          pendingApplications: 0,
-          approvedApplications: 0,
-          needsInfo: 0
-        });
       }
+      setMtechLoaded(true);
     } catch (error) {
-      console.error('Failed to load admin data:', error);
+      console.error('Failed to load MTech data:', error);
     } finally {
-      setLoading(false);
+      setMtechLoading(false);
     }
-  }, []);
+  }, [mtechLoaded]);
 
   useEffect(() => {
-    loadAdminData();
-  }, [loadAdminData]);
+    if (activeProgram === 'B.Tech') {
+      loadBTechData();
+    } else if (activeProgram === 'M.Tech') {
+      loadMTechData();
+    }
+  }, [activeProgram, loadBTechData, loadMTechData]);
+
+  // Overall loading logic for the spinner
+  useEffect(() => {
+    if (activeProgram === 'B.Tech') {
+        setLoading(btechLoading);
+    } else {
+        setLoading(mtechLoading);
+    }
+  }, [activeProgram, btechLoading, mtechLoading]);
+
 
   const handleChange = (e) => {
     const { name, value } = e.target;
