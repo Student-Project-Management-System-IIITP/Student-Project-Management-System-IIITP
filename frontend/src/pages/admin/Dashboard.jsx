@@ -437,7 +437,7 @@ const AdminDashboard = () => {
 
       // Load M.Tech Sem 1 statistics
       try {
-        const statsData = (await adminAPI.getMTechSem1Statistics()).data || {};
+        const statsData = (await adminAPI.getMTechSem1Statistics({ academicYear: currentAcademicYear })).data || {};
         setMtechSem1Stats({
           totalStudents: statsData.totalStudents || 0,
           registeredProjects: statsData.registeredProjects || 0,
@@ -459,7 +459,7 @@ const AdminDashboard = () => {
       }
 
       try {
-        const statsData = (await adminAPI.getMTechSem2Statistics()).data || {};
+        const statsData = (await adminAPI.getMTechSem2Statistics({ academicYear: currentAcademicYear })).data || {};
         setMtechSem2Stats({
           totalStudents: statsData.totalStudents || 0,
           registeredProjects: statsData.registeredProjects || 0,
@@ -537,8 +537,8 @@ const AdminDashboard = () => {
 
       try {
         const [sem3TrackChoicesResponse, sem3ApplicationsResponse] = await Promise.all([
-          adminAPI.listMTechSem3TrackChoices(),
-          adminAPI.listInternshipApplications({ semester: 3 })
+          adminAPI.listMTechSem3TrackChoices({ academicYear: currentAcademicYear }),
+          adminAPI.listInternshipApplications({ semester: 3, academicYear: currentAcademicYear })
         ]);
 
         const sem3TrackChoices = sem3TrackChoicesResponse.data || [];
