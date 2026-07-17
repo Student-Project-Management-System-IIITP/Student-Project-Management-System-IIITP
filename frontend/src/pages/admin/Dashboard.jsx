@@ -44,12 +44,10 @@ const AdminDashboard = () => {
 
   // Sem 4 specific state
   const [sem4Stats, setSem4Stats] = useState({
-    totalProjects: 0,
+    totalStudents: 0,
     registeredProjects: 0,
-    activeProjects: 0,
-    completedProjects: 0,
-    evaluationScheduled: false,
-    pendingEvaluations: 0
+    unregisteredStudents: 0,
+    registrationRate: '0.0%'
   });
   
   // Sem 5 specific state
@@ -59,7 +57,9 @@ const AdminDashboard = () => {
     allocatedGroups: 0,
     unallocatedGroups: 0,
     totalStudents: 0,
-    registeredProjects: 0
+    registeredProjects: 0,
+    totalNotRegistered: 0,
+    notInGroup: 0
   });
   // eslint-disable-next-line no-unused-vars
   const [sem5Groups, setSem5Groups] = useState([]);
@@ -90,10 +90,7 @@ const AdminDashboard = () => {
     totalSem5Groups: 0,
     totalProjects: 0,
     registeredProjects: 0,
-    notRegistered: 0,
-    continuationProjects: 0,
-    newProjects: 0,
-    registrationRate: 0
+    notRegistered: 0
   });
   // eslint-disable-next-line no-unused-vars
   const [sem6RegisteredGroups, setSem6RegisteredGroups] = useState([]);
@@ -153,22 +150,6 @@ const AdminDashboard = () => {
     try {
       setLoading(true);
 
-      const projectsResponse = await adminAPI.getSem4Projects();
-      const projects = projectsResponse.data || [];
-      const minorProject1Projects = projects.filter(p => p.projectType === 'minor1');
-
-      const unregisteredResponse = await adminAPI.getUnregisteredSem4Students();
-      const unregisteredStudents = unregisteredResponse.data?.length || 0;
-
-      setSem4Stats({
-        totalProjects: minorProject1Projects.length,
-        registeredProjects: minorProject1Projects.length,
-        unregisteredStudents,
-        registrationRate: minorProject1Projects.length > 0
-          ? (minorProject1Projects.length / (minorProject1Projects.length + unregisteredStudents) * 100).toFixed(1)
-          : 0
-      });
-
       try {
         setLoading(true);
         
@@ -184,27 +165,43 @@ const AdminDashboard = () => {
         const unregisteredStudents = unregisteredResponse.data?.length || 0;
         
         const sem4Stats = {
-          totalProjects: minorProject1Projects.length,
+          totalStudents: minorProject1Projects.length + unregisteredStudents,
           registeredProjects: minorProject1Projects.length,
           unregisteredStudents: unregisteredStudents,
-          registrationRate: minorProject1Projects.length > 0 ? 
-            (minorProject1Projects.length / (minorProject1Projects.length + unregisteredStudents) * 100).toFixed(1) : 0
+          registrationRate: (minorProject1Projects.length + unregisteredStudents) > 0
+            ? ((minorProject1Projects.length / (minorProject1Projects.length + unregisteredStudents)) * 100).toFixed(1) + '%'
+            : '0.0%'
         };
         
         setSem4Stats(sem4Stats);
 
           // Load Sem 5 statistics
         try {
-          const sem5StatsResponse = await adminAPI.getSem5Statistics();
+          const [sem5StatsResponse, sem5NonRegisteredResponse] = await Promise.all([
+            adminAPI.getSem5Statistics(),
+            adminAPI.getSem5NonRegisteredStudents()
+          ]);
           
           // Calculate Sem 5 stats
+          const currentDate = new Date();
+          const currentYearNum = currentDate.getFullYear();
+          const isPreMid = currentDate.getMonth() < 6;
+          const academicStartYear = isPreMid ? currentYearNum - 1 : currentYearNum;
+          const currentAcademicYear = `${academicStartYear}-${(academicStartYear + 1).toString().slice(-2)}`;
+          
+          // Filter unregistered students list client-side to match the current academic year
+          const unregisteredStudentsList = sem5NonRegisteredResponse.data || [];
+          const currentYearUnregistered = unregisteredStudentsList.filter(s => s.academicYear === currentAcademicYear);
+          
           const sem5Stats = {
             totalGroups: sem5StatsResponse.data?.totalGroups || 0,
             formedGroups: sem5StatsResponse.data?.formedGroups || 0,
             allocatedGroups: sem5StatsResponse.data?.allocatedGroups || 0,
             unallocatedGroups: sem5StatsResponse.data?.unallocatedGroups || 0,
             totalStudents: sem5StatsResponse.data?.totalStudents || 0,
-            registeredProjects: sem5StatsResponse.data?.registeredProjects || 0
+            registeredProjects: sem5StatsResponse.data?.registeredProjects || 0,
+            totalNotRegistered: currentYearUnregistered.length,
+            notInGroup: currentYearUnregistered.filter(s => !s.groupId).length
           };
           
           setSem5Stats(sem5Stats);
@@ -226,7 +223,9 @@ const AdminDashboard = () => {
             allocatedGroups: 0,
             unallocatedGroups: 0,
             totalStudents: 0,
-            registeredProjects: 0
+            registeredProjects: 0,
+            totalNotRegistered: 0,
+            notInGroup: 0
           });
           setSem5Groups([]);
         }
@@ -240,10 +239,7 @@ const AdminDashboard = () => {
             totalSem5Groups: sem6StatsResponse.data?.totalSem5Groups || 0,
             totalProjects: sem6StatsResponse.data?.totalProjects || 0,
             registeredProjects: sem6StatsResponse.data?.registeredProjects || 0,
-            notRegistered: sem6StatsResponse.data?.notRegistered || 0,
-            continuationProjects: sem6StatsResponse.data?.continuationProjects || 0,
-            newProjects: sem6StatsResponse.data?.newProjects || 0,
-            registrationRate: sem6StatsResponse.data?.registrationRate || 0
+            notRegistered: sem6StatsResponse.data?.notRegistered || 0
           };
           
           setSem6Stats(sem6Stats);
@@ -295,10 +291,7 @@ const AdminDashboard = () => {
             totalSem5Groups: 0,
             totalProjects: 0,
             registeredProjects: 0,
-            notRegistered: 0,
-            continuationProjects: 0,
-            newProjects: 0,
-            registrationRate: 0
+            notRegistered: 0
           });
           setSem6RegisteredGroups([]);
           setSem6NonRegisteredGroups([]);
@@ -486,37 +479,12 @@ const AdminDashboard = () => {
       }
 
       try {
-        const sem5StatsResponse = await adminAPI.getSem5Statistics();
-        setSem5Stats({
-          totalGroups: sem5StatsResponse.data?.totalGroups || 0,
-          formedGroups: sem5StatsResponse.data?.formedGroups || 0,
-          allocatedGroups: sem5StatsResponse.data?.allocatedGroups || 0,
-          unallocatedGroups: sem5StatsResponse.data?.unallocatedGroups || 0,
-          totalStudents: sem5StatsResponse.data?.totalStudents || 0,
-          registeredProjects: sem5StatsResponse.data?.registeredProjects || 0
-        });
-      } catch (sem5Error) {
-        console.warn('Sem 5 data not available:', sem5Error);
-        setSem5Stats({
-          totalGroups: 0,
-          formedGroups: 0,
-          allocatedGroups: 0,
-          unallocatedGroups: 0,
-          totalStudents: 0,
-          registeredProjects: 0
-        });
-      }
-
-      try {
         const sem6StatsResponse = await adminAPI.getSem6Statistics();
         setSem6Stats({
           totalSem5Groups: sem6StatsResponse.data?.totalSem5Groups || 0,
           totalProjects: sem6StatsResponse.data?.totalProjects || 0,
           registeredProjects: sem6StatsResponse.data?.registeredProjects || 0,
-          notRegistered: sem6StatsResponse.data?.notRegistered || 0,
-          continuationProjects: sem6StatsResponse.data?.continuationProjects || 0,
-          newProjects: sem6StatsResponse.data?.newProjects || 0,
-          registrationRate: sem6StatsResponse.data?.registrationRate || 0
+          notRegistered: sem6StatsResponse.data?.notRegistered || 0
         });
       } catch (sem6Error) {
         console.warn('Sem 6 data not available:', sem6Error);
@@ -524,10 +492,7 @@ const AdminDashboard = () => {
           totalSem5Groups: 0,
           totalProjects: 0,
           registeredProjects: 0,
-          notRegistered: 0,
-          continuationProjects: 0,
-          newProjects: 0,
-          registrationRate: 0
+          notRegistered: 0
         });
       }
 
@@ -703,6 +668,10 @@ const AdminDashboard = () => {
     );
   }
 
+  const sem6RegistrationRate = sem6Stats.totalSem5Groups > 0
+    ? ((sem6Stats.registeredProjects / sem6Stats.totalSem5Groups) * 100).toFixed(1) + '%'
+    : '0.0%';
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       {/* Header */}
@@ -822,8 +791,12 @@ const AdminDashboard = () => {
                 
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   <div className="bg-surface-200 rounded-lg p-4 border border-neutral-200">
+                    <div className="text-2xl font-bold text-neutral-900">{sem4Stats.totalStudents}</div>
+                    <div className="text-neutral-600 text-xs font-medium uppercase tracking-wider mt-1">Total Students</div>
+                  </div>
+                  <div className="bg-surface-200 rounded-lg p-4 border border-neutral-200">
                     <div className="text-2xl font-bold text-neutral-900">{sem4Stats.registeredProjects}</div>
-                    <div className="text-neutral-600 text-xs font-medium uppercase tracking-wider mt-1">Registered Projects</div>
+                    <div className="text-neutral-600 text-xs font-medium uppercase tracking-wider mt-1">Registered</div>
                   </div>
                   <div className="bg-surface-200 rounded-lg p-4 border border-neutral-200">
                     <div className="text-2xl font-bold text-neutral-900">{sem4Stats.unregisteredStudents}</div>
@@ -831,18 +804,14 @@ const AdminDashboard = () => {
                   </div>
                   <div className="bg-surface-200 rounded-lg p-4 border border-neutral-200">
                     <div className="flex items-center gap-2">
-                      <div className="text-2xl font-bold text-neutral-900">{sem4Stats.registrationRate}%</div>
-                      {sem4Stats.registrationRate > 80 ? (
+                      <div className="text-2xl font-bold text-neutral-900">{sem4Stats.registrationRate}</div>
+                      {parseFloat(sem4Stats.registrationRate) > 80 ? (
                         <span className="badge-success text-xs px-2 py-0.5 rounded-full">Good</span>
                       ) : (
                         <span className="badge-warning text-xs px-2 py-0.5 rounded-full">Low</span>
                       )}
                     </div>
                     <div className="text-neutral-600 text-xs font-medium uppercase tracking-wider mt-1">Registration Rate</div>
-                  </div>
-                  <div className="bg-surface-200 rounded-lg p-4 border border-neutral-200">
-                    <div className="text-2xl font-bold text-neutral-900">{sem4Stats.registeredProjects + sem4Stats.unregisteredStudents}</div>
-                    <div className="text-neutral-600 text-xs font-medium uppercase tracking-wider mt-1">Total Students</div>
                   </div>
                 </div>
               </div>
@@ -870,16 +839,17 @@ const AdminDashboard = () => {
                     <div className="text-neutral-600 text-xs font-medium uppercase tracking-wider mt-1">Total Groups</div>
                   </div>
                   <div className="bg-surface-200 rounded-lg p-4 border border-neutral-200">
-                    <div className="text-2xl font-bold text-neutral-900">{sem5Stats.registeredProjects}</div>
-                    <div className="text-neutral-600 text-xs font-medium uppercase tracking-wider mt-1">Registered Projects</div>
-                  </div>
-                  <div className="bg-surface-200 rounded-lg p-4 border border-neutral-200">
                     <div className="text-2xl font-bold text-neutral-900">{sem5Stats.allocatedGroups}</div>
                     <div className="text-neutral-600 text-xs font-medium uppercase tracking-wider mt-1">Faculty Allocated</div>
                   </div>
                   <div className="bg-surface-200 rounded-lg p-4 border border-neutral-200">
                     <div className="text-2xl font-bold text-neutral-900">{sem5Stats.unallocatedGroups}</div>
                     <div className="text-neutral-600 text-xs font-medium uppercase tracking-wider mt-1">Pending Allocation</div>
+                  </div>
+                  <div className="bg-surface-200 rounded-lg p-4 border border-neutral-200">
+                    <div className="text-2xl font-bold text-neutral-900">{sem5Stats.totalNotRegistered}</div>
+                    <div className="text-neutral-600 text-xs font-medium uppercase tracking-wider mt-1">NOT REGISTERED</div>
+                    <div className="text-neutral-500 text-xs mt-0.5">({sem5Stats.notInGroup} not in group)</div>
                   </div>
                 </div>
               </div>
@@ -898,20 +868,25 @@ const AdminDashboard = () => {
                 
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   <div className="bg-surface-200 rounded-lg p-4 border border-neutral-200">
-                    <div className="text-2xl font-bold text-neutral-900">{sem6Stats.totalProjects}</div>
-                    <div className="text-neutral-600 text-xs font-medium uppercase tracking-wider mt-1">Registered Projects</div>
+                    <div className="text-2xl font-bold text-neutral-900">{sem6Stats.totalSem5Groups}</div>
+                    <div className="text-neutral-600 text-xs font-medium uppercase tracking-wider mt-1">Total Groups</div>
+                  </div>
+                  <div className="bg-surface-200 rounded-lg p-4 border border-neutral-200">
+                    <div className="text-2xl font-bold text-neutral-900">{sem6Stats.registeredProjects}</div>
+                    <div className="text-neutral-600 text-xs font-medium uppercase tracking-wider mt-1">Projects Registered</div>
                   </div>
                   <div className="bg-surface-200 rounded-lg p-4 border border-neutral-200">
                     <div className="text-2xl font-bold text-neutral-900">{sem6Stats.notRegistered}</div>
                     <div className="text-neutral-600 text-xs font-medium uppercase tracking-wider mt-1">Not Registered</div>
                   </div>
                   <div className="bg-surface-200 rounded-lg p-4 border border-neutral-200">
-                    <div className="text-2xl font-bold text-neutral-900">{sem6Stats.continuationProjects}</div>
-                    <div className="text-neutral-600 text-xs font-medium uppercase tracking-wider mt-1">Continuation Projects</div>
-                  </div>
-                  <div className="bg-surface-200 rounded-lg p-4 border border-neutral-200">
                     <div className="flex items-center gap-2">
-                      <div className="text-2xl font-bold text-neutral-900">{sem6Stats.registrationRate}%</div>
+                      <div className="text-2xl font-bold text-neutral-900">{sem6RegistrationRate}</div>
+                      {parseFloat(sem6RegistrationRate) > 80 ? (
+                        <span className="badge-success text-xs px-2 py-0.5 rounded-full">Good</span>
+                      ) : (
+                        <span className="badge-warning text-xs px-2 py-0.5 rounded-full">Low</span>
+                      )}
                     </div>
                     <div className="text-neutral-600 text-xs font-medium uppercase tracking-wider mt-1">Registration Rate</div>
                   </div>
