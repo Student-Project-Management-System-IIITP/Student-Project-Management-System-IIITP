@@ -20,7 +20,7 @@ async function getCurrentAcademicYear() {
 }
 
 // GET /student/sem8/status - Get Sem 8 status (student type and current state)
-exports.getSem8Status = async (req, res) => {
+exports.getSem8Status = async (req, res, next) => {
   try {
     const userId = req.user.userId;
     const student = await Student.findOne({ user: userId });
@@ -78,7 +78,7 @@ exports.getSem8Status = async (req, res) => {
     });
   } catch (error) {
     console.error('getSem8Status error:', error);
-    res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
+    next(error);
   }
 };
 
@@ -164,7 +164,7 @@ exports.getSem8Choice = async (req, res) => {
 };
 
 // GET /admin/sem8/track-choices - List all Sem 8 track choices
-exports.listSem8TrackChoices = async (req, res) => {
+exports.listSem8TrackChoices = async (req, res, next) => {
   try {
     const { status, track, academicYear } = req.query;
     const academicYearFilter = academicYear || await getCurrentAcademicYear();
@@ -258,12 +258,12 @@ exports.listSem8TrackChoices = async (req, res) => {
     });
   } catch (error) {
     console.error('listSem8TrackChoices error:', error);
-    res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
+    next(error);
   }
 };
 
 // PATCH /admin/sem8/finalize/:studentId
-exports.finalizeSem8Track = async (req, res) => {
+exports.finalizeSem8Track = async (req, res, next) => {
   try {
     const { studentId } = req.params;
     const { finalizedTrack, verificationStatus, remarks } = req.body;
@@ -465,7 +465,7 @@ exports.finalizeSem8Track = async (req, res) => {
     }
   } catch (error) {
     console.error('finalizeSem8Track error:', error);
-    res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
+    next(error);
   }
 };
 

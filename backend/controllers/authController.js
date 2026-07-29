@@ -23,7 +23,7 @@ const isValidEmail = (email) => {
   return emailRegex.test(email);
 };
 
-const requestPasswordReset = async (req, res) => {
+const requestPasswordReset = async (req, res, next) => {
   try {
     const { email } = req.body;
 
@@ -86,15 +86,11 @@ const requestPasswordReset = async (req, res) => {
     });
   } catch (error) {
     console.error('Error requesting password reset:', error);
-    return res.status(500).json({
-      success: false,
-      message: 'Internal server error',
-      error: error.message
-    });
+    next(error);
   }
 };
 
-const resetPassword = async (req, res) => {
+const resetPassword = async (req, res, next) => {
   try {
     const { token, email, password } = req.body;
 
@@ -124,16 +120,12 @@ const resetPassword = async (req, res) => {
     });
   } catch (error) {
     console.error('Error resetting password:', error);
-    return res.status(500).json({
-      success: false,
-      message: 'Internal server error',
-      error: error.message
-    });
+    next(error);
   }
 };
 
 // Send OTP for student signup email verification
-const sendSignupOtp = async (req, res) => {
+const sendSignupOtp = async (req, res, next) => {
   try {
     const { email } = req.body;
 
@@ -242,16 +234,12 @@ const sendSignupOtp = async (req, res) => {
     });
   } catch (error) {
     console.error('Error generating signup OTP:', error);
-    return res.status(500).json({
-      success: false,
-      message: 'Internal server error',
-      error: error.message,
-    });
+    next(error);
   }
 };
 
 // Verify OTP for student signup email verification
-const verifySignupOtp = async (req, res) => {
+const verifySignupOtp = async (req, res, next) => {
   try {
     const { email, otp } = req.body;
 
@@ -300,16 +288,12 @@ const verifySignupOtp = async (req, res) => {
     });
   } catch (error) {
     console.error('Error verifying signup OTP:', error);
-    return res.status(500).json({
-      success: false,
-      message: 'Internal server error',
-      error: error.message,
-    });
+    next(error);
   }
 };
 
 // Signup Student
-const signupStudent = async (req, res) => {
+const signupStudent = async (req, res, next) => {
   try {
     const { 
       fullName, 
@@ -399,16 +383,12 @@ const signupStudent = async (req, res) => {
 
   } catch (error) {
     console.error('Student registration error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Internal server error',
-      error: error.message
-    });
+    next(error);
   }
 };
 
 // Signup Faculty
-const signupFaculty = async (req, res) => {
+const signupFaculty = async (req, res, next) => {
   try {
     const { 
       fullName, 
@@ -470,16 +450,12 @@ const signupFaculty = async (req, res) => {
 
   } catch (error) {
     console.error('Faculty registration error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Internal server error',
-      error: error.message
-    });
+    next(error);
   }
 };
 
 // Signup Admin
-const signupAdmin = async (req, res) => {
+const signupAdmin = async (req, res, next) => {
   try {
     const { 
       fullName, 
@@ -537,16 +513,12 @@ const signupAdmin = async (req, res) => {
 
   } catch (error) {
     console.error('Admin registration error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Internal server error',
-      error: error.message
-    });
+    next(error);
   }
 };
 
 // Login User
-const loginUser = async (req, res) => {
+const loginUser = async (req, res, next) => {
   try {
     const { email, password } = req.body;
 
@@ -612,16 +584,12 @@ const loginUser = async (req, res) => {
 
   } catch (error) {
     console.error('Login error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Internal server error',
-      error: error.message
-    });
+    next(error);
   }
 };
 
 // Get User Profile
-const getUserProfile = async (req, res) => {
+const getUserProfile = async (req, res, next) => {
   try {
     const userId = req.user.id;
     
@@ -657,16 +625,12 @@ const getUserProfile = async (req, res) => {
 
   } catch (error) {
     console.error('Get profile error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Internal server error',
-      error: error.message
-    });
+    next(error);
   }
 };
 
 // Update User Profile
-const updateUserProfile = async (req, res) => {
+const updateUserProfile = async (req, res, next) => {
   try {
     const userId = req.user.id;
     const { name, phone } = req.body;
@@ -695,16 +659,12 @@ const updateUserProfile = async (req, res) => {
 
   } catch (error) {
     console.error('Update profile error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Internal server error',
-      error: error.message
-    });
+    next(error);
   }
 };
 
 // Change Password
-const changePassword = async (req, res) => {
+const changePassword = async (req, res, next) => {
   try {
     const userId = req.user.id;
     const { currentPassword, newPassword } = req.body;
@@ -737,16 +697,12 @@ const changePassword = async (req, res) => {
 
   } catch (error) {
     console.error('Change password error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Internal server error',
-      error: error.message
-    });
+    next(error);
   }
 };
 
 // Logout User
-const logoutUser = async (req, res) => {
+const logoutUser = async (req, res, next) => {
   try {
     // In a real application, you might want to blacklist the token
     // For now, we'll just send a success response
@@ -756,16 +712,12 @@ const logoutUser = async (req, res) => {
     });
   } catch (error) {
     console.error('Logout error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Internal server error',
-      error: error.message
-    });
+    next(error);
   }
 };
 
 // Verify Token
-const verifyToken = async (req, res) => {
+const verifyToken = async (req, res, next) => {
   try {
     const userId = req.user.id;
     
@@ -786,11 +738,7 @@ const verifyToken = async (req, res) => {
 
   } catch (error) {
     console.error('Verify token error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Internal server error',
-      error: error.message
-    });
+    next(error);
   }
 };
 

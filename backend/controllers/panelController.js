@@ -9,7 +9,7 @@ const panelAllocationService = require('../services/panelAllocationService');
 /**
  * Get or Create Panel Configuration for an academic year
  */
-exports.getPanelConfiguration = async (req, res) => {
+exports.getPanelConfiguration = async (req, res, next) => {
   try {
     const { academicYear } = req.query;
 
@@ -26,17 +26,14 @@ exports.getPanelConfiguration = async (req, res) => {
       data: config
     });
   } catch (error) {
-    return res.status(400).json({
-      success: false,
-      message: error.message
-    });
+    next(error);
   }
 };
 
 /**
  * Create or Update Panel Configuration
  */
-exports.setPanelConfiguration = async (req, res) => {
+exports.setPanelConfiguration = async (req, res, next) => {
   try {
     const { academicYear } = req.params;
     const {
@@ -109,10 +106,7 @@ exports.setPanelConfiguration = async (req, res) => {
       data: config
     });
   } catch (error) {
-    return res.status(400).json({
-      success: false,
-      message: error.message
-    });
+    next(error);
   }
 };
 
@@ -121,7 +115,7 @@ exports.setPanelConfiguration = async (req, res) => {
 /**
  * Generate panels for a semester
  */
-exports.generatePanels = async (req, res) => {
+exports.generatePanels = async (req, res, next) => {
   try {
     const { semester, academicYear } = req.body;
 
@@ -152,10 +146,7 @@ exports.generatePanels = async (req, res) => {
       }
     });
   } catch (error) {
-    return res.status(400).json({
-      success: false,
-      message: error.message
-    });
+    next(error);
   }
 };
 
@@ -164,7 +155,7 @@ exports.generatePanels = async (req, res) => {
 /**
  * Get all panels for a semester
  */
-exports.getPanelsBySemester = async (req, res) => {
+exports.getPanelsBySemester = async (req, res, next) => {
   try {
     const { semester, academicYear } = req.query;
 
@@ -186,17 +177,14 @@ exports.getPanelsBySemester = async (req, res) => {
       }
     });
   } catch (error) {
-    return res.status(400).json({
-      success: false,
-      message: error.message
-    });
+    next(error);
   }
 };
 
 /**
  * Get specific panel details
  */
-exports.getPanelDetails = async (req, res) => {
+exports.getPanelDetails = async (req, res, next) => {
   try {
     const { panelId } = req.params;
 
@@ -215,10 +203,7 @@ exports.getPanelDetails = async (req, res) => {
       data: panel
     });
   } catch (error) {
-    return res.status(400).json({
-      success: false,
-      message: error.message
-    });
+    next(error);
   }
 };
 
@@ -227,7 +212,7 @@ exports.getPanelDetails = async (req, res) => {
 /**
  * Update panel members
  */
-exports.updatePanelMembers = async (req, res) => {
+exports.updatePanelMembers = async (req, res, next) => {
   try {
     const { panelId } = req.params;
     const { members } = req.body;
@@ -273,17 +258,14 @@ exports.updatePanelMembers = async (req, res) => {
       data: panel
     });
   } catch (error) {
-    return res.status(400).json({
-      success: false,
-      message: error.message
-    });
+    next(error);
   }
 };
 
 /**
  * Rotate conveyers across panels
  */
-exports.rotateConveyers = async (req, res) => {
+exports.rotateConveyers = async (req, res, next) => {
   try {
     const { academicYear, semester } = req.body;
 
@@ -301,17 +283,14 @@ exports.rotateConveyers = async (req, res) => {
       data: result
     });
   } catch (error) {
-    return res.status(400).json({
-      success: false,
-      message: error.message
-    });
+    next(error);
   }
 };
 
 /**
  * Get panel load distribution
  */
-exports.getPanelLoadDistribution = async (req, res) => {
+exports.getPanelLoadDistribution = async (req, res, next) => {
   try {
     const { academicYear } = req.query;
 
@@ -329,17 +308,14 @@ exports.getPanelLoadDistribution = async (req, res) => {
       data: distribution
     });
   } catch (error) {
-    return res.status(400).json({
-      success: false,
-      message: error.message
-    });
+    next(error);
   }
 };
 
 /**
  * Delete panel
  */
-exports.deletePanel = async (req, res) => {
+exports.deletePanel = async (req, res, next) => {
   try {
     const { panelId } = req.params;
 
@@ -357,10 +333,7 @@ exports.deletePanel = async (req, res) => {
       message: 'Panel deleted successfully'
     });
   } catch (error) {
-    return res.status(400).json({
-      success: false,
-      message: error.message
-    });
+    next(error);
   }
 };
 
@@ -369,7 +342,7 @@ exports.deletePanel = async (req, res) => {
 /**
  * Get panels assigned to a faculty member
  */
-exports.getFacultyPanels = async (req, res) => {
+exports.getFacultyPanels = async (req, res, next) => {
   try {
     const { facultyId } = req.params;
 
@@ -387,17 +360,14 @@ exports.getFacultyPanels = async (req, res) => {
       }
     });
   } catch (error) {
-    return res.status(400).json({
-      success: false,
-      message: error.message
-    });
+    next(error);
   }
 };
 
 /**
  * Get evaluation marks for faculty submissions
  */
-exports.getFacultyEvaluations = async (req, res) => {
+exports.getFacultyEvaluations = async (req, res, next) => {
   try {
     const { facultyId } = req.params;
     const { semester, academicYear } = req.query;
@@ -430,10 +400,7 @@ exports.getFacultyEvaluations = async (req, res) => {
       }
     });
   } catch (error) {
-    return res.status(400).json({
-      success: false,
-      message: error.message
-    });
+    next(error);
   }
 };
 
